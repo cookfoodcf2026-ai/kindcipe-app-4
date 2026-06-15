@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "和諧食譜 Kindcipe",
+    "slug": "kindcipe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1C2E4A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kindcipe.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "需要存取相片庫以上傳食譜截圖",
+        "NSCameraUsageDescription": "需要存取相機以拍攝食譜截圖",
+        "NSClipboardUsageDescription": "偵測剪貼板中的食譜連結"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1C2E4A"
+      },
+      "package": "com.kindcipe.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "需要存取相片庫以上傳食譜截圖"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      "@react-native-google-signin/google-signin"
+    ],
+    "scheme": "kindcipe",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
