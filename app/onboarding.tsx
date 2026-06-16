@@ -163,8 +163,14 @@ export default function OnboardingScreen() {
       } else {
         setParseError("保存失敗");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("保存失敗:", error);
+      const msg = error?.message || "";
+      if (msg.includes("已在你的食譜庫中")) {
+        console.log("食譜已存在，跳過");
+        await finishOnboarding();
+        return;
+      }
       setParseError("保存失敗，請重試");
     } finally {
       setImportSaving(false);
