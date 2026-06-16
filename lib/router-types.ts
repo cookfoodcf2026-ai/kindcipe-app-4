@@ -5,6 +5,6 @@
  * 這樣可以獲得完整的類型提示和自動補全
  */
 
-import type { AppRouter } from "../../cookfood/server/routers";
+import type { AppRouter } from "../../kindcipe-backend/server/routers";
 
 export type { AppRouter };

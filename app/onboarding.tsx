@@ -25,7 +25,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { trpc } from "@/lib/trpc";
+import { trpc, apiClient } from "@/lib/trpc";
 
 const { width, height } = Dimensions.get("window");
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
       setParseError(null);
       
       if (importMode === "url") {
-        const result = await trpc.recipes.parseUrl.mutate({ url: importUrl });
+        const result = await apiClient.recipes.parseUrl.mutate({ url: importUrl });
         if (result.parseReason === "ok") {
           setPreviewData(result);
           setSelectedCategory(result.recipeCategory || "中菜");
@@ -113,7 +113,7 @@ export default function OnboardingScreen() {
           setParseError(`無法解析: ${result.description}`);
         }
       } else if (importMode === "text") {
-        const result = await trpc.recipes.parseText.mutate({ text: importText });
+        const result = await apiClient.recipes.parseText.mutate({ text: importText });
         if (result.name !== "無法解析" && result.name !== "需要手動輸入") {
           setPreviewData(result);
           setSelectedCategory(result.recipeCategory || "中菜");
@@ -140,7 +140,7 @@ export default function OnboardingScreen() {
       setImportSaving(true);
       setParseError(null);
       
-      const result = await trpc.recipes.importRecipe.mutate({
+      const result = await apiClient.recipes.importRecipe.mutate({
         name: previewData.name,
         description: previewData.description,
         image: previewData.image || previewData.thumbnailUrl,
@@ -571,12 +571,13 @@ export default function OnboardingScreen() {
           <Text style={styles.formTitle}>食譜預覽</Text>
 
           {/* 食譜圖片 */}
-          {(previewData.image || previewData.thumbnailUrl) && (
-            <Image
-              source={{ uri: previewData.image || previewData.thumbnailUrl }}
-              style={styles.previewImage}
-            />
-          )}
+          {(() => {
+            const imgUri = previewData.image || previewData.thumbnailUrl;
+            const isValidUri = imgUri && typeof imgUri === "string" && imgUri.startsWith("http");
+            return isValidUri ? (
+              <Image source={{ uri: imgUri }} style={styles.previewImage} />
+            ) : null;
+          })()}
 
           {/* 食譜名稱 */}
           <Text style={styles.previewTitle}>{previewData.name}</Text>

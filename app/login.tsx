@@ -15,8 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { saveAuthTokenFromResponse } from "@/lib/auth";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import * as AppleAuthentication from "expo-apple-authentication";
+// import { GoogleSignin } from "@react-native-google-signin/google-signin";
+// import * as AppleAuthentication from "expo-apple-authentication";
 
 // Kindcipe 後端已部署到 Railway
 const BACKEND_URL = "https://kindcipe-backend-production.up.railway.app";
@@ -24,11 +24,11 @@ const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FFFFFF";
 
-// Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
-GoogleSignin.configure({
-  webClientId: "690207937492-7hfs5hkksd5heo78kcfmq294f19rgp6d.apps.googleusercontent.com",
-  iosClientId: "690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db.apps.googleusercontent.com",
-});
+// // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
+// GoogleSignin.configure({
+//   webClientId: "690207937492-7hfs5hkksd5heo78kcfmq294f19rgp6d.apps.googleusercontent.com",
+//   iosClientId: "690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db.apps.googleusercontent.com",
+// });
 
 type Mode = "login" | "register";
 
@@ -89,73 +89,73 @@ export default function LoginScreen() {
     }
   };
 
-  // ── Google Sign In ──────────────────────────────────────────────────────────
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setLoadingType("google");
-    try {
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) throw new Error("No ID token");
+  // // ── Google Sign In ──────────────────────────────────────────────────────────
+  // const handleGoogleSignIn = async () => {
+  //   setIsLoading(true);
+  //   setLoadingType("google");
+  //   try {
+  //     await GoogleSignin.hasPlayServices();
+  //     const userInfo = await GoogleSignin.signIn();
+  //     const idToken = userInfo.data?.idToken;
+  //     if (!idToken) throw new Error("No ID token");
 
-      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ idToken }),
-      });
-      if (!res.ok) throw new Error("Google login failed");
-      const data = await res.json();
-      await saveAuthTokenFromResponse(data);
-      await onLoginSuccess();
-    } catch (err: any) {
-      if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
-        Alert.alert("Google 登入失敗", "請稍後再試");
-      }
-    } finally {
-      setIsLoading(false);
-      setLoadingType("");
-    }
-  };
+  //     const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       credentials: "include",
+  //       body: JSON.stringify({ idToken }),
+  //     });
+  //     if (!res.ok) throw new Error("Google login failed");
+  //     const data = await res.json();
+  //     await saveAuthTokenFromResponse(data);
+  //     await onLoginSuccess();
+  //   } catch (err: any) {
+  //     if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
+  //       Alert.alert("Google 登入失敗", "請稍後再試");
+  //     }
+  //   } finally {
+  //     setIsLoading(false);
+  //     setLoadingType("");
+  //   }
+  // };
 
-  // ── Apple Sign In ───────────────────────────────────────────────────────────
-  const handleAppleSignIn = async () => {
-    setIsLoading(true);
-    setLoadingType("apple");
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-      const idToken = credential.identityToken;
-      if (!idToken) throw new Error("No ID token");
+  // // ── Apple Sign In ───────────────────────────────────────────────────────────
+  // const handleAppleSignIn = async () => {
+  //   setIsLoading(true);
+  //   setLoadingType("apple");
+  //   try {
+  //     const credential = await AppleAuthentication.signInAsync({
+  //       requestedScopes: [
+  //         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+  //         AppleAuthentication.AppleAuthenticationScope.EMAIL,
+  //       ],
+  //     });
+  //     const idToken = credential.identityToken;
+  //     if (!idToken) throw new Error("No ID token");
 
-      const name = credential.fullName
-        ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(" ")
-        : undefined;
+  //     const name = credential.fullName
+  //       ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(" ")
+  //       : undefined;
 
-      const res = await fetch(`${BACKEND_URL}/api/auth/apple`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ idToken, name }),
-      });
-      if (!res.ok) throw new Error("Apple login failed");
-      const data = await res.json();
-      await saveAuthTokenFromResponse(data);
-      await onLoginSuccess();
-    } catch (err: any) {
-      if (err.code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Apple 登入失敗", "請稍後再試");
-      }
-    } finally {
-      setIsLoading(false);
-      setLoadingType("");
-    }
-  };
+  //     const res = await fetch(`${BACKEND_URL}/api/auth/apple`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       credentials: "include",
+  //       body: JSON.stringify({ idToken, name }),
+  //     });
+  //     if (!res.ok) throw new Error("Apple login failed");
+  //     const data = await res.json();
+  //     await saveAuthTokenFromResponse(data);
+  //     await onLoginSuccess();
+  //   } catch (err: any) {
+  //     if (err.code !== "ERR_REQUEST_CANCELED") {
+  //       Alert.alert("Apple 登入失敗", "請稍後再試");
+  //     }
+  //   } finally {
+  //     setIsLoading(false);
+  //     setLoadingType("");
+  //   }
+  // };
   
   return (
     <SafeAreaView style={styles.root}>
@@ -272,47 +272,49 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider}>
+          {/* {/ Divider /} */}
+          {/* <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>或使用以下方式</Text>
             <View style={styles.dividerLine} />
-          </View>
+          </View> */}
 
-          {/* Social Buttons */}
-          <View style={styles.socialSection}>
-            {/* Apple Sign In — iOS only */}
-            {Platform.OS === "ios" && (
+          {/* {/ Social Buttons /} */}
+          {/* <View style={styles.socialSection}>
+            <View>
+              {Platform.OS === "ios" && (
+                <TouchableOpacity
+                  style={styles.socialBtn}
+                  onPress={handleAppleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.85}
+                >
+                  {isLoading && loadingType === "apple" ? (
+                    <ActivityIndicator color={BRAND} size="small" />
+                  ) : (
+                    <Ionicons name="logo-apple" size={20} color={BRAND} />
+                  )}
+                  <Text style={styles.socialBtnText}>使用 Apple 登入</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View>
               <TouchableOpacity
                 style={styles.socialBtn}
-                onPress={handleAppleSignIn}
+                onPress={handleGoogleSignIn}
                 disabled={isLoading}
                 activeOpacity={0.85}
               >
-                {isLoading && loadingType === "apple" ? (
-                  <ActivityIndicator color={BRAND} size="small" />
+                {isLoading && loadingType === "google" ? (
+                  <ActivityIndicator color="#DB4437" size="small" />
                 ) : (
-                  <Ionicons name="logo-apple" size={20} color={BRAND} />
+                  <Ionicons name="logo-google" size={20} color="#DB4437" />
                 )}
-                <Text style={styles.socialBtnText}>使用 Apple 登入</Text>
+                <Text style={styles.socialBtnText}>使用 Google 登入</Text>
               </TouchableOpacity>
-            )}
-
-            {/* Google Sign In */}
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={handleGoogleSignIn}
-              disabled={isLoading}
-              activeOpacity={0.85}
-            >
-              {isLoading && loadingType === "google" ? (
-                <ActivityIndicator color="#DB4437" size="small" />
-              ) : (
-                <Ionicons name="logo-google" size={20} color="#DB4437" />
-              )}
-              <Text style={styles.socialBtnText}>使用 Google 登入</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          </View> */}
 
           <Text style={styles.disclaimer}>
             登入即表示你同意我們的服務條款及私隱政策

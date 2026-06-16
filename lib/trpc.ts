@@ -7,7 +7,7 @@
  * - 每個請求在 Authorization header 中附帶 token
  */
 import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AUTH_TOKEN_KEY } from "./auth";
@@ -19,33 +19,33 @@ export const API_BASE_URL = "https://kindcipe-backend-production.up.railway.app"
 // ─── tRPC React hooks ────────────────────────────────────
 export const trpc = createTRPCReact<AppRouter>( );
 
-// ─── tRPC client ────────────────────────────────────────
+// ─── tRPC client factory (for React provider) ──────────
+const makeClient = () => ({
+  links: [
+    httpBatchLink({
+      url: `${API_BASE_URL}/api/trpc`,
+      transformer: superjson,
+      async fetch(url, options ) {
+        const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+        const headers = {
+          ...options?.headers,
+        } as Record<string, string>;
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        return fetch(url, {
+          ...options,
+          headers,
+          credentials: "include",
+        });
+      },
+    }),
+  ],
+});
+
 export function createTrpcClient() {
-  return trpc.createClient({
-    links: [
-      httpBatchLink({
-        url: `${API_BASE_URL}/api/trpc`,
-        transformer: superjson,
-        async fetch(url, options ) {
-          // Get token from AsyncStorage
-          const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-          
-          const headers = {
-            ...options?.headers,
-          } as Record<string, string>;
-          
-          // Add token to Authorization header if available
-          if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-          }
-          
-          return fetch(url, {
-            ...options,
-            headers,
-            credentials: "include",
-          });
-        },
-      }),
-    ],
-  });
+  return trpc.createClient(makeClient());
 }
+
+// ─── Direct API client (for non-hook calls) ────────────
+export const apiClient = createTRPCClient<AppRouter>(makeClient());

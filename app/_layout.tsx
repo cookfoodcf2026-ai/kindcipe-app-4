@@ -90,7 +90,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace("/(tabs)");
       }
       // 如果未完成 onboarding，確保在 onboarding 頁面
-      else if (!onboardingDone && !inOnboarding && !inLoginPage) {
+      else if (!onboardingDone && !inOnboarding) {
         router.replace("/onboarding");
       }
     }
