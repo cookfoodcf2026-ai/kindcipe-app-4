@@ -382,42 +382,44 @@ export default function OnboardingScreen() {
   if (step === "guide") {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.emoji}>👋</Text>
-          <Text style={styles.title}>歡迎！</Text>
-          <Text style={styles.subtitle}>三步開始使用</Text>
-        </View>
-
-        <View style={styles.guideContainer}>
-          <View style={styles.guideStep}>
-            <Text style={styles.guideNumber}>1️⃣</Text>
-            <Text style={styles.guideText}>匯入你喜歡的食譜</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.content}>
+            <Text style={styles.emoji}>👋</Text>
+            <Text style={styles.title}>歡迎！</Text>
+            <Text style={styles.subtitle}>三步開始使用</Text>
           </View>
 
-          <View style={styles.guideStep}>
-            <Text style={styles.guideNumber}>2️⃣</Text>
-            <Text style={styles.guideText}>排好本週每日餐單</Text>
+          <View style={styles.guideContainer}>
+            <View style={styles.guideStep}>
+              <Text style={styles.guideNumber}>1️⃣</Text>
+              <Text style={styles.guideText}>匯入你喜歡的食譜</Text>
+            </View>
+
+            <View style={styles.guideStep}>
+              <Text style={styles.guideNumber}>2️⃣</Text>
+              <Text style={styles.guideText}>排好本週每日餐單</Text>
+            </View>
+
+            <View style={styles.guideStep}>
+              <Text style={styles.guideNumber}>3️⃣</Text>
+              <Text style={styles.guideText}>食材自動加入採購清單，即時同步給廚房所有人</Text>
+            </View>
           </View>
 
-          <View style={styles.guideStep}>
-            <Text style={styles.guideNumber}>3️⃣</Text>
-            <Text style={styles.guideText}>食材自動加入採購清單，即時同步給廚房所有人</Text>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => setStep("import")}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#013E77" />
+              ) : (
+                <Text style={styles.primaryBtnText}>開始匯入第一個食譜 →</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => setStep("import")}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#013E77" />
-            ) : (
-              <Text style={styles.primaryBtnText}>開始匯入第一個食譜 →</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -846,6 +848,9 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   guideContainer: {
     flex: 1,
