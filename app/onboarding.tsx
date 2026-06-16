@@ -21,6 +21,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
@@ -285,12 +286,18 @@ export default function OnboardingScreen() {
             onPress={async () => {
               try {
                 setLoading(true);
+                const me = await meQuery.refetch();
+                if (me.data?.familyId) {
+                  setStep("guide");
+                  return;
+                }
                 await apiClient.family.create.mutate({ name: kitchenName });
                 await meQuery.refetch();
                 setStep("guide");
               } catch (err: any) {
+                const msg = err?.message || err?.data?.message || "";
                 console.error("建立廚房失敗:", err);
-                setParseError(err?.message || "建立廚房失敗，請重試");
+                Alert.alert("建立廚房失敗", msg || "請重試");
               } finally {
                 setLoading(false);
               }
@@ -342,12 +349,18 @@ export default function OnboardingScreen() {
             onPress={async () => {
               try {
                 setLoading(true);
+                const me = await meQuery.refetch();
+                if (me.data?.familyId) {
+                  setStep("guide");
+                  return;
+                }
                 await apiClient.family.join.mutate({ inviteCode });
                 await meQuery.refetch();
                 setStep("guide");
               } catch (err: any) {
+                const msg = err?.message || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);
-                setParseError(err?.message || "加入廚房失敗，請重試");
+                Alert.alert("加入廚房失敗", msg || "請重試");
               } finally {
                 setLoading(false);
               }
