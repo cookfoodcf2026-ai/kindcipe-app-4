@@ -140,7 +140,7 @@ export default function OnboardingScreen() {
       setImportSaving(true);
       setParseError(null);
       
-      const result = await apiClient.recipes.importRecipe.mutate({
+      const result = await apiClient.recipes.importUser.mutate({
         name: previewData.name,
         description: previewData.description,
         image: previewData.image || previewData.thumbnailUrl,
@@ -282,7 +282,19 @@ export default function OnboardingScreen() {
               styles.primaryBtn,
               (!kitchenName || !userName) && styles.disabledBtn,
             ]}
-            onPress={() => setStep("guide")}
+            onPress={async () => {
+              try {
+                setLoading(true);
+                await apiClient.family.create.mutate({ name: kitchenName });
+                await meQuery.refetch();
+                setStep("guide");
+              } catch (err: any) {
+                console.error("建立廚房失敗:", err);
+                setParseError(err?.message || "建立廚房失敗，請重試");
+              } finally {
+                setLoading(false);
+              }
+            }}
             disabled={!kitchenName || !userName || loading}
           >
             {loading ? (
@@ -327,7 +339,19 @@ export default function OnboardingScreen() {
               styles.primaryBtn,
               !inviteCode && styles.disabledBtn,
             ]}
-            onPress={() => setStep("guide")}
+            onPress={async () => {
+              try {
+                setLoading(true);
+                await apiClient.family.join.mutate({ inviteCode });
+                await meQuery.refetch();
+                setStep("guide");
+              } catch (err: any) {
+                console.error("加入廚房失敗:", err);
+                setParseError(err?.message || "加入廚房失敗，請重試");
+              } finally {
+                setLoading(false);
+              }
+            }}
             disabled={!inviteCode || loading}
           >
             {loading ? (
