@@ -2,18 +2,29 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
+    "skipLibCheck": true,
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@shared/*": [
+        "../kindcipe-backend/shared/*"
+      ],
+      "@shared/const": [
+        "../kindcipe-backend/shared/const"
+      ],
+      "@shared/_core/errors": [
+        "../kindcipe-backend/shared/_core/errors"
       ]
-    },
-    "ignoreDeprecations": "6.0"
+    }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }

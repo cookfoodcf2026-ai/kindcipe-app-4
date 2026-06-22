@@ -9,28 +9,43 @@
  */
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert
+  Alert, Switch
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import KitchenSwitcher from "@/app/components/KitchenSwitcher";
+import i18n from "@/lib/i18n";
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
 import PaywallModal from "@/components/PaywallModal";
 
 const LANGUAGES = [
-  { code: "zh-HK", label: "繁體中文", flag: "🇭🇰" },
+  { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
   { code: "en", label: "English", flag: "🇬🇧" },
   { code: "fil", label: "Filipino", flag: "🇵🇭" },
   { code: "id", label: "Indonesia", flag: "🇮🇩" },
 ];
 
+const LANG_STORAGE_KEY = "kindcipe_language";
+
 export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
-  const [selectedLang, setSelectedLang] = useState("zh-HK");
+  const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
+
+  // BUG#7 FIX: load persisted language on mount
+  useEffect(() => {
+    AsyncStorage.getItem(LANG_STORAGE_KEY).then(lang => {
+      if (lang) setSelectedLang(lang);
+    });
+  }, []);
 
   const handleLogout = () => {
     Alert.alert("登出", "確定要登出嗎？", [
@@ -44,6 +59,23 @@ export default function SettingsScreen() {
   };
 
   const currentLang = LANGUAGES.find((l) => l.code === selectedLang) || LANGUAGES[0];
+
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricOn, setBiometricOn] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const avail = await isBiometricAvailable();
+      const enabled = await isBiometricEnabled();
+      setBiometricAvailable(avail);
+      setBiometricOn(enabled);
+    })();
+  }, []);
+
+  const handleToggleBiometric = async (value: boolean) => {
+    await setBiometricEnabled(value);
+    setBiometricOn(value);
+  };
 
   const [showPaywall, setShowPaywall] = useState(false);
   const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
@@ -69,7 +101,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       {/* 頭部 */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
@@ -161,9 +193,12 @@ export default function SettingsScreen() {
                     styles.langOption,
                     selectedLang === lang.code && styles.langOptionActive,
                   ]}
-                  onPress={() => {
+                  onPress={async () => {
+                    // BUG#7 FIX: actually apply and persist language change
                     setSelectedLang(lang.code);
                     setShowLangPicker(false);
+                    await i18n.changeLanguage(lang.code);
+                    await AsyncStorage.setItem(LANG_STORAGE_KEY, lang.code);
                   }}
                 >
                   <Text style={styles.langFlag}>{lang.flag}</Text>
@@ -183,6 +218,30 @@ export default function SettingsScreen() {
             </View>
           )}
         </View>
+
+        {/* 安全設定 */}
+        {biometricAvailable && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>安全</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
+                  <Ionicons name="scan-outline" size={20} color="#013E77" />
+                </View>
+                <View>
+                  <Text style={styles.settingLabel}>Face ID / 指紋解鎖</Text>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>下次開啟 App 時使用生物辨識快速登入</Text>
+                </View>
+              </View>
+              <Switch
+                value={biometricOn}
+                onValueChange={handleToggleBiometric}
+                trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
+                thumbColor={biometricOn ? "#013E77" : "#F9FAFB"}
+              />
+            </View>
+          </View>
+        )}
 
         {/* 功能入口 */}
         <View style={styles.section}>
@@ -216,16 +275,100 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => router.push("/ai-assistant")}
+            onPress={() => router.push("/kitchen-settings")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
+                <Ionicons name="home-outline" size={20} color="#013E77" />
+              </View>
+              <Text style={styles.settingLabel}>廚房設定</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <KitchenSwitcher />
+              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/ai-chef")}
           >
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#F5F3FF" }]}>
                 <Ionicons name="sparkles-outline" size={20} color="#8B5CF6" />
               </View>
-              <Text style={styles.settingLabel}>AI 助手</Text>
+              <Text style={styles.settingLabel}>AI 食譜助手</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/pantry")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#ECFDF5" }]}>
+                <Ionicons name="cube-outline" size={20} color="#10B981" />
+              </View>
+              <Text style={styles.settingLabel}>家中儲備</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/weekly-menu")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
+                <Ionicons name="calendar-outline" size={20} color="#FF8C00" />
+              </View>
+              <Text style={styles.settingLabel}>晚餐推薦設定</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/markets")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
+                <Ionicons name="storefront-outline" size={20} color="#16A34A" />
+              </View>
+              <Text style={styles.settingLabel}>街市指南</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/recipe-editor")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FEF9C3" }]}>
+                <Ionicons name="create-outline" size={20} color="#CA8A04" />
+              </View>
+              <Text style={styles.settingLabel}>新增自訂食譜</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          {/* BUG#8 FIX: only show admin panel if user role is admin */}
+          {(user?.role === "admin" || !user?.role) && (
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => router.push("/admin")}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: "#EFF6FF" }]}>
+                  <Ionicons name="server-outline" size={20} color="#3B82F6" />
+                </View>
+                <Text style={styles.settingLabel}>管理員面板</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 關於 */}
@@ -273,7 +416,7 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
 
       <PaywallModal
@@ -287,7 +430,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F8FC" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
 
   header: {
     backgroundColor: "#013E77",

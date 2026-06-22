@@ -13,10 +13,14 @@ import {
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
-import { saveAuthTokenFromResponse } from "@/lib/auth";
+import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, FAMILY_ID_KEY } from "@/lib/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
-// import { GoogleSignin } from "@react-native-google-signin/google-signin";
-// import * as AppleAuthentication from "expo-apple-authentication";
+
+// Check if native modules are available (dev build vs Expo Go)
+import { TurboModuleRegistry } from "react-native";
+const hasGoogleSignin = TurboModuleRegistry.get("RNGoogleSignin") != null;
+const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
 
 // Kindcipe 後端已部署到 Railway
 const BACKEND_URL = "https://kindcipe-backend-production.up.railway.app";
@@ -24,11 +28,14 @@ const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FFFFFF";
 
-// // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
-// GoogleSignin.configure({
-//   webClientId: "690207937492-7hfs5hkksd5heo78kcfmq294f19rgp6d.apps.googleusercontent.com",
-//   iosClientId: "690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db.apps.googleusercontent.com",
-// });
+// Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
+try {
+  const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+  GoogleSignin.configure({
+    webClientId: "690207937492-7hfs5hkksd5heo78kcfmq294f19rgp6d.apps.googleusercontent.com",
+    iosClientId: "690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db.apps.googleusercontent.com",
+  });
+} catch {}
 
 type Mode = "login" | "register";
 
@@ -40,6 +47,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<string>("");
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const utils = trpc.useUtils();
 
   const emailLoginMutation = trpc.auth.emailLogin.useMutation();
@@ -50,13 +58,24 @@ export default function LoginScreen() {
   // 如果是新用戶（未完成 onboarding）→ 自動跳到 /onboarding
   // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
   const onLoginSuccess = async () => {
+    await AsyncStorage.removeItem(FAMILY_ID_KEY);
     await utils.auth.me.invalidate();
-    // 不需要手動路由，_layout.tsx 的 AuthGuard 會根據 onboarding 狀態自動決定
+    const [avail, enabled] = await Promise.all([
+      isBiometricAvailable(),
+      isBiometricEnabled(),
+    ]);
+    if (avail && !enabled) {
+      setShowBiometricPrompt(true);
+    }
   };
 
   // ── Email Login / Register ──────────────────────────────────────────────────
   const handleEmailSubmit = async () => {
     if (!email.trim()) { Alert.alert("請輸入電郵地址"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      Alert.alert("電郵格式不正確", "請輸入有效的電郵地址");
+      return;
+    }
     if (!password.trim()) { Alert.alert("請輸入密碼"); return; }
     if (mode === "register" && !name.trim()) { Alert.alert("請輸入你的名字"); return; }
     if (mode === "register" && password.length < 8) {
@@ -81,81 +100,92 @@ export default function LoginScreen() {
       await saveAuthTokenFromResponse(result);
       await onLoginSuccess();
     } catch (err: any) {
-      const msg = err?.message || (mode === "login" ? "電郵或密碼錯誤" : "建立帳號失敗，請稍後再試");
-      Alert.alert(mode === "login" ? "登入失敗" : "註冊失敗", msg);
+      if (mode === "register" && err?.data?.code === "CONFLICT") {
+        Alert.alert("電郵已被註冊", err.message || "此電郵已被使用，請直接登入", [
+          { text: "知道了", style: "cancel" },
+          { text: "去登入", onPress: () => setMode("login") },
+        ]);
+      } else {
+        const msg = mode === "login" ? "電郵或密碼錯誤" : err?.message || "建立帳號失敗，請稍後再試";
+        Alert.alert(mode === "login" ? "登入失敗" : "註冊失敗", msg);
+      }
     } finally {
       setIsLoading(false);
       setLoadingType("");
     }
   };
 
-  // // ── Google Sign In ──────────────────────────────────────────────────────────
-  // const handleGoogleSignIn = async () => {
-  //   setIsLoading(true);
-  //   setLoadingType("google");
-  //   try {
-  //     await GoogleSignin.hasPlayServices();
-  //     const userInfo = await GoogleSignin.signIn();
-  //     const idToken = userInfo.data?.idToken;
-  //     if (!idToken) throw new Error("No ID token");
+  // ── Google Sign In ──────────────────────────────────────────────────────────
+  const handleGoogleSignIn = async () => {
+    if (!hasGoogleSignin) { Alert.alert("Google 登入", "請使用電郵登入或更新 App"); return; }
+    setIsLoading(true);
+    setLoadingType("google");
+    try {
+      const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) throw new Error("No ID token");
 
-  //     const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       credentials: "include",
-  //       body: JSON.stringify({ idToken }),
-  //     });
-  //     if (!res.ok) throw new Error("Google login failed");
-  //     const data = await res.json();
-  //     await saveAuthTokenFromResponse(data);
-  //     await onLoginSuccess();
-  //   } catch (err: any) {
-  //     if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
-  //       Alert.alert("Google 登入失敗", "請稍後再試");
-  //     }
-  //   } finally {
-  //     setIsLoading(false);
-  //     setLoadingType("");
-  //   }
-  // };
+      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ idToken }),
+      });
+      if (!res.ok) throw new Error("Google login failed");
+      const data = await res.json();
+      await saveAuthTokenFromResponse(data);
+      await onLoginSuccess();
+    } catch (err: any) {
+      if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
+        Alert.alert("Google 登入失敗", "請稍後再試");
+      }
+    } finally {
+      setIsLoading(false);
+      setLoadingType("");
+    }
+  };
 
-  // // ── Apple Sign In ───────────────────────────────────────────────────────────
-  // const handleAppleSignIn = async () => {
-  //   setIsLoading(true);
-  //   setLoadingType("apple");
-  //   try {
-  //     const credential = await AppleAuthentication.signInAsync({
-  //       requestedScopes: [
-  //         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-  //         AppleAuthentication.AppleAuthenticationScope.EMAIL,
-  //       ],
-  //     });
-  //     const idToken = credential.identityToken;
-  //     if (!idToken) throw new Error("No ID token");
+  // ── Apple Sign In ───────────────────────────────────────────────────────────
+  const handleAppleSignIn = async () => {
+    if (!hasAppleAuth) { Alert.alert("Apple 登入", "請使用電郵登入或更新 App"); return; }
+    setIsLoading(true);
+    setLoadingType("apple");
+    try {
+      const AppleAuthentication = require("expo-apple-authentication");
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const idToken = credential.identityToken;
+      if (!idToken) throw new Error("No ID token");
 
-  //     const name = credential.fullName
-  //       ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(" ")
-  //       : undefined;
+      const name = credential.fullName
+        ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(" ")
+        : undefined;
 
-  //     const res = await fetch(`${BACKEND_URL}/api/auth/apple`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       credentials: "include",
-  //       body: JSON.stringify({ idToken, name }),
-  //     });
-  //     if (!res.ok) throw new Error("Apple login failed");
-  //     const data = await res.json();
-  //     await saveAuthTokenFromResponse(data);
-  //     await onLoginSuccess();
-  //   } catch (err: any) {
-  //     if (err.code !== "ERR_REQUEST_CANCELED") {
-  //       Alert.alert("Apple 登入失敗", "請稍後再試");
-  //     }
-  //   } finally {
-  //     setIsLoading(false);
-  //     setLoadingType("");
-  //   }
-  // };
+      const res = await fetch(`${BACKEND_URL}/api/auth/apple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ idToken, name }),
+      });
+      if (!res.ok) throw new Error("Apple login failed");
+      const data = await res.json();
+      await saveAuthTokenFromResponse(data);
+      await onLoginSuccess();
+    } catch (err: any) {
+      if (err.code !== "ERR_REQUEST_CANCELED") {
+        Alert.alert("Apple 登入失敗", "請稍後再試");
+      }
+    } finally {
+      setIsLoading(false);
+      setLoadingType("");
+    }
+  };
   
   return (
     <SafeAreaView style={styles.root}>
@@ -172,9 +202,9 @@ export default function LoginScreen() {
           <View style={styles.logoSection}>
             <Image
               source={require("../assets/logo-full.png")}
-              style={{ width: 160, height: 160, resizeMode: "contain" }}
+              style={{ width: 192, height: 192, resizeMode: "contain" }}
             />
-            <Text style={styles.tagline}>— 自己的食譜筆記・一家人的味道 —</Text>
+            <Text style={styles.tagline}>— 家人的食譜筆記 ・ 家庭的味道 —</Text>
           </View>
 
           {/* Mode Toggle */}
@@ -272,19 +302,19 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* {/ Divider /} */}
-          {/* <View style={styles.divider}>
+          {/* Divider */}
+          <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>或使用以下方式</Text>
             <View style={styles.dividerLine} />
-          </View> */}
+          </View>
 
-          {/* {/ Social Buttons /} */}
-          {/* <View style={styles.socialSection}>
+          {/* Social Buttons */}
+          <View style={styles.socialSection}>
             <View>
               {Platform.OS === "ios" && (
                 <TouchableOpacity
-                  style={styles.socialBtn}
+                  style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
                   onPress={handleAppleSignIn}
                   disabled={isLoading}
                   activeOpacity={0.85}
@@ -301,7 +331,7 @@ export default function LoginScreen() {
 
             <View>
               <TouchableOpacity
-                style={styles.socialBtn}
+                style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
                 onPress={handleGoogleSignIn}
                 disabled={isLoading}
                 activeOpacity={0.85}
@@ -314,13 +344,56 @@ export default function LoginScreen() {
                 <Text style={styles.socialBtnText}>使用 Google 登入</Text>
               </TouchableOpacity>
             </View>
-          </View> */}
+          </View>
 
           <Text style={styles.disclaimer}>
             登入即表示你同意我們的服務條款及私隱政策
           </Text>
+
+          {/* 開發用：重置 App 資料 */}
+          <TouchableOpacity
+            onPress={async () => {
+              await AsyncStorage.clear();
+              Alert.alert("已清除", "App 資料已重置，請重新啟動 App");
+            }}
+            style={{ marginTop: 12, alignItems: "center", paddingVertical: 8 }}
+          >
+            <Text style={{ fontSize: 11, color: "#D1D5DB", textDecorationLine: "underline" }}>
+              重置 App 資料（開發用）
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {showBiometricPrompt && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }]}>
+          <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 }}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 20 }} />
+            <View style={{ alignItems: "center", gap: 8, marginBottom: 24 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="scan-outline" size={32} color="#013E77" />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>啟用 Face ID 解鎖？</Text>
+              <Text style={{ fontSize: 14, color: "#9CA3AF", textAlign: "center" }}>下次開啟 App 時可使用 Face ID 或指紋快速登入，不需再輸入密碼</Text>
+            </View>
+            <TouchableOpacity
+              style={{ backgroundColor: "#013E77", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
+              onPress={async () => {
+                await setBiometricEnabled(true);
+                setShowBiometricPrompt(false);
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>啟用</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: "center" }}
+              onPress={() => setShowBiometricPrompt(false)}
+            >
+              <Text style={{ fontSize: 14, color: "#9CA3AF", fontWeight: "600" }}>暫時不要</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -395,6 +468,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
   socialBtnText: { fontSize: 15, fontWeight: "700", color: BRAND },
+  socialBtnDisabled: { opacity: 0.4 },
 
   // Disclaimer
   disclaimer: {

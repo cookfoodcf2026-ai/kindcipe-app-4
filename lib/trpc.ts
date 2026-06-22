@@ -10,7 +10,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AUTH_TOKEN_KEY } from "./auth";
+import { AUTH_TOKEN_KEY, FAMILY_ID_KEY, getAuthToken } from "./auth";
 import type { AppRouter } from "./router-types";
 
 // ─── 後端 API 地址 ───────────────────────────────────────
@@ -26,12 +26,18 @@ const makeClient = () => ({
       url: `${API_BASE_URL}/api/trpc`,
       transformer: superjson,
       async fetch(url, options ) {
-        const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+        const [token, familyId] = await Promise.all([
+          getAuthToken(),
+          AsyncStorage.getItem(FAMILY_ID_KEY),
+        ]);
         const headers = {
           ...options?.headers,
         } as Record<string, string>;
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
+        }
+        if (familyId) {
+          headers["X-Family-Id"] = familyId;
         }
         return fetch(url, {
           ...options,
