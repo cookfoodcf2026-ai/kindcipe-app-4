@@ -1,5 +1,8 @@
 {
-  "common": {},
+  "common": {
+    "today": "Today",
+    "tomorrow": "Tomorrow"
+  },
   "login": {},
   "home": {},
   "recipes": {},

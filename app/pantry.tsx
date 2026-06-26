@@ -212,7 +212,7 @@ export default function PantryScreen() {
           <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 16, backgroundColor: "#DCFCE7", borderWidth: 1.5, borderColor: "#86EFAC", flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Ionicons name="cube-outline" size={18} color="#15803D" />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803D" }}>採購清單有 {boughtItems.length} 件已買商品</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803D" }}>購物清單有 {boughtItems.length} 件已買商品</Text>
               <Text style={{ fontSize: 10, color: "#166534", marginTop: 1 }}>{boughtItems.slice(0, 3).map((i: any) => i.name).join("、")}{boughtItems.length > 3 ? `等${boughtItems.length}件` : ""}</Text>
             </View>
             <TouchableOpacity style={{ backgroundColor: "#15803D", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }} onPress={handleImportBought} disabled={addFromShoppingM.isPending}>
@@ -229,7 +229,7 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>缺貨 ({outOfStockItems.length} 件)</Text>
               <Text style={{ fontSize: 10, color: "#991B1B", marginTop: 1 }}>{outOfStockItems.slice(0, 3).map((i: any) => i.name).join("、")}{outOfStockItems.length > 3 ? `等${outOfStockItems.length}件` : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${outOfStockItems.length}件缺貨商品加入採購清單`); }}>
+            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${outOfStockItems.length}件缺貨商品加入購物清單`); }}>
               <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入採購</Text>
             </TouchableOpacity>
           </View>
@@ -243,7 +243,7 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>即將耗盡 ({lowItems.length} 件)</Text>
               <Text style={{ fontSize: 10, color: "#78350F", marginTop: 1 }}>{lowItems.slice(0, 3).map((i: any) => i.name).join("、")}{lowItems.length > 3 ? `等${lowItems.length}件` : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${lowItems.length}件即將耗盡商品加入採購清單`); }}>
+            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${lowItems.length}件即將耗盡商品加入購物清單`); }}>
               <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入採購</Text>
             </TouchableOpacity>
           </View>

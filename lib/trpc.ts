@@ -16,6 +16,9 @@ import type { AppRouter } from "./router-types";
 // ─── 後端 API 地址 ───────────────────────────────────────
 export const API_BASE_URL = "https://kindcipe-backend-production.up.railway.app";
 
+// ─── 請求逾時設定（毫秒）─────────────────────────────────
+const REQUEST_TIMEOUT_MS = 90_000;
+
 // ─── tRPC React hooks ────────────────────────────────────
 export const trpc = createTRPCReact<AppRouter>( );
 
@@ -39,11 +42,22 @@ const makeClient = () => ({
         if (familyId) {
           headers["X-Family-Id"] = familyId;
         }
-        return fetch(url, {
-          ...options,
-          headers,
-          credentials: "include",
-        });
+
+        // 使用 AbortController 實現逾時控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: "include",
+            signal: controller.signal,
+          });
+          return response;
+        } finally {
+          clearTimeout(timeoutId);
+        }
       },
     }),
   ],

@@ -32,8 +32,8 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'en',
-    fallbackLng: 'en',
+    lng: 'zh-TW',
+    fallbackLng: 'zh-TW',
     interpolation: {
       escapeValue: false,
     },
@@ -44,11 +44,9 @@ export async function initLanguage(): Promise<void> {
   try {
     const stored = await AsyncStorage.getItem(LANG_STORAGE_KEY);
     const lang = stored || getDeviceLanguage();
-    if (lang && lang !== 'en') {
-      await i18n.changeLanguage(lang);
-    }
+    await i18n.changeLanguage(lang);
   } catch {
-    // fall through — 'en' is already set
+    // fall through — 'zh-TW' is already set
   }
 }
 

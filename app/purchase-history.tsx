@@ -187,7 +187,7 @@ export default function PurchaseHistoryScreen() {
               <View style={{ alignItems: "center", paddingVertical: 48 }}>
                 <Ionicons name="clipboard-outline" size={40} color="#E5D5C5" />
                 <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12, marginBottom: 6 }}>暫無採購記錄</Text>
-                <Text style={{ fontSize: 12, color: "#C4B5A5", textAlign: "center" }}>在「採購清單」勾選商品為「已買」後，記錄將自動出現</Text>
+                <Text style={{ fontSize: 12, color: "#C4B5A5", textAlign: "center" }}>在「購物清單」勾選商品為「已買」後，記錄將自動出現</Text>
               </View>
             ) : (
               groupedHistory.map(([dateLabel, items]) => (

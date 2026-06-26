@@ -25,7 +25,6 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
@@ -45,37 +44,12 @@ export default function OnboardingScreen() {
   // 建立廚房表單
   const [kitchenName, setKitchenName] = useState("");
   const [userName, setUserName] = useState("");
-  
+   
   // 加入廚房表單
   const [inviteCode, setInviteCode] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
-  
-  // 匯入食譜表單
-  const [importUrl, setImportUrl] = useState("");
-  const [importText, setImportText] = useState("");
-  const [importMode, setImportMode] = useState<"url" | "text">("url");
-  const [parseLoading, setParseLoading] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
-  const [parseProgress, setParseProgress] = useState<string>("");
-  const isParsingRef = useRef(false);
-  
-  // 預覽和分類選擇
-  const [previewData, setPreviewData] = useState<any>(null);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [importSaving, setImportSaving] = useState(false);
-  
-  const RECIPE_CATEGORIES = [
-    "中菜",
-    "西餐",
-    "日式",
-    "韓式",
-    "東南亞",
-    "甜品",
-    "飲品",
-    "其他",
-  ];
 
   // 用戶資料（用於存儲 onboarding 狀態）
   const meQuery = trpc.auth.me.useQuery(undefined, { retry: false });
@@ -91,111 +65,13 @@ export default function OnboardingScreen() {
       }
       // 等待一下確保狀態更新
       await new Promise(resolve => setTimeout(resolve, 200));
-      router.replace("/(tabs)");
+      router.replace("/(main)");
     } catch (error) {
       console.error("Onboarding 完成失敗:", error);
       setLoading(false);
     }
   };
   
-  // 解析食譜（進入預覽頁面）
-  const handleParseRecipe = async () => {
-    if (isParsingRef.current) return;
-    if (importMode === "url" && !importUrl) {
-      setParseError("請輸入 URL");
-      return;
-    }
-    if (importMode === "text" && !importText) {
-      setParseError("請貼上食譜文字");
-      return;
-    }
-    
-    try {
-      isParsingRef.current = true;
-      setParseLoading(true);
-      setParseError(null);
-      setParseProgress("讀取中...");
-      
-      if (importMode === "url") {
-        setParseProgress("正在擷取網頁內容...");
-        const result = await apiClient.recipes.parseUrl.mutate({ url: importUrl });
-        if (result.parseReason === "ok") {
-          setParseProgress("識別食材與步驟...");
-          await new Promise(resolve => setTimeout(resolve, 100));
-          setPreviewData(result);
-          setSelectedCategory(result.recipeCategory || "中菜");
-          setParseProgress("");
-        } else {
-          setParseError(`無法解析: ${result.description}`);
-        }
-      } else if (importMode === "text") {
-        setParseProgress("正在分析文字內容...");
-        const result = await apiClient.recipes.parseText.mutate({ text: importText });
-        if (result.name !== "無法解析" && result.name !== "需要手動輸入") {
-          setParseProgress("整理食譜資料...");
-          await new Promise(resolve => setTimeout(resolve, 100));
-          setPreviewData(result);
-          setSelectedCategory(result.recipeCategory || "中菜");
-          setParseProgress("");
-        } else {
-          setParseError(result.description);
-        }
-      }
-    } catch (error) {
-      console.error("解析失敗:", error);
-      setParseError("解析失敗，請重試");
-    } finally {
-      setParseLoading(false);
-      isParsingRef.current = false;
-    }
-  };
-  
-  // 確認並保存食譜
-  const handleConfirmImport = async () => {
-    if (!previewData || !selectedCategory) {
-      setParseError("請選擇分類");
-      return;
-    }
-    
-    try {
-      setImportSaving(true);
-      setParseError(null);
-      
-      const result = await apiClient.recipes.importUser.mutate({
-        name: previewData.name,
-        description: previewData.description,
-        image: previewData.image || previewData.thumbnailUrl,
-        thumbnailUrl: previewData.thumbnailUrl,
-        cookTime: previewData.cookTime,
-        servings: previewData.servings,
-        difficulty: previewData.difficulty,
-        recipeCategory: selectedCategory,
-        ingredients: previewData.ingredients || [],
-        steps: previewData.steps || [],
-        tags: previewData.tags || [],
-        sourceUrl: previewData.sourceUrl,
-        sourceAuthor: previewData.sourceAuthor,
-      });
-      
-      if (result.success) {
-        console.log("食譜保存成功:", result.id);
-        await finishOnboarding();
-      } else {
-        setParseError("保存失敗");
-      }
-    } catch (error: any) {
-      const msg = error?.message || "";
-      if (msg.includes("已在你的食譜庫中")) {
-        console.log("食譜已存在，跳過");
-        await finishOnboarding();
-        return;
-      }
-      console.error("保存失敗:", error);
-      setParseError("保存失敗，請重試");
-    } finally {
-      setImportSaving(false);
-    }
-  };
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scannedRef.current) return;
@@ -537,13 +413,19 @@ export default function OnboardingScreen() {
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={styles.primaryBtn}
-              onPress={() => setStep("import")}
+              onPress={() => router.push("/import?onboarding=true")}
+            >
+              <Text style={styles.primaryBtnText}>開始匯入第一個食譜</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={finishOnboarding}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#013E77" />
+                <ActivityIndicator color="#013E77" size="small" />
               ) : (
-                <Text style={styles.primaryBtnText}>開始匯入第一個食譜</Text>
+                <Text style={styles.secondaryBtnText}>跳過，稍後再匯入</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -552,244 +434,17 @@ export default function OnboardingScreen() {
     );
   }
 
-  // 第五屏：匯入食譜
+  // 第五屏：匯入食譜（跳轉到完整匯入頁面）
   if (step === "import") {
-    // 如果還沒有預覽數據，顯示 URL/文字輸入
-    if (!previewData) {
-      return (
-        <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => setStep("guide")}>
-              <Text style={styles.backBtn}>← 返回</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.formContainer}>
-            <Text style={styles.formTitle}>匯入第一個食譜</Text>
-            <Text style={styles.formSubtitle}>貼上連結自動偵測，或手動輸入文字</Text>
-
-            {/* 輸入方式切換 */}
-            <View style={styles.importMethodTabs}>
-              <TouchableOpacity
-                style={[styles.importMethodTab, importMode === "url" && styles.importMethodTabActive]}
-                onPress={() => setImportMode("url")}
-              >
-                <Text style={[styles.importMethodTabText, importMode === "url" && styles.importMethodTabTextActive]}>貼上連結</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.importMethodTab, importMode === "text" && styles.importMethodTabActive]}
-                onPress={() => setImportMode("text")}
-              >
-                <Text style={[styles.importMethodTabText, importMode === "text" && styles.importMethodTabTextActive]}>貼上文字</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* URL 輸入 */}
-            {importMode === "url" && (
-              <View style={styles.formGroup}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="貼上食譜連結，例如 https://www.instagram.com/reel/..."
-                  placeholderTextColor="#9CA3AF"
-                  value={importUrl}
-                  onChangeText={(text) => {
-                    setImportUrl(text);
-                    setParseError(null);
-                  }}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  editable={!parseLoading}
-                />
-
-                <View style={styles.supportedPlatforms}>
-                  {["Instagram", "YouTube", "Threads", "小紅書", "Facebook", "TikTok"].map((p) => (
-                    <View key={p} style={styles.platformBadge}>
-                      <Text style={styles.platformBadgeText}>{p}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {parseError && (
-                  <Text style={styles.errorText}>{parseError}</Text>
-                )}
-
-                <TouchableOpacity
-                  style={[
-                    styles.primaryBtn,
-                    (!importUrl || parseLoading) && styles.disabledBtn,
-                  ]}
-                  onPress={handleParseRecipe}
-                  disabled={!importUrl || parseLoading}
-                >
-                  {parseLoading ? (
-                    <View style={styles.parseProgressRow}>
-                      <ActivityIndicator color="#013E77" size="small" />
-                      <Text style={styles.parseProgressText}>{parseProgress}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.primaryBtnText}>AI 解析食譜</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* 文字輸入 */}
-            {importMode === "text" && (
-              <View style={styles.formGroup}>
-                <TextInput
-                  style={[styles.input, styles.textAreaInput]}
-                  placeholder={"貼上食譜文字內容...\n\n例如：\n材料：\n- 雞肉 500g\n- 蒜頭 3瓣\n\n做法：\n1. 雞肉切塊..."}
-                  placeholderTextColor="#9CA3AF"
-                  value={importText}
-                  onChangeText={(text) => {
-                    setImportText(text);
-                    setParseError(null);
-                  }}
-                  multiline
-                  numberOfLines={10}
-                  editable={!parseLoading}
-                />
-
-                {parseError && (
-                  <Text style={styles.errorText}>{parseError}</Text>
-                )}
-
-                <TouchableOpacity
-                  style={[
-                    styles.primaryBtn,
-                    (!importText || parseLoading) && styles.disabledBtn,
-                  ]}
-                  onPress={handleParseRecipe}
-                  disabled={!importText || parseLoading}
-                >
-                  {parseLoading ? (
-                    <View style={styles.parseProgressRow}>
-                      <ActivityIndicator color="#013E77" size="small" />
-                      <Text style={styles.parseProgressText}>{parseProgress}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.primaryBtnText}>AI 解析食譜</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* 跳過按鈕 */}
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={finishOnboarding}
-              disabled={loading}
-            >
-              <Text style={styles.secondaryBtnText}>跳過，稍後再匯入</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      );
-    }
-
-    // 如果有預覽數據，顯示預覽 + 分類選擇
+    router.replace("/import?onboarding=true");
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setPreviewData(null)}>
-            <Text style={styles.backBtn}>← 返回編輯</Text>
-          </TouchableOpacity>
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color="#013E77" />
+          <Text style={{ fontSize: 16, color: "#013E77", marginTop: 16, fontWeight: "700" }}>
+            正在載入完整匯入功能...
+          </Text>
         </View>
-
-        <ScrollView style={styles.formContainer}>
-          <Text style={styles.formTitle}>食譜預覽</Text>
-
-          {/* 食譜圖片 */}
-          {(() => {
-            const imgUri = previewData.image || previewData.thumbnailUrl;
-            const isValidUri = imgUri && typeof imgUri === "string" && imgUri.startsWith("http");
-            return isValidUri ? (
-              <Image source={{ uri: imgUri }} style={styles.previewImage} />
-            ) : null;
-          })()}
-
-          {/* 食譜名稱 */}
-          <Text style={styles.previewTitle}>{previewData.name}</Text>
-
-          {/* 食譜信息 */}
-          <View style={styles.previewInfoContainer}>
-            {previewData.cookTime > 0 && (
-              <View style={styles.previewInfo}>
-                <Text style={styles.previewInfoLabel}>烹飪時間</Text>
-                <Text style={styles.previewInfoValue}>{previewData.cookTime} 分鐘</Text>
-              </View>
-            )}
-            {previewData.servings > 0 && (
-              <View style={styles.previewInfo}>
-                <Text style={styles.previewInfoLabel}>人份</Text>
-                <Text style={styles.previewInfoValue}>{previewData.servings} 人</Text>
-              </View>
-            )}
-            {previewData.difficulty && (
-              <View style={styles.previewInfo}>
-                <Text style={styles.previewInfoLabel}>難度</Text>
-                <Text style={styles.previewInfoValue}>{previewData.difficulty}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* 分類選擇 */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>選擇分類</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedCategory}
-                onValueChange={(value) => setSelectedCategory(value)}
-                style={styles.picker}
-              >
-                {RECIPE_CATEGORIES.map((cat) => (
-                  <Picker.Item key={cat} label={cat} value={cat} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* 食材預覽 */}
-          {previewData.ingredients && previewData.ingredients.length > 0 && (
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>食材清單 ({previewData.ingredients.length} 項)</Text>
-              <View style={styles.ingredientListContainer}>
-                {previewData.ingredients.map((ing: any, idx: number) => (
-                  <View key={idx} style={styles.ingredientRow}>
-                    <View style={styles.ingredientCheckbox}>
-                      <Text style={styles.ingredientCheckmark}>✓</Text>
-                    </View>
-                    <Text style={styles.ingredientItem}>
-                      {ing.name}{ing.quantity ? ` ${ing.quantity}` : ""}{ing.unit ? ` ${ing.unit}` : ""}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* 錯誤提示 */}
-          {parseError && (
-            <Text style={styles.errorText}>{parseError}</Text>
-          )}
-
-          {/* 確認按鈕 */}
-          <TouchableOpacity
-            style={[
-              styles.primaryBtn,
-              (!selectedCategory || importSaving) && styles.disabledBtn,
-            ]}
-            onPress={handleConfirmImport}
-            disabled={!selectedCategory || importSaving}
-          >
-            {importSaving ? (
-              <ActivityIndicator color="#013E77" />
-            ) : (
-              <Text style={styles.primaryBtnText}>確認匯入</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -803,6 +458,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
     paddingVertical: 16,
+  },
+  centerContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",

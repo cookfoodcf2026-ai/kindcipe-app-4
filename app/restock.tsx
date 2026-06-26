@@ -1,7 +1,7 @@
 /**
  * 智能補貨頁面
  * 基於 Pantry 庫存狀態 + 購買頻率推薦補貨清單
- * 缺貨 / 即將耗盡 → 一鍵加入採購清單
+ * 缺貨 / 即將耗盡 → 一鍵加入購物清單
  */
 import { useState, useMemo } from "react";
 import {
@@ -115,7 +115,7 @@ export default function RestockScreen() {
 
   const handleAddToShopping = (name: string) => {
     addShoppingM.mutate({ name, status: "active" });
-    Alert.alert("已加入採購清單", `「${name}」已加入採購清單`);
+    Alert.alert("已加入購物清單", `「${name}」已加入購物清單`);
   };
 
   return (
@@ -248,7 +248,7 @@ export default function RestockScreen() {
                             style={{ marginTop: 8, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 8, alignItems: "center" }}
                             onPress={() => { handleAddToShopping(item.name); setExpandedItem(null); }}
                           >
-                            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入採購清單</Text>
+                            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入購物清單</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -288,7 +288,7 @@ export default function RestockScreen() {
                           style={{ backgroundColor: BRAND, borderRadius: 8, paddingVertical: 7, alignItems: "center" }}
                           onPress={() => handleAddToShopping(item.name)}
                         >
-                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入採購清單</Text>
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入購物清單</Text>
                         </TouchableOpacity>
                       </View>
                     );

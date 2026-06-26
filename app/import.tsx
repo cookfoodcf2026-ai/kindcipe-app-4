@@ -5,25 +5,31 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Image, Modal,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
+import { compressImage } from "@/lib/image-utils";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
-type ImportMethod = "url" | "xiaohongshu" | "screenshot" | "manual";
+type ImportMethod = "url" | "text" | "xiaohongshu" | "screenshot" | "manual";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
 type EditableStep = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ onboarding?: string }>();
+  const isOnboarding = params.onboarding === "true";
+  const { user: authUser } = useAuth();
   const [step, setStep] = useState<ImportStep>("input");
   const [method, setMethod] = useState<ImportMethod>("url");
   const [urlInput, setUrlInput] = useState("");
@@ -32,7 +38,9 @@ export default function ImportScreen() {
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [parsedRecipe, setParsedRecipe] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("中菜");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
@@ -92,12 +100,18 @@ export default function ImportScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
-      base64: true,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      setRecipeImageUri(asset.uri);
-      setRecipeImageBase64(asset.base64 || null);
+      try {
+        const compressed = await compressImage(asset.uri);
+        setRecipeImageUri(compressed.uri);
+        setRecipeImageBase64(compressed.base64);
+      } catch {
+        setRecipeImageUri(asset.uri);
+        setRecipeImageBase64(asset.base64 || null);
+      }
     }
   };
 
@@ -124,12 +138,19 @@ export default function ImportScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
-      base64: true,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setEditSteps(prev => prev.map((s, i) => i === idx ? {
-        ...s, imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64,
-      } : s));
+      try {
+        const compressed = await compressImage(result.assets[0].uri);
+        setEditSteps(prev => prev.map((s, i) => i === idx ? {
+          ...s, imageUri: compressed.uri, imageBase64: compressed.base64,
+        } : s));
+      } catch {
+        setEditSteps(prev => prev.map((s, i) => i === idx ? {
+          ...s, imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64,
+        } : s));
+      }
     }
   };
   const removeStepImage = (idx: number) => {
@@ -157,6 +178,15 @@ export default function ImportScreen() {
       parseStepTimer.current = null;
     }
     setParseStepIndex(PARSE_STEPS.length - 1);
+  };
+
+  const handleCancelParsing = () => {
+    stopParseProgress();
+    parseUrlMutation.reset();
+    parseTextMutation.reset();
+    parseImageMutation.reset();
+    isParsingRef.current = false;
+    setStep("input");
   };
 
   // Cleanup timer on unmount
@@ -204,6 +234,7 @@ export default function ImportScreen() {
         setErrorMsg(
           `這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。${platformHelp}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 複製帖子文字貼上解析\n• 換另一個包含完整食材和步驟的帖子`
         );
+        setFailedInput({ type: "url", value: urlInput });
         setStep("failed");
       } else {
         const platform = detectPlatform(urlInput);
@@ -214,6 +245,7 @@ export default function ImportScreen() {
           msg += "\n\n建議改用截圖上傳。";
         }
         setErrorMsg(msg);
+        setFailedInput({ type: "url", value: urlInput });
         setStep("failed");
       }
     },
@@ -221,6 +253,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(err.message || "無法連接到解析服務，請稍後重試");
+      setFailedInput({ type: "url", value: urlInput });
       setStep("failed");
     },
   });
@@ -236,6 +269,7 @@ export default function ImportScreen() {
         setStep("preview");
       } else {
         setErrorMsg("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。");
+        setFailedInput({ type: "text", value: textInput });
         setStep("failed");
       }
     },
@@ -243,6 +277,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(err.message || "無法解析文字內容");
+      setFailedInput({ type: "text", value: textInput });
       setStep("failed");
     },
   });
@@ -258,6 +293,7 @@ export default function ImportScreen() {
         setStep("preview");
       } else {
         setErrorMsg("圖片中沒有足夠的食譜資訊。\n\n建議截取包含食材和步驟的完整截圖，避免只截取封面圖片。");
+        setFailedInput({ type: "url", value: "" });
         setStep("failed");
       }
     },
@@ -265,6 +301,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(err.message || "無法解析圖片，請確保圖片清晰");
+      setFailedInput({ type: "url", value: "" });
       setStep("failed");
     },
   });
@@ -272,15 +309,26 @@ export default function ImportScreen() {
   const uploadImageMutation = trpc.recipes.uploadRecipeImage.useMutation();
 
   const importMutation = trpc.recipes.importUser.useMutation({
-    onSuccess: (data) => {
-      setStep("success");
-      setTimeout(() => {
-        // recipe/[id].tsx expects "user_<numericId>" format
-        router.replace({
-          pathname: "/recipe/[id]",
-          params: { id: `user_${data.id}` },
-        });
-      }, 1500);
+    onSuccess: async (data) => {
+      if (isOnboarding) {
+        try {
+          if (authUser?.id) {
+            await AsyncStorage.setItem(`kindcipe_onboarding_done_${authUser.id}`, "true");
+          }
+        } catch {}
+        setStep("success");
+        setTimeout(() => {
+          router.replace("/(main)");
+        }, 2000);
+      } else {
+        setStep("success");
+        setTimeout(() => {
+          router.replace({
+            pathname: "/recipe/[id]",
+            params: { id: `user_${data.id}` },
+          });
+        }, 1500);
+      }
     },
     onError: (err) => {
       isImportingRef.current = false;
@@ -332,6 +380,7 @@ export default function ImportScreen() {
     }
     if (!isValidUrl(trimmed)) {
       setErrorMsg("連結格式不正確，請輸入完整的網址（以 http:// 或 https:// 開頭）");
+      setFailedInput({ type: "url", value: trimmed });
       setStep("failed");
       return;
     }
@@ -341,31 +390,59 @@ export default function ImportScreen() {
     parseUrlMutation.mutate({ url: trimmed });
   };
 
-  // 選擇截圖
+  // 選擇截圖（只預覽，不直接解析）
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
-      base64: true,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      setSelectedImage(asset.uri);
-      setStep("parsing");
-      startParseProgress();
-      // 上傳圖片後解析
       try {
-        const uploadResult = await uploadImageMutation.mutateAsync({
-          base64: asset.base64!,
+        const compressed = await compressImage(asset.uri);
+        setPendingScreenshot({
+          uri: compressed.uri,
+          base64: compressed.base64,
+          mimeType: compressed.mimeType,
+        });
+        setSelectedImage(null);
+      } catch {
+        setPendingScreenshot({
+          uri: asset.uri,
+          base64: asset.base64 || "",
           mimeType: asset.mimeType || "image/jpeg",
         });
-        parseImageMutation.mutate({ storageKey: uploadResult.key });
-      } catch (e: any) {
-        stopParseProgress();
-        setErrorMsg("圖片上傳失敗，請重試");
-        setStep("failed");
+        setSelectedImage(null);
       }
     }
+  };
+
+  // 確認截圖並開始解析
+  const handleConfirmScreenshot = async () => {
+    if (!pendingScreenshot) return;
+    setSelectedImage(pendingScreenshot.uri);
+    setStep("parsing");
+    startParseProgress();
+    try {
+      const uploadResult = await uploadImageMutation.mutateAsync({
+        base64: pendingScreenshot.base64,
+        mimeType: pendingScreenshot.mimeType,
+      });
+      parseImageMutation.mutate({ storageKey: uploadResult.key });
+    } catch (e: any) {
+      stopParseProgress();
+      setErrorMsg("圖片上傳失敗，請重試");
+      setFailedInput({ type: "url", value: "" });
+      setStep("failed");
+    }
+    setPendingScreenshot(null);
+  };
+
+  // 重新選擇截圖
+  const handleReselectImage = () => {
+    setPendingScreenshot(null);
+    setSelectedImage(null);
   };
 
   // 解析文字
@@ -394,7 +471,7 @@ export default function ImportScreen() {
     }, 3000);
 
     try {
-      let imageUrl = parsedRecipe.image || parsedRecipe.thumbnailUrl || "";
+      let imageUrl = recipeImageUri || parsedRecipe.image || parsedRecipe.thumbnailUrl || "";
       if (recipeImageBase64) {
         const uploadResult = await uploadImageMutation.mutateAsync({
           base64: recipeImageBase64,
@@ -488,6 +565,10 @@ export default function ImportScreen() {
             );
           })}
         </View>
+        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelParsing}>
+          <Ionicons name="close-circle-outline" size={16} color="#9CA3AF" />
+          <Text style={styles.cancelBtnText}>取消解析</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -495,6 +576,22 @@ export default function ImportScreen() {
   // ── 解析成功預覽（可編輯）──
   if (step === "preview" && parsedRecipe) {
     const isFormPending = importMutation.isPending || isSaving;
+
+    useEffect(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        Alert.alert(
+          "確定要離開？",
+          "已編輯的內容將不會儲存",
+          [
+            { text: "繼續編輯", style: "cancel" },
+            { text: "離開", style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },
+          ]
+        );
+        return true;
+      });
+      return () => sub.remove();
+    }, []);
+
     return (
       <>
         <ScrollView style={styles.container}>
@@ -685,7 +782,16 @@ export default function ImportScreen() {
                 </>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.retryButton} onPress={() => { setStep("input"); setParsedRecipe(null); }}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => {
+              Alert.alert(
+                "重新匯入？",
+                "目前的編輯內容將會遺失",
+                [
+                  { text: "取消", style: "cancel" },
+                  { text: "重新匯入", style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },
+                ]
+              );
+            }}>
               <Text style={styles.retryButtonText}>重新匯入</Text>
             </TouchableOpacity>
           </View>
@@ -730,6 +836,28 @@ export default function ImportScreen() {
         <Ionicons name="checkmark-circle" size={80} color="#22C55E" />
         <Text style={styles.successTitle}>食譜已儲存！</Text>
         <Text style={styles.successSubtitle}>正在跳轉到食譜詳情...</Text>
+        {!isOnboarding && (
+          <View style={styles.successActions}>
+            <TouchableOpacity
+              style={styles.successPrimaryBtn}
+              onPress={() => {
+                if (parsedRecipe?.id) {
+                  router.replace({ pathname: "/recipe/[id]", params: { id: `user_${parsedRecipe.id}` } });
+                }
+              }}
+            >
+              <Ionicons name="restaurant-outline" size={18} color="#fff" />
+              <Text style={styles.successPrimaryBtnText}>查看食譜</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.successSecondaryBtn}
+              onPress={() => { setStep("input"); setParsedRecipe(null); setUrlInput(""); setTextInput(""); setSelectedImage(null); setPendingScreenshot(null); setFailedInput(null); }}
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#013E77" />
+              <Text style={styles.successSecondaryBtnText}>繼續匯入</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   }
@@ -780,12 +908,34 @@ export default function ImportScreen() {
           )}
 
           <View style={styles.failedActions}>
+            {failedInput && failedInput.value ? (
+              <TouchableOpacity
+                style={styles.tryScreenshotButton}
+                onPress={() => {
+                  if (failedInput.type === "url") {
+                    setStep("input");
+                    setMethod("url");
+                    setSelectedPlatform(null);
+                    setErrorMsg("");
+                  } else {
+                    setStep("input");
+                    setMethod("text");
+                    setErrorMsg("");
+                  }
+                }}
+              >
+                <Ionicons name="refresh-outline" size={18} color="#fff" />
+                <Text style={styles.tryScreenshotText}>
+                  重試{failedInput.type === "url" ? "此連結" : "此文字"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
-              style={styles.tryScreenshotButton}
-              onPress={() => { setStep("input"); setMethod("screenshot"); setErrorMsg(""); }}
+              style={failedInput ? styles.tryTextButton : styles.tryScreenshotButton}
+              onPress={() => { setStep("input"); setMethod("screenshot"); setErrorMsg(""); setFailedInput(null); }}
             >
-              <Ionicons name="image" size={18} color="#fff" />
-              <Text style={styles.tryScreenshotText}>截圖上傳試試</Text>
+              <Ionicons name="image" size={18} color={failedInput ? "#013E77" : "#fff"} />
+              <Text style={failedInput ? styles.tryTextButtonText : styles.tryScreenshotText}>截圖上傳試試</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.tryTextButton}
@@ -796,9 +946,9 @@ export default function ImportScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => { setStep("input"); setErrorMsg(""); }}
+              onPress={() => { setStep("input"); setErrorMsg(""); setFailedInput(null); setUrlInput(""); setTextInput(""); }}
             >
-              <Text style={styles.retryButtonText}>換另一個連結</Text>
+              <Text style={styles.retryButtonText}>換另一個</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -815,8 +965,26 @@ export default function ImportScreen() {
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <View style={[styles.headerSection, { paddingTop: insets.top + 20 }]}>
-        <Text style={styles.pageTitle}>匯入食譜</Text>
-        <Text style={styles.pageSubtitle}>從 Instagram、YouTube、Threads、小紅書等平台匯入</Text>
+        <Text style={styles.pageTitle}>新增食譜</Text>
+        <Text style={styles.pageSubtitle}>貼連結、貼文字、截圖上傳或手動輸入</Text>
+      </View>
+
+      {/* 步驟指示器 */}
+      <View style={styles.stepIndicator}>
+        {[
+          { label: "選擇方式", active: true },
+          { label: "貼上內容", active: false },
+          { label: "AI 解析", active: false },
+          { label: "確認儲存", active: false },
+        ].map((s, i) => (
+          <View key={s.label} style={styles.stepItem}>
+            <View style={[styles.stepDot, s.active && styles.stepDotActive]}>
+              {s.active && <View style={styles.stepDotInner} />}
+            </View>
+            <Text style={[styles.stepLabel, s.active && styles.stepLabelActive]}>{s.label}</Text>
+            {i < 3 && <View style={styles.stepLine} />}
+          </View>
+        ))}
       </View>
 
       {/* 剪貼板偵測提示 */}
@@ -837,12 +1005,13 @@ export default function ImportScreen() {
       )}
 
       {/* 方法選擇 Tab */}
-      <View style={styles.methodTabs}>
+      <ScrollView style={styles.methodTabScroll} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.methodTabContainer}>
         {[
           { key: "url", label: "貼上連結", icon: "link" },
+          { key: "text", label: "貼上文字", icon: "document-text" },
           { key: "xiaohongshu", label: "小紅書", icon: "book" },
           { key: "screenshot", label: "截圖上傳", icon: "image" },
-          { key: "manual", label: "自訂食譜", icon: "create-outline" },
+          { key: "manual", label: "手動輸入", icon: "create-outline" },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -851,7 +1020,7 @@ export default function ImportScreen() {
           >
             <Ionicons
               name={tab.icon as any}
-              size={18}
+              size={16}
               color={method === tab.key ? "#013E77" : "#9CA3AF"}
             />
             <Text style={[styles.methodTabText, method === tab.key && styles.methodTabTextActive]}>
@@ -859,7 +1028,7 @@ export default function ImportScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* 匯入 — 平台選擇 */}
       {method === "url" && !selectedPlatform && (
@@ -871,7 +1040,6 @@ export default function ImportScreen() {
               { id: "youtube",   label: "YouTube",   icon: "logo-youtube" as any, color: "#FF0000" },
               { id: "threads",   label: "Threads",   icon: "at" as any, color: "#000" },
               { id: "tiktok",    label: "TikTok",    icon: "musical-notes" as any, color: "#000" },
-              { id: "text",      label: "貼上文字",   icon: "document-text" as any, color: "#013E77" },
             ].map((p) => (
               <TouchableOpacity
                 key={p.id}
@@ -890,7 +1058,7 @@ export default function ImportScreen() {
       )}
 
       {/* 匯入 — 平台專屬輸入 (IG / YouTube / Threads / TikTok) */}
-      {method === "url" && selectedPlatform && !["xiaohongshu", "text"].includes(selectedPlatform) && (
+      {method === "url" && selectedPlatform && selectedPlatform !== "xiaohongshu" && (
         <View style={styles.inputSection}>
           <TouchableOpacity style={styles.backRow} onPress={() => { setSelectedPlatform(null); setUrlInput(""); }}>
             <Ionicons name="arrow-back" size={18} color="#013E77" />
@@ -959,7 +1127,7 @@ export default function ImportScreen() {
               <Text style={styles.xhsOptionText}>截圖食譜內容，用「截圖上傳」</Text>
             </View>
             <View style={styles.xhsActionRow}>
-              <TouchableOpacity style={styles.xhsAction} onPress={() => { setSelectedPlatform("text"); }}>
+              <TouchableOpacity style={styles.xhsAction} onPress={() => { setMethod("text"); setSelectedPlatform(null); }}>
                 <Text style={styles.xhsActionText}>貼上文字</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.xhsAction, { backgroundColor: "#EEF4FB" }]} onPress={() => { setMethod("screenshot"); setSelectedPlatform(null); }}>
@@ -970,18 +1138,14 @@ export default function ImportScreen() {
         </View>
       )}
 
-      {/* 匯入 — 貼上文字 */}
-      {method === "url" && selectedPlatform === "text" && (
+      {/* 貼上文字 */}
+      {method === "text" && (
         <View style={styles.inputSection}>
-          <TouchableOpacity style={styles.backRow} onPress={() => setSelectedPlatform(null)}>
-            <Ionicons name="arrow-back" size={18} color="#013E77" />
-            <Text style={styles.backRowText}>選擇其他平台</Text>
-          </TouchableOpacity>
           <Text style={styles.inputLabel}>貼上食譜文字</Text>
           <Text style={styles.inputSubLabel}>從任何平台複製食材和步驟文字，貼上即可自動解析</Text>
           <TextInput
             style={[styles.urlInput, { minHeight: 160 }]}
-            placeholder="例如：&#10;材料：&#10;- 雞翼 10 隻&#10;- 生抽 2 湯匙&#10;&#10;步驟：&#10;1. 雞翼洗淨抹乾&#10;2. 加入生抽醃 30 分鐘"
+            placeholder={`例如：\n材料：\n- 雞翼 10 隻\n- 生抽 2 湯匙\n\n步驟：\n1. 雞翼洗淨抹乾\n2. 加入生抽醃 30 分鐘`}
             placeholderTextColor="#9CA3AF"
             value={textInput}
             onChangeText={setTextInput}
@@ -998,6 +1162,12 @@ export default function ImportScreen() {
             <Ionicons name="sparkles" size={20} color="#fff" />
             <Text style={styles.parseButtonText}>AI 解析文字</Text>
           </TouchableOpacity>
+          <View style={styles.tipRow}>
+            <Ionicons name="bulb" size={14} color="#6B7280" />
+            <Text style={styles.tipText}>
+              小貼士：確保文字包含食材清單（如：雞肉 300g）和烹飪步驟（如：1. 熱鍋下油...），解析效果最佳
+            </Text>
+          </View>
         </View>
       )}
 
@@ -1007,29 +1177,33 @@ export default function ImportScreen() {
           <Text style={styles.inputLabel}>匯入小紅書食譜</Text>
           <View style={styles.xhsCard}>
             <Ionicons name="information-circle" size={24} color="#FF2442" />
-            <Text style={styles.xhsTitle}>小紅書連結暫時未能自動讀取</Text>
+            <Text style={styles.xhsTitle}>小紅書連結無法自動讀取</Text>
             <Text style={styles.xhsDesc}>
-              小紅書嘅連結係 app deeplink，複製後會跳去 app 而唔係網頁，所以後端無法讀取內容。請用以下方法：
+              小紅書的連結是 app deeplink，複製後會跳轉到 app 而非網頁，後端無法讀取內容。請使用以下方法：
             </Text>
-            <View style={styles.xhsOption}>
-              <Ionicons name="copy-outline" size={20} color="#013E77" />
-              <Text style={styles.xhsOptionText}>喺小紅書 app 複製筆記嘅文字，然後用「貼上文字」功能解析</Text>
-            </View>
-            <View style={styles.xhsOption}>
-              <Ionicons name="image-outline" size={20} color="#013E77" />
-              <Text style={styles.xhsOptionText}>截圖食譜內容（食材 + 步驟），用「截圖上傳」功能</Text>
-            </View>
-            <View style={styles.xhsActionRow}>
-              <TouchableOpacity style={styles.xhsAction} onPress={() => { setMethod("url"); setSelectedPlatform("text"); }}>
-                <Ionicons name="copy-outline" size={16} color="#fff" />
-                <Text style={styles.xhsActionText}> 貼上文字</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.xhsAction, { backgroundColor: "#013E77" }]} onPress={() => setMethod("screenshot")}>
-                <Ionicons name="image-outline" size={16} color="#fff" />
-                <Text style={styles.xhsActionText}> 截圖上傳</Text>
-              </TouchableOpacity>
-            </View>
           </View>
+
+          <TouchableOpacity style={styles.xhsMethodCard} onPress={() => setMethod("text")} activeOpacity={0.7}>
+            <View style={[styles.xhsMethodIcon, { backgroundColor: "#EEF4FB" }]}>
+              <Ionicons name="copy-outline" size={22} color="#013E77" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.xhsMethodTitle}>貼上文字</Text>
+              <Text style={styles.xhsMethodDesc}>在小紅書複製筆記文字，貼上即可解析</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.xhsMethodCard} onPress={() => setMethod("screenshot")} activeOpacity={0.7}>
+            <View style={[styles.xhsMethodIcon, { backgroundColor: "#F0FDF4" }]}>
+              <Ionicons name="image-outline" size={22} color="#16A34A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.xhsMethodTitle}>截圖上傳</Text>
+              <Text style={styles.xhsMethodDesc}>截圖食譜內容（食材 + 步驟），AI 自動識別</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1037,38 +1211,52 @@ export default function ImportScreen() {
       {method === "screenshot" && (
         <View style={styles.inputSection}>
           <Text style={styles.inputLabel}>上傳食譜截圖</Text>
-          <TouchableOpacity style={styles.imagePickerArea} onPress={handlePickImage}>
-            {selectedImage ? (
-              <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
-            ) : (
-              <>
-                <Ionicons name="cloud-upload-outline" size={48} color="#9CA3AF" />
-                <Text style={styles.imagePickerText}>點擊選擇截圖</Text>
-                <Text style={styles.imagePickerSubText}>支援 JPG、PNG 格式</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          <View style={styles.tipRow}>
-            <Ionicons name="bulb" size={14} color="#6B7280" />
-            <Text style={styles.tipText}>
-              小貼士：對 Instagram / 小紅書食譜貼文截圖，包含食材和步驟的部分效果最佳
-            </Text>
-          </View>
+
+          {pendingScreenshot ? (
+            <>
+              <Image source={{ uri: pendingScreenshot.uri }} style={styles.selectedImage} />
+              <Text style={styles.previewHint}>確認圖片清晰，包含食材和步驟</Text>
+              <View style={styles.screenshotActions}>
+                <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
+                  <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+                  <Text style={styles.screenshotReselectText}>重新選擇</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.screenshotConfirmBtn} onPress={handleConfirmScreenshot}>
+                  <Ionicons name="sparkles" size={16} color="#fff" />
+                  <Text style={styles.screenshotConfirmText}>開始解析</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.imagePickerArea} onPress={handlePickImage}>
+                {selectedImage ? (
+                  <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={48} color="#9CA3AF" />
+                    <Text style={styles.imagePickerText}>點擊選擇截圖</Text>
+                    <Text style={styles.imagePickerSubText}>支援 JPG、PNG 格式</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
-      {/* 自訂食譜 */}
+      {/* 手動輸入 */}
       {method === "manual" && (
         <View style={styles.inputSection}>
           <TouchableOpacity style={styles.manualCard} onPress={() => router.push("/recipe-editor")} activeOpacity={0.85}>
             <View style={styles.manualIcon}>
               <Ionicons name="create-outline" size={40} color="#013E77" />
             </View>
-            <Text style={styles.manualTitle}>自訂食譜</Text>
-            <Text style={styles.manualSub}>手動建立你自己的食譜</Text>
+            <Text style={styles.manualTitle}>想自己逐樣輸入？</Text>
+            <Text style={styles.manualSub}>手動建立食材、步驟同烹飪時間</Text>
             <View style={styles.manualBtn}>
               <Ionicons name="restaurant-outline" size={18} color="#fff" />
-              <Text style={styles.manualBtnTxt}>開始建立</Text>
+              <Text style={styles.manualBtnTxt}>開始手動輸入</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -1091,6 +1279,22 @@ const styles = StyleSheet.create({
   },
   pageTitle: { fontSize: 22, fontWeight: "900", color: "#fff" },
   pageSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4 },
+  stepIndicator: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    paddingVertical: 14, paddingHorizontal: 16,
+    backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F0F0F0",
+  },
+  stepItem: { flexDirection: "row", alignItems: "center", flex: 1 },
+  stepDot: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: "#D1D5DB",
+    alignItems: "center", justifyContent: "center",
+  },
+  stepDotActive: { borderColor: "#013E77", backgroundColor: "#013E77" },
+  stepDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
+  stepLabel: { fontSize: 11, color: "#9CA3AF", marginLeft: 4, fontWeight: "600" },
+  stepLabelActive: { color: "#013E77" },
+  stepLine: { flex: 1, height: 1.5, backgroundColor: "#E5E0D8", marginHorizontal: 4 },
   clipboardBanner: {
     flexDirection: "row", alignItems: "center", gap: 10,
     margin: 12, padding: 12, backgroundColor: "#EFF6FF",
@@ -1103,34 +1307,38 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   clipboardButtonText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-  methodTabs: {
-    flexDirection: "row", margin: 12, marginBottom: 0,
+  methodTabScroll: {
+    marginHorizontal: 12, marginTop: 12, marginBottom: 0,
+  },
+  methodTabContainer: {
+    flexDirection: "row", gap: 8,
     backgroundColor: "#fff", borderRadius: 12, padding: 4,
     borderWidth: 1, borderColor: "#E5E0D8",
   },
   methodTab: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingVertical: 8, borderRadius: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+    flexShrink: 0,
   },
   methodTabActive: { backgroundColor: "#EFF6FF" },
-  methodTabText: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
+  methodTabText: { fontSize: 13, fontWeight: "600", color: "#9CA3AF" },
   methodTabTextActive: { color: "#013E77" },
   inputSection: { padding: 12 },
   inputLabel: { fontSize: 14, fontWeight: "700", color: "#374151", marginBottom: 8 },
   inputSubLabel: { fontSize: 12, color: "#6B7280", marginBottom: 10, lineHeight: 18 },
   platformGrid: {
-    flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4,
+    flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8,
   },
   platformCard: {
-    width: "30.5%", aspectRatio: 1, borderRadius: 16,
-    backgroundColor: "#F9F9FB", borderWidth: 1, borderColor: "#EDE9E3",
-    alignItems: "center", justifyContent: "center", gap: 6,
+    width: "47%", aspectRatio: 1.3, borderRadius: 16,
+    backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: "#E5E0D8",
+    alignItems: "center", justifyContent: "center", gap: 8,
   },
   platformCardIcon: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 52, height: 52, borderRadius: 26,
     alignItems: "center", justifyContent: "center",
   },
-  platformCardLabel: { fontSize: 12, fontWeight: "700", color: "#374151" },
+  platformCardLabel: { fontSize: 13, fontWeight: "700", color: "#374151" },
   backRow: {
     flexDirection: "row", alignItems: "center", gap: 4,
     marginBottom: 12,
@@ -1152,6 +1360,17 @@ const styles = StyleSheet.create({
     alignItems: "center", backgroundColor: "#FF4D4F",
   },
   xhsActionText: { fontSize: 13, fontWeight: "700", color: "#fff" },
+  xhsMethodCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14, marginTop: 12,
+    borderWidth: 1.5, borderColor: "#E5E0D8",
+  },
+  xhsMethodIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  xhsMethodTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginBottom: 2 },
+  xhsMethodDesc: { fontSize: 12, color: "#6B7280", lineHeight: 17 },
   urlInput: {
     backgroundColor: "#fff", borderRadius: 12, padding: 14,
     fontSize: 14, color: "#1A1A1A", minHeight: 80,
@@ -1197,6 +1416,19 @@ const styles = StyleSheet.create({
   selectedImage: { width: "100%", height: 200, borderRadius: 8 },
   imagePickerText: { fontSize: 16, fontWeight: "600", color: "#6B7280", marginTop: 8 },
   imagePickerSubText: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
+  previewHint: { fontSize: 12, color: "#6B7280", textAlign: "center", marginTop: 8, marginBottom: 12 },
+  screenshotActions: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  screenshotReselectBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: "#F5F8FC", paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: "#E5E0D8",
+  },
+  screenshotReselectText: { fontSize: 15, fontWeight: "700", color: "#6B7280" },
+  screenshotConfirmBtn: {
+    flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: "#013E77", paddingVertical: 14, borderRadius: 14,
+  },
+  screenshotConfirmText: { fontSize: 15, fontWeight: "700", color: "#fff" },
   tipRow: {
     flexDirection: "row", alignItems: "flex-start", gap: 6,
     backgroundColor: "#FFFBF5", padding: 10, borderRadius: 8,
@@ -1219,6 +1451,12 @@ const styles = StyleSheet.create({
   parsingStepText: { fontSize: 14, color: "#9CA3AF" },
   parsingStepTextActive: { fontSize: 14, color: "#013E77", fontWeight: "700" },
   parsingStepDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB" },
+  cancelBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 32, paddingVertical: 10, paddingHorizontal: 20,
+    borderRadius: 24, borderWidth: 1.5, borderColor: "#E5E0D8",
+  },
+  cancelBtnText: { fontSize: 14, fontWeight: "600", color: "#9CA3AF" },
   previewHeader: { alignItems: "center", padding: 20, paddingBottom: 12 },
   previewTitle: { fontSize: 20, fontWeight: "800", color: "#1A1A1A", marginTop: 8 },
   previewSubtitle: { fontSize: 13, color: "#6B7280" },
@@ -1277,6 +1515,18 @@ const styles = StyleSheet.create({
   retryButtonText: { color: "#6B7280", fontSize: 14, fontWeight: "600" },
   successTitle: { fontSize: 22, fontWeight: "900", color: "#22C55E", marginTop: 16 },
   successSubtitle: { fontSize: 14, color: "#6B7280", marginTop: 4 },
+  successActions: { width: "100%", marginTop: 32, gap: 10 },
+  successPrimaryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#013E77", paddingVertical: 16, borderRadius: 14,
+  },
+  successPrimaryBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  successSecondaryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#EEF4FB", paddingVertical: 16, borderRadius: 14,
+    borderWidth: 1.5, borderColor: "#C5D9F0",
+  },
+  successSecondaryBtnText: { fontSize: 16, fontWeight: "700", color: "#013E77" },
   failedTitle: { fontSize: 20, fontWeight: "800", color: "#EF4444", marginTop: 12 },
   failedMsg: { fontSize: 14, color: "#6B7280", marginTop: 8, textAlign: "center", marginBottom: 16, lineHeight: 21 },
   failedActions: { gap: 10, width: "100%", marginTop: 8 },

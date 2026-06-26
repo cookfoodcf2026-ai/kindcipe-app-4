@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
 import UnitPicker from "@/src/components/UnitPicker";
+import { compressImage } from "@/lib/image-utils";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -131,11 +132,17 @@ export default function RecipeEditorScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
-      base64: true,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64 || null);
+      try {
+        const compressed = await compressImage(result.assets[0].uri);
+        setImageUri(compressed.uri);
+        setImageBase64(compressed.base64);
+      } catch {
+        setImageUri(result.assets[0].uri);
+        setImageBase64(result.assets[0].base64 || null);
+      }
     }
   };
 
@@ -160,12 +167,19 @@ export default function RecipeEditorScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
-      base64: true,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
-      setSteps(prev => prev.map((s, i) => i === idx ? {
-        ...s, imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64,
-      } : s));
+      try {
+        const compressed = await compressImage(result.assets[0].uri);
+        setSteps(prev => prev.map((s, i) => i === idx ? {
+          ...s, imageUri: compressed.uri, imageBase64: compressed.base64,
+        } : s));
+      } catch {
+        setSteps(prev => prev.map((s, i) => i === idx ? {
+          ...s, imageUri: result.assets[0].uri, imageBase64: result.assets[0].base64,
+        } : s));
+      }
     }
   };
   const removeStepImage = (idx: number) => {

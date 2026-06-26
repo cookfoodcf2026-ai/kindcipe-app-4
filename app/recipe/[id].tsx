@@ -7,7 +7,7 @@
  * - 家庭備註（trpc.recipeNotes）
  * - 食材分類顏色（綠/藍圓點）
  * - 烹飪術語 ❓ tooltip
- * - 加入排餐 / 加入採購清單
+ * - 加入排餐 / 加入購物清單
  * - 比價（HKTVmall / 百佳 / 惠康）
  * - Instagram 影片連結
  * - AI Edit
@@ -24,8 +24,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
+import PlanDatePicker from "@/src/components/PlanDatePicker";
+import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERMS, COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
+import {
+  cleanIngredientName,
+  isFreshIngredient,
+  filterPriceResults,
+  SM_STYLE,
+  REDIRECT_PLATFORMS,
+  openPlatform,
+} from "@/lib/price";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -213,86 +224,7 @@ function StepTimer({ defaultSeconds = 0 }: { defaultSeconds?: number }) {
   );
 }
 
-// ── Price comparison helpers ────────────────────────────────────────
-function cleanIngredientName(name: string): string {
-  return name
-    .replace(/\s*\d+(\.\d+)?\s*(g|kg|ml|l|斤|兩|磅|包|個|條|隻|塊|份|碗|盒|罐|瓶|克|公斤|毫升|升|片|束|把|顆|粒|支|枝)/gi, "")
-    .replace(/[一二三四五六七八九十百千]+[包個條隻塊份碗盒罐瓶片束把顆粒支枝]/g, "")
-    .trim();
-}
-
-const FRESH_KEYWORDS = ["豬","牛","雞","魚","蝦","蟹","豆腐","排骨","肉","菜","菠菜","白菜","椰菜","生菜","芥蘭","通菜","菜心","番茄","茄子","青椒","洋蔥","薑","蒜","蔥","芹菜","蘿蔔","薯","瓜","豆","芽","蘑菇","冬菇"];
-
-function isFreshIngredient(name: string): boolean {
-  return FRESH_KEYWORDS.some(kw => name.includes(kw));
-}
-
-const SM_STYLE: Record<string, { color: string; bg: string; border: string; logo: string }> = {
-  WELLCOME:  { color: "#0066CC", bg: "#EFF6FF", border: "#BFDBFE", logo: "W" },
-  PARKNSHOP: { color: "#C8102E", bg: "#FFF5F5", border: "#FECACA", logo: "P" },
-  JASONS:    { color: "#2D6A4F", bg: "#F0FDF4", border: "#BBF7D0", logo: "J" },
-  WATSONS:   { color: "#005BAC", bg: "#EFF6FF", border: "#BFDBFE", logo: "W" },
-  AEON:      { color: "#E60012", bg: "#FFF1F2", border: "#FECDD3", logo: "A" },
-  DCHFOOD:   { color: "#FF6B00", bg: "#FFF7ED", border: "#FED7AA", logo: "D" },
-};
-
-const REDIRECT_PLATFORMS = [
-  {
-    name: "HKTVmall", nameEn: "HKTVmall", logo: "H", bg: "#FFF1F2", border: "#FECACA",
-    // Custom URL scheme deep link — opens app directly if installed
-    url: (kw: string) => `https://www.hktvmall.com/hktv/zh/search_a?keyword=${encodeURIComponent(kw)}`,
-    app: (kw: string) => `hktvmall://search?keyword=${encodeURIComponent(kw)}`,
-    hint: "有 App 可直接開啟",
-  },
-  {
-    name: "pandamart", nameEn: "pandamart 24/7超市", logo: "P", bg: "#FFF0F6", border: "#FBCFE8",
-    // pandamart search inside foodpanda darkstore
-    url: (kw: string) => `https://www.foodpanda.hk/darkstore/x0ad/pandamart-24-7-supermarket-central/search?q=${encodeURIComponent(kw)}`,
-    app: (kw: string) => `foodpanda://darkstore/search?q=${encodeURIComponent(kw)}`,
-    hint: "有 App 可直接開啟",
-  },
-  {
-    name: "惠康 Wellcome", nameEn: "Wellcome Supermarket", logo: "W", bg: "#EFF6FF", border: "#BFDBFE",
-    // Universal Link — iOS automatically opens Wellcome app if installed
-    url: (kw: string) => `https://www.wellcome.com.hk/zh-hant/search?keyword=${encodeURIComponent(kw)}`,
-    app: null,
-    hint: "裝有 App 自動開啟",
-  },
-  {
-    name: "百佳 PARKnSHOP", nameEn: "PARKnSHOP", logo: "P", bg: "#FFF5F5", border: "#FECACA",
-    // Universal Link — iOS automatically opens PARKnSHOP app if installed
-    url: (kw: string) => `https://www.pns.hk/zh-hk/search?text=${encodeURIComponent(kw)}`,
-    app: null,
-    hint: "裝有 App 自動開啟",
-  },
-  {
-    name: "吉之島 AEON", nameEn: "AEON City Online", logo: "A", bg: "#FFF1F2", border: "#FECDD3",
-    url: (kw: string) => `https://www.aeoncity.com.hk/kh_zh/catalogsearch/result/?q=${encodeURIComponent(kw)}`,
-    app: null,
-    hint: "網頁版",
-  },
-];
-
-async function openPlatform(p: typeof REDIRECT_PLATFORMS[0], keyword: string) {
-  // Try app deep link first; fall back to web URL
-  if (p.app) {
-    try {
-      const appUrl = p.app(keyword);
-      const can = await Linking.canOpenURL(appUrl);
-      if (can) {
-        await Linking.openURL(appUrl);
-        return;
-      }
-    } catch {}
-  }
-  // Open web URL
-  try {
-    await Linking.openURL(p.url(keyword));
-  } catch (e) {
-    Alert.alert("無法開啟", "請手動前往該平台搜尋「" + keyword + "」");
-  }
-}
-
+// ── Main component ──────────────────────────────────────────────────
 const MEAL_TYPES = [
   { id: "breakfast", label: "早餐" },
   { id: "lunch", label: "午餐" },
@@ -300,7 +232,6 @@ const MEAL_TYPES = [
   { id: "snack", label: "小食" },
 ];
 
-// ── Main component ──────────────────────────────────────────────────
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -319,9 +250,13 @@ export default function RecipeDetailScreen() {
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
+  const [editablePriceKw, setEditablePriceKw] = useState("");
   const [priceIngCat, setPriceIngCat] = useState("");
   const [selectedResultIdx, setSelectedResultIdx] = useState(0);
   const [showAllResults, setShowAllResults] = useState(false);
+  const [showAllSupermarkets, setShowAllSupermarkets] = useState(false);
+  const [savePriceInput, setSavePriceInput] = useState("");
+  const [ingredientPrices, setIngredientPrices] = useState<Record<string, number>>({});
   // Tags
   const [showTagEditor, setShowTagEditor] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -340,6 +275,8 @@ export default function RecipeDetailScreen() {
   const [showIngPicker, setShowIngPicker] = useState(false);
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
+  // Ingredient picker after addPlanM success
+  const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -350,23 +287,113 @@ export default function RecipeDetailScreen() {
     { keyword: cleanPriceKw },
     { enabled: showPrice && !!cleanPriceKw && !isFreshIng, staleTime: 1000 * 60 * 60 * 6 }
   );
+  const priceResults = useMemo(() => filterPriceResults(priceQ.data ?? [], cleanPriceKw), [priceQ.data, cleanPriceKw]);
+
+  const shoppingListQ = trpc.shopping.list.useQuery(undefined, {
+    enabled: isAuthenticated && !!user,
+    staleTime: 1000 * 30,
+  });
+  const shoppingItemsByName = useMemo(() => {
+    const map: Record<string, any> = {};
+    (shoppingListQ.data ?? []).forEach((item: any) => {
+      if (!map[item.name]) map[item.name] = item;
+    });
+    return map;
+  }, [shoppingListQ.data]);
+
+  const savePriceM = (trpc as any).shopping.savePrice.useMutation({
+    onSuccess: (_data: any, variables: any) => {
+      utils.shopping.list.invalidate();
+      if (variables?.itemName) {
+        setIngredientPrices(prev => ({ ...prev, [variables.itemName]: variables.price }));
+      }
+      Alert.alert("已記錄", "價格已儲存到購物清單");
+    },
+    onError: (e: any) => Alert.alert("儲存失敗", e.message),
+  });
+
+  const getIngRecordedPrice = (ingName: string): number | null => {
+    if (ingredientPrices[ingName]) return ingredientPrices[ingName];
+    const shoppingItem = shoppingItemsByName[ingName];
+    if (shoppingItem?.estimatedPrice) return shoppingItem.estimatedPrice;
+    if (lastPricesMap[ingName]) return lastPricesMap[ingName];
+    return null;
+  };
+
+  const handleSavePriceToShopping = (ingName: string, price: number, category?: string, unit?: string, quantity?: string) => {
+    const existingItem = shoppingItemsByName[ingName];
+    if (existingItem) {
+      savePriceM.mutate({
+        itemId: existingItem.id,
+        itemName: ingName,
+        price,
+        category: category || existingItem.category || "其他",
+        unit: unit || existingItem.unit || "",
+        quantity: quantity || existingItem.quantity || "",
+      });
+    } else {
+      const addM = trpc.shopping.add.useMutation({
+        onSuccess: (newItem: any) => {
+          if (newItem?.id) {
+            savePriceM.mutate({
+              itemId: newItem.id,
+              itemName: ingName,
+              price,
+              category: category || "其他",
+              unit: unit || "",
+              quantity: quantity || "",
+            });
+          } else {
+            utils.shopping.list.invalidate();
+            setIngredientPrices(prev => ({ ...prev, [ingName]: price }));
+            Alert.alert("已記錄", "價格已儲存");
+          }
+        },
+        onError: (e: any) => Alert.alert("新增失敗", e.message),
+      });
+      addM.mutate({ name: ingName, category: category || "其他", unit: unit || "", quantity: quantity || "" });
+    }
+  };
+
+  const handleUseLowestPrice = () => {
+    if (!priceResults || priceResults.length === 0) return;
+    const selectedResult = priceResults[selectedResultIdx] ?? priceResults[0];
+    const sortedPrices = [...(selectedResult?.prices ?? [])]
+      .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
+      .sort((a: any, b: any) => Number(a.price) - Number(b.price));
+    if (sortedPrices.length > 0) {
+      const lowest = Number(sortedPrices[0].price);
+      setSavePriceInput(String(Math.round(lowest)));
+    }
+  };
 
   // Auto-select cheapest product when results load
   useEffect(() => {
-    if (!priceQ.data || priceQ.data.length === 0) return;
+    if (!priceResults || priceResults.length === 0) return;
     let cheapestIdx = 0;
     let cheapestPrice = Infinity;
-    priceQ.data.forEach((item: any, idx: number) => {
+    priceResults.forEach((item: any, idx: number) => {
       const validPrices = (item.prices ?? []).map((p: any) => Number(p.price)).filter((v: number) => !isNaN(v) && v > 0);
       const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : Infinity;
       if (minPrice < cheapestPrice) { cheapestPrice = minPrice; cheapestIdx = idx; }
     });
     setSelectedResultIdx(cheapestIdx);
-  }, [priceQ.data]);
+  }, [priceResults]);
 
   const recipe = recipeQ.data;
   const ingredients: any[] = recipe?.ingredients ?? [];
   const steps: any[] = recipe?.steps ?? [];
+
+  const allIngNames = useMemo(() => {
+    const names = new Set<string>();
+    ingredients.forEach((ing: any) => { if (ing.name) names.add(ing.name); });
+    return Array.from(names);
+  }, [ingredients]);
+  const lastPricesQ = (trpc as any).shopping.lastPrices.useQuery(
+    { itemNames: allIngNames },
+    { enabled: isAuthenticated && !!user && allIngNames.length > 0 },
+  );
+  const lastPricesMap: Record<string, number> = lastPricesQ.data ?? {};
   const imgUrl = (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
   const isUserRecipe = (recipe as any)?.source === "user";
   const sourceUrl = (recipe as any)?.sourceUrl;
@@ -443,11 +470,30 @@ export default function RecipeDetailScreen() {
     onError: (e: any) => Alert.alert("失敗", e.message),
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
-    onSuccess: () => { setShowPlan(false); Alert.alert("已加入排餐"); },
+    onSuccess: () => {
+      setShowPlan(false);
+      utils.mealPlan.listByDateRange.invalidate();
+      const ings = adjustedIngredients.map((ing: any) => ({
+        name: ing.name,
+        quantity: ing.adjustedQty ?? ing.quantity ?? "",
+        unit: ing.unit ?? "",
+        category: ing.category ?? "食材",
+      }));
+      if (ings.length > 0) {
+        setPlanPickerRecipe({
+          id: recipeStringId,
+          name: recipe?.name ?? "",
+          ingredients: ings,
+          date: planDate,
+        });
+      } else {
+        Alert.alert("已加入排餐");
+      }
+    },
     onError: (e) => Alert.alert("失敗", e.message),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => { setAddedToCart(true); Alert.alert("已加入採購清單"); },
+    onSuccess: () => { utils.shopping.list.invalidate(); utils.mealPlan.listByDateRange.invalidate(); setAddedToCart(true); Alert.alert("已加入購物清單"); },
     onError: (e) => Alert.alert("失敗", e.message),
   });
   const aiEditM = trpc.aiRecipe.chat.useMutation({
@@ -501,13 +547,6 @@ export default function RecipeDetailScreen() {
       return { ...ing, adjustedQty: adjusted };
     });
   }, [ingredients, ratio]);
-
-  const dateOptions = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() + i);
-    const iso = d.toISOString().split("T")[0];
-    const label = i === 0 ? "今天" : i === 1 ? "明天" : d.toLocaleDateString("zh-HK", { month: "numeric", day: "numeric", weekday: "short" });
-    return { iso, label };
-  }), []);
 
   if (recipeQ.isLoading) {
     return (
@@ -703,6 +742,7 @@ export default function RecipeDetailScreen() {
                   {adjustedIngredients.map((ing: any, i: number) => {
                     const isPackaged = PACKAGED_CATS.has(ing.category ?? "");
                     const isScaled = ratio !== 1 && !SEASONING_CATS.has(ing.category ?? "");
+                    const recordedPrice = getIngRecordedPrice(ing.name);
                     return (
                       <View key={i} style={[s.ingRow, i < adjustedIngredients.length - 1 && s.ingBorder]}>
                         {/* Color dot: green=fresh, blue=packaged */}
@@ -718,11 +758,20 @@ export default function RecipeDetailScreen() {
                         <Text style={[s.ingQty, isScaled && { color: COPPER, fontWeight: "700" }]}>
                           {ing.unit === "適量" ? "適量" : `${ing.adjustedQty} ${ing.unit ?? ""}`}
                         </Text>
+                        {recordedPrice !== null && (
+                          <View style={s.ingPriceBadge}>
+                            <Text style={s.ingPriceBadgeTxt}>${recordedPrice}</Text>
+                          </View>
+                        )}
                         <TouchableOpacity style={s.priceBtn} onPress={() => {
                           setPriceKw(ing.name);
+                          setEditablePriceKw(ing.name);
                           setPriceIngCat(ing.category ?? "");
                           setSelectedResultIdx(0);
                           setShowAllResults(false);
+                          setShowAllSupermarkets(false);
+                          const existingPrice = recordedPrice;
+                          setSavePriceInput(existingPrice ? String(existingPrice) : "");
                           setShowPrice(true);
                         }}>
                           <Text style={{ fontSize: 10, color: BRAND, fontWeight: "700" }}>比價</Text>
@@ -920,13 +969,7 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={s.sheetLabel}>選擇日期</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                {dateOptions.map(d => (
-                  <TouchableOpacity key={d.iso} style={[s.dateChip, planDate === d.iso && s.dateChipActive]} onPress={() => setPlanDate(d.iso)}>
-                    <Text style={[s.dateChipTxt, planDate === d.iso && { color: "#fff" }]}>{d.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <PlanDatePicker value={planDate} onChange={setPlanDate} />
               <Text style={s.sheetLabel}>餐次</Text>
               <View style={s.mealRow}>
                 {MEAL_TYPES.map(m => (
@@ -953,7 +996,7 @@ export default function RecipeDetailScreen() {
           </View>
         </Modal>
 
-        {/* ── Price comparison modal — full implementation ── */}
+        {/* ── Price comparison modal — synced with shopping page ─ */}
         <Modal visible={showPrice} transparent animationType="slide">
           <View style={s.overlay}>
             <View style={[s.sheet, { maxHeight: "88%" }]}>
@@ -968,9 +1011,29 @@ export default function RecipeDetailScreen() {
                       <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>搜尋關鍵字：「{cleanPriceKw}」</Text>
                     )}
                   </View>
-                  <TouchableOpacity onPress={() => { setShowPrice(false); setPriceKw(""); }}>
+                  <TouchableOpacity onPress={() => { setShowPrice(false); setPriceKw(""); setEditablePriceKw(""); setSelectedResultIdx(0); setShowAllResults(false); setShowAllSupermarkets(false); }}>
                     <Ionicons name="close" size={22} color={TEXT} />
                   </TouchableOpacity>
+                </View>
+
+                {/* Editable keyword */}
+                <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 10, color: SUB, marginBottom: 4 }}>編輯搜尋關鍵字</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: "#F5F5F5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: TEXT, borderWidth: 1, borderColor: "#E8E8E8" }}
+                      placeholder="例如：雞湯 罐頭"
+                      placeholderTextColor={SUB}
+                      value={editablePriceKw}
+                      onChangeText={setEditablePriceKw}
+                    />
+                    <TouchableOpacity
+                      style={{ backgroundColor: BRAND, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, justifyContent: "center" }}
+                      onPress={() => { if (editablePriceKw.trim()) { setPriceKw(editablePriceKw.trim()); } }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>搜尋</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Fresh ingredient notice */}
@@ -1001,23 +1064,47 @@ export default function RecipeDetailScreen() {
                 )}
 
                 {/* No results */}
-                {!isFreshIng && !priceQ.isLoading && !priceQ.isError && priceQ.data?.length === 0 && (
+                {!isFreshIng && !priceQ.isLoading && !priceQ.isError && priceResults.length === 0 && (
                   <View style={[s.priceNotice, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}>
                     <Text style={{ fontSize: 12, color: SUB }}>消委會格價中未找到「{cleanPriceKw}」，可直接前往各平台搜尋</Text>
                   </View>
                 )}
 
                 {/* Consumer Council data */}
-                {!isFreshIng && (priceQ.data?.length ?? 0) > 0 && (() => {
-                  const results = priceQ.data ?? [];
+                {!isFreshIng && priceResults.length > 0 && (() => {
+                  const results = priceResults;
                   const selectedResult = results[selectedResultIdx] ?? results[0];
                   const sortedPrices = [...(selectedResult?.prices ?? [])]
                     .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
                     .sort((a: any, b: any) => Number(a.price) - Number(b.price));
-                  const lowestPrice = sortedPrices[0] ? Number((sortedPrices[0] as any).price) : null;
+                  const lowestPrice = sortedPrices[0] ? Number(sortedPrices[0].price) : null;
+                  const top3 = sortedPrices.slice(0, 3);
+                  const hasMore = sortedPrices.length > 3;
+                  const summaryCheapest = sortedPrices[0];
 
                   return (
                     <>
+                      {/* Summary card */}
+                      {summaryCheapest && lowestPrice !== null && (
+                        <View style={{ marginHorizontal: 20, marginBottom: 14, backgroundColor: "#F0FDF4", borderRadius: 14, borderWidth: 1, borderColor: "#86EFAC", padding: 14 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
+                              <Text style={{ fontSize: 22 }}>🏆</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 12, color: "#16A34A", fontWeight: "800" }}>最抵格價</Text>
+                              <Text style={{ fontSize: 15, fontWeight: "800", color: TEXT }} numberOfLines={1}>{summaryCheapest.supermarketName}</Text>
+                            </View>
+                            <Text style={{ fontSize: 24, fontWeight: "900", color: "#16A34A" }}>HK${lowestPrice.toFixed(1)}</Text>
+                          </View>
+                          {sortedPrices[1] && (
+                            <Text style={{ fontSize: 11, color: SUB, marginTop: 6 }}>
+                              較第二平慳 HK${(Number(sortedPrices[1].price) - lowestPrice).toFixed(1)}
+                            </Text>
+                          )}
+                        </View>
+                      )}
+
                       {/* CC data badge */}
                       <View style={s.ccBadge}>
                         <Text style={s.ccBadgeTxt}>消委會數據 · 今日更新</Text>
@@ -1099,33 +1186,56 @@ export default function RecipeDetailScreen() {
                         </View>
                       )}
 
-                      {/* Supermarket prices */}
-                      <View style={{ gap: 8, marginBottom: 14 }}>
-                        {sortedPrices.map((p: any, idx: number) => {
-                          const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
-                          const isLowest = idx === 0;
-                          return (
-                            <View key={p.supermarketCode} style={[s.smPriceRow, { backgroundColor: st.bg, borderColor: isLowest ? "#22C55E" : st.border }]}>
-                              {isLowest && (
-                                <View style={s.lowestBadge}>
-                                  <Ionicons name="checkmark-outline" size={10} color="#fff" />
-                                  <Text style={s.lowestBadgeTxt}>最低格價</Text>
+                      {/* Supermarket prices - top 3 */}
+                      {top3.length > 0 && (
+                        <View style={{ marginBottom: 12 }}>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>超市格價</Text>
+                          {top3.map((p: any, idx: number) => {
+                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
+                            const isLowest = idx === 0;
+                            return (
+                              <View key={p.supermarketCode} style={[s.smPriceRow, { backgroundColor: st.bg, borderColor: isLowest ? "#22C55E" : st.border, marginBottom: 8 }]}>
+                                {isLowest && (
+                                  <View style={s.lowestBadge}>
+                                    <Ionicons name="checkmark-outline" size={10} color="#fff" />
+                                    <Text style={s.lowestBadgeTxt}>最低格價</Text>
+                                  </View>
+                                )}
+                                <View style={[s.smLogo, { backgroundColor: "#fff" }]}>
+                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
                                 </View>
-                              )}
-                              <View style={s.smLogo}>
-                                <Text style={{ fontSize: 18 }}>{st.logo}</Text>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.supermarketName}</Text>
+                                  <Text style={{ fontSize: 10, color: SUB }}>{p.supermarketCode}</Text>
+                                </View>
+                                <Text style={{ fontSize: 18, fontWeight: "900", color: isLowest ? "#15803D" : TEXT }}>HK${Number(p.price).toFixed(1)}</Text>
                               </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.supermarketName}</Text>
-                                <Text style={{ fontSize: 10, color: SUB }}>{p.supermarketCode}</Text>
-                              </View>
-                              <Text style={{ fontSize: 20, fontWeight: "900", color: isLowest ? "#15803D" : TEXT }}>
-                                HK${Number(p.price).toFixed(1)}
+                            );
+                          })}
+                          {hasMore && (
+                            <TouchableOpacity onPress={() => setShowAllSupermarkets(v => !v)} style={{ marginHorizontal: 20, marginTop: 6, paddingVertical: 6 }}>
+                              <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", textAlign: "center" }}>
+                                {showAllSupermarkets ? "收起" : `顯示全部 ${sortedPrices.length} 間超市`}
                               </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
+                            </TouchableOpacity>
+                          )}
+                          {showAllSupermarkets && sortedPrices.slice(3).map((p: any, idx: number) => {
+                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
+                            return (
+                              <View key={p.supermarketCode} style={[s.smPriceRow, { backgroundColor: st.bg, borderColor: st.border, marginBottom: 8 }]}>
+                                <View style={[s.smLogo, { backgroundColor: "#fff" }]}>
+                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.supermarketName}</Text>
+                                  <Text style={{ fontSize: 10, color: SUB }}>{p.supermarketCode}</Text>
+                                </View>
+                                <Text style={{ fontSize: 18, fontWeight: "900", color: TEXT }}>HK${Number(p.price).toFixed(1)}</Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      )}
 
                       {/* Special offers */}
                       {selectedResult?.offers && selectedResult.offers.length > 0 && (
@@ -1143,44 +1253,111 @@ export default function RecipeDetailScreen() {
                   );
                 })()}
 
-                {/* Platform redirect buttons */}
+                {/* ── Save price to shopping list section ── */}
+                <View style={{ marginHorizontal: 20, marginBottom: 14, backgroundColor: "#F9FAFB", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", padding: 14 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <Ionicons name="cart-outline" size={14} color={BRAND} />
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>記錄價格到購物清單</Text>
+                  </View>
+
+                  {/* Show existing recorded price */}
+                  {(() => {
+                    const existingItem = shoppingItemsByName[priceKw];
+                    const lastPrice = lastPricesMap[priceKw];
+                    const sessionPrice = ingredientPrices[priceKw];
+                    return (
+                      <>
+                        {existingItem?.estimatedPrice && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#EEF4FB", borderRadius: 8 }}>
+                            <Ionicons name="information-circle-outline" size={12} color={BRAND} />
+                            <Text style={{ fontSize: 11, color: BRAND }}>購物清單已有價格：${existingItem.estimatedPrice}</Text>
+                          </View>
+                        )}
+                        {lastPrice && !sessionPrice && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#FFFBEB", borderRadius: 8 }}>
+                            <Ionicons name="time-outline" size={12} color="#92400E" />
+                            <Text style={{ fontSize: 11, color: "#92400E" }}>上次記錄價格：${lastPrice}</Text>
+                          </View>
+                        )}
+                        {sessionPrice && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#DCFCE7", borderRadius: 8 }}>
+                            <Ionicons name="checkmark-circle-outline" size={12} color="#15803D" />
+                            <Text style={{ fontSize: 11, color: "#15803D", fontWeight: "600" }}>本次已記錄價格：${sessionPrice}</Text>
+                          </View>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {/* Price input */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 12, color: SUB }}>價格</Text>
+                    <TextInput
+                      style={{ flex: 1, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontWeight: "600", color: TEXT }}
+                      placeholder="輸入價格"
+                      placeholderTextColor={SUB}
+                      value={savePriceInput}
+                      onChangeText={setSavePriceInput}
+                      keyboardType="number-pad"
+                    />
+                    <TouchableOpacity
+                      style={{ backgroundColor: "#E8F0FA", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: "#BFDBFE" }}
+                      onPress={handleUseLowestPrice}
+                    >
+                      <Text style={{ fontSize: 11, color: BRAND, fontWeight: "700" }}>最低價</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Save button */}
+                  <TouchableOpacity
+                    style={{ marginTop: 10, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
+                    onPress={() => {
+                      const price = parseInt(savePriceInput.trim(), 10);
+                      if (isNaN(price) || price <= 0) { Alert.alert("請輸入有效價格"); return; }
+                      const currentIng = ingredients.find((ing: any) => ing.name === priceKw);
+                      handleSavePriceToShopping(
+                        priceKw,
+                        price,
+                        priceIngCat || currentIng?.category || "其他",
+                        currentIng?.unit || "",
+                        currentIng?.quantity || "",
+                      );
+                    }}
+                    disabled={savePriceM.isPending}
+                  >
+                    {savePriceM.isPending ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                        {shoppingItemsByName[priceKw] ? "更新購物清單價格" : "儲存並加入購物清單"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Platform redirect buttons - horizontal scroll */}
                 <View style={{ marginBottom: 14 }}>
-                  {(priceQ.data?.length ?? 0) > 0 && (
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8 }}>其他平台（點擊前往搜尋）</Text>
-                  )}
-                  <View style={{ gap: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>
+                    {priceResults.length > 0 ? "其他平台搜尋" : "直接前往平台搜尋"}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
                     {REDIRECT_PLATFORMS.map(p => (
                       <TouchableOpacity
                         key={p.name}
-                        style={[s.platformRow, { backgroundColor: p.bg, borderColor: p.border }]}
+                        style={[{ width: 100, alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 10, paddingBottom: 12, backgroundColor: p.bg, borderColor: p.border }]}
                         onPress={() => openPlatform(p, cleanPriceKw)}
                       >
-                        <View style={s.smLogo}>
-                          <Text style={{ fontSize: 18 }}>{p.logo}</Text>
+                        <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 22 }}>{p.logo}</Text>
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.name}</Text>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
-                            {p.app && (
-                              <View style={{ backgroundColor: "#DCFCE7", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                                <Text style={{ fontSize: 8, fontWeight: "700", color: "#15803D" }}>App 優先</Text>
-                              </View>
-                            )}
-                            {!p.app && (
-                              <View style={{ backgroundColor: "#EEF4FB", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
-                                <Text style={{ fontSize: 8, fontWeight: "700", color: BRAND }}>Universal Link</Text>
-                              </View>
-                            )}
-                            <Text style={{ fontSize: 9, color: SUB }}>{p.hint}</Text>
-                          </View>
-                        </View>
-                        <View style={s.goBuyBtn}>
+                        <Text style={{ fontSize: 12, fontWeight: "800", color: TEXT, marginTop: 6 }} numberOfLines={1}>{p.name}</Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BRAND, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8 }}>
                           <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>搜尋</Text>
                           <Ionicons name="open-outline" size={11} color="#fff" />
                         </View>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </ScrollView>
                 </View>
 
                 {/* Consumer Council website link */}
@@ -1201,7 +1378,7 @@ export default function RecipeDetailScreen() {
                 {/* Disclaimer */}
                 <View style={s.disclaimer}>
                   <Text style={s.disclaimerTxt}>
-                    {(priceQ.data?.length ?? 0) > 0
+                    {priceResults.length > 0
                       ? "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。"
                       : "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。"
                     }
@@ -1338,7 +1515,7 @@ export default function RecipeDetailScreen() {
           <View style={s.overlay}>
             <View style={s.ingPickerSheet}>
               <View style={s.ingPickerHeader}>
-                <Text style={s.ingPickerTitle}>選擇食材加入採購清單</Text>
+                <Text style={s.ingPickerTitle}>選擇食材加入購物清單</Text>
                 <TouchableOpacity onPress={() => setShowIngPicker(false)}>
                   <Text style={{ fontSize: 15, fontWeight: "600", color: BRAND }}>取消</Text>
                 </TouchableOpacity>
@@ -1394,7 +1571,36 @@ export default function RecipeDetailScreen() {
                         category: ing.category || "食材",
                       }));
                     if (toAdd.length > 0) {
-                      addShoppingM.mutate({ items: toAdd, fromRecipeId: recipeStringId, fromRecipeName: recipe.name });
+                      addShoppingM.mutate({ items: toAdd, fromRecipeId: recipeStringId, fromRecipeName: recipe.name, plannedDate: new Date().toISOString().split("T")[0] });
+                      const itemsWithPrice = toAdd.filter(item => getIngRecordedPrice(item.name) !== null);
+                      if (itemsWithPrice.length > 0) {
+                        setTimeout(() => {
+                          utils.shopping.list.invalidate();
+                          setTimeout(() => {
+                            const currentList = shoppingListQ.data ?? [];
+                            let savedCount = 0;
+                            itemsWithPrice.forEach(item => {
+                              const price = getIngRecordedPrice(item.name);
+                              if (price === null) return;
+                              const existingItem = currentList.find((si: any) => si.name === item.name);
+                              if (existingItem) {
+                                savePriceM.mutate({
+                                  itemId: existingItem.id,
+                                  itemName: item.name,
+                                  price,
+                                  category: item.category,
+                                  unit: item.unit,
+                                  quantity: item.quantity,
+                                });
+                                savedCount++;
+                              }
+                            });
+                            if (savedCount > 0) {
+                              Alert.alert("已加入購物清單", `${toAdd.length} 項食材已加入，${savedCount} 項已記錄價格`);
+                            }
+                          }, 500);
+                        }, 300);
+                      }
                     } else {
                       Alert.alert("未選擇任何食材");
                     }
@@ -1409,6 +1615,32 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
         </Modal>
+
+        <IngredientPickerModal
+          visible={!!planPickerRecipe}
+          recipes={planPickerRecipe ? [planPickerRecipe] : []}
+          onConfirm={(items) => {
+            if (items.length > 0) {
+              addShoppingM.mutate({
+                items: items.map((i) => ({
+                  name: i.name,
+                  quantity: i.quantity,
+                  unit: i.unit,
+                  category: i.category,
+                })),
+                fromRecipeId: items[0].recipeId,
+                fromRecipeName: items[0].recipeName,
+                plannedDate: items[0].plannedDate,
+              });
+            }
+            setPlanPickerRecipe(null);
+            Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
+          }}
+          onSkip={() => {
+            setPlanPickerRecipe(null);
+            Alert.alert("已加入排餐");
+          }}
+        />
       </View>
     </>
   );
@@ -1486,6 +1718,8 @@ const s = StyleSheet.create({
   ingCatTag: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3 },
   ingCatTxt: { fontSize: 10 },
   ingQty: { fontSize: 13, color: SUB, fontWeight: "600", textAlign: "right" as any },
+  ingPriceBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#BBF7D0" },
+  ingPriceBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#15803D" },
   priceBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#E8F0FA", borderWidth: 1, borderColor: "#BFDBFE" },
 
   // Steps

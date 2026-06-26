@@ -56,7 +56,7 @@ export default function LoginScreen() {
   // ── After successful login ──────────────────────────────────────────────────
   // 登入後不直接跳到 tabs，讓 _layout.tsx 的 AuthGuard 根據 onboarding 狀態決定路由
   // 如果是新用戶（未完成 onboarding）→ 自動跳到 /onboarding
-  // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
+  // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(main)
   const onLoginSuccess = async () => {
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
     await utils.auth.me.invalidate();

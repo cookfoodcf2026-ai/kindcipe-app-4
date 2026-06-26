@@ -62,19 +62,11 @@ const MENU_ITEMS: MenuItemDef[] = [
   },
   {
     icon: "add-circle-outline",
-    label: "匯入食譜",
-    sub: "IG / YouTube / 小紅書",
+    label: "新增食譜",
+    sub: "貼連結 · 貼文字 · 截圖上傳 · 手動輸入",
     route: "/import",
     iconBg: "#EFF6FF",
     iconColor: "#2563EB",
-  },
-  {
-    icon: "create-outline",
-    label: "新增自訂食譜",
-    sub: "建立你專屬的食譜",
-    route: "/recipe-editor",
-    iconBg: "#FEF9C3",
-    iconColor: "#CA8A04",
   },
   {
     icon: "funnel-outline",
@@ -137,7 +129,14 @@ const MENU_ITEMS: MenuItemDef[] = [
 export default function MoreTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert("登出", "確定要登出嗎？", [
+      { text: "取消", style: "cancel" },
+      { text: "登出", style: "destructive", onPress: () => logout() },
+    ]);
+  };
 
   // Fetch today summary data
   // BUG#14 FIX: removed unused todayStr variable
@@ -192,6 +191,12 @@ export default function MoreTab() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Logout */}
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+          <Text style={s.logoutTxt}>登出</Text>
+        </TouchableOpacity>
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
@@ -276,5 +281,24 @@ const s = StyleSheet.create({
     color: SUB,
     textAlign: "center",
     lineHeight: 13,
+  },
+
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+  },
+  logoutTxt: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DC2626",
   },
 });

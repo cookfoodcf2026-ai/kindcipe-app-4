@@ -69,7 +69,7 @@ kindcipe-app/
 │   │   ├── index.tsx       # 首頁
 │   │   ├── recipes.tsx     # 食譜庫
 │   │   ├── planner.tsx     # 排餐計劃
-│   │   ├── shopping.tsx    # 採購清單
+│   │   ├── shopping.tsx    # 購物清單
 │   │   └── import-placeholder.tsx
 │   ├── _layout.tsx         # 根佈局（tRPC Provider）
 │   ├── login.tsx           # 登入頁面
@@ -122,7 +122,7 @@ export type { AppRouter } from "../../cookfood/server/routers";
 | **食譜詳情** | 食材勾選、步驟導覽、計時器 |
 | **烹飪模式** | 防螢幕熄滅，一步一步跟著做 |
 | **排餐計劃** | 每週日曆，安排早午晚餐 |
-| **採購清單** | 食材/用品分類，一鍵跳轉 HKTVmall |
+| **購物清單** | 食材/用品分類，一鍵跳轉 HKTVmall |
 | **家庭管理** | QR Code 邀請家人，共享食譜和清單 |
 
 ---

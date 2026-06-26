@@ -140,7 +140,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     if (meQuery.isLoading || !onboardingChecked) return;
 
-    const inTabsGroup = segments[0] === "(tabs)";
+    const inTabsGroup = segments[0] === "(main)";
     const inLoginPage = segments[0] === "login";
     const inOnboarding = segments[0] === "onboarding";
     const seg0 = segments[0] as string;
@@ -168,7 +168,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
         // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
         if (inLoginPage || inOnboarding || seg0 === "index") {
-          router.replace("/(tabs)");
+          router.replace("/(main)");
         }
       }
     }
@@ -224,7 +224,7 @@ export default function RootLayout() {
           >
         
             <Stack.Screen
-              name="(tabs)"
+              name="(main)"
               options={{ header: () => null }}
             />
             <Stack.Screen
@@ -239,7 +239,7 @@ export default function RootLayout() {
             <Stack.Screen name="import" options={{ title: "匯入食譜", headerRight: () => <KitchenSwitcher /> }} />
             <Stack.Screen name="family" options={{ title: "家庭管理", headerRight: () => <KitchenSwitcher /> }} />
             <Stack.Screen name="markets" options={{ title: "街市指南", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="ai-chef" options={{ title: "AI 食譜助手", headerShown: false }} />
+            <Stack.Screen name="ai-chef" options={{ title: "AI 食譜助手" }} />
             <Stack.Screen name="admin" options={{ title: "Admin Dashboard", headerShown: false }} />
             <Stack.Screen name="pantry" options={{ title: "家中儲備", headerShown: false }} />
             <Stack.Screen name="weekly-menu" options={{ title: "晚餐推薦", headerShown: false }} />

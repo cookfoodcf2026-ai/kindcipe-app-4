@@ -8,6 +8,8 @@ import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -66,6 +68,7 @@ export default function WeeklyMenuScreen() {
   const [currentDay, setCurrentDay] = useState(getTodayDow());
   const [editingSlot, setEditingSlot] = useState<{ day: number; slot: SlotType } | null>(null);
   const [showAISuggest, setShowAISuggest] = useState(false);
+  const [planPickerRecipes, setPlanPickerRecipes] = useState<PickerRecipe[]>([]);
 
   const displayWeekStart = useMemo(() => {
     const today = new Date();
@@ -95,6 +98,19 @@ export default function WeeklyMenuScreen() {
 
   const removeDayM = trpc.weeklyMenu.removeDay.useMutation({
     onSuccess: () => { utils.weeklyMenu.getWeek.invalidate({ weekStart: displayWeekStart }); Alert.alert("已移除"); },
+    onError: (e) => Alert.alert("失敗", e.message),
+  });
+
+  const addMealM = trpc.mealPlan.add.useMutation({
+    onSuccess: () => utils.mealPlan.listByDateRange.invalidate(),
+    onError: (e) => Alert.alert("加入排餐失敗", e.message),
+  });
+
+  const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
+    onSuccess: () => {
+      utils.shopping.list.invalidate();
+      utils.mealPlan.listByDateRange.invalidate();
+    },
     onError: (e) => Alert.alert("失敗", e.message),
   });
 
@@ -257,17 +273,39 @@ export default function WeeklyMenuScreen() {
                 {!isPast && (
                   <TouchableOpacity
                     style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#FF8C00", paddingVertical: 10, borderRadius: 10 }}
-                    onPress={() => {
+                    onPress={async () => {
                       const toAdd = slots.filter(s => { const d = getSlot(currentItem, s); return d.id && d.name; });
                       if (toAdd.length === 0) { Alert.alert("沒有可加入的菜式"); return; }
-                      let count = 0;
-                      toAdd.forEach((s, i) => {
-                        const d = getSlot(currentItem, s);
-                        trpc.mealPlan.add.useMutation().mutate({
-                          date: currentDateStr, mealType: "dinner", recipeId: d.id!, recipeName: d.name!, autoAddIngredients: false,
+                      try {
+                        await Promise.all(toAdd.map((s) => {
+                          const d = getSlot(currentItem, s);
+                          return addMealM.mutateAsync({
+                            date: currentDateStr, mealType: "dinner", recipeId: d.id!, recipeName: d.name!, autoAddIngredients: false,
+                          });
+                        }));
+                        const pickerRecipes: PickerRecipe[] = [];
+                        toAdd.forEach((s) => {
+                          const d = getSlot(currentItem, s);
+                          const cleanId = d.id!.startsWith("official:") ? d.id!.slice(9) : d.id!;
+                          const numId = parseInt(cleanId, 10);
+                          const official = officialMap.get(numId);
+                          if (official && Array.isArray(official.ingredients) && official.ingredients.length > 0) {
+                            pickerRecipes.push({
+                              id: d.id!,
+                              name: d.name!,
+                              ingredients: official.ingredients,
+                              date: currentDateStr,
+                            });
+                          }
                         });
-                      });
-                      Alert.alert(`已將 ${toAdd.length} 道菜加入排餐`);
+                        if (pickerRecipes.length > 0) {
+                          setPlanPickerRecipes(pickerRecipes);
+                        } else {
+                          Alert.alert(`已將 ${toAdd.length} 道菜加入排餐`);
+                        }
+                      } catch (e: any) {
+                        Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+                      }
                     }}
                   >
                     <Ionicons name="calendar-outline" size={14} color="#fff" />
@@ -335,6 +373,31 @@ export default function WeeklyMenuScreen() {
         officialRecipes={officialRecipes}
         onClose={() => setShowAISuggest(false)}
         onPublished={() => { setShowAISuggest(false); utils.weeklyMenu.getWeek.invalidate({ weekStart: displayWeekStart }); refetch(); }}
+      />
+
+      <IngredientPickerModal
+        visible={planPickerRecipes.length > 0}
+        recipes={planPickerRecipes}
+        onConfirm={(items) => {
+          if (items.length > 0) {
+            addShoppingBatchM.mutate({
+              items: items.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                unit: i.unit,
+                category: i.category,
+              })),
+              fromRecipeName: planPickerRecipes.map((r) => r.name).join("、"),
+              plannedDate: planPickerRecipes[0]?.date,
+            });
+          }
+          setPlanPickerRecipes([]);
+          Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
+        }}
+        onSkip={() => {
+          setPlanPickerRecipes([]);
+          Alert.alert("已加入排餐");
+        }}
       />
     </>
   );

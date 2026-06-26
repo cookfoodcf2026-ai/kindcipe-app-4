@@ -8,7 +8,6 @@ import {
   Image,
   TextInput,
   Dimensions,
-  ScrollView,
   Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,14 +17,16 @@ import { scheduleMealNotification, requestNotificationPermission } from "@/lib/n
 import { useMemo, useState, useCallback } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/hooks/useAuth";
+import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const MEAL_TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
   breakfast: { label: "早餐", icon: "sunny-outline" },
-  lunch: { label: "午餐", icon: "sunny-outline" },
+  lunch: { label: "午餐", icon: "restaurant-outline" },
   dinner: { label: "晚餐", icon: "moon-outline" },
-  snack: { label: "小食", icon: "film-outline" },
+  snack: { label: "小食", icon: "fast-food-outline" },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -83,12 +84,9 @@ export default function PlannerTab() {
   const [addMealType, setAddMealType] = useState<string>("dinner");
   const [pickerSearch, setPickerSearch] = useState("");
   const [eatOutDays, setEatOutDays] = useState<Set<string>>(new Set());
-  // Ingredient picker state — shown after adding a recipe
-  const [ingPickerRecipe, setIngPickerRecipe] = useState<{ id: string; name: string; ingredients: any[]; date: string } | null>(null);
-  const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
-  // Store ingredients directly in state to avoid stale-closure issues with onSuccess
+  const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
   const [pendingIngredients, setPendingIngredients] = useState<any[] | null>(null);
-  const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<{ id: string; name: string; ingredients: any[]; date: string } | null>(null);
+  const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
 
   const { startDate, endDate, monday, sunday } = getWeekRange(weekOffset);
 
@@ -111,7 +109,10 @@ export default function PlannerTab() {
   );
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => utils.shopping.list.invalidate(),
+    onSuccess: () => {
+      utils.shopping.list.invalidate();
+      utils.mealPlan.listByDateRange.invalidate();
+    },
   });
 
   const addMealM = trpc.mealPlan.add.useMutation({
@@ -119,36 +120,31 @@ export default function PlannerTab() {
       utils.mealPlan.listByDateRange.invalidate();
       setShowAddModal(false);
 
-      // Send local notification
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleMealNotification(variables.recipeName, variables.mealType === "dinner" ? "晚餐" : variables.mealType === "lunch" ? "午餐" : "早餐");
       });
 
-      // Read ingredients stored before mutation fired
       const ings = pendingIngredients;
       setPendingIngredients(null);
 
       if (ings && ings.length > 0) {
-        setIngPickerRecipe({
+        setPickerRecipe({
           id: variables.recipeId,
           name: variables.recipeName,
           ingredients: ings,
           date: variables.date,
         });
-        setSelectedIngs(new Set(ings.map((_: any, i: number) => i)));
       } else {
-        // Fallback: search loaded recipe lists
         const found = [...officialRecipes, ...userRecipes].find(
           (r: any) => `official_${r.id}` === variables.recipeId || `user_${r.id}` === variables.recipeId
         ) as any;
         if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
-          setIngPickerRecipe({
+          setPickerRecipe({
             id: variables.recipeId,
             name: variables.recipeName,
             ingredients: found.ingredients,
             date: variables.date,
           });
-          setSelectedIngs(new Set(found.ingredients.map((_: any, i: number) => i)));
         } else {
           Alert.alert("已加入排餐");
         }
@@ -173,13 +169,7 @@ export default function PlannerTab() {
       const conf = pendingConfirmRecipe;
       setPendingConfirmRecipe(null);
       if (conf && Array.isArray(conf.ingredients) && conf.ingredients.length > 0) {
-        setIngPickerRecipe(conf);
-        // Default: all checked except seasoning
-        const initSel = new Set<number>();
-        conf.ingredients.forEach((_: any, i: number) => {
-          if (!SEASONING_CATS.has(conf.ingredients[i].category || "")) initSel.add(i);
-        });
-        setSelectedIngs(initSel);
+        setPickerRecipe(conf);
       }
     },
     onError: (e) => Alert.alert("確認失敗", e.message),
@@ -213,7 +203,6 @@ export default function PlannerTab() {
   }, [monday]);
 
   const pickerRecipes = useMemo(() => {
-    // BUG#1 FIX: include both official AND user recipes in picker
     const all = [
       ...officialRecipes.map((r: any) => ({ ...r, _source: "official" as const })),
       ...userRecipes.map((r: any) => ({ ...r, _source: "user" as const })),
@@ -235,7 +224,6 @@ export default function PlannerTab() {
       const dateStr = weekDays[addDayIndex]?.dateStr;
       if (!dateStr) return;
       const prefix = recipe._source === "user" ? "user_" : "official_";
-      // Store ingredients before mutation fires — onSuccess reads them
       setPendingIngredients(Array.isArray(recipe.ingredients) ? recipe.ingredients : []);
       addMealM.mutate({
         date: dateStr,
@@ -258,7 +246,6 @@ export default function PlannerTab() {
           style: "destructive",
           onPress: () => {
             deleteMealM.mutate({ id: mp.id });
-            // Check for non-bought shopping items from this recipe
             const recipeItems = (shoppingItems as any[]).filter(
               (si: any) =>
                 si.fromRecipeName === mp.recipeName &&
@@ -337,15 +324,18 @@ export default function PlannerTab() {
               params: { id: mp.recipeId },
             })
           }
-          onLongPress={() => handleDeleteMeal(mp)}
         >
           {mp.recipeImage ? (
             <Image source={{ uri: mp.recipeImage }} style={styles.mealImage} />
-          ) : null}
+          ) : (
+            <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
+              <Ionicons name="restaurant-outline" size={16} color="#9CA3AF" />
+            </View>
+          )}
           <View style={styles.mealInfo}>
             <View style={styles.mealTop}>
-              <View style={[styles.mealTypeBadge, { flexDirection: "row", alignItems: "center", gap: 3 }]}>
-                <Ionicons name={(mConfig.icon as any)} size={12} color="#013E77" />
+              <View style={[styles.mealTypeBadge, { flexDirection: "row", alignItems: "center", gap: 2 }]}>
+                <Ionicons name={mConfig.icon as any} size={9} color="#013E77" />
                 <Text style={styles.mealTypeText}>{mConfig.label}</Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: sConfig.bg }]}>
@@ -361,6 +351,13 @@ export default function PlannerTab() {
               <Text style={styles.mealProposer}>由 {mp.proposedByName} 提案</Text>
             ) : null}
           </View>
+          <TouchableOpacity
+            style={styles.mealDeleteBtn}
+            onPress={() => handleDeleteMeal(mp)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={16} color="#DC2626" />
+          </TouchableOpacity>
         </TouchableOpacity>
         {isPending && (
           isAdmin ? (
@@ -369,8 +366,8 @@ export default function PlannerTab() {
                 style={styles.confirmBtn}
                 onPress={() => handleConfirmMeal(mp)}
               >
-                <Ionicons name="checkmark-outline" size={14} color="#16A34A" />
-                <Text style={styles.confirmBtnText}> 確認</Text>
+                <Ionicons name="checkmark" size={10} color="#16A34A" />
+                <Text style={styles.confirmBtnText}>確認</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.rejectBtn}
@@ -385,13 +382,13 @@ export default function PlannerTab() {
                   ]);
                 }}
               >
-                <Ionicons name="close-outline" size={14} color="#DC2626" />
-                <Text style={styles.rejectBtnText}> 拒絕</Text>
+                <Ionicons name="close" size={10} color="#DC2626" />
+                <Text style={styles.rejectBtnText}>拒絕</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.waitingRow}>
-              <Ionicons name="time-outline" size={13} color="#CA8A04" />
+              <Ionicons name="time-outline" size={10} color="#CA8A04" />
               <Text style={styles.waitingText}>
                 等待 {mp.proposedByName || "管理員"} 確認
               </Text>
@@ -432,7 +429,6 @@ export default function PlannerTab() {
             {today && <View style={styles.todayBadge}><Text style={styles.todayText}>今天</Text></View>}
           </View>
           <View style={styles.dayHeaderRight}>
-            {/* Eat-out toggle */}
             <TouchableOpacity
               style={[styles.eatOutBtn, eatOutDays.has(day.dateStr) && styles.eatOutBtnActive]}
               onPress={(e) => {
@@ -445,7 +441,7 @@ export default function PlannerTab() {
                 });
               }}
             >
-              <Ionicons name="restaurant-outline" size={12} color={eatOutDays.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
+              <Ionicons name="restaurant-outline" size={11} color={eatOutDays.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
               <Text style={[styles.eatOutTxt, eatOutDays.has(day.dateStr) && styles.eatOutTxtActive]}>
                 外出
               </Text>
@@ -461,7 +457,10 @@ export default function PlannerTab() {
                 <Text style={styles.eatOutBadgeTxt}>外出用餐</Text>
               </View>
             ) : (
-              <Text style={styles.emptyMealText}>尚未安排</Text>
+              <View style={styles.emptyMealContainer}>
+                <Ionicons name="restaurant-outline" size={12} color="#D1D5DB" />
+                <Text style={styles.emptyMealText}>未安排</Text>
+              </View>
             )}
             <Text style={styles.expandArrow}>{isExpanded ? "▲" : "▼"}</Text>
           </View>
@@ -469,6 +468,13 @@ export default function PlannerTab() {
 
         {isExpanded && (
           <View style={styles.dayBody}>
+            {dayMeals.length === 0 && (
+              <View style={styles.dayBodyEmpty}>
+                <Ionicons name="restaurant-outline" size={28} color="#E5E7EB" />
+                <Text style={styles.dayBodyEmptyText}>尚未安排餐點</Text>
+                <Text style={styles.dayBodyEmptySub}>點擊下方按鈕加入</Text>
+              </View>
+            )}
             {dayMeals.map(renderMealItem)}
             <View style={styles.addMealRow}>
               {["breakfast", "lunch", "dinner", "snack"].map((mt) => {
@@ -481,8 +487,10 @@ export default function PlannerTab() {
                     onPress={() => openAddModal(idx, mt)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                      <Text style={styles.addMealBtnText}>{exists ? "↻" : "+"}</Text>
-                      <Ionicons name={(cfg?.icon as any)} size={12} color="#013E77" />
+                      <Ionicons name={cfg.icon as any} size={11} color="#013E77" />
+                      <Text style={styles.addMealBtnText}>
+                        + {cfg.label}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -506,6 +514,13 @@ export default function PlannerTab() {
           style={styles.weekNavBtn}
         >
           <Text style={styles.weekNavArrow}>◀</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.todayNavBtn}
+          onPress={() => setWeekOffset(0)}
+        >
+          <Ionicons name="today-outline" size={14} color="#013E77" />
+          <Text style={styles.todayNavTxt}>今天</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
           <Text style={styles.weekLabel}>
@@ -597,77 +612,31 @@ export default function PlannerTab() {
         </View>
       </Modal>
 
-      {/* Ingredient Picker Sheet */}
-      <Modal visible={!!ingPickerRecipe} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { maxHeight: "75%" }]}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>加入食材到採購清單</Text>
-                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{ingPickerRecipe?.name}</Text>
-              </View>
-              <TouchableOpacity onPress={() => { setIngPickerRecipe(null); Alert.alert("已加入排餐"); }}>
-                <Ionicons name="close-outline" size={18} color="#999" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={{ flex: 1, padding: 16 }}>
-              <Text style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 10 }}>
-                選擇要加入採購清單的食材（調味料預設不勾選）
-              </Text>
-              {(ingPickerRecipe?.ingredients ?? []).map((ing: any, idx: number) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }}
-                  onPress={() => {
-                    setSelectedIngs(prev => {
-                      const next = new Set(prev);
-                      if (next.has(idx)) next.delete(idx); else next.add(idx);
-                      return next;
-                    });
-                  }}
-                >
-                  <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#013E77", alignItems: "center", justifyContent: "center", backgroundColor: selectedIngs.has(idx) ? "#013E77" : "transparent" }}>
-                    {selectedIngs.has(idx) && <Ionicons name="checkmark-outline" size={12} color="#fff" />}
-                  </View>
-                  <Text style={{ flex: 1, fontSize: 14, color: "#1A1A1A" }}>{ing.name}</Text>
-                  <Text style={{ fontSize: 12, color: "#9CA3AF" }}>{ing.quantity} {ing.unit}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={{ padding: 16, gap: 8 }}>
-              <TouchableOpacity
-                style={{ backgroundColor: "#013E77", paddingVertical: 14, borderRadius: 14, alignItems: "center" }}
-                onPress={() => {
-                  if (!ingPickerRecipe) return;
-                  const toAdd = ingPickerRecipe.ingredients
-                    .filter((_: any, i: number) => selectedIngs.has(i))
-                    .map((i: any) => ({ name: i.name, quantity: String(i.quantity || ""), unit: i.unit || "", category: i.category || "食材" }));
-                  if (toAdd.length > 0) {
-                    addShoppingBatchM.mutate({
-                      items: toAdd,
-                      fromRecipeId: ingPickerRecipe.id,
-                      fromRecipeName: ingPickerRecipe.name,
-                      plannedDate: ingPickerRecipe.date,
-                    });
-                  }
-                  setIngPickerRecipe(null);
-                  Alert.alert("已加入排餐", toAdd.length > 0 ? `${toAdd.length} 件食材已加入採購清單` : "排餐已記錄");
-                }}
-              >
-                <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>
-                  {selectedIngs.size > 0 ? `加入 ${selectedIngs.size} 件食材到採購清單` : "跳過，只加入排餐"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ paddingVertical: 10, alignItems: "center" }}
-                onPress={() => { setIngPickerRecipe(null); Alert.alert("已加入排餐"); }}
-              >
-                <Text style={{ fontSize: 13, color: "#9CA3AF" }}>跳過，不加入採購清單</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <IngredientPickerModal
+        visible={!!pickerRecipe}
+        recipes={pickerRecipe ? [pickerRecipe] : []}
+        onConfirm={(items) => {
+          if (items.length > 0) {
+            addShoppingBatchM.mutate({
+              items: items.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                unit: i.unit,
+                category: i.category,
+              })),
+              fromRecipeId: items[0].recipeId,
+              fromRecipeName: items[0].recipeName,
+              plannedDate: items[0].plannedDate,
+            });
+          }
+          setPickerRecipe(null);
+          Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
+        }}
+        onSkip={() => {
+          setPickerRecipe(null);
+          Alert.alert("已加入排餐");
+        }}
+      />
     </View>
   );
 }
@@ -692,29 +661,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#E8E8E8",
   },
   weekNavBtn: {
-    padding: 8,
+    padding: 6,
   },
   weekNavArrow: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#013E77",
   },
   weekNavCenter: {
     alignItems: "center",
   },
   weekLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1A1A1A",
   },
   weekSubLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#999",
     marginTop: 2,
   },
@@ -724,19 +693,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   listContent: {
-    padding: 12,
+    padding: 10,
     paddingBottom: 32,
   },
   dayCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 10,
-    padding: 14,
+    borderRadius: 10,
+    marginBottom: 8,
+    padding: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   dayCardToday: {
     borderWidth: 2,
@@ -753,10 +722,10 @@ const styles = StyleSheet.create({
   dayHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   dayName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1A1A1A",
   },
@@ -764,7 +733,7 @@ const styles = StyleSheet.create({
     color: "#013E77",
   },
   dayDate: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666",
   },
   dayDateToday: {
@@ -773,134 +742,125 @@ const styles = StyleSheet.create({
   },
   todayBadge: {
     backgroundColor: "#013E77",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
   },
   todayText: {
-    fontSize: 10,
+    fontSize: 9,
     color: "#fff",
     fontWeight: "700",
   },
   dayHeaderRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   countBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   countText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   emptyMealText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#bbb",
   },
-  // Eat-out styles
   eatOutBtn: {
-    flexDirection: "row", alignItems: "center", gap: 3,
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB",
+    flexDirection: "row", alignItems: "center", gap: 2,
+    paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: "#E5E7EB",
     backgroundColor: "#F9FAFB",
   },
   eatOutBtnActive: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
-  eatOutTxt: { fontSize: 10, fontWeight: "600", color: "#9CA3AF" },
+  eatOutTxt: { fontSize: 9, fontWeight: "600", color: "#9CA3AF" },
   eatOutTxtActive: { color: "#D97706" },
-  eatOutBadge: { backgroundColor: "#FFF7ED", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#FED7AA" },
-  eatOutBadgeTxt: { fontSize: 11, fontWeight: "700", color: "#D97706" },
+  eatOutBadge: { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
+  eatOutBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#D97706" },
   expandArrow: {
-    fontSize: 10,
+    fontSize: 9,
     color: "#999",
   },
   dayBody: {
-    marginTop: 12,
+    marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
-    paddingTop: 10,
+    paddingTop: 6,
   },
   mealItem: {
     backgroundColor: "#FAFAFA",
-    borderRadius: 10,
-    marginBottom: 8,
-    padding: 10,
-    borderLeftWidth: 3,
+    borderRadius: 6,
+    marginBottom: 4,
+    padding: 6,
+    borderLeftWidth: 2,
   },
   mealImage: {
     width: 48,
     height: 48,
-    borderRadius: 8,
-    marginRight: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  mealImagePlaceholder: {
+    backgroundColor: "#F0F0F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mealDeleteBtn: {
+    padding: 3,
+  },
+  emptyMealContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
   },
   mealInfo: {
     flex: 1,
+    minWidth: 0,
   },
   mealTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
+    gap: 4,
+    marginBottom: 2,
   },
   mealTypeBadge: {
     backgroundColor: "#E8F0FE",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   mealTypeText: {
-    fontSize: 11,
+    fontSize: 9,
     color: "#013E77",
     fontWeight: "600",
   },
   statusBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: "600",
   },
   mealName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 2,
+    marginBottom: 1,
   },
   mealProposer: {
-    fontSize: 11,
+    fontSize: 9,
     color: "#999",
-  },
-  addMealRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: 4,
-  },
-  addMealBtn: {
-    flex: 1,
-    backgroundColor: "#E8F0FE",
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  addMealBtnText: {
-    fontSize: 12,
-    color: "#013E77",
-    fontWeight: "600",
-  },
-  mealTouchable: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
   },
   mealActions: {
     flexDirection: "row",
-    gap: 6,
-    marginTop: 6,
-    paddingTop: 6,
+    gap: 4,
+    marginTop: 3,
+    paddingTop: 3,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
   },
@@ -909,13 +869,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
     backgroundColor: "#DCFCE7",
-    borderRadius: 8,
-    paddingVertical: 6,
+    borderRadius: 4,
+    paddingVertical: 4,
   },
   confirmBtnText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
     color: "#16A34A",
   },
@@ -924,22 +884,74 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
     backgroundColor: "#FEE2E2",
-    borderRadius: 8,
-    paddingVertical: 6,
+    borderRadius: 4,
+    paddingVertical: 4,
   },
   rejectBtnText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
     color: "#DC2626",
   },
   waitingRow: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#F0F0F0",
+    flexDirection: "row", alignItems: "center", gap: 3,
+    marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: "#F0F0F0",
   },
   waitingText: {
-    fontSize: 12, fontWeight: "600", color: "#CA8A04",
+    fontSize: 10, fontWeight: "600", color: "#CA8A04",
+  },
+  addMealRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 4,
+  },
+  addMealBtn: {
+    flex: 1,
+    backgroundColor: "#E8F0FE",
+    borderRadius: 6,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  addMealBtnText: {
+    fontSize: 10,
+    color: "#013E77",
+    fontWeight: "600",
+  },
+  mealTouchable: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  dayBodyEmpty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    gap: 4,
+  },
+  dayBodyEmptyText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "600",
+  },
+  dayBodyEmptySub: {
+    fontSize: 11,
+    color: "#D1D5DB",
+  },
+  todayNavBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#E8F0FE",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginLeft: 4,
+  },
+  todayNavTxt: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#013E77",
   },
   modalOverlay: {
     flex: 1,
@@ -965,11 +977,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: "#1A1A1A",
-  },
-  modalClose: {
-    fontSize: 18,
-    color: "#999",
-    paddingHorizontal: 4,
   },
   modalSearchBar: {
     paddingHorizontal: 16,
