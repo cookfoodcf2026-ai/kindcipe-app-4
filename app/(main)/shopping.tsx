@@ -980,26 +980,10 @@ export default function ShoppingTab() {
                     </View>
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
-                    {Array.from({ length: 14 }, (_, i) => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + i);
-                      const iso = d.toISOString().split("T")[0];
-                      const isSelected = newPlannedDate === iso;
-                      const dayNames = ["日", "一", "二", "三", "四", "五", "六"];
-                      const label = i === 0 ? "今天" : i === 1 ? "明天" : i < 7 ? `週${dayNames[d.getDay()]}` : `${d.getMonth() + 1}/${d.getDate()}`;
-                      return (
-                        <TouchableOpacity
-                          key={iso}
-                          style={[styles.dateChip, isSelected && styles.dateChipActive]}
-                          onPress={() => setNewPlannedDate(iso)}
-                        >
-                          <Text style={[styles.dateChipLabel, isSelected && styles.dateChipLabelActive]}>{label}</Text>
-                          <Text style={[styles.dateChipDay, isSelected && styles.dateChipDayActive]}>{d.getDate()}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
+                  <PlanDatePicker
+                    value={newPlannedDate || new Date().toISOString().split("T")[0]}
+                    onChange={(iso) => setNewPlannedDate(iso)}
+                  />
                   {newPlannedDate && (
                     <TouchableOpacity onPress={() => setNewPlannedDate(null)} style={{ alignSelf: "flex-end", marginTop: -8 }}>
                       <Text style={styles.datePickerClear}>清除日期</Text>
@@ -1081,26 +1065,10 @@ export default function ShoppingTab() {
                     </View>
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
-                    {Array.from({ length: 14 }, (_, i) => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + i);
-                      const iso = d.toISOString().split("T")[0];
-                      const isSelected = editPlannedDate === iso;
-                      const dayNames = ["日", "一", "二", "三", "四", "五", "六"];
-                      const label = i === 0 ? "今天" : i === 1 ? "明天" : i < 7 ? `週${dayNames[d.getDay()]}` : `${d.getMonth() + 1}/${d.getDate()}`;
-                      return (
-                        <TouchableOpacity
-                          key={iso}
-                          style={[styles.dateChip, isSelected && styles.dateChipActive]}
-                          onPress={() => setEditPlannedDate(iso)}
-                        >
-                          <Text style={[styles.dateChipLabel, isSelected && styles.dateChipLabelActive]}>{label}</Text>
-                          <Text style={[styles.dateChipDay, isSelected && styles.dateChipDayActive]}>{d.getDate()}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
+                  <PlanDatePicker
+                    value={editPlannedDate || new Date().toISOString().split("T")[0]}
+                    onChange={(iso) => setEditPlannedDate(iso)}
+                  />
                   {editPlannedDate && (
                     <TouchableOpacity onPress={() => setEditPlannedDate(null)} style={{ alignSelf: "flex-end", marginTop: -8 }}>
                       <Text style={styles.datePickerClear}>清除日期</Text>
@@ -2125,62 +2093,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#9CA3AF",
   },
-  datePickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  datePickerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E8F0FE",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flex: 1,
-  },
-  datePickerBtnText: {
-    fontSize: 14,
-    color: "#013E77",
-    fontWeight: "600",
-  },
   datePickerClear: {
     fontSize: 13,
     color: "#DC2626",
     fontWeight: "600",
     marginLeft: 12,
-  },
-  dateChip: {
-    width: 52,
-    height: 62,
-    borderRadius: 12,
-    backgroundColor: "#F5F5F5",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-  },
-  dateChipActive: {
-    backgroundColor: "#013E77",
-    borderColor: "#013E77",
-  },
-  dateChipLabel: {
-    fontSize: 10,
-    color: "#666",
-    fontWeight: "600",
-  },
-  dateChipLabelActive: {
-    color: "rgba(255,255,255,0.85)",
-  },
-  dateChipDay: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  dateChipDayActive: {
-    color: "#fff",
   },
   qtyRow: {
     flexDirection: "row",
