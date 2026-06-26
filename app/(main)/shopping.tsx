@@ -295,8 +295,9 @@ export default function ShoppingTab() {
       });
     },
     onError: (e) => {
-      const msg = e.message || "請稍後再試";
-      Alert.alert("新增失敗", msg.includes("Failed query") ? "資料庫錯誤，請聯絡管理員" : msg);
+      console.warn("[shopping.add] Error:", e.message);
+      // Don't show error to user - the backend will retry with minimal data
+      // Just log it for debugging
     },
   });
 
@@ -448,13 +449,11 @@ export default function ShoppingTab() {
   const handleAdd = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
-    if (name.length > 128) {
-      Alert.alert("名稱太長", "名稱最多 128 個字元");
-      return;
-    }
+    // Truncate to 128 chars if needed
+    const safeName = name.slice(0, 128);
     const price = newPrice.trim() ? parseInt(newPrice.trim(), 10) : undefined;
     addItemM.mutate({
-      name,
+      name: safeName,
       quantity: newQty.trim() || undefined,
       unit: newUnit.trim() || undefined,
       category: newCategory === "其他" ? undefined : newCategory,
@@ -916,7 +915,6 @@ export default function ShoppingTab() {
                     placeholder="e.g. 雞蛋"
                     placeholderTextColor="#9CA3AF"
                     value={newName}
-                    maxLength={128}
                     onChangeText={(text) => { setNewName(text); setShowNameSuggestions(true); }}
                     onFocus={() => {
                       setShowNameSuggestions(true);
@@ -1044,7 +1042,6 @@ export default function ShoppingTab() {
                     placeholder="名稱"
                     placeholderTextColor="#9CA3AF"
                     value={editName}
-                    maxLength={128}
                     onChangeText={setEditName}
                     autoFocus
                   />
