@@ -183,15 +183,23 @@ export default function PlanDatePicker({
 
   const shortcuts = useMemo(() => {
     const items: { label: string; iso: string }[] = [];
+    const seen = new Set<string>();
     const todayVal = todayISO();
     const tomorrowVal = toISODate(new Date(Date.now() + 86400000));
     const nextMon = getNextMonday();
     const nextSat = getNextSaturday();
 
-    if (todayVal >= min) items.push({ label: t("common.today") || "今天", iso: todayVal });
-    if (tomorrowVal >= min) items.push({ label: t("common.tomorrow") || "明天", iso: tomorrowVal });
-    if (nextMon >= min) items.push({ label: "下週一", iso: nextMon });
-    if (nextSat >= min) items.push({ label: "週末", iso: nextSat });
+    const add = (label: string, iso: string) => {
+      if (iso >= min && !seen.has(iso)) {
+        seen.add(iso);
+        items.push({ label, iso });
+      }
+    };
+
+    add(t("common.today") || "今天", todayVal);
+    add(t("common.tomorrow") || "明天", tomorrowVal);
+    add("下週一", nextMon);
+    add("週末", nextSat);
 
     return items;
   }, [min, t]);
