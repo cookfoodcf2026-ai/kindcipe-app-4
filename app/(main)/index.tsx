@@ -97,16 +97,73 @@ function TonightMenuCard({ todayMeals, router, isAdmin }: {
           <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
         </TouchableOpacity>
       )}
+    </View>
+  );
+}
 
-      {isAdmin && pendingCount > 0 && (
+// ── Pending Actions Card ─────────────────────────────────────────────
+function PendingActionsCard({ router, isAdmin }: {
+  router: ReturnType<typeof useRouter>;
+  isAdmin: boolean;
+}) {
+  const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
+    staleTime: 1000 * 10,
+    refetchInterval: 5000,
+  });
+  const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
+    staleTime: 1000 * 10,
+    refetchInterval: 5000,
+  });
+
+  const pendingMealPlans = mealPlans.filter((m: any) => m.status === "pending").length;
+  const pendingShopping = shoppingItems.filter((i: any) => i.status === "pending").length;
+  const unboughtShopping = shoppingItems.filter((i: any) => i.status === "active").length;
+
+  if (!isAdmin || (pendingMealPlans === 0 && pendingShopping === 0)) return null;
+
+  return (
+    <View style={s.pendingCard}>
+      <View style={s.pendingCardHeader}>
+        <Ionicons name="clipboard-outline" size={16} color={BRAND} />
+        <Text style={s.pendingCardTitle}>待辦事項</Text>
+      </View>
+      {pendingMealPlans > 0 && (
         <TouchableOpacity
-          style={s.pendingBanner}
+          style={s.pendingRow}
           onPress={() => router.push("/(main)/planner" as any)}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
-          <Ionicons name="time-outline" size={14} color="#EF4444" />
-          <Text style={s.pendingBannerTxt}>{pendingCount} 個排餐待確認</Text>
-          <Ionicons name="chevron-forward" size={12} color="#EF4444" />
+          <View style={[s.pendingIcon, { backgroundColor: "#FEF3C7" }]}>
+            <Ionicons name="restaurant-outline" size={14} color="#D97706" />
+          </View>
+          <Text style={s.pendingLabel}>{pendingMealPlans} 個排餐待確認</Text>
+          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+        </TouchableOpacity>
+      )}
+      {pendingShopping > 0 && (
+        <TouchableOpacity
+          style={s.pendingRow}
+          onPress={() => router.push("/(main)/shopping" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={[s.pendingIcon, { backgroundColor: "#DBEAFE" }]}>
+            <Ionicons name="cart-outline" size={14} color={BRAND} />
+          </View>
+          <Text style={s.pendingLabel}>{pendingShopping} 項購物待確認</Text>
+          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+        </TouchableOpacity>
+      )}
+      {unboughtShopping > 0 && pendingShopping === 0 && (
+        <TouchableOpacity
+          style={s.pendingRow}
+          onPress={() => router.push("/(main)/shopping" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={[s.pendingIcon, { backgroundColor: "#DCFCE7" }]}>
+            <Ionicons name="bag-handle-outline" size={14} color="#16A34A" />
+          </View>
+          <Text style={s.pendingLabel}>{unboughtShopping} 項食材待買</Text>
+          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
         </TouchableOpacity>
       )}
     </View>
@@ -406,6 +463,7 @@ export default function RecipesTab() {
   const ListHeader = (
     <>
       <TonightMenuCard todayMeals={todayMeals} router={router} isAdmin={isAdmin} />
+      <PendingActionsCard router={router} isAdmin={isAdmin} />
       <WeeklyMenuBar router={router} />
       <QuickActions router={router} />
 
@@ -712,6 +770,14 @@ const s = StyleSheet.create({
   summaryEmptyTxt: { fontSize: 13, color: "#9CA3AF" },
   pendingBanner: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, padding: 8, backgroundColor: "#FEF2F2", borderRadius: 10, borderWidth: 1, borderColor: "#FECACA" },
   pendingBannerTxt: { flex: 1, fontSize: 12, color: "#EF4444", fontWeight: "700" },
+
+  // Pending actions card
+  pendingCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E8E8E8", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  pendingCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  pendingCardTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
+  pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  pendingIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  pendingLabel: { flex: 1, fontSize: 13, color: "#1A1A1A", fontWeight: "500" },
 
   // Quick actions
   quickActions: { flexDirection: "row", gap: 10, marginHorizontal: 14, marginBottom: 8 },
