@@ -724,6 +724,7 @@ export default function AIChefScreen() {
   const [showPlan, setShowPlan] = useState(false);
   const [planAction, setPlanAction] = useState<"meal" | "shopping">("meal");
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
+  const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
   const [planDate, setPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [planMeal, setPlanMeal] = useState("dinner");
 
@@ -1006,6 +1007,7 @@ export default function AIChefScreen() {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
     }
+    // Save recipes to user library first, then open date picker modal
     try {
       const saved = await Promise.all(validRecipes.map(r => saveRecipeM.mutateAsync({
         name: r.name, description: r.description,
@@ -1017,16 +1019,16 @@ export default function AIChefScreen() {
         ingredients: r.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材" })),
         steps: (r.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
       })));
-      const today = new Date().toISOString().split("T")[0];
-      await Promise.all(saved.map((s, i) => addPlanM.mutateAsync({
-        date: today, mealType: "dinner",
-        recipeId: `user_${s.id}`, recipeName: validRecipes[i].name,
-        autoAddIngredients: false,
-        ingredients: [],
-      })));
-      openShoppingSelection(validRecipes, today);
+      // Store saved recipe IDs with the valid recipes for later use
+      const recipesWithIds = validRecipes.map((r, i) => ({
+        ...r,
+        _savedId: saved[i]?.id,
+      }));
+      setBatchRecipes(recipesWithIds);
+      setPlanAction("meal");
+      setShowPlan(true);
     } catch (e: any) {
-      Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+      Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
     }
   };
 
@@ -1183,6 +1185,39 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   // ─── Plan modal confirm ────────────────────────────────
 
   const confirmAction = () => {
+    // Batch mode: add all recipes to meal plan with selected date/mealType
+    if (batchRecipes && batchRecipes.length > 0) {
+      if (planAction === "meal") {
+        Promise.all(batchRecipes.map((r: any) => addPlanM.mutateAsync({
+          date: planDate, mealType: planMeal as any,
+          recipeId: `user_${r._savedId}`, recipeName: r.name,
+          autoAddIngredients: false,
+          ingredients: [],
+        }))).then(() => {
+          setShowPlan(false);
+          setBatchRecipes(null);
+          showToast(`✅ ${batchRecipes.length} 個排餐已加入`);
+          utils.mealPlan.listByDateRange.invalidate();
+          // Open shopping selection for all batch recipes
+          const allIngredients = batchRecipes.flatMap((r: any) =>
+            (r.ingredients || []).map((ing: any, idx: number) => ({
+              ...ing,
+              _recipeId: `user_${r._savedId}`,
+              _recipeName: r.name,
+              _idx: idx,
+            }))
+          );
+          if (allIngredients.length > 0) {
+            openShoppingSelection(batchRecipes, planDate);
+          }
+        }).catch((e: any) => {
+          Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+        });
+      }
+      return;
+    }
+
+    // Single recipe mode
     if (!planRecipe) return;
     if (!isValidRecipe(planRecipe)) {
       Alert.alert("無法加入", "此食譜資料不完整（缺少食材或步驟），無法加入排餐。");
@@ -1603,9 +1638,18 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           <View style={m.handle} />
           <View style={m.head}>
             <Text style={m.title}>{planAction === "meal" ? "加入排餐" : "加入採購"}</Text>
-            <TouchableOpacity onPress={() => setShowPlan(false)}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => { setShowPlan(false); setBatchRecipes(null); }}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
           </View>
-          {planRecipe && <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>}
+          {batchRecipes ? (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <Text style={[m.rname, { marginBottom: 4 }]}>{batchRecipes.length} 個食譜</Text>
+              {batchRecipes.map((r: any, i: number) => (
+                <Text key={i} style={[m.previewItem, { color: TEXT }]} numberOfLines={1}>· {r.name}</Text>
+              ))}
+            </View>
+          ) : planRecipe ? (
+            <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
+          ) : null}
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {planAction === "meal" && <>
               <Text style={m.label}>餐次</Text>
@@ -1619,7 +1663,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             </>}
             <Text style={m.label}>日期</Text>
             <PlanDatePicker value={planDate} onChange={setPlanDate} />
-            {planRecipe && (
+            {planRecipe && !batchRecipes && (
               <View style={m.preview}>
                 <Text style={m.label}>食材</Text>
                 {(planRecipe.ingredients || []).slice(0, 5).map((ing, i) => (
@@ -1628,7 +1672,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                 {(planRecipe.ingredients || []).length > 5 && <Text style={m.previewMore}>還有 {(planRecipe.ingredients || []).length - 5} 項...</Text>}
               </View>
             )}
-            {planRecipe && (planRecipe.steps || []).length > 0 && (
+            {planRecipe && !batchRecipes && (planRecipe.steps || []).length > 0 && (
               <View style={[m.preview, { marginTop: -8 }]}>
                 <Text style={m.label}>烹飪步驟</Text>
                 {(planRecipe.steps || []).slice(0, 4).map((step, i) => (
@@ -1637,21 +1681,21 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                 {(planRecipe.steps || []).length > 4 && <Text style={m.previewMore}>還有 {(planRecipe.steps || []).length - 4} 步...</Text>}
               </View>
             )}
-            {planRecipe && (planRecipe.steps || []).length === 0 && (
+            {planRecipe && !batchRecipes && (planRecipe.steps || []).length === 0 && (
               <View style={[m.preview, { marginTop: -8 }]}>
                 <Text style={[m.previewItem, { color: SUB }]}>未有烹飪步驟</Text>
               </View>
             )}
-            {planRecipe && !isValidRecipe(planRecipe) && (
+            {planRecipe && !batchRecipes && !isValidRecipe(planRecipe) && (
               <View style={[m.preview, { marginTop: 8, backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
                 <Text style={[m.previewItem, { color: "#DC2626", fontWeight: "600" }]}>⚠️ 此食譜資料不完整，無法加入排餐</Text>
               </View>
             )}
           </ScrollView>
           <TouchableOpacity
-            style={[m.btn, (saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !isValidRecipe(planRecipe))) && { opacity: 0.6 }]}
+            style={[m.btn, (saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))) && { opacity: 0.6 }]}
             onPress={confirmAction}
-            disabled={saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !isValidRecipe(planRecipe))}
+            disabled={saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))}
           >
             {(saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending) ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.btnTxt}>確認</Text>}
           </TouchableOpacity>
