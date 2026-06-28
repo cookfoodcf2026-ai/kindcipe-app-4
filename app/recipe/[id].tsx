@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERMS, COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
@@ -277,6 +278,7 @@ export default function RecipeDetailScreen() {
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
   const utils = trpc.useUtils();
 
@@ -493,8 +495,18 @@ export default function RecipeDetailScreen() {
     onError: (e) => Alert.alert("失敗", e.message),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => { utils.shopping.list.invalidate(); utils.mealPlan.listByDateRange.invalidate(); setAddedToCart(true); Alert.alert("已加入購物清單"); },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onSuccess: (_, variables) => {
+      utils.shopping.list.invalidate();
+      utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.refetch();
+      setAddedToCart(true);
+      setPlanPickerRecipe(null);
+      const count = variables.items.length;
+      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
+    },
+    onError: (e) => {
+      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+    },
   });
   const aiEditM = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => setAIEditResult(data.content),
@@ -1619,6 +1631,7 @@ export default function RecipeDetailScreen() {
         <IngredientPickerModal
           visible={!!planPickerRecipe}
           recipes={planPickerRecipe ? [planPickerRecipe] : []}
+          loading={addShoppingM.isPending}
           onConfirm={(items) => {
             if (items.length > 0) {
               addShoppingM.mutate({
@@ -1632,14 +1645,22 @@ export default function RecipeDetailScreen() {
                 fromRecipeName: items[0].recipeName,
                 plannedDate: items[0].plannedDate,
               });
+            } else {
+              setPlanPickerRecipe(null);
+              setToast({ visible: true, message: "排餐已記錄", type: "info" });
             }
-            setPlanPickerRecipe(null);
-            Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
           }}
           onSkip={() => {
             setPlanPickerRecipe(null);
-            Alert.alert("已加入排餐");
+            setToast({ visible: true, message: "已跳過食材", type: "info" });
           }}
+        />
+
+        <Toast
+          visible={toast.visible}
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
         />
       </View>
     </>

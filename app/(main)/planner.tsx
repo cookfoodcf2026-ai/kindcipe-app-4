@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
 import { scheduleMealNotification, requestNotificationPermission } from "@/lib/notifications";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/hooks/useAuth";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -86,7 +86,7 @@ export default function PlannerTab() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [eatOutDays, setEatOutDays] = useState<Set<string>>(new Set());
   const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
-  const [pendingIngredients, setPendingIngredients] = useState<any[] | null>(null);
+  const pendingIngredientsRef = useRef<any[] | null>(null);
   const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
@@ -111,25 +111,31 @@ export default function PlannerTab() {
   );
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
       utils.shopping.list.refetch();
+      const count = variables.items.length;
+      setPickerRecipe(null);
+      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
     },
-    onError: (e) => Alert.alert("加入食材失敗", e.message),
+    onError: (e) => {
+      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+    },
   });
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: (_, variables) => {
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.invalidate();
       setShowAddModal(false);
 
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleMealNotification(variables.recipeName, variables.mealType === "dinner" ? "晚餐" : variables.mealType === "lunch" ? "午餐" : "早餐");
       });
 
-      const ings = pendingIngredients;
-      setPendingIngredients(null);
+      const ings = pendingIngredientsRef.current;
+      pendingIngredientsRef.current = null;
 
       if (ings && ings.length > 0) {
         setPickerRecipe({
@@ -150,11 +156,14 @@ export default function PlannerTab() {
             date: variables.date,
           });
         } else {
-          Alert.alert("已加入排餐");
+          setToast({ visible: true, message: "已加入排餐", type: "info" });
         }
       }
     },
-    onError: (e) => { setPendingIngredients(null); Alert.alert("新增失敗", e.message); },
+    onError: (e) => {
+      pendingIngredientsRef.current = null;
+      setToast({ visible: true, message: `新增失敗：${e.message}`, type: "error" });
+    },
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -228,7 +237,7 @@ export default function PlannerTab() {
       const dateStr = weekDays[addDayIndex]?.dateStr;
       if (!dateStr) return;
       const prefix = recipe._source === "user" ? "user_" : "official_";
-      setPendingIngredients(Array.isArray(recipe.ingredients) ? recipe.ingredients : []);
+      pendingIngredientsRef.current = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
       addMealM.mutate({
         date: dateStr,
         mealType: addMealType as "breakfast" | "lunch" | "dinner" | "snack",
@@ -619,6 +628,7 @@ export default function PlannerTab() {
       <IngredientPickerModal
         visible={!!pickerRecipe}
         recipes={pickerRecipe ? [pickerRecipe] : []}
+        loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
             addShoppingBatchM.mutate({
@@ -632,11 +642,10 @@ export default function PlannerTab() {
               fromRecipeName: items[0].recipeName,
               plannedDate: items[0].plannedDate,
             });
-            setToast({ visible: true, message: `✅ ${items.length} 件食材已加入購物清單`, type: "success" });
           } else {
+            setPickerRecipe(null);
             setToast({ visible: true, message: "排餐已記錄", type: "info" });
           }
-          setPickerRecipe(null);
         }}
         onSkip={() => {
           setPickerRecipe(null);

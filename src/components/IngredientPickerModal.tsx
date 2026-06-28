@@ -87,12 +87,13 @@ interface Props {
   recipes: PickerRecipe[];
   title?: string;
   initialSelected?: Set<string>;
+  loading?: boolean;
   onConfirm: (items: ConfirmedItem[]) => void;
   onSkip: () => void;
 }
 
 export default function IngredientPickerModal({
-  visible, recipes, title, initialSelected, onConfirm, onSkip,
+  visible, recipes, title, initialSelected, loading = false, onConfirm, onSkip,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -282,13 +283,19 @@ export default function IngredientPickerModal({
 
           <View style={s.footer}>
             <TouchableOpacity
-              style={[s.confirmBtn, confirmItems.length === 0 && s.confirmBtnDisabled]}
+              style={[s.confirmBtn, (confirmItems.length === 0 || loading) && s.confirmBtnDisabled]}
               onPress={() => onConfirm(confirmItems)}
-              disabled={confirmItems.length === 0}
+              disabled={confirmItems.length === 0 || loading}
             >
-              <Ionicons name="cart-outline" size={14} color={confirmItems.length > 0 ? "#fff" : SUB} />
-              <Text style={[s.confirmTxt, confirmItems.length === 0 && s.confirmTxtDisabled]}>
-                {confirmItems.length > 0
+              {loading ? (
+                <Ionicons name="hourglass-outline" size={14} color={SUB} />
+              ) : (
+                <Ionicons name="cart-outline" size={14} color={confirmItems.length > 0 ? "#fff" : SUB} />
+              )}
+              <Text style={[s.confirmTxt, (confirmItems.length === 0 || loading) && s.confirmTxtDisabled]}>
+                {loading
+                  ? "加入中..."
+                  : confirmItems.length > 0
                   ? `加入 ${confirmItems.length} 項食材`
                   : `跳過（共 ${totalIngredients} 項）`}
               </Text>

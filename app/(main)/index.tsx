@@ -266,6 +266,7 @@ export default function RecipesTab() {
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: (_, variables) => {
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.invalidate();
       setQuickPlanRecipe(null);
 
       const found = [...officialRecipes, ...userRecipes].find(
@@ -279,17 +280,20 @@ export default function RecipesTab() {
           date: variables.date,
         });
       } else {
-        Alert.alert("已加入排餐");
+        setToast({ visible: true, message: "已加入排餐", type: "info" });
       }
     },
-    onError: (e) => Alert.alert("加入失敗", e.message),
+    onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
   });
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
       utils.shopping.list.refetch();
+      const count = variables.items.length;
+      setPlanPickerRecipe(null);
+      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
     },
     onError: (e) => {
       setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
@@ -703,6 +707,7 @@ export default function RecipesTab() {
       <IngredientPickerModal
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
+        loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
             addShoppingBatchM.mutate({
@@ -716,11 +721,10 @@ export default function RecipesTab() {
               fromRecipeName: items[0].recipeName,
               plannedDate: items[0].plannedDate,
             });
-            setToast({ visible: true, message: `✅ ${items.length} 件食材已加入購物清單`, type: "success" });
           } else {
+            setPlanPickerRecipe(null);
             setToast({ visible: true, message: "排餐已記錄", type: "info" });
           }
-          setPlanPickerRecipe(null);
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);

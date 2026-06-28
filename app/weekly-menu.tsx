@@ -107,9 +107,13 @@ export default function WeeklyMenuScreen() {
   });
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.refetch();
+      const count = variables.items.length;
+      setPlanPickerRecipes([]);
+      Alert.alert("已加入排餐", count > 0 ? `${count} 件食材已加入購物清單` : "排餐已記錄");
     },
     onError: (e) => Alert.alert("失敗", e.message),
   });
@@ -378,6 +382,7 @@ export default function WeeklyMenuScreen() {
       <IngredientPickerModal
         visible={planPickerRecipes.length > 0}
         recipes={planPickerRecipes}
+        loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
             addShoppingBatchM.mutate({
@@ -390,9 +395,10 @@ export default function WeeklyMenuScreen() {
               fromRecipeName: planPickerRecipes.map((r) => r.name).join("、"),
               plannedDate: planPickerRecipes[0]?.date,
             });
+          } else {
+            setPlanPickerRecipes([]);
+            Alert.alert("已加入排餐");
           }
-          setPlanPickerRecipes([]);
-          Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
         }}
         onSkip={() => {
           setPlanPickerRecipes([]);

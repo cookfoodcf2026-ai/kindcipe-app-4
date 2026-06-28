@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { compressImage } from "@/lib/image-utils";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 
 type MsgContent = string | Array<
@@ -739,16 +740,21 @@ export default function AIChefScreen() {
     onError: (e) => Alert.alert("加入排餐失敗", e.message),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.refetch();
       setShowPlan(false);
       setShowShopModal(false);
       setShopRecipes([]);
       setShopSelected(new Set());
-      Alert.alert("已加入購物", `${data.count} 項食材已加入購物清單`);
+      setPlanPickerRecipe(null);
+      const count = variables.items.length;
+      showToast(`✅ ${count} 件食材已加入購物清單`);
     },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => {
+      showToast(`加入食材失敗：${e.message}`);
+    },
   });
 
   const scrollToEnd = () => setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -1710,6 +1716,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       <IngredientPickerModal
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
+        loading={addShoppingM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
             addShoppingM.mutate({
@@ -1723,13 +1730,14 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
               fromRecipeName: items[0].recipeName,
               plannedDate: items[0].plannedDate,
             });
+          } else {
+            setPlanPickerRecipe(null);
+            showToast("排餐已記錄");
           }
-          setPlanPickerRecipe(null);
-          Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);
-          Alert.alert("已加入排餐");
+          showToast("已跳過食材");
         }}
       />
     </>
