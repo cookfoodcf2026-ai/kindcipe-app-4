@@ -80,7 +80,7 @@ export default function KitchenSettingsScreen() {
     onError: (e) => Alert.alert("解散失敗", e.message),
   });
 
-  const settings = (activeFamily as any)?.settings ?? { approvalRequired: true };
+  const settings = (activeFamily as any)?.settings ?? { approvalRequired: false };
   const members: any[] = (activeFamily as any)?.members ?? [];
 
   const handleStartRename = () => {
@@ -181,7 +181,7 @@ export default function KitchenSettingsScreen() {
             <View style={s.rowBetween}>
               <View style={{ flex: 1 }}>
                 <Text style={s.rowLabel}>成員提案需要審批</Text>
-                <Text style={s.rowSub}>成員新增的排餐和食材需經管理員確認</Text>
+                <Text style={s.rowSub}>開啟後，成員新增的排餐和食材需經管理員確認。確認排餐時會自動確認相關食材。</Text>
               </View>
               <Switch
                 value={settings.approvalRequired !== false}
