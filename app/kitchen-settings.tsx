@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -262,10 +263,25 @@ export default function KitchenSettingsScreen() {
               <Text style={{ fontSize: 20, fontWeight: "900", color: BRAND, letterSpacing: 3 }}>
                 {(activeFamily as any)?.inviteCode ?? "---"}
               </Text>
-              <TouchableOpacity style={s.primaryBtn} onPress={() => router.push("/family")}>
-                <Ionicons name="share-outline" size={16} color="#fff" />
-                <Text style={s.primaryBtnText}>分享</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity 
+                  style={s.secondaryBtn} 
+                  onPress={async () => {
+                    const code = (activeFamily as any)?.inviteCode;
+                    if (code) {
+                      await Clipboard.setStringAsync(code);
+                      Alert.alert("已複製", `邀請碼 ${code} 已複製到剪貼簿`);
+                    }
+                  }}
+                >
+                  <Ionicons name="copy-outline" size={16} color={BRAND} />
+                  <Text style={s.secondaryBtnText}>複製</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.primaryBtn} onPress={() => router.push("/family")}>
+                  <Ionicons name="share-outline" size={16} color="#fff" />
+                  <Text style={s.primaryBtnText}>分享</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -329,7 +345,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8,
     paddingVertical: 8, paddingHorizontal: 14,
   },
-  secondaryBtnText: { color: SUB, fontSize: 13, fontWeight: "600" },
+  secondaryBtnText: { color: BRAND, fontSize: 13, fontWeight: "600" },
   memberCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#fff", borderRadius: 12, padding: 12,

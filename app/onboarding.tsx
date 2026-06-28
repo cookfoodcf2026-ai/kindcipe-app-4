@@ -325,7 +325,7 @@ export default function OnboardingScreen() {
                   setStep("guide");
                   return;
                 }
-                await apiClient.family.join.mutate({ inviteCode });
+                await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
                 setStep("guide");
               } catch (err: any) {
                 const msg = err?.message || err?.data?.message || "";
@@ -335,7 +335,7 @@ export default function OnboardingScreen() {
                 setLoading(false);
               }
             }}
-            disabled={!inviteCode || loading}
+            disabled={!inviteCode.trim() || loading}
           >
             {loading ? (
               <View style={styles.parseProgressRow}>
