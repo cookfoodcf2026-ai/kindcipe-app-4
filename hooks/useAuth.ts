@@ -60,9 +60,10 @@ export function useAuth() {
   );
 
   // 獲取當前活躍家庭的詳細資料（後端根據 X-Family-Id header 決定回傳哪個家庭）
-  const { data: activeFamily } = trpc.family.get.useQuery(undefined, {
+  const { data: activeFamily, refetch: refetchActiveFamily } = trpc.family.get.useQuery(undefined, {
     enabled: isAuthenticated,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 0, // 取消 stale cache，確保每次都能拿到最新資料
+    refetchOnMount: true,
   });
 
   // 當前用戶在活躍家庭中的角色

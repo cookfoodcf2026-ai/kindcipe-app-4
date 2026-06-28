@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, Switch, ActivityIndicator,
@@ -27,6 +27,17 @@ export default function KitchenSettingsScreen() {
   const router = useRouter();
   const { activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
   const utils = trpc.useUtils();
+
+  // Debug: log activeFamily to check if inviteCode is present
+  useEffect(() => {
+    console.log("[KitchenSettings] activeFamily:", activeFamily);
+    console.log("[KitchenSettings] inviteCode:", (activeFamily as any)?.inviteCode);
+  }, [activeFamily]);
+
+  // Force refetch family data when screen mounts to ensure fresh data
+  useEffect(() => {
+    utils.family.get.invalidate();
+  }, []);
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
