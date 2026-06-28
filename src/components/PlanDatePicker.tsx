@@ -24,6 +24,8 @@ const CHIP_WIDTH = 56;
 const CHIP_MARGIN = 8;
 const CHIP_TOTAL = CHIP_WIDTH + CHIP_MARGIN;
 
+const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+
 type YearMonth = { year: number; month: number };
 
 interface PlanDatePickerProps {
@@ -132,16 +134,19 @@ export default function PlanDatePicker({
 
   const dayItems = useMemo(() => {
     const items: { iso: string; day: number; weekday: string; isToday: boolean; isTomorrow: boolean }[] = [];
+    const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
     for (let d = startDay; d <= daysInMonth; d++) {
       const date = new Date(viewingYM.year, viewingYM.month - 1, d);
       const iso = toISODate(date);
-      const weekday = date.toLocaleDateString("zh-HK", { weekday: "short" });
+      let weekdayLabel = WEEKDAYS[date.getDay()];
+      if (iso === today) weekdayLabel += "·今";
+      else if (iso === tomorrowISO) weekdayLabel += "·明";
       items.push({
         iso,
         day: d,
-        weekday,
+        weekday: weekdayLabel,
         isToday: iso === today,
-        isTomorrow: iso === toISODate(new Date(Date.now() + 86400000)),
+        isTomorrow: iso === tomorrowISO,
       });
     }
     return items;
@@ -319,11 +324,7 @@ export default function PlanDatePicker({
                   isPast && s.dayChipWeekdayDisabled,
                 ]}
               >
-                {item.isToday
-                  ? t("common.today") || "今天"
-                  : item.isTomorrow
-                  ? t("common.tomorrow") || "明天"
-                  : item.weekday}
+                {item.weekday}
               </Text>
               <Text
                 style={[

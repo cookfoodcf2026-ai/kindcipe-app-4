@@ -254,7 +254,7 @@ export default function ShoppingTab() {
           const item = items.find((i: any) => i.name === n);
           return { id: 0, name: n, category: item?.category || "其他", unit: item?.unit } as CommonIngredientSuggestion;
         })
-        .slice(0, 8);
+        .slice(0, 20);
     }
     
     const commonSuggestions = getCommonIngredientSuggestions(ingredientsForSuggestions, newName);
@@ -265,7 +265,7 @@ export default function ShoppingTab() {
         return { id: 0, name: n, category: item?.category || "其他", unit: item?.unit } as CommonIngredientSuggestion;
       });
     const combined = [...existingSuggestions, ...commonSuggestions.filter((c) => !existingSuggestions.some((e) => e.name === c.name))];
-    return combined.slice(0, 8);
+    return combined.slice(0, 20);
   }, [newName, items, ingredientsForSuggestions, showNameSuggestions]);
 
   const savePriceM = (trpc as any).shopping.savePrice.useMutation({
@@ -2069,7 +2069,7 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     borderRadius: 10,
     marginTop: 4,
-    maxHeight: 160,
+    maxHeight: 220,
     overflow: "hidden",
   },
   suggestionItem: {

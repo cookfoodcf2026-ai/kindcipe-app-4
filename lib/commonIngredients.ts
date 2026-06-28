@@ -118,22 +118,36 @@ export const OFFLINE_FALLBACK: CommonIngredient[] = [
 export const getCommonIngredientSuggestions = (
   ingredients: CommonIngredient[],
   query: string,
-  limit = 10,
+  limit = 20,
 ): CommonIngredientSuggestion[] => {
   if (!query.trim() || ingredients.length === 0) return [];
   const q = query.toLowerCase();
 
-  return ingredients
-    .filter((ing) => {
-      if (!ing.isActive) return false;
-      return (
-        ing.nameYue.toLowerCase().includes(q) ||
-        ing.nameZh.toLowerCase().includes(q) ||
-        ing.nameEn.toLowerCase().includes(q) ||
-        (ing.nameFil && ing.nameFil.toLowerCase().includes(q)) ||
-        (ing.nameId && ing.nameId.toLowerCase().includes(q))
-      );
-    })
+  const matched = ingredients.filter((ing) => {
+    if (!ing.isActive) return false;
+    return (
+      ing.nameYue.toLowerCase().includes(q) ||
+      ing.nameZh.toLowerCase().includes(q) ||
+      ing.nameEn.toLowerCase().includes(q) ||
+      (ing.nameFil && ing.nameFil.toLowerCase().includes(q)) ||
+      (ing.nameId && ing.nameId.toLowerCase().includes(q))
+    );
+  });
+
+  // Rank: exact match > startsWith > contains
+  const ranked = matched.sort((a, b) => {
+    const getRank = (ing: CommonIngredient) => {
+      const fields = [ing.nameYue, ing.nameZh, ing.nameEn, ing.nameFil, ing.nameId]
+        .filter(Boolean)
+        .map((f) => f!.toLowerCase());
+      if (fields.some((f) => f === q)) return 0; // exact
+      if (fields.some((f) => f.startsWith(q))) return 1; // startsWith
+      return 2; // contains
+    };
+    return getRank(a) - getRank(b);
+  });
+
+  return ranked
     .slice(0, limit)
     .map((ing) => ({
       id: ing.id,
