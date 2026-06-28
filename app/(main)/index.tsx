@@ -13,6 +13,7 @@ import type { CategoryDef } from "@/lib/category-storage";
 import { useMemo, useState, useEffect } from "react";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 
 const { width: SW } = Dimensions.get("window");
@@ -193,6 +194,7 @@ export default function RecipesTab() {
   const [quickPlanDate, setQuickPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayMeals = [] } = trpc.mealPlan.listByDateRange.useQuery({ startDate: todayStr, endDate: todayStr }, { staleTime: 30000 });
@@ -230,8 +232,11 @@ export default function RecipesTab() {
     onSuccess: () => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.refetch();
     },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => {
+      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+    },
   });
 
   const allUserTags = useMemo(() => {
@@ -653,14 +658,23 @@ export default function RecipesTab() {
               fromRecipeName: items[0].recipeName,
               plannedDate: items[0].plannedDate,
             });
+            setToast({ visible: true, message: `✅ ${items.length} 件食材已加入購物清單`, type: "success" });
+          } else {
+            setToast({ visible: true, message: "排餐已記錄", type: "info" });
           }
           setPlanPickerRecipe(null);
-          Alert.alert("已加入排餐", items.length > 0 ? `${items.length} 件食材已加入購物清單` : "排餐已記錄");
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);
-          Alert.alert("已加入排餐");
+          setToast({ visible: true, message: "已跳過食材", type: "info" });
         }}
+      />
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );

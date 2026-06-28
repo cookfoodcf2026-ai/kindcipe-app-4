@@ -228,8 +228,8 @@ export default function ShoppingTab() {
   const utils = trpc.useUtils();
 
   const { data: items = [], isLoading } = trpc.shopping.list.useQuery(undefined, {
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 15,
+    staleTime: 1000 * 10,
+    refetchInterval: 1000 * 3,
   });
 
   // Fetch full common ingredient list for local caching and filtering
