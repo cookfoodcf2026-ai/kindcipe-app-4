@@ -10,7 +10,7 @@ import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
-import PlanDatePicker from "@/src/components/PlanDatePicker";
+import DateCardsPicker from "@/src/components/DateCardsPicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
 import {
   isFreshIngredient,
@@ -978,7 +978,7 @@ export default function ShoppingTab() {
                     </View>
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
-                  <PlanDatePicker
+                  <DateCardsPicker
                     value={newPlannedDate || new Date().toISOString().split("T")[0]}
                     onChange={(iso) => setNewPlannedDate(iso)}
                   />
@@ -1062,7 +1062,7 @@ export default function ShoppingTab() {
                     </View>
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
-                  <PlanDatePicker
+                  <DateCardsPicker
                     value={editPlannedDate || new Date().toISOString().split("T")[0]}
                     onChange={(iso) => setEditPlannedDate(iso)}
                   />
