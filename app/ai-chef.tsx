@@ -43,12 +43,10 @@ type MealPlanPreferences = {
 const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, dislikes: "" };
 
 // ─── Recipe Validation ───────────────────────────────────
-// A valid recipe MUST have: name (2-30 chars), ≥1 ingredient, ≥1 step
+// A valid recipe MUST have: name (2-50 chars), ≥1 ingredient, ≥1 step
+// Relaxed validation to accept backend-validated recipes
 const isValidRecipe = (r: AIRecipe): boolean => {
-  if (!r.name || r.name.length < 2 || r.name.length > 30) return false;
-  if (/^[0-9]+[、.．\s]/.test(r.name)) return false;
-  if (/分鐘.*[洗切煮炒煎炸燜燉拌]/.test(r.name)) return false;
-  if (/^[第\d]/.test(r.name) && /分鐘/.test(r.name)) return false;
+  if (!r.name || r.name.length < 2 || r.name.length > 50) return false;
   if (!Array.isArray(r.ingredients) || r.ingredients.length === 0) return false;
   if (!Array.isArray(r.steps) || r.steps.length === 0) return false;
   return true;
@@ -395,10 +393,7 @@ export default function AIChefScreen() {
     }
 
     if (!name) return null;
-    if (name.length < 2 || name.length > 30) return null;
-    if (/^[0-9]+[、.．\s]/.test(name)) return null;
-    if (/分鐘.*[洗切煮炒煎炸燜燉拌]/.test(name)) return null;
-    if (/^[第\d]/.test(name) && /分鐘/.test(name)) return null;
+    if (name.length < 2 || name.length > 50) return null;
 
     // Extract description (paragraph before 🛒 or 食材)
     const descMatch = text.match(/(?:（約\d+分鐘）|^\s*$)\s*\n\s*(.+?)(?=\n\s*(?:🛒|食材|材料|原料|Ingredients))/s);
@@ -743,7 +738,6 @@ export default function AIChefScreen() {
     onSuccess: (data, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
-      utils.shopping.list.refetch();
       setShowPlan(false);
       setShowShopModal(false);
       setShopRecipes([]);
