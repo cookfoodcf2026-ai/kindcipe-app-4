@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, FlatList,
   TextInput, Modal, Linking, ScrollView, ActivityIndicator, Platform,
-  KeyboardAvoidingView, Dimensions,
+  KeyboardAvoidingView, Dimensions, RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -150,6 +150,7 @@ export default function ShoppingTab() {
   const [visibleMonth, setVisibleMonth] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -226,6 +227,11 @@ export default function ShoppingTab() {
   }, [priceResults]);
 
   const utils = trpc.useUtils();
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    utils.shopping.list.refetch().finally(() => setRefreshing(false));
+  }, [utils]);
 
   const { data: items = [], isLoading } = trpc.shopping.list.useQuery(undefined, {
     staleTime: 1000 * 10,
@@ -615,10 +621,14 @@ export default function ShoppingTab() {
             <Text style={[styles.itemName, isBought && styles.itemNameBought, isPending && styles.itemNamePending]}>
               {item.name}
             </Text>
-            {item.fromRecipeName && (
-              <View style={styles.recipeTag}>
+            {item.fromRecipeName && item.fromRecipeId && (
+              <TouchableOpacity
+                style={styles.recipeTag}
+                onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any)}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.recipeTagText}>{item.fromRecipeName}</Text>
-              </View>
+              </TouchableOpacity>
             )}
           </View>
           <View style={styles.itemMetaRow}>
@@ -889,6 +899,9 @@ export default function ShoppingTab() {
             }
             return null;
           }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#013E77" />
+          }
           ListHeaderComponent={
             isAdmin && pendingCount > 0 ? (
               <View style={styles.pendingBatchSection}>
