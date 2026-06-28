@@ -1007,6 +1007,7 @@ export default function AIChefScreen() {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
     }
+    console.log("[AI Chef] Batch add meal plan clicked, recipes:", validRecipes.length);
     // Save recipes to user library first, then open date picker modal
     try {
       const saved = await Promise.all(validRecipes.map(r => saveRecipeM.mutateAsync({
@@ -1026,6 +1027,7 @@ export default function AIChefScreen() {
       }));
       setBatchRecipes(recipesWithIds);
       setPlanAction("meal");
+      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
       setShowPlan(true);
     } catch (e: any) {
       Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
@@ -1159,6 +1161,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   };
 
   const handleQuickPlanFromText = () => {
+    console.log("[AI Chef] Quick action '加入排餐' clicked");
     const lastBot = [...messages].reverse().find(m => m.role === "assistant");
     const text = lastBot ? contentToText(lastBot.content) : "";
     const parsedRecipes = tryParseRecipes(text);
@@ -1166,6 +1169,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     if (validRecipe) {
       setPlanRecipe(validRecipe);
       setPlanAction("meal");
+      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
       setShowPlan(true);
     } else {
       Alert.alert("未能識別食譜", "AI 回覆中未找到有效食譜，請直接點擊 AI 推薦食譜卡片上的「加排餐」。");
@@ -1185,6 +1189,12 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   // ─── Plan modal confirm ────────────────────────────────
 
   const confirmAction = () => {
+    console.log("[AI Chef] confirmAction called, planAction:", planAction, "planDate:", planDate, "planMeal:", planMeal);
+    // Guard: ensure modal was shown
+    if (!showPlan) {
+      console.error("[AI Chef] confirmAction called without modal being shown!");
+      return;
+    }
     // Batch mode: add all recipes to meal plan with selected date/mealType
     if (batchRecipes && batchRecipes.length > 0) {
       if (planAction === "meal") {
@@ -1571,7 +1581,17 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                     <View style={s.recCardBtns}>
                       <TouchableOpacity
                         style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
-                        onPress={() => { if (isValidRecipe(r)) { setPlanRecipe(r); setPlanAction("meal"); setShowPlan(true); } else { Alert.alert("無法加入", "此食譜資料不完整。"); } }}
+                        onPress={() => {
+                          if (isValidRecipe(r)) {
+                            console.log("[AI Chef] Recipe card '加排餐' clicked:", r.name);
+                            setPlanRecipe(r);
+                            setPlanAction("meal");
+                            setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+                            setShowPlan(true);
+                          } else {
+                            Alert.alert("無法加入", "此食譜資料不完整。");
+                          }
+                        }}
                         disabled={!isValidRecipe(r)}
                       >
                         <Text style={s.btnMealTxt}>加排餐</Text>
