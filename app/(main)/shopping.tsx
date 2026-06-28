@@ -331,6 +331,22 @@ export default function ShoppingTab() {
     onError: (e) => Alert.alert("拒絕失敗", e.message),
   });
 
+  const approveAllM = (trpc as any).shopping.approveAll.useMutation({
+    onSuccess: () => {
+      utils.shopping.list.invalidate();
+      Alert.alert("全部已確認", "所有待確認項目已確認");
+    },
+    onError: (e: Error) => Alert.alert("確認失敗", e.message),
+  });
+
+  const rejectAllM = (trpc as any).shopping.rejectAll.useMutation({
+    onSuccess: () => {
+      utils.shopping.list.invalidate();
+      Alert.alert("全部已拒絕", "所有待確認項目已拒絕");
+    },
+    onError: (e: Error) => Alert.alert("拒絕失敗", e.message),
+  });
+
   const updateItemM = trpc.shopping.updateItem.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
@@ -382,6 +398,12 @@ export default function ShoppingTab() {
 
   const filteredUnboughtCount = activeItems.length;
   const filteredBoughtCount = boughtItems.length;
+
+  const pendingItems = useMemo(
+    () => filteredItems.filter((i) => i.status === "pending"),
+    [filteredItems],
+  );
+  const pendingCount = pendingItems.length;
 
   const groupedByCategory = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -867,6 +889,34 @@ export default function ShoppingTab() {
             }
             return null;
           }}
+          ListHeaderComponent={
+            isAdmin && pendingCount > 0 ? (
+              <View style={styles.pendingBatchSection}>
+                <View style={styles.pendingBatchHeader}>
+                  <Ionicons name="time-outline" size={18} color="#CA8A04" />
+                  <Text style={styles.pendingBatchTitle}>{pendingCount} 個項目待確認</Text>
+                </View>
+                <View style={styles.pendingBatchButtons}>
+                  <TouchableOpacity
+                    style={styles.pendingBatchApproveBtn}
+                    onPress={() => approveAllM.mutate()}
+                    disabled={approveAllM.isPending}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color="#013E77" />
+                    <Text style={styles.pendingBatchApproveBtnText}>全部確認</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.pendingBatchRejectBtn}
+                    onPress={() => rejectAllM.mutate()}
+                    disabled={rejectAllM.isPending}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#EF4444" />
+                    <Text style={styles.pendingBatchRejectBtnText}>全部拒絕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null
+          }
           ListFooterComponent={
             boughtItems.length > 0 ? (
               <View style={styles.boughtSection}>
@@ -1904,6 +1954,60 @@ const styles = StyleSheet.create({
   },
   rejectBtnTxt: {
     fontSize: 11,
+    fontWeight: "700",
+    color: "#EF4444",
+  },
+  pendingBatchSection: {
+    backgroundColor: "#FEF9C3",
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  pendingBatchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  pendingBatchTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  pendingBatchButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pendingBatchApproveBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#E8F0FE",
+  },
+  pendingBatchApproveBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#013E77",
+  },
+  pendingBatchRejectBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#FEE2E2",
+  },
+  pendingBatchRejectBtnText: {
+    fontSize: 13,
     fontWeight: "700",
     color: "#EF4444",
   },
