@@ -1003,6 +1003,10 @@ export default function AIChefScreen() {
 
   const addMealPlanBatch = async (recipes: AIRecipe[]) => {
     const validRecipes = recipes.filter(isValidRecipe);
+    console.log("[AI Chef] Batch add meal plan - total recipes:", recipes.length, "valid:", validRecipes.length);
+    recipes.forEach((r, i) => {
+      console.log(`[AI Chef] Recipe ${i + 1}:`, r.name, "ingredients:", r.ingredients?.length, "steps:", r.steps?.length);
+    });
     if (validRecipes.length === 0) {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
@@ -1021,7 +1025,7 @@ export default function AIChefScreen() {
         image: "", thumbnailUrl: "",
         recipeCategory: r.recipeCategory || "其他",
         tags: [...(r.tags ?? []), "AI生成"],
-        ingredients: r.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材" })),
+        ingredients: r.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
         steps: (r.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
       })));
       // Store saved recipe IDs with the valid recipes for later use
@@ -1050,7 +1054,7 @@ export default function AIChefScreen() {
       image: "", thumbnailUrl: "",
       recipeCategory: recipe.recipeCategory || "其他",
       tags: [...(recipe.tags ?? []), "AI生成"],
-      ingredients: recipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材" })),
+      ingredients: recipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
       steps: (recipe.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
     }, {
       onSuccess: () => {
@@ -1069,6 +1073,20 @@ const COMMON_PANTRY = [
   "薑", "薑絲", "薑片", "蒜", "蒜蓉", "蒜頭", "蔥", "蔥花",
   "清水", "水", "八角", "花椒", "五香粉", "雞粉", "味醂",
 ];
+
+// Helper to categorize ingredients based on keywords
+const categorizeIngredient = (name: string): string => {
+  const n = name.toLowerCase();
+  if (/蔬菜|菜|青菜|白菜|生菜|菠菜|芥蘭|菜心|西蘭花|椰菜|蘿蔔|薯仔|番茄|青瓜|茄子|南瓜|冬瓜|絲瓜|洋蔥|洋蔥/.test(n)) return "蔬菜";
+  if (/肉|豬|牛|雞|羊|排骨|雞翼|雞腿|牛肉|豬肉|雞胸/.test(n)) return "肉類";
+  if (/魚|蝦|蟹|貝|魷魚|章魚|蠔|蜆|蛤|鮑魚|海參/.test(n)) return "海鮮";
+  if (/蛋|奶|芝士|牛奶|奶油|牛油/.test(n)) return "蛋奶";
+  if (/米|飯|麵|粉|粉絲|烏冬|意粉|通粉|餃子|雲吞/.test(n)) return "主食";
+  if (/醬|油|鹽|糖|醋|酒|味精|雞粉|胡椒粉|五香|八角|花椒|桂皮/.test(n)) return "調味料";
+  if (/乾|冬菇|木耳|金針|蝦米|瑤柱|蓮子|百合|紅棗|枸杞/.test(n)) return "乾貨";
+  if (/水|果汁|汽水|啤酒|紅酒|白酒|湯/.test(n)) return "飲品";
+  return "其他";
+};
 
 const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     setShopRecipes(recipes);
@@ -1097,9 +1115,13 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     shopRecipes.forEach(r => {
       r.ingredients.forEach((ing, i) => {
         if (shopSelected.has(`${r.name}::${i}`)) {
-          items.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材" });
+          items.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) });
         }
       });
+    });
+    console.log("[AI Chef] confirmShopBatch - recipes:", shopRecipes.length, "items:", items.length);
+    shopRecipes.forEach((r, i) => {
+      console.log(`[AI Chef] Shopping recipe ${i + 1}:`, r.name, "ingredients:", r.ingredients?.length);
     });
     addShoppingM.mutate({
       items,
@@ -1250,7 +1272,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
         recipeCategory: planRecipe.recipeCategory || "其他",
         tags: [...(planRecipe.tags ?? []), "AI生成"],
         ingredients: planRecipe.ingredients.map(ing => ({
-          name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材",
+          name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
         })),
         steps: (planRecipe.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
       }, {
@@ -1277,7 +1299,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                   id: `user_${saved.id}`,
                   name: planRecipe!.name,
                   ingredients: planRecipe!.ingredients.map(ing => ({
-                    name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材",
+                    name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
                   })),
                   date: planDate,
                 });
@@ -1290,7 +1312,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       });
     } else {
       addShoppingM.mutate({
-        items: planRecipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: "食材" })),
+        items: planRecipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
         fromRecipeName: planRecipe.name, plannedDate: planDate,
       });
     }
@@ -1559,7 +1581,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
               {mealResult && mealResult.length === 4 && (
                 <View style={s.recBatch}>
                   <TouchableOpacity style={s.batchMealBtn} onPress={() => addMealPlanBatch(mealResult)} disabled={saveRecipeM.isPending || addPlanM.isPending}>
-                    <Text style={s.batchMealTxt}>{saveRecipeM.isPending || addPlanM.isPending ? "處理中..." : "加入排餐"}</Text>
+                    <Text style={s.batchMealTxt}>{saveRecipeM.isPending || addPlanM.isPending ? "處理中..." : "全部加一排餐"}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.batchShopBtn} onPress={() => openShoppingSelection(mealResult)} disabled={addShoppingM.isPending}>
                     <Text style={s.batchShopTxt}>加入採購</Text>
