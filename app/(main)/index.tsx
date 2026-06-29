@@ -267,21 +267,18 @@ export default function RecipesTab() {
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
-  // Use new search endpoint with infinite scroll
+  // Use new search endpoint
   const {
     recipes: searchRecipes,
     total: searchTotal,
     isLoading: searchLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
     refetch: refetchSearch,
   } = useRecipeSearch({
     query: debouncedQuery || undefined,
     category: activeCategory === "all" ? undefined : activeCategory,
     tag: activeTagFilter ?? undefined,
     cookTimeMax: activePopularChip === "quick30" ? 30 : undefined,
-    limit: 20,
+    limit: 500,
   });
 
   // Legacy queries for backward compatibility (user recipes, counts)
@@ -612,19 +609,6 @@ export default function RecipesTab() {
         ListHeaderComponent={ListHeader}
         renderItem={renderCard}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
-        onEndReached={() => {
-          if (hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-          }
-        }}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          isFetchingNextPage ? (
-            <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <ActivityIndicator color={BRAND} size="small" />
-            </View>
-          ) : null
-        }
         ListEmptyComponent={
           <View style={s.empty}>
             {isLoading ? (
