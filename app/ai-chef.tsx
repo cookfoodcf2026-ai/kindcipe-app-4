@@ -1916,7 +1916,7 @@ const s = StyleSheet.create({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { width: '100%', backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingVertical: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "90%", minHeight: 400 },
+  sheet: { width: '100%', backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingVertical: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, height: Dimensions.get("window").height * 0.45 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 16 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   title: { fontSize: 18, fontWeight: "800", color: TEXT },
