@@ -10,11 +10,12 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
+import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -238,6 +239,7 @@ export default function RecipesTab() {
   const { user, familyRole } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "official" | "user">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
@@ -247,6 +249,13 @@ export default function RecipesTab() {
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
   }, []);
+
+  // Debounce search query (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; image?: string; ingredients?: any[] } | null>(null);
   const [quickPlanDate, setQuickPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
@@ -258,10 +267,28 @@ export default function RecipesTab() {
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
-  const { data: officialRecipes = [], isLoading: loadingOfficial } =
-    trpc.recipes.listOfficial.useQuery({ limit: 200 }, { staleTime: 60000 });
+  // Use new search endpoint with infinite scroll
+  const {
+    recipes: searchRecipes,
+    total: searchTotal,
+    isLoading: searchLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch: refetchSearch,
+  } = useRecipeSearch({
+    query: debouncedQuery || undefined,
+    category: activeCategory === "all" ? undefined : activeCategory,
+    tag: activeTagFilter ?? undefined,
+    cookTimeMax: activePopularChip === "quick30" ? 30 : undefined,
+    limit: 20,
+  });
+
+  // Legacy queries for backward compatibility (user recipes, counts)
   const { data: userRecipes = [], isLoading: loadingUser } =
     trpc.recipes.listUser.useQuery({ limit: 200 }, { staleTime: 60000 });
+
+  const isLoading = searchLoading || loadingUser;
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: (_, variables) => {
@@ -269,9 +296,8 @@ export default function RecipesTab() {
       utils.shopping.list.invalidate();
       setQuickPlanRecipe(null);
 
-      const found = [...officialRecipes, ...userRecipes].find(
-        (r: any) => `official_${r.id}` === variables.recipeId || `user_${r.id}` === variables.recipeId
-      ) as any;
+      // Find recipe from search results
+      const found = searchRecipes.find((r: any) => r.id === variables.recipeId) as any;
       if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
         setPlanPickerRecipe({
           id: variables.recipeId,
@@ -303,68 +329,35 @@ export default function RecipesTab() {
   const allUserTags = useMemo(() => {
     const set = new Set<string>();
     userRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => set.add(t)));
+    searchRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => set.add(t)));
     return Array.from(set).sort();
-  }, [userRecipes]);
+  }, [userRecipes, searchRecipes]);
 
-  const allTaggedRecipes = useMemo(() => [
-    ...officialRecipes.map((r: any) => ({ ...r, _source: "official" })),
-    ...userRecipes.map((r: any) => ({ ...r, _source: "user" })),
-  ], [officialRecipes, userRecipes]);
-
-  const isLoading = loadingOfficial || loadingUser;
-
+  // Filter recipes based on viewMode (official/user/all)
   const filteredRecipes = useMemo(() => {
-    let pool = viewMode === "official"
-      ? officialRecipes.map((r: any) => ({ ...r, _source: "official" }))
-      : viewMode === "user"
-        ? userRecipes.map((r: any) => ({ ...r, _source: "user" }))
-        : allTaggedRecipes;
+    let pool = searchRecipes;
 
-    if (activeCategory !== "all") {
-      pool = pool.filter((r: any) => r.recipeCategory === activeCategory);
+    if (viewMode === "official") {
+      pool = pool.filter((r: any) => r.source === "official");
+    } else if (viewMode === "user") {
+      pool = pool.filter((r: any) => r.source === "custom");
     }
-    if (activeTagFilter) {
-      pool = pool.filter((r: any) => (r.tags ?? []).includes(activeTagFilter));
-    }
-    if (activePopularChip) {
+
+    // Apply additional filters that backend doesn't handle
+    if (activePopularChip && activePopularChip !== "quick30") {
       const chip = POPULAR_CHIPS.find(c => c.key === activePopularChip);
-      if (chip) pool = pool.filter(chip.filter);
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      pool = pool.map((r: any) => {
-        let score = 0;
-        const name = (r.name ?? "").toLowerCase();
-        const desc = (r.description ?? "").toLowerCase();
-        const tags: string[] = (r.tags ?? []).map((t: string) => t.toLowerCase());
-        const ings: string[] = (r.ingredients ?? []).map((i: any) => (i.name ?? "").toLowerCase());
-
-        if (name === q) score += 100;
-        else if (name.startsWith(q)) score += 80;
-        else if (name.includes(q)) score += 60;
-
-        if (tags.some((t: string) => t === q)) score += 50;
-        else if (tags.some((t: string) => t.includes(q))) score += 30;
-
-        if (ings.some((i: string) => i === q)) score += 40;
-        else if (ings.some((i: string) => i.includes(q))) score += 20;
-
-        if (desc.includes(q)) score += 10;
-
-        return { ...r, _score: score };
-      }).filter((r: any) => r._score > 0);
-
-      pool.sort((a: any, b: any) => b._score - a._score);
+      if (chip) {
+        pool = pool.filter(chip.filter);
+      }
     }
 
     return pool;
-  }, [officialRecipes, userRecipes, allTaggedRecipes, viewMode, activeCategory, activeTagFilter, activePopularChip, searchQuery]);
+  }, [searchRecipes, viewMode, activePopularChip]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      utils.recipes.listOfficial.invalidate(),
+      refetchSearch(),
       utils.recipes.listUser.invalidate(),
       utils.mealPlan.listByDateRange.invalidate(),
       utils.weeklyMenu.getWeek.invalidate(),
@@ -373,12 +366,12 @@ export default function RecipesTab() {
   };
 
   const navigateToRecipe = (item: any) => {
-    const prefix = item._source === "user" ? "user_" : "official_";
-    router.push({ pathname: "/recipe/[id]", params: { id: `${prefix}${item.id}` } });
+    // item.id already has prefix "official_" or "user_" from search endpoint
+    router.push({ pathname: "/recipe/[id]", params: { id: item.id } });
   };
 
   const renderCard = ({ item }: { item: any }) => {
-    const isUser = item._source === "user";
+    const isUser = item.source === "custom";
     const tags: string[] = item.tags ?? [];
     const isAIGenerated = tags.includes("AI生成");
     const cat = categories.find(c => c.key === item.recipeCategory);
@@ -399,8 +392,7 @@ export default function RecipesTab() {
           <TouchableOpacity
             style={s.cardPlanBtn}
             onPress={() => {
-              const prefix = isUser ? "user_" : "official_";
-              setQuickPlanRecipe({ id: `${prefix}${item.id}`, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
+              setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
               setQuickPlanDate(new Date().toISOString().split("T")[0]);
               setQuickPlanMeal("dinner");
             }}
@@ -491,8 +483,8 @@ export default function RecipesTab() {
 
       <View style={s.sourceToggle}>
         {([
-          { key: "all",      label: "全部",   count: allTaggedRecipes.length },
-          { key: "official", label: "官方食譜", count: officialRecipes.length },
+          { key: "all",      label: "全部",   count: searchTotal },
+          { key: "official", label: "官方食譜", count: searchRecipes.filter((r: any) => r.source === "official").length },
           { key: "user",     label: "我的食譜", count: userRecipes.length },
         ] as const).map(t => (
           <TouchableOpacity
@@ -575,9 +567,9 @@ export default function RecipesTab() {
         <View style={s.resultSummary}>
           <View style={{ flex: 1, minWidth: 0 }}>
             {filterSummary ? (
-              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {filteredRecipes.length} 個結果</Text>
+              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {searchTotal} 個結果</Text>
             ) : (
-              <Text style={s.resultSummaryTxt}>找到 {filteredRecipes.length} 個食譜</Text>
+              <Text style={s.resultSummaryTxt}>找到 {searchTotal} 個食譜</Text>
             )}
           </View>
           <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilter(null); setActivePopularChip(null); setSearchQuery(""); }}>
@@ -613,13 +605,26 @@ export default function RecipesTab() {
 
       <FlatList
         data={filteredRecipes}
-        keyExtractor={(item: any) => `${item._source}_${item.id}`}
+        keyExtractor={(item: any) => item.id}
         numColumns={2}
         columnWrapperStyle={s.gridRow}
         contentContainerStyle={s.gridContent}
         ListHeaderComponent={ListHeader}
         renderItem={renderCard}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <ActivityIndicator color={BRAND} size="small" />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={s.empty}>
             {isLoading ? (
