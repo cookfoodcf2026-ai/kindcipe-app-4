@@ -1721,7 +1721,9 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
               </View>
             </>}
             <Text style={m.label}>日期</Text>
-            <PlanDatePicker value={planDate} onChange={setPlanDate} />
+            <View style={{ width: Dimensions.get("window").width - 32 }}>
+              <PlanDatePicker value={planDate} onChange={setPlanDate} />
+            </View>
             {planRecipe && !batchRecipes && (
               <View style={m.preview}>
                 <Text style={m.label}>食材</Text>
