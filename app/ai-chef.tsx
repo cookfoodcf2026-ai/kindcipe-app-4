@@ -1709,7 +1709,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           ) : planRecipe ? (
             <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
           ) : null}
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.30 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {planAction === "meal" && <>
               <Text style={m.label}>餐次</Text>
               <View style={m.mealRow}>
