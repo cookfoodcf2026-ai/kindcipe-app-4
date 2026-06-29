@@ -929,6 +929,10 @@ export default function AIChefScreen() {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
+        console.log("[AI Chef] Meal plan response - recipes:", data.recipes?.length);
+        data.recipes?.forEach((r: any, i: number) => {
+          console.log(`[AI Chef] Recipe ${i + 1}: ${r.name}, ingredients: ${r.ingredients?.length}, steps: ${r.steps?.length}`);
+        });
         if (data.recipes?.length > 0) {
           const safeRecipes = data.recipes.map((r: any) => ({ ...r, steps: r.steps ?? [], ingredients: r.ingredients ?? [] }));
           setMealResult(safeRecipes);
@@ -1089,13 +1093,16 @@ const categorizeIngredient = (name: string): string => {
 };
 
 const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
+    console.log("[AI Chef] openShoppingSelection - recipes:", recipes.length, recipes.map(r => r.name));
     setShopRecipes(recipes);
     setShopPlannedDate(plannedDate || new Date().toISOString().split("T")[0]);
     const selected = new Set<string>();
     recipes.forEach(r => {
+      console.log(`[AI Chef] Recipe "${r.name}" has ${r.ingredients.length} ingredients`);
       r.ingredients.forEach((ing, i) => {
         const isPantry = COMMON_PANTRY.some(p => ing.name.includes(p));
         if (!isPantry) selected.add(`${r.name}::${i}`);
+        else console.log(`[AI Chef] Filtered pantry item: ${ing.name} from ${r.name}`);
       });
     });
     setShopSelected(selected);
@@ -1244,6 +1251,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             }))
           );
           if (allIngredients.length > 0) {
+            console.log("[AI Chef] Opening shopping for", batchRecipes.length, "recipes:", batchRecipes.map((r: any) => r.name));
             openShoppingSelection(batchRecipes, planDate);
           }
         }).catch((e: any) => {
@@ -1701,7 +1709,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           ) : planRecipe ? (
             <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
           ) : null}
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {planAction === "meal" && <>
               <Text style={m.label}>餐次</Text>
               <View style={m.mealRow}>
@@ -1908,7 +1916,7 @@ const s = StyleSheet.create({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { flex: 1, backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "90%" },
+  sheet: { backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "90%", minHeight: 400 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 16 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   title: { fontSize: 18, fontWeight: "800", color: TEXT },
