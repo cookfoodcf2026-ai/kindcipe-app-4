@@ -18,26 +18,27 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     limit = 20,
   } = options;
 
-  const result = trpc.recipes.search.useQuery(
+  const result = trpc.recipes.search.useInfiniteQuery(
     {
       query: query || undefined,
       category: category === "all" ? undefined : category,
       tag,
       cookTimeMax,
       limit,
-      offset: 0,
     },
     {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
       staleTime: 30000,
     }
   );
 
   const recipes = useMemo(() => {
-    return result.data?.recipes ?? [];
+    return result.data?.pages.flatMap((page) => page.recipes) ?? [];
   }, [result.data]);
 
   const total = useMemo(() => {
-    return result.data?.total ?? 0;
+    // Sum up all recipes across pages as an approximation
+    return result.data?.pages.reduce((sum, page) => sum + page.recipes.length, 0) ?? 0;
   }, [result.data]);
 
   return {
@@ -45,10 +46,9 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     total,
     isLoading: result.isLoading,
     isFetching: result.isFetching,
+    isFetchingNextPage: result.isFetchingNextPage,
+    hasNextPage: result.hasNextPage,
+    fetchNextPage: result.fetchNextPage,
     refetch: result.refetch,
-    // Infinite scroll not yet implemented - using simple query for now
-    isFetchingNextPage: false,
-    hasNextPage: false,
-    fetchNextPage: () => {},
   };
 }
