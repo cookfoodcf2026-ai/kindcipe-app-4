@@ -4,37 +4,16 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Modal,
-  FlatList,
   StyleSheet,
-  Dimensions,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useTranslation } from "react-i18next";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
-const BORDER = "#E2E8F0";
-const BG_CHIP = "#F3F4F6";
-
-const CHIP_WIDTH = 56;
-const CHIP_MARGIN = 8;
-const CHIP_TOTAL = CHIP_WIDTH + CHIP_MARGIN;
 
 const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-
-type YearMonth = { year: number; month: number };
-
-interface PlanDatePickerProps {
-  value: string;
-  onChange: (iso: string) => void;
-  monthsAhead?: number;
-  showShortcuts?: boolean;
-  minDate?: string;
-}
 
 const toISODate = (d: Date) => {
   const y = d.getFullYear();
@@ -45,154 +24,104 @@ const toISODate = (d: Date) => {
 
 const todayISO = () => toISODate(new Date());
 
-const getDaysInMonth = (year: number, month: number) =>
-  new Date(year, month, 0).getDate();
-
-const addMonths = (ym: YearMonth, n: number): YearMonth => {
-  const d = new Date(ym.year, ym.month - 1 + n, 1);
-  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+const formatDateCard = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const day = date.getDate();
+  const weekday = WEEKDAYS[date.getDay()];
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  let suffix = "";
+  if (isToday) suffix = "·今";
+  else if (isTomorrow) suffix = "·明";
+  return { day: String(day), weekday: `${weekday}${suffix}`, isToday };
 };
 
-const compareYM = (a: YearMonth, b: YearMonth) => {
-  if (a.year !== b.year) return a.year - b.year;
-  return a.month - b.month;
+const formatMonthLabel = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}月`;
 };
 
-const parseYMFromISO = (iso: string): YearMonth => {
-  const [y, m] = iso.split("-").map(Number);
-  return { year: y, month: m };
-};
-
-const getNextMonday = (): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
-  return toISODate(d);
-};
-
-const getNextSaturday = (): string => {
-  const d = new Date();
-  const daysUntilSat = (6 - d.getDay() + 7) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilSat);
-  return toISODate(d);
-};
-
-function getNextMonthButtonLabel(ym: YearMonth, t: (key: string) => string) {
-  return `${ym.year}年${ym.month}月`;
+interface PlanDatePickerProps {
+  value: string;
+  onChange: (iso: string) => void;
+  monthsAhead?: number;
+  showShortcuts?: boolean;
+  minDate?: string;
 }
 
 export default function PlanDatePicker({
   value,
   onChange,
-  monthsAhead = 12,
+  monthsAhead = 2,
   showShortcuts = true,
   minDate,
 }: PlanDatePickerProps) {
-  const { t } = useTranslation();
-
   const min = minDate || todayISO();
   const today = todayISO();
+  const days = monthsAhead * 30;
 
-  const [viewingYM, setViewingYM] = useState<YearMonth>(() => {
-    if (value) return parseYMFromISO(value);
-    return parseYMFromISO(today);
+  const [dateWindowStart, setDateWindowStart] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
   });
+  const [visibleMonth, setVisibleMonth] = useState("");
 
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-
-  const scrollRef = useRef<ScrollView>(null);
-
-  const maxYM = useMemo(() => {
-    const now = new Date();
-    return addMonths(
-      { year: now.getFullYear(), month: now.getMonth() + 1 },
-      monthsAhead
-    );
-  }, [monthsAhead]);
-
-  useEffect(() => {
-    if (value) {
-      const newYM = parseYMFromISO(value);
-      setViewingYM((prev) => {
-        if (compareYM(prev, newYM) !== 0) return newYM;
-        return prev;
-      });
+  const dateCardsData = useMemo(() => {
+    const dates: string[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(dateWindowStart);
+      d.setDate(dateWindowStart.getDate() + i);
+      dates.push(d.toISOString().split("T")[0]);
     }
-  }, [value]);
+    return dates.map((date) => ({
+      date,
+      ...formatDateCard(date),
+    }));
+  }, [dateWindowStart, days]);
 
-  const daysInMonth = useMemo(
-    () => getDaysInMonth(viewingYM.year, viewingYM.month),
-    [viewingYM]
-  );
+  const currentMonth = useMemo(() => {
+    if (visibleMonth) return visibleMonth;
+    if (dateCardsData.length === 0) return "";
+    return formatMonthLabel(dateCardsData[0].date);
+  }, [dateCardsData, visibleMonth]);
 
-  const startDay = useMemo(() => {
-    const todayYM = parseYMFromISO(today);
-    if (compareYM(viewingYM, todayYM) === 0) {
-      return new Date().getDate();
-    }
-    return 1;
-  }, [viewingYM, today]);
-
-  const dayItems = useMemo(() => {
-    const items: { iso: string; day: number; weekday: string; isToday: boolean; isTomorrow: boolean }[] = [];
-    const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
-    for (let d = startDay; d <= daysInMonth; d++) {
-      const date = new Date(viewingYM.year, viewingYM.month - 1, d);
-      const iso = toISODate(date);
-      let weekdayLabel = WEEKDAYS[date.getDay()];
-      if (iso === today) weekdayLabel += "·今";
-      else if (iso === tomorrowISO) weekdayLabel += "·明";
-      items.push({
-        iso,
-        day: d,
-        weekday: weekdayLabel,
-        isToday: iso === today,
-        isTomorrow: iso === tomorrowISO,
-      });
-    }
-    return items;
-  }, [viewingYM, startDay, daysInMonth, today]);
-
-  const selectedIndex = useMemo(() => {
-    return dayItems.findIndex((item) => item.iso === value);
-  }, [dayItems, value]);
-
-  useEffect(() => {
-    if (selectedIndex >= 0 && scrollRef.current) {
-      const x = Math.max(0, selectedIndex * CHIP_TOTAL - 60);
-      scrollRef.current.scrollTo({ x, animated: false });
-    }
-  }, [selectedIndex, viewingYM]);
-
-  const handleSelect = useCallback(
-    (iso: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onChange(iso);
+  const handleScroll = useCallback(
+    (event: any) => {
+      const offsetX = event.nativeEvent.contentOffset.x;
+      const cardWidth = 98;
+      const index = Math.min(
+        Math.max(Math.floor(offsetX / cardWidth), 0),
+        dateCardsData.length - 1,
+      );
+      if (index >= 0 && index < dateCardsData.length) {
+        const month = formatMonthLabel(dateCardsData[index].date);
+        setVisibleMonth(month);
+      }
     },
-    [onChange]
+    [dateCardsData],
   );
 
-  const goToPrevMonth = () => {
-    const todayYM = parseYMFromISO(today);
-    if (compareYM(viewingYM, todayYM) > 0) {
-      const prev = addMonths(viewingYM, -1);
-      setViewingYM(prev);
-    }
-  };
-
-  const goToNextMonth = () => {
-    if (compareYM(viewingYM, maxYM) < 0) {
-      const next = addMonths(viewingYM, 1);
-      setViewingYM(next);
-    }
-  };
+  const shiftDateWindow = useCallback((shiftDays: number) => {
+    setDateWindowStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + shiftDays);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (next < today) return today;
+      return next;
+    });
+    setVisibleMonth("");
+  }, []);
 
   const shortcuts = useMemo(() => {
     const items: { label: string; iso: string }[] = [];
     const seen = new Set<string>();
     const todayVal = todayISO();
     const tomorrowVal = toISODate(new Date(Date.now() + 86400000));
-    const nextMon = getNextMonday();
-    const nextSat = getNextSaturday();
 
     const add = (label: string, iso: string) => {
       if (iso >= min && !seen.has(iso)) {
@@ -201,76 +130,30 @@ export default function PlanDatePicker({
       }
     };
 
-    add(t("common.today") || "今天", todayVal);
-    add(t("common.tomorrow") || "明天", tomorrowVal);
-    add("下週一", nextMon);
-    add("週末", nextSat);
+    add("今天", todayVal);
+    add("明天", tomorrowVal);
 
     return items;
-  }, [min, t]);
+  }, [min]);
 
-  const monthList = useMemo(() => {
-    const list: { label: string; ym: YearMonth }[] = [];
-    const now = new Date();
-    const currentYM: YearMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };
-    for (let i = 0; i <= monthsAhead; i++) {
-      const ym = addMonths(currentYM, i);
-      list.push({
-        label: `${ym.year}年${ym.month}月`,
-        ym,
-      });
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Scroll to selected date when value changes
+  useEffect(() => {
+    if (value && scrollRef.current) {
+      const idx = dateCardsData.findIndex((dc) => dc.date === value);
+      if (idx >= 0) {
+        const x = Math.max(0, idx * 98 - 60);
+        scrollRef.current.scrollTo({ x, animated: false });
+      }
     }
-    return list;
-  }, [monthsAhead]);
-
-  const isPrevDisabled = compareYM(viewingYM, parseYMFromISO(today)) <= 0;
-  const isNextDisabled = compareYM(viewingYM, maxYM) >= 0;
+  }, [value, dateCardsData]);
 
   return (
-    <>
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity
-          style={[s.arrowBtn, isPrevDisabled && s.arrowBtnDisabled]}
-          onPress={goToPrevMonth}
-          disabled={isPrevDisabled}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={20}
-            color={isPrevDisabled ? SUB : TEXT}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={s.monthBtn}
-          onPress={() => setShowMonthPicker(true)}
-        >
-          <Text style={s.monthBtnTxt}>
-            {getNextMonthButtonLabel(viewingYM, t)}
-          </Text>
-          <Ionicons name="chevron-down" size={16} color={TEXT} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.arrowBtn, isNextDisabled && s.arrowBtnDisabled]}
-          onPress={goToNextMonth}
-          disabled={isNextDisabled}
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={isNextDisabled ? SUB : TEXT}
-          />
-        </TouchableOpacity>
-      </View>
-
+    <View style={s.container}>
       {/* Shortcuts */}
       {showShortcuts && shortcuts.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.shortcutRow}
-          contentContainerStyle={{ paddingRight: 16 }}
-        >
+        <View style={s.shortcutRow}>
           {shortcuts.map((item) => (
             <TouchableOpacity
               key={item.iso}
@@ -278,7 +161,10 @@ export default function PlanDatePicker({
                 s.shortcutChip,
                 value === item.iso && s.shortcutChipActive,
               ]}
-              onPress={() => handleSelect(item.iso)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onChange(item.iso);
+              }}
             >
               <Text
                 style={[
@@ -290,148 +176,97 @@ export default function PlanDatePicker({
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       )}
 
-      {/* Day chips */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={s.dayRow}
-        contentContainerStyle={{ paddingRight: 16 }}
-      >
-        {dayItems.map((item) => {
-          const isSelected = item.iso === value;
-          const isPast = item.iso < min;
-          return (
-            <TouchableOpacity
-              key={item.iso}
-              style={[
-                s.dayChip,
-                isSelected && s.dayChipActive,
-                item.isToday && !isSelected && s.dayChipToday,
-                isPast && s.dayChipDisabled,
-              ]}
-              onPress={() => !isPast && handleSelect(item.iso)}
-              disabled={isPast}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  s.dayChipWeekday,
-                  isSelected && s.dayChipWeekdayActive,
-                  isPast && s.dayChipWeekdayDisabled,
-                ]}
-              >
-                {item.weekday}
-              </Text>
-              <Text
-                style={[
-                  s.dayChipDay,
-                  isSelected && s.dayChipDayActive,
-                  isPast && s.dayChipDayDisabled,
-                ]}
-              >
-                {item.day}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Month picker modal */}
-      <Modal
-        visible={showMonthPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowMonthPicker(false)}
-      >
-        <View style={s.overlay}>
-          <View style={s.sheet}>
-            <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>選擇月份</Text>
-              <TouchableOpacity onPress={() => setShowMonthPicker(false)}>
-                <Text style={s.sheetClose}>完成</Text>
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={monthList}
-              keyExtractor={(item) => `${item.ym.year}-${item.ym.month}`}
-              contentContainerStyle={{ paddingBottom: 12 }}
-              renderItem={({ item }) => {
-                const isActive = compareYM(item.ym, viewingYM) === 0;
-                return (
-                  <TouchableOpacity
-                    style={[s.monthOpt, isActive && s.monthOptActive]}
-                    onPress={() => {
-                      setViewingYM(item.ym);
-                      setShowMonthPicker(false);
+      {/* Date cards */}
+      <View style={s.dateCardsSection}>
+        <Text style={s.dateCardsMonth}>{currentMonth}</Text>
+        <View style={s.dateCardsRow}>
+          <TouchableOpacity
+            style={s.dateArrowBtn}
+            onPress={() => shiftDateWindow(-7)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={18} color={BRAND} />
+          </TouchableOpacity>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.dateCardsScroll}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            {dateCardsData.map((dc) => {
+              const isSelected = value === dc.date;
+              const isPast = dc.date < min;
+              return (
+                <TouchableOpacity
+                  key={dc.date}
+                  style={[
+                    s.dateCard,
+                    isSelected && s.dateCardSelected,
+                    isPast && s.dateCardDisabled,
+                  ]}
+                  onPress={() => {
+                    if (!isPast) {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
+                      onChange(dc.date);
+                    }
+                  }}
+                  disabled={isPast}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      s.dateCardDay,
+                      isSelected && s.dateCardDaySelected,
+                      isPast && s.dateCardDayDisabled,
+                    ]}
                   >
-                    <Text
-                      style={[
-                        s.monthOptTxt,
-                        isActive && s.monthOptTxtActive,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                    {isActive && <Text style={s.monthOptCheck}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
+                    {dc.day}
+                  </Text>
+                  <Text
+                    style={[
+                      s.dateCardWeekday,
+                      isSelected && s.dateCardWeekdaySelected,
+                      isPast && s.dateCardWeekdayDisabled,
+                    ]}
+                  >
+                    {dc.weekday}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <TouchableOpacity
+            style={s.dateArrowBtn}
+            onPress={() => shiftDateWindow(7)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-forward" size={18} color={BRAND} />
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </>
+      </View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    marginBottom: 10,
-  },
-  arrowBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: BG_CHIP,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  arrowBtnDisabled: {
-    opacity: 0.4,
-  },
-  monthBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: BG_CHIP,
-  },
-  monthBtnTxt: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: TEXT,
+  container: {
+    marginTop: 8,
   },
   shortcutRow: {
-    marginBottom: 10,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
   },
   shortcutChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: BG_CHIP,
-    marginRight: 8,
+    backgroundColor: "#F3F4F6",
   },
   shortcutChipActive: {
     backgroundColor: BRAND,
@@ -444,105 +279,72 @@ const s = StyleSheet.create({
   shortcutChipTxtActive: {
     color: "#fff",
   },
-  dayRow: {
-    marginBottom: 4,
+  dateCardsSection: {
+    marginTop: 4,
   },
-  dayChip: {
-    width: CHIP_WIDTH,
-    height: 64,
+  dateCardsMonth: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: BRAND,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  dateCardsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dateArrowBtn: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    backgroundColor: BG_CHIP,
-    marginRight: CHIP_MARGIN,
+    backgroundColor: "#E8F0FE",
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
   },
-  dayChipActive: {
-    backgroundColor: BRAND,
+  dateCardsScroll: {
+    flex: 1,
   },
-  dayChipToday: {
-    borderWidth: 1.5,
+  dateCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    minWidth: 90,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  dateCardSelected: {
+    borderWidth: 2,
     borderColor: BRAND,
+    backgroundColor: "#EFF6FF",
   },
-  dayChipDisabled: {
+  dateCardDisabled: {
     opacity: 0.4,
   },
-  dayChipWeekday: {
+  dateCardDay: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: TEXT,
+  },
+  dateCardDaySelected: {
+    color: BRAND,
+  },
+  dateCardDayDisabled: {
+    color: SUB,
+  },
+  dateCardWeekday: {
     fontSize: 11,
     color: SUB,
+    marginTop: 2,
+  },
+  dateCardWeekdaySelected: {
+    color: BRAND,
     fontWeight: "600",
   },
-  dayChipWeekdayActive: {
-    color: "rgba(255,255,255,0.85)",
-  },
-  dayChipWeekdayDisabled: {
+  dateCardWeekdayDisabled: {
     color: SUB,
-  },
-  dayChipDay: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: TEXT,
-  },
-  dayChipDayActive: {
-    color: "#fff",
-  },
-  dayChipDayDisabled: {
-    color: SUB,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "70%",
-    paddingBottom: Platform.OS === "ios" ? 34 : 24,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: TEXT,
-  },
-  sheetClose: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: BRAND,
-  },
-  monthOpt: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#F3F4F6",
-  },
-  monthOptActive: {
-    backgroundColor: "#EEF4FB",
-  },
-  monthOptTxt: {
-    flex: 1,
-    fontSize: 15,
-    color: TEXT,
-  },
-  monthOptTxtActive: {
-    fontWeight: "700",
-    color: BRAND,
-  },
-  monthOptCheck: {
-    fontSize: 16,
-    color: BRAND,
-    fontWeight: "700",
   },
 });
