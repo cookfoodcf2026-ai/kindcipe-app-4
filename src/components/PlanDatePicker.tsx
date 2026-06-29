@@ -92,7 +92,7 @@ export default function PlanDatePicker({
   const handleScroll = useCallback(
     (event: any) => {
       const offsetX = event.nativeEvent.contentOffset.x;
-      const cardWidth = 98;
+      const cardWidth = 88;
       const index = Math.min(
         Math.max(Math.floor(offsetX / cardWidth), 0),
         dateCardsData.length - 1,
@@ -143,7 +143,7 @@ export default function PlanDatePicker({
     if (value && scrollRef.current) {
       const idx = dateCardsData.findIndex((dc) => dc.date === value);
       if (idx >= 0) {
-        const x = Math.max(0, idx * 98 - 60);
+        const x = Math.max(0, idx * 88 - 60);
         scrollRef.current.scrollTo({ x, animated: false });
       }
     }
@@ -256,6 +256,7 @@ export default function PlanDatePicker({
 const s = StyleSheet.create({
   container: {
     marginTop: 8,
+    width: '100%',
   },
   shortcutRow: {
     flexDirection: "row",
@@ -309,9 +310,9 @@ const s = StyleSheet.create({
     backgroundColor: "#FFF7ED",
     borderRadius: 12,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     alignItems: "center",
-    minWidth: 90,
+    minWidth: 80,
     marginRight: 8,
     borderWidth: 1,
     borderColor: "#FED7AA",
