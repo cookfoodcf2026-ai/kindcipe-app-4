@@ -1008,11 +1008,15 @@ export default function AIChefScreen() {
       return;
     }
     console.log("[AI Chef] Batch add meal plan clicked, recipes:", validRecipes.length);
+    // Override servings with user's preference if from meal plan flow
+    const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
+      ? mealPrefs.people
+      : null;
     // Save recipes to user library first, then open date picker modal
     try {
       const saved = await Promise.all(validRecipes.map(r => saveRecipeM.mutateAsync({
         name: r.name, description: r.description,
-        cookTime: r.cookTime, servings: r.servings,
+        cookTime: r.cookTime, servings: overrideServings ?? r.servings,
         difficulty: r.difficulty,
         image: "", thumbnailUrl: "",
         recipeCategory: r.recipeCategory || "其他",
@@ -1233,10 +1237,14 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       Alert.alert("無法加入", "此食譜資料不完整（缺少食材或步驟），無法加入排餐。");
       return;
     }
+    // Override servings with user's preference if from meal plan flow
+    const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
+      ? mealPrefs.people
+      : null;
     if (planAction === "meal") {
       saveRecipeM.mutate({
         name: planRecipe.name, description: planRecipe.description,
-        cookTime: planRecipe.cookTime, servings: planRecipe.servings,
+        cookTime: planRecipe.cookTime, servings: overrideServings ?? planRecipe.servings,
         difficulty: planRecipe.difficulty,
         image: "", thumbnailUrl: "",
         recipeCategory: planRecipe.recipeCategory || "其他",
