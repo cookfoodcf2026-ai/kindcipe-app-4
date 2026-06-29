@@ -1671,7 +1671,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           ) : planRecipe ? (
             <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
           ) : null}
-          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}>
             {planAction === "meal" && <>
               <Text style={m.label}>餐次</Text>
               <View style={m.mealRow}>
@@ -1878,7 +1878,7 @@ const s = StyleSheet.create({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "90%" },
+  sheet: { flex: 1, backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, maxHeight: "90%" },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 16 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   title: { fontSize: 18, fontWeight: "800", color: TEXT },
