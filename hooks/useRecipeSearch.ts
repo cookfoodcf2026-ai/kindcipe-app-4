@@ -58,5 +58,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     hasNextPage: !!result.hasNextPage,
     fetchNextPage,
     refetch: result.refetch,
+    isError: result.isError,
+    error: result.error,
   };
 }

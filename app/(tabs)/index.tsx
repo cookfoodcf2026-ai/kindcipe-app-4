@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
-  FlatList, Image, TextInput, Dimensions, ScrollView, ActivityIndicator,
-  Modal, Platform, RefreshControl,
+  FlatList, Dimensions, ScrollView, ActivityIndicator,
+  Modal, Platform, RefreshControl, TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -10,17 +10,20 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { Animated } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
+import FilterModal from "@/src/components/FilterModal";
+import RecipeCard from "@/src/components/RecipeCard";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
-const CARD_WIDTH = (SW - 16 - 16 - CARD_GAP) / 2;
+const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
 const BRAND = "#013E77";
 const BG = "#F5F5F5";
 
@@ -275,16 +278,27 @@ export default function RecipesTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "cookTime" | "difficulty">("newest");
+  const [sortBy, setSortBy] = useState<"newest" | "popular" | "cookTime" | "difficulty">("popular");
   const [viewType, setViewType] = useState<"grid" | "list">("grid");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
+  const skeletonAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
     // Load search history
     AsyncStorage.getItem("kindcipe_search_history").then((h) => {
       if (h) setSearchHistory(JSON.parse(h));
     });
+    // Skeleton loading animation
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(skeletonAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(skeletonAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
   }, []);
 
   // Debounce search query (300ms)
@@ -323,6 +337,8 @@ export default function RecipesTab() {
     hasNextPage,
     fetchNextPage,
     refetch: refetchSearch,
+    isError: isSearchError,
+    error: searchError,
   } = useRecipeSearch({
     query: debouncedQuery || undefined,
     category: activeCategory === "all" ? undefined : activeCategory,
@@ -392,10 +408,8 @@ export default function RecipesTab() {
     }
 
     // Apply sorting
-    if (sortBy === "newest") {
-      // Already sorted by backend (newest first)
-    } else if (sortBy === "oldest") {
-      pool.reverse();
+    if (sortBy === "popular") {
+      // Backend already sorts by popularity (relevance → popularity → created_at)
     } else if (sortBy === "cookTime") {
       pool.sort((a, b) => (a.cookTime || 999) - (b.cookTime || 999));
     } else if (sortBy === "difficulty") {
@@ -427,134 +441,19 @@ export default function RecipesTab() {
     const tags: string[] = item.tags ?? [];
     const isAIGenerated = tags.includes("AI 生成");
     const cat = categories.find(c => c.key === item.recipeCategory);
-    const catColor = getCategoryColor(item.recipeCategory);
-
-    // Check if image is a local asset
-    const getLocalImage = (recipeName: string) => {
-      const nameMap: Record<string, any> = {
-        '番茄炒蛋': require('@/assets/recipes/scrambled-eggs-tomatoes.png'),
-        '蒜蓉炒菜心': require('@/assets/recipes/garlic-choy-sum.png'),
-        '紅燒肉': require('@/assets/recipes/braised-pork-belly.png'),
-        '宮保雞丁': require('@/assets/recipes/kung-pao-chicken.png'),
-        '麻婆豆腐': require('@/assets/recipes/mapo-tofu.png'),
-        '糖醋排骨': require('@/assets/recipes/sweet-sour-ribs.png'),
-        '清蒸鱸魚': require('@/assets/recipes/steamed-sea-bass.png'),
-        '豉油王炒麵': require('@/assets/recipes/soy-sauce-noodles.png'),
-        '臘味煲仔飯': require('@/assets/recipes/claypot-rice.png'),
-        '紅蘿蔔粟米豬骨湯': require('@/assets/recipes/carrot-corn-soup.png'),
-        '回鍋肉': require('@/assets/recipes/twice-cooked-pork.png'),
-        '干煸四季豆': require('@/assets/recipes/dry-fried-beans.png'),
-        '蝦仁炒蛋': require('@/assets/recipes/shrimp-scrambled-eggs.png'),
-        '梅菜扣肉': require('@/assets/recipes/preserved-vegetable-pork.png'),
-        '薑蔥蒸雞': require('@/assets/recipes/steamed-chicken.png'),
-        '魚香茄子': require('@/assets/recipes/fish-fragrant-eggplant.png'),
-        '腐乳通菜': require('@/assets/recipes/fermented-water-spinach.png'),
-        '鹽焗雞翼': require('@/assets/recipes/salt-baked-wings.png'),
-        '蠔油冬菇炆雞': require('@/assets/recipes/braised-chicken-mushroom.png'),
-        '榨菜肉絲湯米粉': require('@/assets/recipes/rice-noodle-soup.png'),
-      };
-      return nameMap[recipeName];
-    };
-
-    const localImage = getLocalImage(item.name);
-    const imageUrl = item.thumbnailUrl || item.image;
-    const hasImage = localImage || imageUrl;
 
     return (
-      <View style={s.card}>
-        <TouchableOpacity onPress={() => navigateToRecipe(item)} activeOpacity={0.85}>
-          {/* ── Image / Placeholder ── */}
-          {hasImage
-            ? localImage
-              ? <Image source={localImage} style={s.cardImg} resizeMode="cover" />
-              : <Image source={{ uri: imageUrl }} style={s.cardImg} resizeMode="cover" />
-            : (
-              <View style={[s.cardImg, s.cardImgPH, { backgroundColor: catColor.bg }]}>
-                <View style={s.placeholderContent}>
-                  <Text style={s.placeholderEmoji}>{cat?.emoji || "🍽️"}</Text>
-                </View>
-              </View>
-            )
-          }
-          
-          {/* ─ Badges ── */}
-          <View style={s.cardBadges}>
-            {isUser && (
-              <View style={s.sourceBadge}>
-                <Text style={s.sourceBadgeTxt}>我的</Text>
-              </View>
-            )}
-            {isAIGenerated && (
-              <View style={s.aiBadgeCorner}>
-                <Text style={s.aiBadgeCornerTxt}>AI</Text>
-              </View>
-            )}
-          </View>
-          
-          {/* ── Quick Plan Button ── */}
-          <TouchableOpacity
-            style={s.cardPlanBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
-              setQuickPlanDate(new Date().toISOString().split("T")[0]);
-              setQuickPlanMeal("dinner");
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="calendar-outline" size={16} color="#fff" />
-          </TouchableOpacity>
-        </TouchableOpacity>
-
-        {/* ── Card Info ── */}
-        <View style={s.cardInfo}>
-          <Text style={s.cardName} numberOfLines={2}>{item.name}</Text>
-          {item.nameEn ? <Text style={s.cardNameEn} numberOfLines={1}>{item.nameEn}</Text> : null}
-          
-          <View style={s.cardMeta}>
-            {item.cookTime ? (
-              <View style={s.cardMetaItem}>
-                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-                <Text style={s.cardMetaTxt}>{item.cookTime}分</Text>
-              </View>
-            ) : null}
-            {item.difficulty ? (
-              <View style={s.cardMetaItem}>
-                <Ionicons name="flame-outline" size={12} color="#9CA3AF" />
-                <Text style={s.cardMetaTxt}>{item.difficulty}</Text>
-              </View>
-            ) : null}
-            {cat?.emoji && (
-              <View style={s.cardMetaItem}>
-                <Text style={{ fontSize: 12 }}>{cat.emoji}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* ── Tags ── */}
-          {tags.length > 0 && (
-            <View style={s.cardTags}>
-              {tags.slice(0, 2).map((tag) => {
-                const isActive = activeTagFilters.includes(tag);
-                return (
-                  <TouchableOpacity
-                    key={tag}
-                    style={[s.cardTag, isActive && s.cardTagActive]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      setActiveTagFilters(prev =>
-                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-                      );
-                    }}
-                  >
-                    <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{tag}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      </View>
+      <RecipeCard
+        item={item}
+        category={cat}
+        isUser={isUser}
+        isAIGenerated={isAIGenerated}
+        tags={tags}
+        activeTagFilters={activeTagFilters}
+        setActiveTagFilters={setActiveTagFilters}
+        setQuickPlanRecipe={setQuickPlanRecipe}
+        navigateToRecipe={navigateToRecipe}
+      />
     );
   };
 
@@ -586,9 +485,10 @@ export default function RecipesTab() {
       <WeeklyMenuBar router={router} />
       <QuickActions router={router} />
 
-      <View style={s.searchWrap}>
+      <View style={[s.searchWrap, { marginRight: Math.max(14, insets.right) }]}>
         <Ionicons name="search" size={17} color="#9CA3AF" />
         <TextInput
+          ref={searchInputRef}
           style={s.searchInput}
           placeholder="搜尋食譜、食材、標籤"
           placeholderTextColor="#9CA3AF"
@@ -602,36 +502,76 @@ export default function RecipesTab() {
           clearButtonMode="while-editing"
         />
         {searchQuery ? (
-          <TouchableOpacity onPress={() => setSearchQuery("")}>
+          <TouchableOpacity onPress={() => {
+            setSearchQuery("");
+            searchInputRef.current?.focus();
+          }}>
             <Ionicons name="close-circle" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         ) : null}
         
         {/* Sort Dropdown */}
-        <TouchableOpacity onPress={() => setSortBy(sortBy === "newest" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "newest")} style={s.sortBtn}>
-          <Ionicons name={sortBy === "newest" ? "time-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color={BRAND} />
+        <TouchableOpacity onPress={() => setSortBy(sortBy === "popular" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "popular")} style={s.sortBtn}>
+          <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color={BRAND} />
         </TouchableOpacity>
         
         {/* Filter Button */}
         <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
           <Ionicons name="filter-outline" size={18} color={BRAND} />
+          {(activeTagFilters.length > 0 || activePopularChips.length > 0 || activeCategory !== "all" || filterCookTimeMax !== undefined) && (
+            <View style={s.filterBadge}>
+              <Text style={s.filterBadgeTxt}>
+                {activeTagFilters.length + activePopularChips.length + (activeCategory !== "all" ? 1 : 0) + (filterCookTimeMax !== undefined ? 1 : 0)}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
+      {/* Search History Dropdown */}
+      {showSearchHistory && (
+        <View style={s.searchHistoryWrap}>
+          <View style={s.searchHistoryHeader}>
+            <Text style={s.searchHistoryTitle}>最近搜尋</Text>
+            <TouchableOpacity onPress={() => { setSearchHistory([]); AsyncStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
+              <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+          <View style={s.searchHistoryRow}>
+            {searchHistory.slice(0, 5).map((query, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={s.searchHistoryChip}
+                onPress={() => {
+                  setSearchQuery(query);
+                  setShowSearchHistory(false);
+                  searchInputRef.current?.blur();
+                }}
+              >
+                <Ionicons name="time-outline" size={12} color="#6B7280" />
+                <Text style={s.searchHistoryChipTxt} numberOfLines={1}>{query}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {/* Sort Indicator */}
-      <View style={s.sortIndicator}>
-        <Text style={s.sortIndicatorTxt}>
-          {sortBy === "newest" ? "🕐 最新" : sortBy === "cookTime" ? "⏱ 時間" : "🔥 難度"}
-        </Text>
-        <TouchableOpacity onPress={() => setSortBy("newest")}>
-          <Ionicons name="close" size={14} color="#9CA3AF" />
-        </TouchableOpacity>
-      </View>
+      {sortBy !== "popular" && (
+        <View style={s.sortIndicator}>
+          <Text style={s.sortIndicatorTxt}>
+            {sortBy === "cookTime" ? "⏱ 時間" : "⭐ 難度"}
+          </Text>
+          <TouchableOpacity onPress={() => setSortBy("popular")}>
+            <Ionicons name="close" size={14} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={s.sourceToggle}>
         {([
           { key: "all",      label: "全部",   count: searchTotal },
-          { key: "official", label: "官方 AI 食譜", count: searchTotal },
+          { key: "official", label: "官方食譜", count: searchTotal },
           { key: "user",     label: "我的食譜", count: userRecipes.length },
         ] as const).map(t => (
           <TouchableOpacity
@@ -645,6 +585,23 @@ export default function RecipesTab() {
             </View>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Category Scroll Bar */}
+      <View style={s.catSection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
+          {[ALL_ENTRY, ...categories].map(cat => (
+            <TouchableOpacity
+              key={cat.key}
+              style={[s.catPill, activeCategory === cat.key && s.catPillActive]}
+              onPress={() => setActiveCategory(cat.key)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.catPillEmoji}>{cat.emoji || "🍽️"}</Text>
+              <Text style={[s.catPillLabel, activeCategory === cat.key && s.catPillLabelActive]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Popular Chips - Keep for quick access */}
@@ -725,7 +682,7 @@ export default function RecipesTab() {
 
   return (
     <View style={s.root}>
-      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}>
         <View>
           <Text style={s.headerTitle}>食譜庫</Text>
           <Text style={s.headerSub}>{user?.name ? `嗨，${user.name.split(" ")[0]}` : "發現美味，規劃每週菜單"}</Text>
@@ -742,7 +699,7 @@ export default function RecipesTab() {
 
       {isLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, backgroundColor: "rgba(1,62,119,0.15)" }}>
-          <View style={{ width: "60%", height: "100%", backgroundColor: BRAND }} />
+          <Animated.View style={{ width: "60%", height: "100%", backgroundColor: BRAND, opacity: Animated.multiply(skeletonAnim, 0.5).interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.8] }) }} />
         </View>
       )}
 
@@ -751,7 +708,7 @@ export default function RecipesTab() {
         keyExtractor={(item: any) => item.id}
         numColumns={2}
         columnWrapperStyle={s.gridRow}
-        contentContainerStyle={s.gridContent}
+        contentContainerStyle={[s.gridContent, { paddingBottom: Math.max(100, insets.bottom + 80) }]}
         ListHeaderComponent={ListHeader}
         renderItem={renderCard}
         onEndReached={() => fetchNextPage()}
@@ -766,7 +723,16 @@ export default function RecipesTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            {isLoading ? (
+            {isSearchError ? (
+              <>
+                <Ionicons name="warning-outline" size={44} color="#EF4444" style={{ marginBottom: 12 }} />
+                <Text style={s.emptyTitle}>搜尋出錯</Text>
+                <Text style={s.emptySub}>{searchError?.message || "請稍後再試"}</Text>
+                <TouchableOpacity style={s.emptyBtn} onPress={() => refetchSearch()}>
+                  <Text style={s.emptyBtnTxt}>重試</Text>
+                </TouchableOpacity>
+              </>
+            ) : isLoading ? (
               <ActivityIndicator color={BRAND} size="large" />
             ) : hasFilters ? (
               <>
@@ -804,124 +770,20 @@ export default function RecipesTab() {
         }
       />
 
-      {/* Filter Bottom Sheet */}
-      <Modal visible={showFilterSheet} transparent animationType="slide">
-        <View style={s.filterOverlay}>
-          <View style={s.filterSheet}>
-            <View style={s.filterHandle} />
-            <View style={s.filterHeader}>
-              <Text style={s.filterTitle}>篩選食譜</Text>
-              <TouchableOpacity onPress={() => setShowFilterSheet(false)}>
-                <Ionicons name="close" size={24} color="#1A1A1A" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Category Filter */}
-            <Text style={s.filterLabel}>分類</Text>
-            <View style={s.filterCategoryRow}>
-              {[ALL_ENTRY, ...categories].map(cat => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    s.filterCategoryChip,
-                    activeCategory === cat.key && s.filterCategoryChipActive
-                  ]}
-                  onPress={() => setActiveCategory(cat.key)}
-                >
-                  {cat.key === "all" ? (
-                    <Ionicons name="apps-outline" size={16} color={activeCategory === cat.key ? "#fff" : "#666"} />
-                  ) : (
-                    <Text style={s.filterCategoryChipEmoji}>{cat.emoji}</Text>
-                  )}
-                  <Text style={[
-                    s.filterCategoryChipTxt,
-                    activeCategory === cat.key && s.filterCategoryChipTxtActive
-                  ]}>{cat.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Cook Time Filter */}
-            <Text style={s.filterLabel}>烹調時間</Text>
-            <View style={s.filterTimeRow}>
-              {[
-                { label: "不限", value: undefined },
-                { label: " 30 分鐘內", value: 30 },
-                { label: "⏱ 45 分鐘內", value: 45 },
-                { label: "⏱ 60 分鐘內", value: 60 },
-              ].map(opt => (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={[
-                    s.filterTimeChip,
-                    filterCookTimeMax === opt.value && s.filterTimeChipActive
-                  ]}
-                  onPress={() => setFilterCookTimeMax(opt.value)}
-                >
-                  <Text style={[
-                    s.filterTimeChipTxt,
-                    filterCookTimeMax === opt.value && s.filterTimeChipTxtActive
-                  ]}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Tags Filter */}
-            {allUserTags.length > 0 && (
-              <>
-                <Text style={s.filterLabel}>標籤</Text>
-                <View style={s.filterTagsRow}>
-                  <TouchableOpacity
-                    style={[s.filterTagChip, activeTagFilters.length === 0 && s.filterTagChipActive]}
-                    onPress={() => setActiveTagFilters([])}
-                  >
-                    <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>不限</Text>
-                  </TouchableOpacity>
-                  {allUserTags.slice(0, 30).map(tag => {
-                    const isActive = activeTagFilters.includes(tag);
-                    return (
-                      <TouchableOpacity
-                        key={tag}
-                        style={[s.filterTagChip, isActive && s.filterTagChipActive]}
-                        onPress={() => {
-                          setActiveTagFilters(prev =>
-                            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-                          );
-                        }}
-                      >
-                        <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{tag}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            {/* Action Buttons */}
-            <View style={s.filterActions}>
-              <TouchableOpacity
-                style={s.filterResetBtn}
-                onPress={() => {
-                  setActiveCategory("all");
-                  setFilterCookTimeMax(undefined);
-                  setActiveTagFilters([]);
-                  setActivePopularChips([]);
-                  setSortBy("newest");
-                }}
-              >
-                <Ionicons name="refresh-outline" size={18} color="#666" />
-                <Text style={s.filterResetBtnTxt}>重置</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.filterConfirmBtn}
-                onPress={() => setShowFilterSheet(false)}
-              >
-                <Text style={s.filterConfirmBtnTxt}>完成</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <FilterModal
+        visible={showFilterSheet}
+        onClose={() => setShowFilterSheet(false)}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+        categories={categories}
+        filterCookTimeMax={filterCookTimeMax}
+        setFilterCookTimeMax={setFilterCookTimeMax}
+        activeTagFilters={activeTagFilters}
+        setActiveTagFilters={setActiveTagFilters}
+        allUserTags={allUserTags}
+        setActivePopularChips={setActivePopularChips}
+        setSortBy={setSortBy}
+      />
 
       <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
         <View style={s.planOverlay}>
@@ -942,7 +804,7 @@ export default function RecipesTab() {
 
             <Text style={s.planLabel}>餐次</Text>
             <View style={s.planMealRow}>
-              {[{ id: "breakfast", label: "早餐", icon: "sunny-outline" as const }, { id: "lunch", label: "午餐", icon: "sunny-outline" as const }, { id: "dinner", label: "晚餐", icon: "moon-outline" as const }, { id: "snack", label: "小食", icon: "film-outline" as const }].map(m => (
+              {[{ id: "breakfast", label: "早餐", icon: "sunny-outline" as const }, { id: "lunch", label: "午餐", icon: "partly-sunny-outline" as const }, { id: "dinner", label: "晚餐", icon: "moon-outline" as const }, { id: "snack", label: "小食", icon: "cafe-outline" as const }].map(m => (
                 <TouchableOpacity key={m.id} style={[s.planMealChip, quickPlanMeal === m.id && s.planMealChipActive]} onPress={() => setQuickPlanMeal(m.id)}>
                   <Ionicons name={m.icon} size={18} color={quickPlanMeal === m.id ? "#fff" : "#374151"} />
                   <Text style={[s.planMealTxt, quickPlanMeal === m.id && { color: "#fff" }]}>{m.label}</Text>
@@ -1111,6 +973,27 @@ const s = StyleSheet.create({
     backgroundColor: "#EEF4FB",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  filterBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#EF4444",
+    borderRadius: 99,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    paddingHorizontal: 4,
+  },
+  filterBadgeTxt: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#fff",
+    paddingHorizontal: 3,
   },
   sortIndicator: {
     flexDirection: "row",
@@ -1131,6 +1014,55 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
 
+  // Search history dropdown
+  searchHistoryWrap: {
+    marginHorizontal: 14,
+    marginBottom: 10,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  searchHistoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  searchHistoryTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#666",
+  },
+  searchHistoryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  searchHistoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E8E8E8",
+  },
+  searchHistoryChipTxt: {
+    fontSize: 12,
+    color: "#1A1A1A",
+    fontWeight: "500",
+    maxWidth: 120,
+  },
+
   // Source toggle
   sourceToggle: { 
     flexDirection: "row", 
@@ -1148,7 +1080,7 @@ const s = StyleSheet.create({
     flexDirection: "row", 
     alignItems: "center", 
     justifyContent: "center", 
-    gap: 6, 
+    gap: 4, 
     paddingVertical: 10, 
     borderRadius: 13,
     backgroundColor: "transparent",
@@ -1190,18 +1122,18 @@ const s = StyleSheet.create({
     color: BRAND,
   },
 
-  // Categories
-  catSection: { marginBottom: 8 },
-  catRow: { paddingHorizontal: 14, gap: 10 },
+  // Category scroll bar
+  catSection: { marginBottom: 10 },
+  catRow: { paddingHorizontal: 14, gap: 8 },
   catPill: {
-    flexDirection: "row", 
-    alignItems: "center", 
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    paddingHorizontal: 16, 
-    paddingVertical: 10,
-    borderRadius: 99, 
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 99,
     backgroundColor: "#fff",
-    borderWidth: 1.5, 
+    borderWidth: 1.5,
     borderColor: "#E8E8E8",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -1209,8 +1141,8 @@ const s = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  catPillActive: { 
-    backgroundColor: BRAND, 
+  catPillActive: {
+    backgroundColor: BRAND,
     borderColor: BRAND,
     shadowColor: BRAND,
     shadowOffset: { width: 0, height: 2 },
@@ -1218,14 +1150,15 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  catPillEmoji: { fontSize: 16 },
-  catPillLabel: { 
-    fontSize: 13, 
-    fontWeight: "700", 
-    color: "#444",
+  catPillEmoji: { fontSize: 14 },
+  catPillLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4B5563",
   },
-  catPillLabelActive: { 
+  catPillLabelActive: {
     color: "#fff",
+    fontWeight: "700",
   },
 
   // Popular chips
@@ -1337,7 +1270,7 @@ const s = StyleSheet.create({
   },
 
   // Grid
-  gridContent: { paddingHorizontal: 14, paddingBottom: 32 },
+  gridContent: { paddingHorizontal: 14, paddingBottom: 100 },
   gridRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
 
   // Recipe card
@@ -1536,7 +1469,6 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    paddingBottom: 40,
     maxHeight: "80%",
   },
   filterHandle: {
