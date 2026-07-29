@@ -84,6 +84,18 @@ const formatTimeAgo = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString("zh-HK");
 };
 
+const formatPlannedDate = (dateStr: string) => {
+  const today = new Date().toISOString().split("T")[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+  
+  if (dateStr === today) return "今日";
+  if (dateStr === tomorrow) return "聽日";
+  
+  const date = new Date(dateStr);
+  const weekdays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+  return `${weekdays[date.getDay()]} (${dateStr.slice(5).replace("-", "/")})`;
+};
+
 const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
 
 const formatDateCard = (dateStr: string) => {
@@ -634,6 +646,14 @@ export default function ShoppingTab() {
           <View style={styles.itemMetaRow}>
             {(item.quantity || item.unit) && (
               <Text style={styles.itemQty}>{item.quantity || ""}{item.unit ? ` ${item.unit}` : ""}</Text>
+            )}
+            {item.plannedDate && (
+              <View style={styles.plannedDateBadge}>
+                <Ionicons name="calendar-outline" size={12} color="#013E77" />
+                <Text style={styles.plannedDateText}>
+                  {formatPlannedDate(item.plannedDate)}
+                </Text>
+              </View>
             )}
             {isBought && item.boughtByName && (
               <Text style={styles.itemBoughtBy}>{item.boughtByName} · {item.boughtAt ? formatTimeAgo(item.boughtAt) : "剛剛"}</Text>
@@ -1911,6 +1931,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+  plannedDateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E8F0FE",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  plannedDateText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#013E77",
   },
   itemActions: {
     flexDirection: "row",

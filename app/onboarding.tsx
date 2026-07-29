@@ -65,7 +65,7 @@ export default function OnboardingScreen() {
       }
       // 等待一下確保狀態更新
       await new Promise(resolve => setTimeout(resolve, 200));
-      router.replace("/(main)");
+      router.replace("/(tabs)");
     } catch (error) {
       console.error("Onboarding 完成失敗:", error);
       setLoading(false);

@@ -123,6 +123,8 @@ export default function RestockScreen() {
       <Stack.Screen
         options={{
           title: "智能補貨",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },

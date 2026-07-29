@@ -276,6 +276,8 @@ export default function RecipeDetailScreen() {
   const [showIngPicker, setShowIngPicker] = useState(false);
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
+  const [shoppingDate, setShoppingDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [showDateEditor, setShowDateEditor] = useState(false);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
@@ -283,6 +285,25 @@ export default function RecipeDetailScreen() {
   const utils = trpc.useUtils();
 
   const recipeQ = trpc.recipes.getById.useQuery({ id: id! }, { enabled: !!id });
+  const recipe = recipeQ.data;
+  const recipeStringId = id ?? "";
+  
+  // 查詢呢個食譜係咪已經有排餐（未來 7 日）
+  const mealPlansQ = trpc.mealPlan.listByDateRange.useQuery(
+    { 
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    },
+    { enabled: isAuthenticated && !!recipeStringId }
+  );
+  
+  // Memoize: 搵呢個食譜嘅排餐日期
+  const recipeMealPlanDate = useMemo(() => {
+    if (!mealPlansQ.data) return null;
+    const plan = mealPlansQ.data.find((m: any) => m.recipeId === recipeStringId);
+    return plan?.date ?? null;
+  }, [mealPlansQ.data, recipeStringId]);
+  
   const cleanPriceKw = useMemo(() => cleanIngredientName(priceKw), [priceKw]);
   const isFreshIng = useMemo(() => isFreshIngredient(priceKw), [priceKw]);
   const priceQ = trpc.priceWatch.search.useQuery(
@@ -382,7 +403,6 @@ export default function RecipeDetailScreen() {
     setSelectedResultIdx(cheapestIdx);
   }, [priceResults]);
 
-  const recipe = recipeQ.data;
   const ingredients: any[] = recipe?.ingredients ?? [];
   const steps: any[] = recipe?.steps ?? [];
 
@@ -396,12 +416,40 @@ export default function RecipeDetailScreen() {
     { enabled: isAuthenticated && !!user && allIngNames.length > 0 },
   );
   const lastPricesMap: Record<string, number> = lastPricesQ.data ?? {};
-  const imgUrl = (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
+  
+  // Check for local image
+  const getLocalImage = (recipeName: string) => {
+    const nameMap: Record<string, any> = {
+      '番茄炒蛋': require('@/assets/recipes/scrambled-eggs-tomatoes.png'),
+      '蒜蓉炒菜心': require('@/assets/recipes/garlic-choy-sum.png'),
+      '紅燒肉': require('@/assets/recipes/braised-pork-belly.png'),
+      '宮保雞丁': require('@/assets/recipes/kung-pao-chicken.png'),
+      '麻婆豆腐': require('@/assets/recipes/mapo-tofu.png'),
+      '糖醋排骨': require('@/assets/recipes/sweet-sour-ribs.png'),
+      '清蒸鱸魚': require('@/assets/recipes/steamed-sea-bass.png'),
+      '豉油王炒麵': require('@/assets/recipes/soy-sauce-noodles.png'),
+      '臘味煲仔飯': require('@/assets/recipes/claypot-rice.png'),
+      '紅蘿蔔粟米豬骨湯': require('@/assets/recipes/carrot-corn-soup.png'),
+      '回鍋肉': require('@/assets/recipes/twice-cooked-pork.png'),
+      '干煸四季豆': require('@/assets/recipes/dry-fried-beans.png'),
+      '蝦仁炒蛋': require('@/assets/recipes/shrimp-scrambled-eggs.png'),
+      '梅菜扣肉': require('@/assets/recipes/preserved-vegetable-pork.png'),
+      '薑蔥蒸雞': require('@/assets/recipes/steamed-chicken.png'),
+      '魚香茄子': require('@/assets/recipes/fish-fragrant-eggplant.png'),
+      '腐乳通菜': require('@/assets/recipes/fermented-water-spinach.png'),
+      '鹽焗雞翼': require('@/assets/recipes/salt-baked-wings.png'),
+      '蠔油冬菇炆雞': require('@/assets/recipes/braised-chicken-mushroom.png'),
+      '榨菜肉絲湯米粉': require('@/assets/recipes/rice-noodle-soup.png'),
+    };
+    return nameMap[recipeName];
+  };
+  
+  const localImage = recipe ? getLocalImage(recipe.name) : null;
+  const imgUrl = localImage || (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
   const isUserRecipe = (recipe as any)?.source === "user";
   const sourceUrl = (recipe as any)?.sourceUrl;
   const sourceAuthor = (recipe as any)?.sourceAuthor;
   const recipeNumericId = id ? (parseInt(id.replace("user_", "").replace("official_", ""), 10) || 0) : 0;
-  const recipeStringId = id ?? "";
   const displayTags: string[] = localTags ?? ((recipe as any)?.tags ?? []);
 
   // Family notes
@@ -433,7 +481,7 @@ export default function RecipeDetailScreen() {
   const deleteOfficialM = trpc.recipes.deleteOfficial.useMutation({
     onSuccess: () => {
       utils.recipes.listOfficial.invalidate();
-      Alert.alert("已刪除", "官方食譜已刪除");
+      Alert.alert("已刪除", "官方 AI 食譜已刪除");
       router.back();
     },
     onError: (e) => Alert.alert("刪除失敗", e.message),
@@ -453,8 +501,8 @@ export default function RecipeDetailScreen() {
       );
     } else if (user?.role === "admin") {
       Alert.alert(
-        "刪除官方食譜",
-        `確定要刪除官方食譜「${recipeName}」？此動作無法還原。`,
+        "刪除官方 AI 食譜",
+        `確定要刪除官方 AI 食譜「${recipeName}」？此動作無法還原。`,
         [
           { text: "取消", style: "cancel" },
           { text: "刪除", style: "destructive", onPress: () => deleteOfficialM.mutate({ id: recipeNumericId }) },
@@ -583,20 +631,28 @@ export default function RecipeDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen 
+        options={{ 
+          headerShown: false,
+          title: '',
+          headerBackTitle: '',
+          presentation: 'card',
+        }} 
+      />
       <View style={s.root}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-          {/* ── Hero Image ── */}
+          {/* ─ Hero Image ── */}
           <View style={s.hero}>
             {imgUrl ? (
-              <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
+              localImage
+                ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
+                : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder]}>
                 <Ionicons name="restaurant" size={56} color={HINT} />
               </View>
             )}
-            <View style={s.heroGrad} />
             {/* Back button */}
             <TouchableOpacity style={s.heroBack} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
@@ -629,8 +685,8 @@ export default function RecipeDetailScreen() {
             <View style={s.heroInfo}>
               {(recipe as any).source === "official" && (
                 <View style={s.officialBadge}>
-                  <Ionicons name="star" size={11} color="#F59E0B" />
-                  <Text style={s.officialTxt}>官方食譜</Text>
+                  <Ionicons name="sparkles" size={11} color="#F59E0B" />
+                  <Text style={s.officialTxt}>官方 AI 食譜</Text>
                 </View>
               )}
               <Text style={s.heroTitle}>{recipe.name}</Text>
@@ -716,6 +772,11 @@ export default function RecipeDetailScreen() {
                 if (ings.length === 0) { Alert.alert("沒有食材資訊"); return; }
                 setEditIngs(ings);
                 setSelectedIngs(new Set(ings.map((_: any, i: number) => i)));
+                
+                // 智能判斷日期
+                const defaultDate = recipeMealPlanDate ?? new Date().toISOString().split("T")[0];
+                setShoppingDate(defaultDate);
+                setShowDateEditor(false);
                 setShowIngPicker(true);
               }}>
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
@@ -1532,43 +1593,73 @@ export default function RecipeDetailScreen() {
                   <Text style={{ fontSize: 15, fontWeight: "600", color: BRAND }}>取消</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ flex: 1, padding: 16 }}>
-                {editIngs.map((ing: any, i: number) => (
-                  <View key={i} style={s.ingPickerRow}>
-                    <TouchableOpacity
-                      style={s.ingPickerCheck}
-                      onPress={() => {
-                        setSelectedIngs(prev => {
-                          const n = new Set(prev);
-                          if (n.has(i)) n.delete(i); else n.add(i);
-                          return n;
-                        });
-                      }}
-                    >
-                      <View style={[s.ingPickerDot, selectedIngs.has(i) && s.ingPickerDotActive]}>
-                        {selectedIngs.has(i) && <Ionicons name="checkmark" size={12} color="#fff" />}
-                      </View>
-                    </TouchableOpacity>
-                    <Text style={s.ingPickerName}>{ing.name}</Text>
-                    <TextInput
-                      style={s.ingPickerQtyInput}
-                      value={ing._qty}
-                      onChangeText={v => {
-                        setEditIngs((prev: any[]) => prev.map((x, idx) => idx === i ? { ...x, _qty: v } : x));
-                      }}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
-                      placeholderTextColor="#9CA3AF"
-                    />
-                    <UnitPicker
-                      value={ing._unit}
-                      onChange={(v: string) => {
-                        setEditIngs((prev: any[]) => prev.map((x, idx) => idx === i ? { ...x, _unit: v } : x));
-                      }}
-                      style={{ width: 80, height: 36 }}
-                    />
+              
+              {/* 日期選擇器 */}
+              {recipeMealPlanDate && !showDateEditor ? (
+                <View style={s.dateInfoRow}>
+                  <Ionicons name="checkmark-circle" size={16} color={GREEN} />
+                  <Text style={s.dateInfoText}>已關聯排餐日期：</Text>
+                  <Text style={s.dateInfoValue}>{recipeMealPlanDate}</Text>
+                  <TouchableOpacity onPress={() => setShowDateEditor(true)}>
+                    <Ionicons name="create-outline" size={14} color={SUB} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={s.datePickerRow}>
+                  <Ionicons name="calendar-outline" size={16} color={SUB} />
+                  <Text style={s.datePickerLabel}>購物日期：</Text>
+                  <PlanDatePicker 
+                    value={shoppingDate} 
+                    onChange={setShoppingDate}
+                    showShortcuts={true}
+                  />
+                </View>
+              )}
+              
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+                {editIngs.length === 0 ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                    <Ionicons name="information-circle-outline" size={48} color={SUB} />
+                    <Text style={{ fontSize: 14, color: SUB, marginTop: 12 }}>沒有食材資料</Text>
                   </View>
-                ))}
+                ) : (
+                  editIngs.map((ing: any, i: number) => (
+                    <View key={i} style={s.ingPickerRow}>
+                      <TouchableOpacity
+                        style={s.ingPickerCheck}
+                        onPress={() => {
+                          setSelectedIngs(prev => {
+                            const n = new Set(prev);
+                            if (n.has(i)) n.delete(i); else n.add(i);
+                            return n;
+                          });
+                        }}
+                      >
+                        <View style={[s.ingPickerDot, selectedIngs.has(i) && s.ingPickerDotActive]}>
+                          {selectedIngs.has(i) && <Ionicons name="checkmark" size={12} color="#fff" />}
+                        </View>
+                      </TouchableOpacity>
+                      <Text style={s.ingPickerName} numberOfLines={1}>{ing.name}</Text>
+                      <TextInput
+                        style={s.ingPickerQtyInput}
+                        value={ing._qty}
+                        onChangeText={v => {
+                          setEditIngs((prev: any[]) => prev.map((x, idx) => idx === i ? { ...x, _qty: v } : x));
+                        }}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor="#9CA3AF"
+                      />
+                      <UnitPicker
+                        value={ing._unit}
+                        onChange={(v: string) => {
+                          setEditIngs((prev: any[]) => prev.map((x, idx) => idx === i ? { ...x, _unit: v } : x));
+                        }}
+                        style={{ width: 80, height: 36 }}
+                      />
+                    </View>
+                  ))
+                )}
               </ScrollView>
               <View style={{ padding: 16 }}>
                 <TouchableOpacity
@@ -1583,7 +1674,12 @@ export default function RecipeDetailScreen() {
                         category: ing.category || "食材",
                       }));
                     if (toAdd.length > 0) {
-                      addShoppingM.mutate({ items: toAdd, fromRecipeId: recipeStringId, fromRecipeName: recipe.name, plannedDate: new Date().toISOString().split("T")[0] });
+                      addShoppingM.mutate({ 
+                        items: toAdd, 
+                        fromRecipeId: recipeStringId, 
+                        fromRecipeName: recipe.name, 
+                        plannedDate: shoppingDate,
+                      });
                       const itemsWithPrice = toAdd.filter(item => getIngRecordedPrice(item.name) !== null);
                       if (itemsWithPrice.length > 0) {
                         setTimeout(() => {
@@ -1677,15 +1773,15 @@ const s = StyleSheet.create({
   heroImg: { width: "100%", height: "100%" },
   heroPlaceholder: { backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
   heroGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 180, backgroundColor: "rgba(0,0,0,0.6)" },
-  heroBack: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
-  heroShare: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
+  heroBack: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  heroShare: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroInfo: { position: "absolute", bottom: 16, left: 16, right: 16 },
-  officialBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(245,158,11,0.25)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99, alignSelf: "flex-start", marginBottom: 6 },
-  officialTxt: { fontSize: 11, color: "#FCD34D", fontWeight: "700" },
-  heroTitle: { fontSize: 24, fontWeight: "900", color: "#fff", marginBottom: 8, lineHeight: 30 },
-  heroMeta: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  metaChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  metaChipTxt: { fontSize: 12, color: "#fff", fontWeight: "600" },
+  officialBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, alignSelf: "flex-start", marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  officialTxt: { fontSize: 12, fontWeight: "700", color: "#1C2E4A", letterSpacing: 0.5 },
+  heroTitle: { fontSize: 24, fontWeight: "800", color: "#fff", marginBottom: 6, textShadowColor: "rgba(0,0,0,0.5)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+  heroMeta: { flexDirection: "row", gap: 6 },
+  metaChip: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  metaChipTxt: { fontSize: 12, fontWeight: "600", color: "#1C2E4A" },
 
   // Source bar
   sourceBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#F9F0FF" },
@@ -1723,6 +1819,30 @@ const s = StyleSheet.create({
   tipsRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   tipsTitle: { fontSize: 14, fontWeight: "800", color: "#92400E" },
   tipsTxt: { fontSize: 13, color: "#78350F", lineHeight: 20 },
+
+  // Cooking Tips Card
+  cookingTipsCard: { backgroundColor: "#FEF3C7", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
+  tipsCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  cookingTipsTitle: { fontSize: 15, fontWeight: "800", color: "#92400E" },
+  tipsList: { gap: 6 },
+  tipItem: { flexDirection: "row", gap: 6 },
+  tipItemTxt: { fontSize: 13, color: "#78350F", lineHeight: 20, flex: 1 },
+
+  // Safety Card
+  safetyCard: { backgroundColor: "#FEF2F2", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#EF4444" },
+  safetyHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  safetyTitle: { fontSize: 15, fontWeight: "800", color: "#991B1B" },
+  safetyList: { gap: 6 },
+  safetyItem: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  safetyItemTxt: { fontSize: 13, color: "#991B1B", lineHeight: 20, flex: 1 },
+
+  // Alternative Methods Card
+  alternativeCard: { backgroundColor: "#ECFEFF", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#06B6D4" },
+  alternativeHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  alternativeTitle: { fontSize: 15, fontWeight: "800", color: "#164E63" },
+  altMethod: { marginTop: 8, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: "#06B6D4" },
+  altMethodTitle: { fontSize: 14, fontWeight: "700", color: "#0E7490", marginBottom: 4 },
+  altMethodTxt: { fontSize: 13, color: "#155E75", lineHeight: 18 },
 
   // Card
   card: { backgroundColor: CARD, marginTop: 16, borderRadius: 20, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
@@ -1848,9 +1968,31 @@ const s = StyleSheet.create({
   disclaimerTxt: { fontSize: 10, color: SUB, lineHeight: 15 },
 
   // Ingredient picker
-  ingPickerSheet: { backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "80%" as any, paddingBottom: Platform.OS === "ios" ? 44 : 24 },
+  ingPickerSheet: { backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, height: "75%", maxHeight: "80%", paddingBottom: Platform.OS === "ios" ? 44 : 24 },
   ingPickerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: BORDER },
   ingPickerTitle: { fontSize: 16, fontWeight: "700", color: TEXT },
+  dateInfoRow: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 6, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    backgroundColor: "#DCFCE7", 
+    borderBottomWidth: 1, 
+    borderBottomColor: BORDER 
+  },
+  dateInfoText: { fontSize: 13, color: SUB },
+  dateInfoValue: { fontSize: 13, fontWeight: "600", color: GREEN },
+  datePickerRow: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 8, 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderBottomWidth: 1, 
+    borderBottomColor: BORDER 
+  },
+  datePickerLabel: { fontSize: 13, color: SUB },
   ingPickerRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: "#F3F4F6" },
   ingPickerCheck: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   ingPickerDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: BRAND, alignItems: "center", justifyContent: "center" },

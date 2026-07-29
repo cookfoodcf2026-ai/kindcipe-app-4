@@ -37,7 +37,13 @@ export default function MarketsPage() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "街市指南" }} />
+      <Stack.Screen 
+        options={{ 
+          title: "街市指南",
+          headerShown: true,
+          headerBackTitle: '',
+        }} 
+      />
       <View style={styles.container}>
         <View style={styles.searchBar}>
           <TextInput

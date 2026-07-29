@@ -591,7 +591,7 @@ export default function PlannerTab() {
               ListEmptyComponent={
                 <View style={styles.pickerEmpty}>
                   <Text style={{ color: "#999", fontSize: 14 }}>
-                    {pickerSearch ? "沒有符合的食譜" : "暫無官方食譜"}
+                    {pickerSearch ? "沒有符合的食譜" : "暫無官方 AI 食譜"}
                   </Text>
                 </View>
               }
@@ -628,6 +628,8 @@ export default function PlannerTab() {
       <IngredientPickerModal
         visible={!!pickerRecipe}
         recipes={pickerRecipe ? [pickerRecipe] : []}
+        defaultDate={pickerRecipe?.date}
+        showDateSelector={true}
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {

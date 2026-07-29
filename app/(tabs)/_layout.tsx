@@ -14,6 +14,11 @@ export default function TabLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
         tabBarStyle: { borderTopColor: "#E8E8E8" },
       }}
+      screenListeners={{
+        tabPress: () => {
+          // 防止 tabs 組別名稱洩漏
+        },
+      }}
     >
       <Tabs.Screen
         name="index"

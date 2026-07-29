@@ -140,7 +140,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     if (meQuery.isLoading || !onboardingChecked) return;
 
-    const inTabsGroup = segments[0] === "(main)";
+    const inTabsGroup = segments[0] === "(tabs)";
     const inLoginPage = segments[0] === "login";
     const inOnboarding = segments[0] === "onboarding";
     const seg0 = segments[0] as string;
@@ -168,7 +168,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
         // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
         if (inLoginPage || inOnboarding || seg0 === "index") {
-          router.replace("/(main)");
+          router.replace("/(tabs)");
         }
       }
     }
@@ -224,8 +224,19 @@ export default function RootLayout() {
           >
         
             <Stack.Screen
-              name="(main)"
-              options={{ header: () => null }}
+              name="(tabs)"
+              options={{ 
+                headerShown: false,
+                title: '',
+              }}
+            />
+            <Stack.Screen
+              name="recipe/[id]"
+              options={{ 
+                headerShown: false,
+                title: '',
+                headerBackTitle: '',
+              }}
             />
             <Stack.Screen
               name="login"
@@ -235,20 +246,6 @@ export default function RootLayout() {
               name="onboarding"
               options={{ headerShown: false, gestureEnabled: false }}
             />
-            <Stack.Screen name="recipe/[id]" options={{ title: "食譜詳情", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="import" options={{ title: "匯入食譜", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="family" options={{ title: "家庭管理", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="markets" options={{ title: "街市指南", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="ai-chef" options={{ title: "AI 食譜助手" }} />
-            <Stack.Screen name="admin" options={{ title: "Admin Dashboard", headerShown: false }} />
-            <Stack.Screen name="pantry" options={{ title: "家中儲備", headerShown: false }} />
-            <Stack.Screen name="weekly-menu" options={{ title: "晚餐推薦", headerShown: false }} />
-            <Stack.Screen name="purchase-history" options={{ title: "採購記錄", headerShown: false }} />
-            <Stack.Screen name="recipe-editor" options={{ title: "自訂食譜", headerShown: false }} />
-            <Stack.Screen name="settings" options={{ title: "設定", headerRight: () => <KitchenSwitcher /> }} />
-            <Stack.Screen name="restock" options={{ title: "智能補貨", headerShown: false }} />
-            <Stack.Screen name="category-manager" options={{ title: "分類管理" }} />
-            <Stack.Screen name="kitchen-settings" options={{ title: "廚房設定", headerRight: () => <KitchenSwitcher /> }} />
           </Stack>
         </AuthGuard>
         </QueryClientProvider>

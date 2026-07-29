@@ -4,6 +4,7 @@ import {
   Dimensions, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import PlanDatePicker from "@/src/components/PlanDatePicker";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
@@ -88,14 +89,19 @@ interface Props {
   title?: string;
   initialSelected?: Set<string>;
   loading?: boolean;
+  defaultDate?: string;
+  onDateChange?: (date: string) => void;
+  showDateSelector?: boolean;
   onConfirm: (items: ConfirmedItem[]) => void;
   onSkip: () => void;
 }
 
 export default function IngredientPickerModal({
-  visible, recipes, title, initialSelected, loading = false, onConfirm, onSkip,
+  visible, recipes, title, initialSelected, loading = false, 
+  defaultDate, onDateChange, showDateSelector = true, onConfirm, onSkip,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [date, setDate] = useState(defaultDate ?? new Date().toISOString().split("T")[0]);
 
   // 將食材按類別分組
   const groupedIngredients = useMemo(() => {
@@ -179,13 +185,13 @@ export default function IngredientPickerModal({
             quantity: String(ing.quantity ?? ""),
             unit: ing.unit || "",
             category: ing.category || detectCategory(ing.name),
-            plannedDate: r.date,
+            plannedDate: date,
           });
         }
       });
     });
     return items;
-  }, [recipes, selected]);
+  }, [recipes, selected, date]);
 
   const totalIngredients = useMemo(
     () => recipes.reduce((sum, r) => sum + r.ingredients.length, 0),
@@ -241,6 +247,21 @@ export default function IngredientPickerModal({
               <Text style={[s.quickBtnText, { color: SUB }]}>取消</Text>
             </TouchableOpacity>
           </View>
+
+          {showDateSelector && (
+            <View style={s.dateSection}>
+              <Ionicons name="calendar-outline" size={16} color={BRAND} />
+              <Text style={s.dateLabel}>購物日期：</Text>
+              <PlanDatePicker 
+                value={date}
+                onChange={(newDate) => {
+                  setDate(newDate);
+                  onDateChange?.(newDate);
+                }}
+                showShortcuts={true}
+              />
+            </View>
+          )}
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
             {sortedCategories.map((cat) => {
@@ -364,6 +385,20 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: BRAND,
+  },
+  dateSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  dateLabel: {
+    fontSize: 13,
+    color: SUB,
   },
   categoryGroup: {
     paddingHorizontal: 16,

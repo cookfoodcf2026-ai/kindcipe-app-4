@@ -109,7 +109,7 @@ export default function AdminScreen() {
   const { data: pendingList = [] } = trpc.recipes.adminListPending.useQuery(undefined, { enabled: unlocked });
 
   const createOfficialM = trpc.recipes.adminCreateOfficial.useMutation({
-    onSuccess: () => { utils.recipes.listOfficial.invalidate(); setShowForm(false); Alert.alert("已新增官方食譜"); },
+    onSuccess: () => { utils.recipes.listOfficial.invalidate(); setShowForm(false); Alert.alert("已新增官方 AI 食譜"); },
     onError: (e) => Alert.alert("新增失敗", e.message),
   });
   const updateOfficialM = trpc.recipes.adminUpdateOfficial.useMutation({
@@ -220,6 +220,8 @@ export default function AdminScreen() {
       <Stack.Screen
         options={{
           title: "Admin Dashboard",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: DARK },
           headerTintColor: "#F1F5F9",
           headerTitleStyle: { fontWeight: "800" },

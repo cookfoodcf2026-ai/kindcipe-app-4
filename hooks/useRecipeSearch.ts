@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 
 interface UseRecipeSearchOptions {
@@ -6,66 +6,57 @@ interface UseRecipeSearchOptions {
   category?: string;
   tag?: string;
   cookTimeMax?: number;
+  popularChip?: string;
   limit?: number;
 }
 
 export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
   const {
-    query = "",
+    query,
     category,
     tag,
     cookTimeMax,
-    limit = 500,
+    popularChip,
+    limit = 20,
   } = options;
 
-  const result = trpc.recipes.listOfficial.useQuery(
+  const result = trpc.recipes.search.useInfiniteQuery(
     {
+      query: query || undefined,
+      category: category === "all" ? undefined : category,
+      tag: tag || undefined,
+      cookTimeMax: cookTimeMax || undefined,
+      popularChip: popularChip || undefined,
       limit,
-      offset: 0,
     },
     {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
       staleTime: 30000,
     }
   );
 
   const recipes = useMemo(() => {
-    const allRecipes = result.data ?? [];
-    
-    // Apply filters client-side
-    let filtered = allRecipes;
-    
-    if (query) {
-      const q = query.toLowerCase();
-      filtered = filtered.filter(r => 
-        r.name.toLowerCase().includes(q) ||
-        r.description?.toLowerCase().includes(q)
-      );
-    }
-    
-    if (category && category !== "all") {
-      filtered = filtered.filter(r => r.recipeCategory === category);
-    }
-    
-    if (tag) {
-      filtered = filtered.filter(r => r.tags?.includes(tag));
-    }
-    
-    if (cookTimeMax) {
-      filtered = filtered.filter(r => r.cookTime && r.cookTime <= cookTimeMax);
-    }
-    
-    return filtered;
-  }, [result.data, query, category, tag, cookTimeMax]);
+    return result.data?.pages.flatMap((p) => p.recipes) ?? [];
+  }, [result.data]);
 
   const total = useMemo(() => {
-    return recipes.length;
-  }, [recipes]);
+    return result.data?.pages[0]?.total ?? 0;
+  }, [result.data]);
+
+  const fetchNextPage = useCallback(() => {
+    if (result.hasNextPage && !result.isFetchingNextPage) {
+      result.fetchNextPage();
+    }
+  }, [result.hasNextPage, result.isFetchingNextPage, result.fetchNextPage]);
 
   return {
     recipes,
     total,
     isLoading: result.isLoading,
     isFetching: result.isFetching,
+    isFetchingNextPage: result.isFetchingNextPage,
+    hasNextPage: !!result.hasNextPage,
+    fetchNextPage,
     refetch: result.refetch,
   };
 }

@@ -277,6 +277,8 @@ export default function RecipeEditorScreen() {
       <Stack.Screen
         options={{
           title: isEditing ? "編輯食譜" : "新增食譜 ✨",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },

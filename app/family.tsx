@@ -105,7 +105,13 @@ export default function FamilyScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "家庭管理" }} />
+      <Stack.Screen 
+        options={{ 
+          title: "家庭管理",
+          headerShown: true,
+          headerBackTitle: '',
+        }} 
+      />
       <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
         {/* Header actions */}
         <View style={s.headerActions}>

@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
 import { useMemo, useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
@@ -28,15 +29,41 @@ const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
 const CATEGORY_ORDER = ["全部", "中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"];
 
 const POPULAR_CHIPS = [
-  { key: "quick30", label: " 快手30分鐘", filter: (r: any) => (r.cookTime ?? 999) <= 30 },
-  { key: "tonight", label: "🌙 今晚食", filter: (r: any) => r.recipeCategory === "中菜" || r.recipeCategory === "家常菜" },
-  { key: "kids", label: "👶 小朋友啱食", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("小朋友") || t.includes("清淡") || t.includes("簡單")) },
+  { key: "quick15", label: "⚡ 快手 15 分鐘", filter: (r: any) => (r.cookTime ?? 999) <= 15 },
+  { key: "quick30", label: "⏱ 快手 30 分鐘", filter: (r: any) => (r.cookTime ?? 999) <= 30 },
+  { key: "tonight", label: " 今晚食", filter: (r: any) => r.recipeCategory === "中菜" || (r.tags ?? []).includes("家常菜") },
+  { key: "hk-style", label: "🇰 港式家常", filter: (r: any) => (r.tags ?? []).includes("港式") },
+  { key: "kids", label: "👶 小朋友啱食", filter: (r: any) => {
+      const tags = r.tags ?? [];
+      const ingredients = r.ingredients ?? [];
+      if (tags.some((t: string) => t.includes("小朋友"))) return true;
+      const hasSpicy = ingredients.some((i: any) => ["辣椒", "胡椒", "辣油", "豆瓣", "花椒"].some(s => i.name?.includes(s)));
+      const hasDeepFry = r.steps?.some((s: any) => s.instruction?.includes("炸"));
+      return r.difficulty === "簡單" && !hasSpicy && !hasDeepFry;
+    }
+  },
+  { key: "vegetarian", label: " 素食主義", filter: (r: any) => {
+      const tags = r.tags ?? [];
+      const ingredients = r.ingredients ?? [];
+      if (tags.some((t: string) => t.includes("素食"))) return true;
+      const MEAT_KEYWORDS = ["雞", "豬", "牛", "羊", "魚", "蝦", "蟹", "肉", "腩", "翼", "腿", "排骨", "臘", "大腸", "牛柳", "牛仔骨", "蜆", "", "帶子", "三文魚", "西冷", "拉麵", "叉燒"];
+      return !ingredients.some((i: any) => MEAT_KEYWORDS.some(m => i.name?.includes(m)));
+    }
+  },
   { key: "light", label: "🥗 清淡少油", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("清淡") || t.includes("健康") || t.includes("少油")) },
-  { key: "soup", label: " 湯水", filter: (r: any) => r.recipeCategory === "湯水" || r.name.includes("湯") },
+  { key: "one-person", label: "👤 一人食", filter: (r: any) => (r.servings ?? 999) <= 2 },
+  { key: "high-protein", label: "💪 高蛋白", filter: (r: any) => (r.ingredients ?? []).some((i: any) => ["雞肉", "豬肉", "牛肉", "魚", "蝦", "豆腐", "雞蛋", "牛柳", "牛仔骨", "三文魚", "西冷"].some(p => i.name?.includes(p))) },
+  { key: "soup", label: "🍲 湯水", filter: (r: any) => r.recipeCategory === "湯水" || r.name.includes("湯") || (r.tags ?? []).includes("湯水") },
   { key: "fridge", label: "🧊 冰箱清庫存", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("家常") || t.includes("簡單")) },
-  { key: "protein", label: "💪 高蛋白", filter: (r: any) => (r.ingredients ?? []).some((i: any) => ["雞肉", "豬肉", "牛肉", "魚", "蝦", "豆腐", "雞蛋"].some(p => i.name?.includes(p))) },
-  { key: "3d1s", label: "🍱 3餸1湯", filter: (r: any) => r.recipeCategory === "中菜" || r.recipeCategory === "家常菜" },
+  { key: "beginner", label: "⭐ 新手必學", filter: (r: any) => r.difficulty === "簡單" && (r.tags ?? []).some((t: string) => t.includes("新手") || t.includes("基礎")) },
+  { key: "party", label: "🍽️ 請客食譜", filter: (r: any) => (r.servings ?? 0) >= 4 || (r.tags ?? []).some((t: string) => t.includes("宴客")) },
+  { key: "low-calorie", label: "🥗 低卡減肥", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("低卡") || t.includes("減肥")) },
+  { key: "3d1s", label: "🍱 3 餸 1 湯", filter: (r: any) => r.recipeCategory === "中菜" },
+  { key: "steamed", label: " 蒸餸", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("蒸")) },
+  { key: "stir-fry", label: " 小炒", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("炒")) },
 ];
+
+const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "家常", "簡單", "素食", "低卡"];
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "中菜": { bg: "#FFF1F0", text: "#B91C1C" },
@@ -71,7 +98,7 @@ function TonightMenuCard({ todayMeals, router, isAdmin }: {
         </View>
         <TouchableOpacity
           style={s.planBtn}
-          onPress={() => router.push("/(main)/planner" as any)}
+          onPress={() => router.push("/(tabs)/planner" as any)}
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={14} color="#fff" />
@@ -91,7 +118,7 @@ function TonightMenuCard({ todayMeals, router, isAdmin }: {
       ) : (
         <TouchableOpacity
           style={s.summaryEmpty}
-          onPress={() => router.push("/(main)/planner" as any)}
+          onPress={() => router.push("/(tabs)/planner" as any)}
           activeOpacity={0.7}
         >
           <Text style={s.summaryEmptyTxt}>今晚還沒安排晚餐，去排餐吧</Text>
@@ -131,7 +158,7 @@ function PendingActionsCard({ router, isAdmin }: {
       {pendingMealPlans > 0 && (
         <TouchableOpacity
           style={s.pendingRow}
-          onPress={() => router.push("/(main)/planner" as any)}
+          onPress={() => router.push("/(tabs)/planner" as any)}
           activeOpacity={0.7}
         >
           <View style={[s.pendingIcon, { backgroundColor: "#FEF3C7" }]}>
@@ -144,7 +171,7 @@ function PendingActionsCard({ router, isAdmin }: {
       {pendingShopping > 0 && (
         <TouchableOpacity
           style={s.pendingRow}
-          onPress={() => router.push("/(main)/shopping" as any)}
+          onPress={() => router.push("/(tabs)/shopping" as any)}
           activeOpacity={0.7}
         >
           <View style={[s.pendingIcon, { backgroundColor: "#DBEAFE" }]}>
@@ -157,7 +184,7 @@ function PendingActionsCard({ router, isAdmin }: {
       {unboughtShopping > 0 && pendingShopping === 0 && (
         <TouchableOpacity
           style={s.pendingRow}
-          onPress={() => router.push("/(main)/shopping" as any)}
+          onPress={() => router.push("/(tabs)/shopping" as any)}
           activeOpacity={0.7}
         >
           <View style={[s.pendingIcon, { backgroundColor: "#DCFCE7" }]}>
@@ -246,13 +273,33 @@ export default function RecipesTab() {
   const [activePopularChip, setActivePopularChip] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "cookTime" | "difficulty">("newest");
+  const [viewType, setViewType] = useState<"grid" | "list">("grid");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
+    // Load search history
+    AsyncStorage.getItem("kindcipe_search_history").then((h) => {
+      if (h) setSearchHistory(JSON.parse(h));
+    });
   }, []);
 
   // Debounce search query (300ms)
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      // Save to search history if non-empty
+      if (searchQuery.trim().length > 0) {
+        setSearchHistory(prev => {
+          const updated = [searchQuery.trim(), ...prev.filter(s => s !== searchQuery.trim())].slice(0, 10);
+          AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
@@ -267,18 +314,22 @@ export default function RecipesTab() {
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
-  // Use new search endpoint
+  // Use server-side search with infinite scroll
   const {
     recipes: searchRecipes,
     total: searchTotal,
     isLoading: searchLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
     refetch: refetchSearch,
   } = useRecipeSearch({
     query: debouncedQuery || undefined,
     category: activeCategory === "all" ? undefined : activeCategory,
     tag: activeTagFilter ?? undefined,
-    cookTimeMax: activePopularChip === "quick30" ? 30 : undefined,
-    limit: 500,
+    cookTimeMax: activePopularChip === "quick15" ? 15 : activePopularChip === "quick30" ? 30 : filterCookTimeMax,
+    popularChip: activePopularChip ?? undefined,
+    limit: viewType === "grid" ? 20 : 30,
   });
 
   // Legacy queries for backward compatibility (user recipes, counts)
@@ -324,15 +375,15 @@ export default function RecipesTab() {
   });
 
   const allUserTags = useMemo(() => {
-    const set = new Set<string>();
-    userRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => set.add(t)));
-    searchRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => set.add(t)));
-    return Array.from(set).sort();
+    const counts = new Map<string, number>();
+    userRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => counts.set(t, (counts.get(t) || 0) + 1)));
+    searchRecipes.forEach((r: any) => (r.tags ?? []).forEach((t: string) => counts.set(t, (counts.get(t) || 0) + 1)));
+    return Array.from(counts.keys()).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0));
   }, [userRecipes, searchRecipes]);
 
   // Filter recipes based on viewMode (official/user/all)
   const filteredRecipes = useMemo(() => {
-    let pool = searchRecipes;
+    let pool = [...searchRecipes];
 
     if (viewMode === "official") {
       pool = pool.filter((r: any) => r.source === "official");
@@ -340,16 +391,20 @@ export default function RecipesTab() {
       pool = pool.filter((r: any) => r.source === "custom");
     }
 
-    // Apply additional filters that backend doesn't handle
-    if (activePopularChip && activePopularChip !== "quick30") {
-      const chip = POPULAR_CHIPS.find(c => c.key === activePopularChip);
-      if (chip) {
-        pool = pool.filter(chip.filter);
-      }
+    // Apply sorting
+    if (sortBy === "newest") {
+      // Already sorted by backend (newest first)
+    } else if (sortBy === "oldest") {
+      pool.reverse();
+    } else if (sortBy === "cookTime") {
+      pool.sort((a, b) => (a.cookTime || 999) - (b.cookTime || 999));
+    } else if (sortBy === "difficulty") {
+      const difficultyOrder: Record<string, number> = { "簡單": 1, "中等": 2, "困難": 3 };
+      pool.sort((a: any, b: any) => (difficultyOrder[a.difficulty || ""] || 999) - (difficultyOrder[b.difficulty || ""] || 999));
     }
 
     return pool;
-  }, [searchRecipes, viewMode, activePopularChip]);
+  }, [searchRecipes, viewMode, sortBy]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -370,65 +425,127 @@ export default function RecipesTab() {
   const renderCard = ({ item }: { item: any }) => {
     const isUser = item.source === "custom";
     const tags: string[] = item.tags ?? [];
-    const isAIGenerated = tags.includes("AI生成");
+    const isAIGenerated = tags.includes("AI 生成");
     const cat = categories.find(c => c.key === item.recipeCategory);
     const catColor = getCategoryColor(item.recipeCategory);
+
+    // Check if image is a local asset
+    const getLocalImage = (recipeName: string) => {
+      const nameMap: Record<string, any> = {
+        '番茄炒蛋': require('@/assets/recipes/scrambled-eggs-tomatoes.png'),
+        '蒜蓉炒菜心': require('@/assets/recipes/garlic-choy-sum.png'),
+        '紅燒肉': require('@/assets/recipes/braised-pork-belly.png'),
+        '宮保雞丁': require('@/assets/recipes/kung-pao-chicken.png'),
+        '麻婆豆腐': require('@/assets/recipes/mapo-tofu.png'),
+        '糖醋排骨': require('@/assets/recipes/sweet-sour-ribs.png'),
+        '清蒸鱸魚': require('@/assets/recipes/steamed-sea-bass.png'),
+        '豉油王炒麵': require('@/assets/recipes/soy-sauce-noodles.png'),
+        '臘味煲仔飯': require('@/assets/recipes/claypot-rice.png'),
+        '紅蘿蔔粟米豬骨湯': require('@/assets/recipes/carrot-corn-soup.png'),
+        '回鍋肉': require('@/assets/recipes/twice-cooked-pork.png'),
+        '干煸四季豆': require('@/assets/recipes/dry-fried-beans.png'),
+        '蝦仁炒蛋': require('@/assets/recipes/shrimp-scrambled-eggs.png'),
+        '梅菜扣肉': require('@/assets/recipes/preserved-vegetable-pork.png'),
+        '薑蔥蒸雞': require('@/assets/recipes/steamed-chicken.png'),
+        '魚香茄子': require('@/assets/recipes/fish-fragrant-eggplant.png'),
+        '腐乳通菜': require('@/assets/recipes/fermented-water-spinach.png'),
+        '鹽焗雞翼': require('@/assets/recipes/salt-baked-wings.png'),
+        '蠔油冬菇炆雞': require('@/assets/recipes/braised-chicken-mushroom.png'),
+        '榨菜肉絲湯米粉': require('@/assets/recipes/rice-noodle-soup.png'),
+      };
+      return nameMap[recipeName];
+    };
+
+    const localImage = getLocalImage(item.name);
+    const imageUrl = item.thumbnailUrl || item.image;
+    const hasImage = localImage || imageUrl;
 
     return (
       <View style={s.card}>
         <TouchableOpacity onPress={() => navigateToRecipe(item)} activeOpacity={0.85}>
-          {item.thumbnailUrl || item.image
-            ? <Image source={{ uri: item.thumbnailUrl || item.image }} style={s.cardImg} />
+          {/* ── Image / Placeholder ── */}
+          {hasImage
+            ? localImage
+              ? <Image source={localImage} style={s.cardImg} resizeMode="cover" />
+              : <Image source={{ uri: imageUrl }} style={s.cardImg} resizeMode="cover" />
             : (
               <View style={[s.cardImg, s.cardImgPH, { backgroundColor: catColor.bg }]}>
-                <Text style={{ fontSize: 28, marginBottom: 4 }}>{cat?.emoji || "🍽️"}</Text>
-                <Text style={{ fontSize: 10, color: catColor.text, fontWeight: "700", textAlign: "center" }} numberOfLines={2}>{item.name}</Text>
+                <View style={s.placeholderContent}>
+                  <Text style={s.placeholderEmoji}>{cat?.emoji || "🍽️"}</Text>
+                </View>
               </View>
             )
           }
+          
+          {/* ─ Badges ── */}
+          <View style={s.cardBadges}>
+            {isUser && (
+              <View style={s.sourceBadge}>
+                <Text style={s.sourceBadgeTxt}>我的</Text>
+              </View>
+            )}
+            {isAIGenerated && (
+              <View style={s.aiBadgeCorner}>
+                <Text style={s.aiBadgeCornerTxt}>AI</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* ── Quick Plan Button ── */}
           <TouchableOpacity
             style={s.cardPlanBtn}
-            onPress={() => {
+            onPress={(e) => {
+              e.stopPropagation();
               setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
               setQuickPlanDate(new Date().toISOString().split("T")[0]);
               setQuickPlanMeal("dinner");
             }}
+            activeOpacity={0.7}
           >
-            <Ionicons name="calendar-outline" size={13} color="#fff" />
+            <Ionicons name="calendar-outline" size={16} color="#fff" />
           </TouchableOpacity>
-          {isUser && (
-            <View style={s.sourceBadge}>
-              <Text style={s.sourceBadgeTxt}>我的</Text>
-            </View>
-          )}
         </TouchableOpacity>
+
+        {/* ── Card Info ── */}
         <View style={s.cardInfo}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Text style={[s.cardName, { flex: 1 }]} numberOfLines={1}>{item.name}</Text>
-            {isAIGenerated && (
-              <View style={s.aiBadge}>
-                <Text style={s.aiBadgeTxt}>AI</Text>
+          <Text style={s.cardName} numberOfLines={2}>{item.name}</Text>
+          {item.nameEn ? <Text style={s.cardNameEn} numberOfLines={1}>{item.nameEn}</Text> : null}
+          
+          <View style={s.cardMeta}>
+            {item.cookTime ? (
+              <View style={s.cardMetaItem}>
+                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+                <Text style={s.cardMetaTxt}>{item.cookTime}分</Text>
+              </View>
+            ) : null}
+            {item.difficulty ? (
+              <View style={s.cardMetaItem}>
+                <Ionicons name="flame-outline" size={12} color="#9CA3AF" />
+                <Text style={s.cardMetaTxt}>{item.difficulty}</Text>
+              </View>
+            ) : null}
+            {cat?.emoji && (
+              <View style={s.cardMetaItem}>
+                <Text style={{ fontSize: 12 }}>{cat.emoji}</Text>
               </View>
             )}
           </View>
-          {item.nameEn ? <Text style={s.cardNameEn} numberOfLines={1}>{item.nameEn}</Text> : null}
-          <View style={s.cardMeta}>
-            {cat ? <Text style={s.cardCatEmoji}>{cat.emoji}</Text> : null}
-            {item.cookTime ? <Text style={s.cardMetaTxt}>⏱ {item.cookTime}分</Text> : null}
-            {item.difficulty ? <Text style={s.cardMetaTxt}> · {item.difficulty}</Text> : null}
-          </View>
-          {isUser && tags.length > 0 && (
+
+          {/* ── Tags ── */}
+          {tags.length > 0 && (
             <View style={s.cardTags}>
               {tags.slice(0, 2).map((tag) => (
                 <TouchableOpacity
                   key={tag}
                   style={[s.cardTag, activeTagFilter === tag && s.cardTagActive]}
-                  onPress={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setActiveTagFilter(activeTagFilter === tag ? null : tag);
+                  }}
                 >
                   <Text style={[s.cardTagTxt, activeTagFilter === tag && s.cardTagTxtActive]}>#{tag}</Text>
                 </TouchableOpacity>
               ))}
-              {tags.length > 2 && <Text style={{ fontSize: 9, color: "#9CA3AF" }}>+{tags.length - 2}</Text>}
             </View>
           )}
         </View>
@@ -465,23 +582,47 @@ export default function RecipesTab() {
         <TextInput
           style={s.searchInput}
           placeholder="搜尋食譜、食材、標籤"
-          placeholderTextColor="#BCBCBC"
+          placeholderTextColor="#9CA3AF"
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={(text) => {
+            setSearchQuery(text);
+            setShowSearchHistory(text.length > 0 && searchHistory.length > 0);
+          }}
+          onFocus={() => searchHistory.length > 0 && setShowSearchHistory(true)}
           returnKeyType="search"
           clearButtonMode="while-editing"
         />
         {searchQuery ? (
           <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={18} color="#BCBCBC" />
+            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         ) : null}
+        
+        {/* Sort Dropdown */}
+        <TouchableOpacity onPress={() => setSortBy(sortBy === "newest" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "newest")} style={s.sortBtn}>
+          <Ionicons name={sortBy === "newest" ? "time-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color={BRAND} />
+        </TouchableOpacity>
+        
+        {/* Filter Button */}
+        <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
+          <Ionicons name="filter-outline" size={18} color={BRAND} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Sort Indicator */}
+      <View style={s.sortIndicator}>
+        <Text style={s.sortIndicatorTxt}>
+          {sortBy === "newest" ? "🕐 最新" : sortBy === "cookTime" ? "⏱ 時間" : "🔥 難度"}
+        </Text>
+        <TouchableOpacity onPress={() => setSortBy("newest")}>
+          <Ionicons name="close" size={14} color="#9CA3AF" />
+        </TouchableOpacity>
       </View>
 
       <View style={s.sourceToggle}>
         {([
           { key: "all",      label: "全部",   count: searchTotal },
-          { key: "official", label: "官方食譜", count: searchRecipes.filter((r: any) => r.source === "official").length },
+          { key: "official", label: "官方 AI 食譜", count: searchTotal },
           { key: "user",     label: "我的食譜", count: userRecipes.length },
         ] as const).map(t => (
           <TouchableOpacity
@@ -497,28 +638,7 @@ export default function RecipesTab() {
         ))}
       </View>
 
-      <View style={s.catSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
-          {[ALL_ENTRY, ...categories].map(cat => {
-            const isActive = activeCategory === cat.key;
-            return (
-              <TouchableOpacity
-                key={cat.key}
-                style={[s.catPill, isActive && s.catPillActive]}
-                onPress={() => { setActiveCategory(cat.key); }}
-              >
-                {cat.key === "all" ? (
-                  <Ionicons name="clipboard-outline" size={15} color={isActive ? "#fff" : "#444"} />
-                ) : (
-                  <Text style={s.catPillEmoji}>{cat.emoji}</Text>
-                )}
-                <Text style={[s.catPillLabel, isActive && s.catPillLabelActive]}>{cat.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
+      {/* Popular Chips - Keep for quick access */}
       <View style={s.popularSection}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.popularRow}>
           {POPULAR_CHIPS.map(chip => {
@@ -548,7 +668,7 @@ export default function RecipesTab() {
               <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "700", marginLeft: 2 }}>清除</Text>
             </TouchableOpacity>
           )}
-          {allUserTags.map(tag => (
+          {TOP_TAGS.map(tag => (
             <TouchableOpacity
               key={tag}
               style={[s.filterPill, activeTagFilter === tag && s.filterPillActive]}
@@ -557,6 +677,12 @@ export default function RecipesTab() {
               <Text style={[s.filterPillTxt, activeTagFilter === tag && s.filterPillTxtActive]}>#{tag}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={s.filterPill}
+            onPress={() => setShowFilterSheet(true)}
+          >
+            <Text style={s.filterPillTxt}>更多 ▼</Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
 
@@ -608,6 +734,15 @@ export default function RecipesTab() {
         contentContainerStyle={s.gridContent}
         ListHeaderComponent={ListHeader}
         renderItem={renderCard}
+        onEndReached={() => fetchNextPage()}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View style={{ paddingVertical: 20 }}>
+              <ActivityIndicator color={BRAND} size="small" />
+            </View>
+          ) : null
+        }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         ListEmptyComponent={
           <View style={s.empty}>
@@ -648,6 +783,117 @@ export default function RecipesTab() {
           </View>
         }
       />
+
+      {/* Filter Bottom Sheet */}
+      <Modal visible={showFilterSheet} transparent animationType="slide">
+        <View style={s.filterOverlay}>
+          <View style={s.filterSheet}>
+            <View style={s.filterHandle} />
+            <View style={s.filterHeader}>
+              <Text style={s.filterTitle}>篩選食譜</Text>
+              <TouchableOpacity onPress={() => setShowFilterSheet(false)}>
+                <Ionicons name="close" size={24} color="#1A1A1A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Category Filter */}
+            <Text style={s.filterLabel}>分類</Text>
+            <View style={s.filterCategoryRow}>
+              {[ALL_ENTRY, ...categories].map(cat => (
+                <TouchableOpacity
+                  key={cat.key}
+                  style={[
+                    s.filterCategoryChip,
+                    activeCategory === cat.key && s.filterCategoryChipActive
+                  ]}
+                  onPress={() => setActiveCategory(cat.key)}
+                >
+                  {cat.key === "all" ? (
+                    <Ionicons name="apps-outline" size={16} color={activeCategory === cat.key ? "#fff" : "#666"} />
+                  ) : (
+                    <Text style={s.filterCategoryChipEmoji}>{cat.emoji}</Text>
+                  )}
+                  <Text style={[
+                    s.filterCategoryChipTxt,
+                    activeCategory === cat.key && s.filterCategoryChipTxtActive
+                  ]}>{cat.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Cook Time Filter */}
+            <Text style={s.filterLabel}>烹調時間</Text>
+            <View style={s.filterTimeRow}>
+              {[
+                { label: "不限", value: undefined },
+                { label: " 30 分鐘內", value: 30 },
+                { label: "⏱ 45 分鐘內", value: 45 },
+                { label: "⏱ 60 分鐘內", value: 60 },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[
+                    s.filterTimeChip,
+                    filterCookTimeMax === opt.value && s.filterTimeChipActive
+                  ]}
+                  onPress={() => setFilterCookTimeMax(opt.value)}
+                >
+                  <Text style={[
+                    s.filterTimeChipTxt,
+                    filterCookTimeMax === opt.value && s.filterTimeChipTxtActive
+                  ]}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Tags Filter */}
+            {allUserTags.length > 0 && (
+              <>
+                <Text style={s.filterLabel}>標籤</Text>
+                <View style={s.filterTagsRow}>
+                  <TouchableOpacity
+                    style={[s.filterTagChip, !activeTagFilter && s.filterTagChipActive]}
+                    onPress={() => setActiveTagFilter(null)}
+                  >
+                    <Text style={[s.filterTagChipTxt, !activeTagFilter && s.filterTagChipTxtActive]}>不限</Text>
+                  </TouchableOpacity>
+                  {allUserTags.slice(0, 30).map(tag => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[s.filterTagChip, activeTagFilter === tag && s.filterTagChipActive]}
+                      onPress={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                    >
+                      <Text style={[s.filterTagChipTxt, activeTagFilter === tag && s.filterTagChipTxtActive]}>#{tag}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Action Buttons */}
+            <View style={s.filterActions}>
+              <TouchableOpacity
+                style={s.filterResetBtn}
+                onPress={() => {
+                  setActiveCategory("all");
+                  setFilterCookTimeMax(undefined);
+                  setActiveTagFilter(null);
+                  setSortBy("newest");
+                }}
+              >
+                <Ionicons name="refresh-outline" size={18} color="#666" />
+                <Text style={s.filterResetBtnTxt}>重置</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.filterConfirmBtn}
+                onPress={() => setShowFilterSheet(false)}
+              >
+                <Text style={s.filterConfirmBtnTxt}>完成</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
         <View style={s.planOverlay}>
@@ -696,6 +942,8 @@ export default function RecipesTab() {
       <IngredientPickerModal
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
+        defaultDate={planPickerRecipe?.date}
+        showDateSelector={true}
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
@@ -795,88 +1043,446 @@ const s = StyleSheet.create({
 
   // Search
   searchWrap: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 14, marginTop: 4, marginBottom: 10,
-    backgroundColor: "#fff", borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 8,
+    marginHorizontal: 14, 
+    marginTop: 8, 
+    marginBottom: 4,
+    backgroundColor: "#fff", 
+    borderRadius: 16,
+    paddingHorizontal: 14, 
+    paddingVertical: 11,
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.08, 
+    shadowRadius: 12, 
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
   },
-  searchInput: { flex: 1, fontSize: 14, color: "#1A1A1A" },
+  searchInput: { 
+    flex: 1, 
+    fontSize: 15, 
+    color: "#1A1A1A",
+    paddingVertical: 2,
+  },
+  sortBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EEF4FB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
+  },
+  filterBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EEF4FB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 14,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E8E8E8",
+  },
+  sortIndicatorTxt: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: "600",
+  },
 
   // Source toggle
-  sourceToggle: { flexDirection: "row", marginHorizontal: 14, marginBottom: 12, backgroundColor: "#EBEDF0", borderRadius: 14, padding: 4, gap: 2 },
-  sourceToggleBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 11 },
-  sourceToggleBtnActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
-  sourceToggleTxt: { fontSize: 12, fontWeight: "600", color: "#888" },
-  sourceToggleTxtActive: { color: BRAND, fontWeight: "800" },
-  sourceToggleCount: { backgroundColor: "#E0E0E0", borderRadius: 99, paddingHorizontal: 5, paddingVertical: 1, minWidth: 18, alignItems: "center" },
-  sourceToggleCountActive: { backgroundColor: "#EEF4FB" },
-  sourceToggleCountTxt: { fontSize: 10, fontWeight: "700", color: "#999" },
-  sourceToggleCountTxtActive: { color: BRAND },
+  sourceToggle: { 
+    flexDirection: "row", 
+    marginHorizontal: 14, 
+    marginBottom: 14, 
+    backgroundColor: "#F5F5F7", 
+    borderRadius: 16, 
+    padding: 5, 
+    gap: 3,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+  },
+  sourceToggleBtn: { 
+    flex: 1, 
+    flexDirection: "row", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    gap: 6, 
+    paddingVertical: 10, 
+    borderRadius: 13,
+    backgroundColor: "transparent",
+  },
+  sourceToggleBtnActive: { 
+    backgroundColor: "#fff", 
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 6, 
+    elevation: 3,
+  },
+  sourceToggleTxt: { 
+    fontSize: 13, 
+    fontWeight: "600", 
+    color: "#666",
+  },
+  sourceToggleTxtActive: { 
+    color: BRAND, 
+    fontWeight: "800",
+  },
+  sourceToggleCount: { 
+    backgroundColor: "rgba(0,0,0,0.08)", 
+    borderRadius: 99, 
+    paddingHorizontal: 6, 
+    paddingVertical: 2, 
+    minWidth: 20, 
+    alignItems: "center",
+  },
+  sourceToggleCountActive: { 
+    backgroundColor: "#EEF4FB",
+  },
+  sourceToggleCountTxt: { 
+    fontSize: 11, 
+    fontWeight: "700", 
+    color: "#666",
+  },
+  sourceToggleCountTxtActive: { 
+    color: BRAND,
+  },
 
   // Categories
-  catSection: { marginBottom: 6 },
-  catRow: { paddingHorizontal: 14, gap: 8 },
+  catSection: { marginBottom: 8 },
+  catRow: { paddingHorizontal: 14, gap: 10 },
   catPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 99, backgroundColor: "#fff",
-    borderWidth: 1.5, borderColor: "#E8E8E8",
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 6,
+    paddingHorizontal: 16, 
+    paddingVertical: 10,
+    borderRadius: 99, 
+    backgroundColor: "#fff",
+    borderWidth: 1.5, 
+    borderColor: "#E8E8E8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  catPillActive: { backgroundColor: BRAND, borderColor: BRAND },
-  catPillEmoji: { fontSize: 15 },
-  catPillLabel: { fontSize: 12, fontWeight: "700", color: "#444" },
-  catPillLabelActive: { color: "#fff" },
+  catPillActive: { 
+    backgroundColor: BRAND, 
+    borderColor: BRAND,
+    shadowColor: BRAND,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  catPillEmoji: { fontSize: 16 },
+  catPillLabel: { 
+    fontSize: 13, 
+    fontWeight: "700", 
+    color: "#444",
+  },
+  catPillLabelActive: { 
+    color: "#fff",
+  },
 
   // Popular chips
-  popularSection: { marginBottom: 8 },
-  popularRow: { paddingHorizontal: 14, gap: 8 },
+  popularSection: { marginBottom: 10 },
+  popularRow: { paddingHorizontal: 14, gap: 10 },
   popularChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 99, backgroundColor: "#F9FAFB",
-    borderWidth: 1.5, borderColor: "#E5E7EB",
+    paddingHorizontal: 14, 
+    paddingVertical: 9,
+    borderRadius: 99, 
+    backgroundColor: "#fff",
+    borderWidth: 1.5, 
+    borderColor: "#E8E8E8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  popularChipActive: { backgroundColor: "#EEF4FB", borderColor: BRAND },
-  popularChipTxt: { fontSize: 11, fontWeight: "600", color: "#4B5563" },
-  popularChipTxtActive: { color: BRAND, fontWeight: "700" },
+  popularChipActive: { 
+    backgroundColor: "#EEF4FB", 
+    borderColor: BRAND,
+    shadowColor: BRAND,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  popularChipTxt: { 
+    fontSize: 12, 
+    fontWeight: "600", 
+    color: "#4B5563",
+  },
+  popularChipTxtActive: { 
+    color: BRAND, 
+    fontWeight: "800",
+  },
 
   // Tag filters
-  filterRow: { paddingHorizontal: 14, paddingBottom: 8, gap: 7 },
-  filterRowLabel: { flexDirection: "row", alignItems: "center", gap: 3, paddingRight: 4 },
-  filterPill: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 99, backgroundColor: "#F3F4F6", borderWidth: 1.5, borderColor: "#E5E7EB" },
-  filterPillActive: { backgroundColor: BRAND, borderColor: BRAND },
-  filterPillTxt: { fontSize: 12, fontWeight: "600", color: "#374151" },
-  filterPillTxtActive: { color: "#fff" },
+  filterRow: { 
+    paddingHorizontal: 14, 
+    paddingBottom: 10, 
+    gap: 8,
+    alignItems: "center",
+  },
+  filterRowLabel: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 4, 
+    paddingRight: 4,
+  },
+  filterPill: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 4, 
+    paddingHorizontal: 12, 
+    paddingVertical: 7, 
+    borderRadius: 99, 
+    backgroundColor: "#fff",
+    borderWidth: 1.5, 
+    borderColor: "#E8E8E8",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterPillActive: { 
+    backgroundColor: BRAND, 
+    borderColor: BRAND,
+    shadowColor: BRAND,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  filterPillTxt: { 
+    fontSize: 12, 
+    fontWeight: "600", 
+    color: "#374151",
+  },
+  filterPillTxtActive: { 
+    color: "#fff",
+  },
 
   // Result summary
-  resultSummary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#EEF4FB", borderRadius: 10, borderWidth: 1, borderColor: "#C5D9F0" },
-  resultSummaryTxt: { fontSize: 12, color: BRAND, fontWeight: "600" },
-  resultSummaryClear: { fontSize: 11, color: "#EF4444", fontWeight: "700" },
+  resultSummary: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    justifyContent: "space-between", 
+    marginHorizontal: 14, 
+    marginBottom: 10, 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    backgroundColor: "#EEF4FB", 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: "#C5D9F0",
+  },
+  resultSummaryTxt: { 
+    fontSize: 12, 
+    color: BRAND, 
+    fontWeight: "700",
+  },
+  resultSummaryClear: { 
+    fontSize: 12, 
+    color: "#EF4444", 
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
 
   // Grid
   gridContent: { paddingHorizontal: 14, paddingBottom: 32 },
   gridRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
 
   // Recipe card
-  card: { width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 4, elevation: 2 },
-  cardImg: { width: CARD_WIDTH, height: CARD_WIDTH * 0.65 },
-  cardImgPH: { backgroundColor: "#F0F0F0", alignItems: "center", justifyContent: "center" },
-  cardPlanBtn: { position: "absolute", bottom: 6, right: 6, width: 28, height: 28, borderRadius: 9, backgroundColor: "rgba(1,62,119,0.85)", alignItems: "center", justifyContent: "center" },
-  sourceBadge: { position: "absolute", top: 6, left: 6, backgroundColor: "rgba(1,62,119,0.8)", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
-  sourceBadgeTxt: { fontSize: 9, fontWeight: "800", color: "#fff" },
-  cardInfo: { padding: 8 },
-  cardName: { fontSize: 13, fontWeight: "700", color: "#1A1A1A", lineHeight: 18, marginBottom: 1 },
-  aiBadge: { backgroundColor: BRAND, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  aiBadgeTxt: { fontSize: 8, fontWeight: "800", color: "#fff" },
-  cardNameEn: { fontSize: 10, color: "#9CA3AF", marginBottom: 3, lineHeight: 14 },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 2, marginBottom: 4 },
+  card: { 
+    width: CARD_WIDTH, 
+    backgroundColor: "#fff", 
+    borderRadius: 16, 
+    overflow: "hidden", 
+    shadowColor: "#000", 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.08, 
+    shadowRadius: 12, 
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+  },
+  cardImg: { width: CARD_WIDTH, height: CARD_WIDTH * 0.8 },
+  cardImgPH: { 
+    backgroundColor: "#F0F0F0", 
+    alignItems: "center", 
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#F5F5F5",
+  },
+  placeholderContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+  },
+  placeholderEmoji: {
+    fontSize: 48,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  cardBadges: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    zIndex: 1,
+  },
+  sourceBadge: { 
+    backgroundColor: "rgba(1, 62, 119, 0.9)", 
+    borderRadius: 8, 
+    paddingHorizontal: 8, 
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sourceBadgeTxt: { 
+    fontSize: 10, 
+    fontWeight: "700", 
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  aiBadgeCorner: {
+    backgroundColor: "rgba(1, 62, 119, 0.9)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  aiBadgeCornerTxt: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  cardPlanBtn: { 
+    position: "absolute", 
+    bottom: 8, 
+    right: 8, 
+    width: 36, 
+    height: 36, 
+    borderRadius: 12, 
+    backgroundColor: "rgba(1, 62, 119, 0.9)", 
+    alignItems: "center", 
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cardInfo: { padding: 12 },
+  cardName: { 
+    fontSize: 14, 
+    fontWeight: "700", 
+    color: "#1A1A1A", 
+    lineHeight: 20, 
+    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
+  aiBadge: { 
+    backgroundColor: BRAND, 
+    borderRadius: 6, 
+    paddingHorizontal: 6, 
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  aiBadgeTxt: { 
+    fontSize: 9, 
+    fontWeight: "800", 
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  cardNameEn: { 
+    fontSize: 11, 
+    color: "#9CA3AF", 
+    marginBottom: 6, 
+    lineHeight: 16,
+    fontStyle: "italic",
+  },
+  cardMeta: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 8, 
+    marginBottom: 6,
+  },
+  cardMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
   cardCatEmoji: { fontSize: 12, marginRight: 2 },
-  cardMetaTxt: { fontSize: 10, color: "#999" },
-  cardTags: { flexDirection: "row", flexWrap: "wrap", gap: 3 },
-  cardTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: "#EEF4FB", borderWidth: 1, borderColor: "#C5D9F0" },
-  cardTagActive: { backgroundColor: BRAND, borderColor: BRAND },
-  cardTagTxt: { fontSize: 9, color: BRAND, fontWeight: "700" },
-  cardTagTxtActive: { color: "#fff" },
+  cardMetaTxt: { 
+    fontSize: 11, 
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  cardTags: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    gap: 4,
+    marginTop: 4,
+  },
+  cardTag: { 
+    paddingHorizontal: 8, 
+    paddingVertical: 3, 
+    borderRadius: 99, 
+    backgroundColor: "#EEF4FB", 
+    borderWidth: 1, 
+    borderColor: "#C5D9F0",
+  },
+  cardTagActive: { 
+    backgroundColor: BRAND, 
+    borderColor: BRAND,
+    shadowColor: BRAND,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardTagTxt: { 
+    fontSize: 10, 
+    color: BRAND, 
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  cardTagTxtActive: { 
+    color: "#fff",
+    letterSpacing: 0.3,
+  },
 
   // Empty state
   empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingTop: 48 },
@@ -890,6 +1496,169 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: "#C5D9F0",
   },
   emptySuggestChipTxt: { fontSize: 12, fontWeight: "600", color: BRAND },
+
+  // Filter sheet
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  filterSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 40,
+    maxHeight: "80%",
+  },
+  filterHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E5E0D8",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  filterHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  filterTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1A1A1A",
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#666",
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  filterCategoryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterCategoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterCategoryChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterCategoryChipEmoji: {
+    fontSize: 14,
+  },
+  filterCategoryChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterCategoryChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  filterTimeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: "wrap",
+  },
+  filterTimeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterTimeChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterTimeChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterTimeChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  filterTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 16,
+  },
+  filterTagChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterTagChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterTagChipTxt: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterTagChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  filterActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+  },
+  filterResetBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#F5F5F7",
+  },
+  filterResetBtnTxt: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#666",
+  },
+  filterConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: BRAND,
+    alignItems: "center",
+  },
+  filterConfirmBtnTxt: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#fff",
+  },
 
   // Quick-plan modal
   planOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

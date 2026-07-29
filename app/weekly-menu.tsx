@@ -155,6 +155,8 @@ export default function WeeklyMenuScreen() {
       <Stack.Screen
         options={{
           title: "晚餐推薦設定",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },
@@ -382,6 +384,8 @@ export default function WeeklyMenuScreen() {
       <IngredientPickerModal
         visible={planPickerRecipes.length > 0}
         recipes={planPickerRecipes}
+        defaultDate={planPickerRecipes[0]?.date}
+        showDateSelector={true}
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {

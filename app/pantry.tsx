@@ -136,6 +136,8 @@ export default function PantryScreen() {
       <Stack.Screen
         options={{
           title: "家中儲備",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },

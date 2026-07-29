@@ -112,6 +112,8 @@ export default function CategoryManagerScreen() {
       <Stack.Screen
         options={{
           title: "分類管理",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: CARD },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "700", color: TEXT },

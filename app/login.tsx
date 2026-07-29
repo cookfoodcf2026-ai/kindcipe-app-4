@@ -22,7 +22,7 @@ import { TurboModuleRegistry } from "react-native";
 const hasGoogleSignin = TurboModuleRegistry.get("RNGoogleSignin") != null;
 const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
 
-// Kindcipe 後端已部署到 Railway
+// Kindcipe 後端 (Railway)
 const BACKEND_URL = "https://kindcipe-backend-production.up.railway.app";
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
@@ -56,7 +56,7 @@ export default function LoginScreen() {
   // ── After successful login ──────────────────────────────────────────────────
   // 登入後不直接跳到 tabs，讓 _layout.tsx 的 AuthGuard 根據 onboarding 狀態決定路由
   // 如果是新用戶（未完成 onboarding）→ 自動跳到 /onboarding
-  // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(main)
+  // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
   const onLoginSuccess = async () => {
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
     await utils.auth.me.invalidate();

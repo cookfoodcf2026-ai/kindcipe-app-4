@@ -1501,6 +1501,8 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     <>
       <Stack.Screen options={{
         title: "AI 食譜助手",
+        headerShown: true,
+        headerBackTitle: '',
         headerStyle: { backgroundColor: BG }, headerTintColor: BRAND,
         headerTitleStyle: { fontWeight: "800" },
         headerLeft: () => (
@@ -1815,6 +1817,8 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       <IngredientPickerModal
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
+        defaultDate={planPickerRecipe?.date}
+        showDateSelector={true}
         loading={addShoppingM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {

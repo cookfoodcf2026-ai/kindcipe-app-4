@@ -105,6 +105,8 @@ export default function PurchaseHistoryScreen() {
       <Stack.Screen
         options={{
           title: "採購記錄",
+          headerShown: true,
+          headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },

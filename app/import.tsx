@@ -318,7 +318,7 @@ export default function ImportScreen() {
         } catch {}
         setStep("success");
         setTimeout(() => {
-          router.replace("/(main)");
+          router.replace("/(tabs)");
         }, 2000);
       } else {
         setStep("success");
