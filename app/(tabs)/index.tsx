@@ -269,8 +269,8 @@ export default function RecipesTab() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "official" | "user">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
-  const [activePopularChip, setActivePopularChip] = useState<string | null>(null);
+  const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
+  const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
@@ -326,9 +326,9 @@ export default function RecipesTab() {
   } = useRecipeSearch({
     query: debouncedQuery || undefined,
     category: activeCategory === "all" ? undefined : activeCategory,
-    tag: activeTagFilter ?? undefined,
-    cookTimeMax: activePopularChip === "quick15" ? 15 : activePopularChip === "quick30" ? 30 : filterCookTimeMax,
-    popularChip: activePopularChip ?? undefined,
+    tags: activeTagFilters.length > 0 ? activeTagFilters : undefined,
+    cookTimeMax: activePopularChips.includes("quick15") ? 15 : activePopularChips.includes("quick30") ? 30 : filterCookTimeMax,
+    popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     limit: viewType === "grid" ? 20 : 30,
   });
 
@@ -534,18 +534,23 @@ export default function RecipesTab() {
           {/* ── Tags ── */}
           {tags.length > 0 && (
             <View style={s.cardTags}>
-              {tags.slice(0, 2).map((tag) => (
-                <TouchableOpacity
-                  key={tag}
-                  style={[s.cardTag, activeTagFilter === tag && s.cardTagActive]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setActiveTagFilter(activeTagFilter === tag ? null : tag);
-                  }}
-                >
-                  <Text style={[s.cardTagTxt, activeTagFilter === tag && s.cardTagTxtActive]}>#{tag}</Text>
-                </TouchableOpacity>
-              ))}
+              {tags.slice(0, 2).map((tag) => {
+                const isActive = activeTagFilters.includes(tag);
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[s.cardTag, isActive && s.cardTagActive]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setActiveTagFilters(prev =>
+                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                      );
+                    }}
+                  >
+                    <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{tag}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </View>
@@ -553,7 +558,7 @@ export default function RecipesTab() {
     );
   };
 
-  const hasFilters = searchQuery || activeCategory !== "all" || activeTagFilter || activePopularChip;
+  const hasFilters = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0;
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -561,14 +566,18 @@ export default function RecipesTab() {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label || activeCategory);
     }
-    if (activePopularChip) {
-      const chip = POPULAR_CHIPS.find(c => c.key === activePopularChip);
-      parts.push(chip?.label.replace(/^[^\s]+\s/, "") || activePopularChip);
+    if (activePopularChips.length > 0) {
+      activePopularChips.forEach(chipKey => {
+        const chip = POPULAR_CHIPS.find(c => c.key === chipKey);
+        parts.push(chip?.label.replace(/^[^\s]+\s/, "") || chipKey);
+      });
     }
-    if (activeTagFilter) parts.push(`#${activeTagFilter}`);
+    if (activeTagFilters.length > 0) {
+      activeTagFilters.forEach(tag => parts.push(`#${tag}`));
+    }
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
-  }, [activeCategory, activePopularChip, activeTagFilter, searchQuery, categories]);
+  }, [activeCategory, activePopularChips, activeTagFilters, searchQuery, categories]);
 
   const ListHeader = (
     <>
@@ -628,7 +637,7 @@ export default function RecipesTab() {
           <TouchableOpacity
             key={t.key}
             style={[s.sourceToggleBtn, viewMode === t.key && s.sourceToggleBtnActive]}
-            onPress={() => { setViewMode(t.key); setActiveCategory("all"); setActiveTagFilter(null); setActivePopularChip(null); }}
+            onPress={() => { setViewMode(t.key); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); }}
           >
             <Text style={[s.sourceToggleTxt, viewMode === t.key && s.sourceToggleTxtActive]}>{t.label}</Text>
             <View style={[s.sourceToggleCount, viewMode === t.key && s.sourceToggleCountActive]}>
@@ -642,12 +651,16 @@ export default function RecipesTab() {
       <View style={s.popularSection}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.popularRow}>
           {POPULAR_CHIPS.map(chip => {
-            const isActive = activePopularChip === chip.key;
+            const isActive = activePopularChips.includes(chip.key);
             return (
               <TouchableOpacity
                 key={chip.key}
                 style={[s.popularChip, isActive && s.popularChipActive]}
-                onPress={() => setActivePopularChip(isActive ? null : chip.key)}
+                onPress={() => {
+                  setActivePopularChips(prev =>
+                    prev.includes(chip.key) ? prev.filter(k => k !== chip.key) : [...prev, chip.key]
+                  );
+                }}
               >
                 <Text style={[s.popularChipTxt, isActive && s.popularChipTxtActive]}>{chip.label}</Text>
               </TouchableOpacity>
@@ -662,21 +675,28 @@ export default function RecipesTab() {
             <Ionicons name="pricetag-outline" size={11} color="#9CA3AF" />
             <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>標籤</Text>
           </View>
-          {activeTagFilter && (
-            <TouchableOpacity style={[s.filterPill, { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]} onPress={() => setActiveTagFilter(null)}>
+          {activeTagFilters.length > 0 && (
+            <TouchableOpacity style={[s.filterPill, { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]} onPress={() => setActiveTagFilters([])}>
               <Ionicons name="close" size={10} color="#EF4444" />
               <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "700", marginLeft: 2 }}>清除</Text>
             </TouchableOpacity>
           )}
-          {TOP_TAGS.map(tag => (
-            <TouchableOpacity
-              key={tag}
-              style={[s.filterPill, activeTagFilter === tag && s.filterPillActive]}
-              onPress={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
-            >
-              <Text style={[s.filterPillTxt, activeTagFilter === tag && s.filterPillTxtActive]}>#{tag}</Text>
-            </TouchableOpacity>
-          ))}
+          {TOP_TAGS.map(tag => {
+            const isActive = activeTagFilters.includes(tag);
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[s.filterPill, isActive && s.filterPillActive]}
+                onPress={() => {
+                  setActiveTagFilters(prev =>
+                    prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                  );
+                }}
+              >
+                <Text style={[s.filterPillTxt, isActive && s.filterPillTxtActive]}>#{tag}</Text>
+              </TouchableOpacity>
+            );
+          })}
           <TouchableOpacity
             style={s.filterPill}
             onPress={() => setShowFilterSheet(true)}
@@ -695,7 +715,7 @@ export default function RecipesTab() {
               <Text style={s.resultSummaryTxt}>找到 {searchTotal} 個食譜</Text>
             )}
           </View>
-          <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilter(null); setActivePopularChip(null); setSearchQuery(""); }}>
+          <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setSearchQuery(""); }}>
             <Text style={s.resultSummaryClear}>清除篩選</Text>
           </TouchableOpacity>
         </View>
@@ -754,13 +774,13 @@ export default function RecipesTab() {
                 <Text style={s.emptyTitle}>找不到符合嘅食譜</Text>
                 <Text style={s.emptySub}>試下清除篩選或者揀其他分類</Text>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
-                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setActiveCategory("all"); setActiveTagFilter(null); setActivePopularChip(null); }}>
+                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); }}>
                     <Text style={s.emptySuggestChipTxt}>清除篩選</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChip("quick30"); }}>
-                    <Text style={s.emptySuggestChipTxt}> 快手30分鐘</Text>
+                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["quick30"]); }}>
+                    <Text style={s.emptySuggestChipTxt}> 快手30 分鐘</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChip("light"); }}>
+                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["light"]); }}>
                     <Text style={s.emptySuggestChipTxt}> 清淡少油</Text>
                   </TouchableOpacity>
                 </View>
@@ -852,20 +872,27 @@ export default function RecipesTab() {
                 <Text style={s.filterLabel}>標籤</Text>
                 <View style={s.filterTagsRow}>
                   <TouchableOpacity
-                    style={[s.filterTagChip, !activeTagFilter && s.filterTagChipActive]}
-                    onPress={() => setActiveTagFilter(null)}
+                    style={[s.filterTagChip, activeTagFilters.length === 0 && s.filterTagChipActive]}
+                    onPress={() => setActiveTagFilters([])}
                   >
-                    <Text style={[s.filterTagChipTxt, !activeTagFilter && s.filterTagChipTxtActive]}>不限</Text>
+                    <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>不限</Text>
                   </TouchableOpacity>
-                  {allUserTags.slice(0, 30).map(tag => (
-                    <TouchableOpacity
-                      key={tag}
-                      style={[s.filterTagChip, activeTagFilter === tag && s.filterTagChipActive]}
-                      onPress={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
-                    >
-                      <Text style={[s.filterTagChipTxt, activeTagFilter === tag && s.filterTagChipTxtActive]}>#{tag}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {allUserTags.slice(0, 30).map(tag => {
+                    const isActive = activeTagFilters.includes(tag);
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[s.filterTagChip, isActive && s.filterTagChipActive]}
+                        onPress={() => {
+                          setActiveTagFilters(prev =>
+                            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+                          );
+                        }}
+                      >
+                        <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{tag}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </>
             )}
@@ -877,7 +904,8 @@ export default function RecipesTab() {
                 onPress={() => {
                   setActiveCategory("all");
                   setFilterCookTimeMax(undefined);
-                  setActiveTagFilter(null);
+                  setActiveTagFilters([]);
+                  setActivePopularChips([]);
                   setSortBy("newest");
                 }}
               >

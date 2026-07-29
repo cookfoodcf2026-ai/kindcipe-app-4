@@ -4,9 +4,9 @@ import { trpc } from "@/lib/trpc";
 interface UseRecipeSearchOptions {
   query?: string;
   category?: string;
-  tag?: string;
+  tags?: string[];
   cookTimeMax?: number;
-  popularChip?: string;
+  popularChips?: string[];
   limit?: number;
 }
 
@@ -14,9 +14,9 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
   const {
     query,
     category,
-    tag,
+    tags,
     cookTimeMax,
-    popularChip,
+    popularChips,
     limit = 20,
   } = options;
 
@@ -24,9 +24,9 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     {
       query: query || undefined,
       category: category === "all" ? undefined : category,
-      tag: tag || undefined,
+      tags: tags || undefined,
       cookTimeMax: cookTimeMax || undefined,
-      popularChip: popularChip || undefined,
+      popularChips: popularChips || undefined,
       limit,
     },
     {
