@@ -63,7 +63,7 @@ const POPULAR_CHIPS = [
   { key: "stir-fry", label: " 小炒", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("炒")) },
 ];
 
-const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "家常", "簡單", "素食", "低卡"];
+const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "電飯煲料理", "家常", "簡單", "素食", "低卡"];
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   "中菜": { bg: "#FFF1F0", text: "#B91C1C" },
