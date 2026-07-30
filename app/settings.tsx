@@ -36,7 +36,7 @@ const LANG_STORAGE_KEY = "kindcipe_language";
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, familyRole } = useAuth();
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
 
@@ -124,7 +124,12 @@ export default function SettingsScreen() {
               {user.role && (
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleText}>
-                    {user.role === "admin" ? "管理員" : "家庭成員"}
+                    {familyRole === "owner" ? "廚房主人"
+                     : familyRole === "admin" ? "廚房管理員"
+                     : familyRole === "helper" ? "幫手"
+                     : familyRole === "member" ? "家庭成員"
+                     : user.role === "admin" ? "管理員"
+                     : "家庭成員"}
                   </Text>
                 </View>
               )}
@@ -355,7 +360,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           {/* BUG#8 FIX: only show admin panel if user role is admin */}
-          {(user?.role === "admin" || !user?.role) && (
+          {user?.role === "admin" && (
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => router.push("/admin")}
