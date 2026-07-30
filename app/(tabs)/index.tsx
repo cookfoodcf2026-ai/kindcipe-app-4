@@ -282,7 +282,8 @@ export default function RecipesTab() {
     staleTime: 1000 * 60 * 5,
   });
   const sub = subscriptionQuery.data;
-  const isPaid = sub?.status === "active" || sub?.status === "trial";
+  // Only hide banner for fully paid active subscribers (trial users should still see it)
+  const isPaid = sub?.status === "active";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
