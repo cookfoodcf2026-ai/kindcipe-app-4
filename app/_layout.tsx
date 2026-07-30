@@ -246,6 +246,14 @@ export default function RootLayout() {
               name="onboarding"
               options={{ headerShown: false, gestureEnabled: false }}
             />
+            <Stack.Screen
+              name="settings"
+              options={{ 
+                headerShown: false,
+                title: '',
+                headerBackTitle: '',
+              }}
+            />
           </Stack>
         </AuthGuard>
         </QueryClientProvider>
