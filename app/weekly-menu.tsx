@@ -530,6 +530,27 @@ function AISuggestModalRN({
     );
   };
 
+  const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
+    Alert.alert(
+      "清空菜式",
+      `確定要清空週${DAY_SHORT[dayOfWeek]}的${SLOT_META[slotType].label}？`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "清空",
+          style: "destructive",
+          onPress: () => {
+            setSuggestedDays(prev =>
+              prev ? prev.map(d =>
+                d.dayOfWeek === dayOfWeek ? { ...d, [slotType]: { id: null, name: null, image: null, cookTime: null, reason: null } } : d
+              ) : prev
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const slots: SlotType[] = ["meat", "seafood", "veg", "soup"];
 
   if (!visible) return null;
@@ -606,21 +627,34 @@ function AISuggestModalRN({
                           {slots.map(slotType => {
                             const dish = day[slotType];
                             const meta = SLOT_META[slotType];
+                            const hasValidDish = dish && dish.id && dish.name;
                             return (
                               <View key={slotType} style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FAFAFA", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: BORDER }}>
                                 <View style={{ width: 36, alignItems: "center" }}>
                                   <Ionicons name={meta.icon as any} size={16} color={SLOT_COLORS[slotType]} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 12, fontWeight: "700", color: TEXT }} numberOfLines={1}>{dish?.name || "—"}</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: "700", color: hasValidDish ? TEXT : SUB }} numberOfLines={1}>
+                                    {hasValidDish ? dish.name : `${meta.label}（未設定）`}
+                                  </Text>
                                   {dish?.reason && <Text style={{ fontSize: 9, color: SUB }}><Ionicons name="bulb" size={9} color={SUB} /> {dish.reason}</Text>}
                                 </View>
-                                <TouchableOpacity
-                                  style={{ backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4 }}
-                                  onPress={() => setSwapTarget({ day: day.dayOfWeek, slot: slotType })}
-                                >
-                                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#6B7280" }}>換</Text>
-                                </TouchableOpacity>
+                                <View style={{ flexDirection: "row", gap: 4 }}>
+                                  {hasValidDish && (
+                                    <TouchableOpacity
+                                      style={{ backgroundColor: "#FEE2E2", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4 }}
+                                      onPress={() => handleClearSlot(day.dayOfWeek, slotType)}
+                                    >
+                                      <Ionicons name="close" size={10} color="#EF4444" />
+                                    </TouchableOpacity>
+                                  )}
+                                  <TouchableOpacity
+                                    style={{ backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4 }}
+                                    onPress={() => setSwapTarget({ day: day.dayOfWeek, slot: slotType })}
+                                  >
+                                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#6B7280" }}>換</Text>
+                                  </TouchableOpacity>
+                                </View>
                               </View>
                             );
                           })}
