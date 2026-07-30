@@ -258,7 +258,7 @@ function PremiumPromoBanner({ onPress }: { onPress: () => void }) {
           <Ionicons name="sparkles-outline" size={22} color="#D97706" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[s.quickActionTitle, { color: "#92400E" }]}>✨ 升級和諧食譜（免費試用 7 天）</Text>
+          <Text style={[s.quickActionTitle, { color: "#92400E" }]}>✨ 將和諧食譜升級至家庭 Pro 版（免費試用 7 天）</Text>
           <Text style={[s.quickActionSub, { color: "#B45309" }]}>
             邀請屋企人共同排餐、共享買餸清單，解鎖 AI 智能晚餐推薦！
           </Text>
