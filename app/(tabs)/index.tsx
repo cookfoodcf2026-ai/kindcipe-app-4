@@ -20,6 +20,7 @@ import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import FilterModal from "@/src/components/FilterModal";
 import RecipeCard from "@/src/components/RecipeCard";
+import PaywallModal from "@/components/PaywallModal";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -244,17 +245,23 @@ function WeeklyMenuBar({ router }: { router: ReturnType<typeof useRouter> }) {
   );
 }
 
-// ── Quick Actions ────────────────────────────────────────────────────
-function QuickActions({ router }: { router: ReturnType<typeof useRouter> }) {
+// ── Premium Promo Banner (for free/trial users) ─────────────────────────
+function PremiumPromoBanner({ onPress }: { onPress: () => void }) {
   return (
     <View style={s.quickActions}>
-      <TouchableOpacity style={s.quickActionBtn} onPress={() => router.push("/import")} activeOpacity={0.8}>
-        <View style={[s.quickActionIcon, { backgroundColor: "#EEF4FB" }]}>
-          <Ionicons name="add-circle-outline" size={22} color={BRAND} />
+      <TouchableOpacity
+        style={[s.quickActionBtn, { borderColor: "#FED7AA", backgroundColor: "#FFFBEB" }]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <View style={[s.quickActionIcon, { backgroundColor: "#FEF3C7" }]}>
+          <Ionicons name="crown-outline" size={22} color="#D97706" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={s.quickActionTitle}>新增食譜</Text>
-          <Text style={s.quickActionSub}>貼連結 · 貼文字 · 截圖上傳 · 手動輸入</Text>
+          <Text style={[s.quickActionTitle, { color: "#92400E" }]}>👑 升級煮飯啦家庭專業版（免費試用 7 天）</Text>
+          <Text style={[s.quickActionSub, { color: "#B45309" }]}>
+            邀請屋企人共同排餐、共享買餸清單，解鎖 AI 智能晚餐推薦！
+          </Text>
         </View>
       </TouchableOpacity>
     </View>
@@ -267,6 +274,15 @@ export default function RecipesTab() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const { user, familyRole } = useAuth();
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  
+  const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  const sub = subscriptionQuery.data;
+  const isPaid = sub?.status === "active" || sub?.status === "trial";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -483,7 +499,7 @@ export default function RecipesTab() {
       <TonightMenuCard todayMeals={todayMeals} router={router} isAdmin={isAdmin} />
       <PendingActionsCard router={router} isAdmin={isAdmin} />
       <WeeklyMenuBar router={router} />
-      <QuickActions router={router} />
+      {!isPaid && <PremiumPromoBanner onPress={() => setShowPaywall(true)} />}
 
       <View style={[s.searchWrap, { marginRight: Math.max(14, insets.right) }]}>
         <Ionicons name="search" size={17} color="#9CA3AF" />
@@ -864,6 +880,13 @@ export default function RecipesTab() {
         message={toast.message}
         type={toast.type}
         onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+      />
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="generic"
+        trialDaysLeft={sub?.trialEndsAt ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000)) : undefined}
       />
     </View>
   );
