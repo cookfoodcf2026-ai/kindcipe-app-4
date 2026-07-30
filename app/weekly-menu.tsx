@@ -241,9 +241,6 @@ export default function WeeklyMenuScreen() {
                 const resolvedImage = hasDish ? resolveImage(dish.id, dish.image) : null;
                 return (
                   <View key={slotType} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                    <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: meta.color, alignItems: "center", justifyContent: "center" }}>
-                      <Ionicons name={meta.icon as any} size={22} color={SLOT_COLORS[slotType]} />
-                    </View>
                     {hasDish ? (
                       <>
                         {resolvedImage ? (
@@ -255,14 +252,19 @@ export default function WeeklyMenuScreen() {
                         )}
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: "700", color: isPast ? SUB : TEXT }}>{dish.name}</Text>
-                          {dish.cookTime && <Text style={{ fontSize: 10, color: SUB }}>⏱ {dish.cookTime}分鐘</Text>}
+                          {dish.cookTime && <Text style={{ fontSize: 10, color: SUB }}> {dish.cookTime}分鐘</Text>}
                         </View>
                       </>
                     ) : (
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: SUB }}>{meta.label}</Text>
-                        <Text style={{ fontSize: 10, color: HINT }}>尚未設定</Text>
-                      </View>
+                      <>
+                        <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: meta.color, alignItems: "center", justifyContent: "center" }}>
+                          <Ionicons name={meta.icon as any} size={22} color={SLOT_COLORS[slotType]} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: SUB }}>{meta.label}</Text>
+                          <Text style={{ fontSize: 10, color: HINT }}>尚未設定</Text>
+                        </View>
+                      </>
                     )}
                     <TouchableOpacity
                       style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}
