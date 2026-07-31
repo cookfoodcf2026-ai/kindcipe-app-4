@@ -17,6 +17,10 @@ const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
 
+// 極簡統一風格：所有圖示統一深藍色 + 淺藍灰背景
+const UNIFIED_ICON_BG = "#EEF4FB";
+const UNIFIED_ICON_COLOR = "#013E77";
+
 type MenuItemDef = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -33,96 +37,96 @@ const MENU_ITEMS: MenuItemDef[] = [
     label: "AI 食譜助手",
     sub: "告訴我你想吃什麼",
     route: "/ai-chef",
-    iconBg: "#F5F3FF",
-    iconColor: "#8B5CF6",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "cube-outline",
     label: "家中儲備",
     sub: "管理食品/用品庫存",
     route: "/pantry",
-    iconBg: "#ECFDF5",
-    iconColor: "#10B981",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "calendar-outline",
     label: "晚餐推薦",
     sub: "本週/下週餐單設定",
     route: "/weekly-menu",
-    iconBg: "#FFF7ED",
-    iconColor: "#FF8C00",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "receipt-outline",
     label: "採購紀錄",
     sub: "購買歷史與常買商品",
     route: "/purchase-history",
-    iconBg: "#F0FDF4",
-    iconColor: "#22C55E",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "add-circle-outline",
     label: "新增食譜",
-    sub: "貼連結 · 貼文字 · 截圖上傳 · 手動輸入",
+    sub: "貼連結、貼文字、截圖上傳",
     route: "/import",
-    iconBg: "#EFF6FF",
-    iconColor: "#2563EB",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "funnel-outline",
     label: "分類管理",
     sub: "自訂食譜分類與排序",
     route: "/category-manager",
-    iconBg: "#FEF9C3",
-    iconColor: "#CA8A04",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "storefront-outline",
     label: "街市指南",
     sub: "97 個香港濕貨市場",
     route: "/markets",
-    iconBg: "#F0FDF4",
-    iconColor: "#16A34A",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "cart-outline",
     label: "智能補貨",
     sub: "缺貨/即將耗盡補充",
     route: "/restock",
-    iconBg: "#FFF7ED",
-    iconColor: "#EA580C",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "people-outline",
     label: "家庭管理",
     sub: "邀請成員、查看家庭資訊",
     route: "/family",
-    iconBg: "#FFF7ED",
-    iconColor: "#F59E0B",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "server-outline",
     label: "管理員面板",
     sub: "食譜 CRUD・數據分析",
     route: "/admin",
-    iconBg: "#EFF6FF",
-    iconColor: "#3B82F6",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "home-outline",
     label: "廚房設定",
     sub: "預設份量・螢幕・計時器",
     route: "/kitchen-settings",
-    iconBg: "#EEF4FB",
-    iconColor: BRAND,
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
   {
     icon: "settings-outline",
     label: "設定",
     sub: "語言・訂閱・帳戶",
     route: "/settings",
-    iconBg: "#F3F4F6",
-    iconColor: "#6B7280",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
   },
 ];
 
@@ -130,6 +134,19 @@ export default function MoreTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
+
+  // 過濾選單：隱藏未完成功能，以及非管理員的後台按鈕
+  const visibleMenuItems = MENU_ITEMS.filter(item => {
+    // 1. 隱藏未完成的「家中儲備」與「智能補貨」
+    if (item.route === "/pantry" || item.route === "/restock") {
+      return false;
+    }
+    // 2. 隱藏非 admin 帳戶的「管理員面板」
+    if (item.route === "/admin") {
+      return user?.role === "admin";
+    }
+    return true;
+  });
 
   const handleLogout = () => {
     Alert.alert("登出", "確定要登出嗎？", [
@@ -161,7 +178,7 @@ export default function MoreTab() {
         {(outOfStock > 0 || lowStock > 0) && (
           <TouchableOpacity style={s.alertBanner} onPress={() => router.push("/pantry")}>
             <View style={s.alertIcon}>
-              <Ionicons name="alert-circle" size={18} color="#DC2626" />
+              <Ionicons name="alert-circle" size={18} color={BRAND} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.alertTitle}>家中儲備需要補充</Text>
@@ -171,13 +188,13 @@ export default function MoreTab() {
                 {lowStock > 0 ? `${lowStock} 件即將耗盡` : ""}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#DC2626" />
+            <Ionicons name="chevron-forward" size={16} color={BRAND} />
           </TouchableOpacity>
         )}
 
         {/* Menu grid */}
         <View style={s.grid}>
-          {MENU_ITEMS.map(item => (
+          {visibleMenuItems.map(item => (
             <TouchableOpacity
               key={item.route}
               style={s.gridItem}
@@ -194,7 +211,7 @@ export default function MoreTab() {
 
         {/* Logout */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+          <Ionicons name="log-out-outline" size={18} color={SUB} />
           <Text style={s.logoutTxt}>登出</Text>
         </TouchableOpacity>
 
@@ -211,10 +228,15 @@ const s = StyleSheet.create({
     backgroundColor: BRAND,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 16,
+    paddingBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
-  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 2 },
+  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 3 },
 
   scroll: { flex: 1 },
 
@@ -224,22 +246,22 @@ const s = StyleSheet.create({
     gap: 10,
     margin: 16,
     marginBottom: 8,
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#EEF4FB",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1.5,
-    borderColor: "#FECACA",
+    borderColor: "#D4E4F7",
   },
   alertIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "#D4E4F7",
     alignItems: "center",
     justifyContent: "center",
   },
-  alertTitle: { fontSize: 13, fontWeight: "700", color: "#DC2626" },
-  alertSub: { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
+  alertTitle: { fontSize: 13, fontWeight: "700", color: BRAND },
+  alertSub: { fontSize: 11, color: SUB, marginTop: 2 },
 
   grid: {
     flexDirection: "row",
@@ -252,22 +274,22 @@ const s = StyleSheet.create({
     width: "30%",
     backgroundColor: CARD,
     borderRadius: 16,
-    padding: 14,
+    padding: 16,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: "#013E77",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
     flexGrow: 1,
   },
   gridIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   gridLabel: {
     fontSize: 12,
@@ -289,16 +311,13 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: "#FEF2F2",
-    borderRadius: 14,
-    paddingVertical: 14,
-    borderWidth: 1.5,
-    borderColor: "#FECACA",
+    marginTop: 24,
+    marginBottom: 8,
+    paddingVertical: 12,
   },
   logoutTxt: {
     fontSize: 14,
-    fontWeight: "700",
-    color: "#DC2626",
+    fontWeight: "600",
+    color: SUB,
   },
 });

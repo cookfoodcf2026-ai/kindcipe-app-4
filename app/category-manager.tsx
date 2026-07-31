@@ -72,6 +72,12 @@ export default function CategoryManagerScreen() {
 
   const handleDelete = useCallback((key: string) => {
     if (key === "其他") { Alert.alert("無法刪除「其他」分類"); return; }
+    // 核心 8 大分類唔可以刪除
+    const CORE_CATEGORIES = ["中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"];
+    if (CORE_CATEGORIES.includes(key)) {
+      Alert.alert("系統分類保護", "核心分類為 AI 週餐推薦嘅基礎，無法刪除或改名。\n\n你可以新增自訂分類，或者調整排序。");
+      return;
+    }
     Alert.alert("刪除分類", `確定刪除「${key}」？`, [
       { text: "取消", style: "cancel" },
       {
@@ -128,7 +134,8 @@ export default function CategoryManagerScreen() {
         {/* Hint */}
         <View style={{ backgroundColor: "#EEF4FB", borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "#C5D9F0" }}>
           <Text style={{ fontSize: 13, color: BRAND, lineHeight: 19 }}>
-            分類排序會反映在首頁的分類欄。長按拖曳排序（暫支持上下移動按鈕）。
+            分類排序會反映在首頁的分類欄。長按拖曳排序（暫支持上下移動按鈕）。\n\n
+            🔒 系統分類（中菜、西餐、日式等）為 AI 核心功能，無法刪除或改名，但可調整排序。
           </Text>
         </View>
 
@@ -150,7 +157,8 @@ export default function CategoryManagerScreen() {
             )}
             <Text style={s_cat.label}>{cat.label}</Text>
             <View style={{ flex: 1 }} />
-            {cat.key !== "其他" && (
+            {/* 核心 8 大分類唔顯示刪除按鈕 */}
+            {!["中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"].includes(cat.key) && (
               <TouchableOpacity onPress={() => handleDelete(cat.key)} style={s_cat.delBtn}>
                 <Ionicons name="trash-outline" size={16} color="#EF4444" />
               </TouchableOpacity>

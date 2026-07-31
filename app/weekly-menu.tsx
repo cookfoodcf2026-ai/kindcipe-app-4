@@ -533,6 +533,27 @@ function AISuggestModalRN({
   const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
     Alert.alert(
       "清空菜式",
+      `確定要清空週${DAY_SHORT[dayOfWeek]}${SLOT_META[slotType].label}？`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "清空",
+          style: "destructive",
+          onPress: () => {
+            setSuggestedDays(prev =>
+              prev ? prev.map(d =>
+                d.dayOfWeek === dayOfWeek ? { ...d, [slotType]: { id: null, name: null, image: null, cookTime: null, reason: null } } : d
+              ) : prev
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
+    Alert.alert(
+      "清空菜式",
       `確定要清空週${DAY_SHORT[dayOfWeek]}的${SLOT_META[slotType].label}？`,
       [
         { text: "取消", style: "cancel" },
