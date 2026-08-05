@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Stack } from "expo-router";
@@ -27,6 +27,8 @@ export default function CategoryManagerScreen() {
   const [newLabel, setNewLabel] = useState("");
   const [newEmoji, setNewEmoji] = useState("restaurant-outline");
   const [saving, setSaving] = useState(false);
+  // 有未儲存嘅改動（新增/刪除/排序）或新增表單仲有文字時，離開要確認
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     loadCustomCategories().then(c => {
@@ -39,6 +41,10 @@ export default function CategoryManagerScreen() {
     setSaving(true);
     await saveCustomCategories(categories);
     setSaving(false);
+    setDirty(false);
+    setShowAdd(false);
+    setNewLabel("");
+    setNewEmoji("restaurant-outline");
     Alert.alert("已儲存", "分類設定已更新");
   }, [categories]);
 
@@ -50,6 +56,7 @@ export default function CategoryManagerScreen() {
         onPress: async () => {
           setCategories(DEFAULT_CATEGORIES);
           await saveCustomCategories(DEFAULT_CATEGORIES);
+          setDirty(false);
           Alert.alert("已重設");
         },
       },
@@ -65,6 +72,7 @@ export default function CategoryManagerScreen() {
       return;
     }
     setCategories(prev => [...prev, { key, label: newLabel.trim(), emoji: newEmoji.trim() }]);
+    setDirty(true);
     setShowAdd(false);
     setNewLabel("");
     setNewEmoji("restaurant-outline");
@@ -82,13 +90,14 @@ export default function CategoryManagerScreen() {
       { text: "取消", style: "cancel" },
       {
         text: "刪除", style: "destructive",
-        onPress: () => setCategories(prev => prev.filter(c => c.key !== key)),
+        onPress: () => { setDirty(true); setCategories(prev => prev.filter(c => c.key !== key)); },
       },
     ]);
   }, []);
 
   const moveUp = useCallback((idx: number) => {
     if (idx === 0) return;
+    setDirty(true);
     setCategories(prev => {
       const next = [...prev];
       [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
@@ -97,6 +106,7 @@ export default function CategoryManagerScreen() {
   }, []);
 
   const moveDown = useCallback((idx: number) => {
+    setDirty(true);
     setCategories(prev => {
       if (idx >= prev.length - 1) return prev;
       const next = [...prev];
@@ -104,6 +114,31 @@ export default function CategoryManagerScreen() {
       return next;
     });
   }, []);
+
+  // 離開確認：若有未儲存改動或表單仲有文字，先提醒用戶
+  const handleLeave = useCallback(() => {
+    const hasPending = dirty || showAdd || newLabel.trim().length > 0 || newEmoji.trim() !== "restaurant-outline";
+    if (hasPending) {
+      Alert.alert(
+        "確定離開？",
+        "你尚未儲存分類改動，離開後將不會保存。\n\n可以按「儲存」先保存改動。",
+        [
+          { text: "繼續編輯", style: "cancel" },
+          { text: "離開", style: "destructive", onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  }, [dirty, showAdd, newLabel, newEmoji, router]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleLeave();
+      return true;
+    });
+    return () => sub.remove();
+  }, [handleLeave]);
 
   if (loading) {
     return (
@@ -124,7 +159,7 @@ export default function CategoryManagerScreen() {
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "700", color: TEXT },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={handleLeave} style={{ marginLeft: 4 }}>
               <Ionicons name="chevron-back" size={24} color={TEXT} />
             </TouchableOpacity>
           ),

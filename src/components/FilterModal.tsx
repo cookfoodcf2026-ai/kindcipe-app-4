@@ -11,13 +11,20 @@ interface FilterModalProps {
   activeCategory: string;
   setActiveCategory: (cat: string) => void;
   categories: CategoryDef[];
+  activeIngredientCategory: string | undefined;
+  setActiveIngredientCategory: (cat: string | undefined) => void;
   filterCookTimeMax: number | undefined;
   setFilterCookTimeMax: (time: number | undefined) => void;
   activeTagFilters: string[];
   setActiveTagFilters: (tags: string[] | ((prev: string[]) => string[])) => void;
   allUserTags: string[];
   setActivePopularChips: (chips: string[] | ((prev: string[]) => string[])) => void;
+  activePopularChips: string[];
   setSortBy: (sort: "popular" | "cookTime" | "difficulty") => void;
+  viewMode: "all" | "official" | "user";
+  setViewMode: (mode: "all" | "official" | "user") => void;
+  officialCount?: number;
+  userCount?: number;
 }
 
 const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
@@ -28,13 +35,20 @@ export default function FilterModal({
   activeCategory,
   setActiveCategory,
   categories,
+  activeIngredientCategory,
+  setActiveIngredientCategory,
   filterCookTimeMax,
   setFilterCookTimeMax,
   activeTagFilters,
   setActiveTagFilters,
   allUserTags,
   setActivePopularChips,
+  activePopularChips,
   setSortBy,
+  viewMode,
+  setViewMode,
+  officialCount,
+  userCount,
 }: FilterModalProps) {
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -48,9 +62,38 @@ export default function FilterModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ maxHeight: "80%" }} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ maxHeight: "75%" }} showsVerticalScrollIndicator={false}>
+            {/* Recipe Source Filter */}
+            <Text style={s.filterLabel}>食譜來源</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterSourceRow}>
+              {[
+                { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount : undefined },
+                { key: "official", label: "官方食譜", count: officialCount },
+                { key: "user", label: "我的食譜", count: userCount },
+              ].map(opt => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    s.filterSourceChip,
+                    viewMode === opt.key && s.filterSourceChipActive
+                  ]}
+                  onPress={() => setViewMode(opt.key as "all" | "official" | "user")}
+                >
+                  <Text style={[
+                    s.filterSourceChipTxt,
+                    viewMode === opt.key && s.filterSourceChipTxtActive
+                  ]}>{opt.label}</Text>
+                  {opt.count !== undefined && (
+                    <View style={[s.filterSourceCount, viewMode === opt.key && s.filterSourceCountActive]}>
+                      <Text style={[s.filterSourceCountTxt, viewMode === opt.key && s.filterSourceCountTxtActive]}>{opt.count}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
             {/* Category Filter */}
-            <Text style={s.filterLabel}>分類</Text>
+            <Text style={s.filterLabel}>菜式分類</Text>
             <View style={s.filterCategoryRow}>
               {[ALL_ENTRY, ...categories].map(cat => (
                 <TouchableOpacity
@@ -72,6 +115,70 @@ export default function FilterModal({
                   ]}>{cat.label}</Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            {/* Ingredient Category Filter */}
+            <Text style={s.filterLabel}>食材分類</Text>
+            <View style={s.filterIngCatRow}>
+              {[
+                { key: undefined, label: "全部" },
+                { key: "meat", label: "🥩 肉類" },
+                { key: "seafood", label: "🐟 海鮮" },
+                { key: "vegetable", label: "🥬 蔬菜" },
+                { key: "tofu", label: "🍲 豆製品" },
+                { key: "egg", label: "🥚 蛋類" },
+                { key: "mushroom", label: "🍄 菌菇" },
+                { key: "carb", label: "🍚 主食" },
+              ].map(cat => (
+                <TouchableOpacity
+                  key={cat.key ?? "all"}
+                  style={[
+                    s.filterIngCatChip,
+                    activeIngredientCategory === cat.key && s.filterIngCatChipActive
+                  ]}
+                  onPress={() => setActiveIngredientCategory(cat.key)}
+                >
+                  <Text style={[
+                    s.filterIngCatChipTxt,
+                    activeIngredientCategory === cat.key && s.filterIngCatChipTxtActive
+                  ]}>{cat.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Quick Filters (Popular Chips) */}
+            <Text style={s.filterLabel}>快捷篩選</Text>
+            <View style={s.filterQuickRow}>
+              {[
+                { key: "quick15", label: "⚡ 15 分鐘內" },
+                { key: "quick30", label: "⏱ 30 分鐘內" },
+                { key: "tonight", label: " 今晚食" },
+                { key: "hk-style", label: "🇭🇰 港式家常" },
+                { key: "kids", label: "👶 小朋友啱食" },
+                { key: "vegetarian", label: " 素食主義" },
+                { key: "light", label: "🥗 清淡少油" },
+                { key: "one-person", label: "👤 一人食" },
+                { key: "high-protein", label: "💪 高蛋白" },
+                { key: "soup", label: "🍲 湯水" },
+                { key: "low-calorie", label: "🥗 低卡減肥" },
+                { key: "steamed", label: " 蒸餸" },
+                { key: "stir-fry", label: " 小炒" },
+              ].map(chip => {
+                const isActive = activePopularChips.includes(chip.key);
+                return (
+                  <TouchableOpacity
+                    key={chip.key}
+                    style={[s.filterQuickChip, isActive && s.filterQuickChipActive]}
+                    onPress={() => {
+                      setActivePopularChips(prev =>
+                        prev.includes(chip.key) ? prev.filter(k => k !== chip.key) : [...prev, chip.key]
+                      );
+                    }}
+                  >
+                    <Text style={[s.filterQuickChipTxt, isActive && s.filterQuickChipTxtActive]}>{chip.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Cook Time Filter */}
@@ -203,6 +310,108 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginBottom: 16,
+  },
+  filterIngCatRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterIngCatChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterIngCatChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterIngCatChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterIngCatChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  filterSourceRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+    paddingRight: 10,
+  },
+  filterSourceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterSourceChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterSourceChipTxt: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterSourceChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  filterSourceCount: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    marginLeft: 4,
+  },
+  filterSourceCountActive: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  filterSourceCountTxt: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#666",
+  },
+  filterSourceCountTxtActive: {
+    color: "#fff",
+  },
+  filterQuickRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 16,
+  },
+  filterQuickChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 99,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1.5,
+    borderColor: "#E8E8E8",
+  },
+  filterQuickChipActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  filterQuickChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  filterQuickChipTxtActive: {
+    color: "#fff",
+    fontWeight: "700",
   },
   filterCategoryChip: {
     flexDirection: "row",

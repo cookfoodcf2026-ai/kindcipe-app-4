@@ -14,8 +14,8 @@
  */
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Image, ActivityIndicator, Alert, Modal, Linking, Platform,
-  Dimensions, TextInput, Share,
+  Image, ActivityIndicator, Alert, Modal, Linking, Platform, BackHandler,
+  Dimensions, TextInput, Share, KeyboardAvoidingView,
 } from "react-native";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useKeepAwake } from "expo-keep-awake";
@@ -30,14 +30,7 @@ import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERMS, COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
-import {
-  cleanIngredientName,
-  isFreshIngredient,
-  filterPriceResults,
-  SM_STYLE,
-  REDIRECT_PLATFORMS,
-  openPlatform,
-} from "@/lib/price";
+import PriceCompareModal from "@/src/components/PriceCompareModal";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -251,11 +244,7 @@ export default function RecipeDetailScreen() {
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
-  const [editablePriceKw, setEditablePriceKw] = useState("");
   const [priceIngCat, setPriceIngCat] = useState("");
-  const [selectedResultIdx, setSelectedResultIdx] = useState(0);
-  const [showAllResults, setShowAllResults] = useState(false);
-  const [showAllSupermarkets, setShowAllSupermarkets] = useState(false);
   const [savePriceInput, setSavePriceInput] = useState("");
   const [ingredientPrices, setIngredientPrices] = useState<Record<string, number>>({});
   // Tags
@@ -281,6 +270,38 @@ export default function RecipeDetailScreen() {
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
+  const [showAllMealPlans, setShowAllMealPlans] = useState(false);
+  const deleteMealM = trpc.mealPlan.delete.useMutation({
+    onSuccess: () => {
+      utils.mealPlan.listByDateRange.invalidate();
+      setToast({ visible: true, message: "已移除排餐", type: "success" });
+    },
+    onError: (e: any) => setToast({ visible: true, message: `移除失敗：${e.message}`, type: "error" }),
+  });
+
+  // 返回：若烹飪備註有未送出嘅文字，先提醒用戶
+  const handleBack = () => {
+    if (noteInput.trim().length > 0) {
+      Alert.alert(
+        "確定離開？",
+        "你輸入嘅烹飪備註尚未送出，離開後將不會保存。",
+        [
+          { text: "取消", style: "cancel" },
+          { text: "離開", style: "destructive", onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [noteInput]);
 
   const utils = trpc.useUtils();
 
@@ -288,30 +309,26 @@ export default function RecipeDetailScreen() {
   const recipe = recipeQ.data;
   const recipeStringId = id ?? "";
   
-  // 查詢呢個食譜係咪已經有排餐（未來 7 日）
+  // 查詢呢個食譜係咪已經有排餐（未來 30 日）
   const mealPlansQ = trpc.mealPlan.listByDateRange.useQuery(
     { 
       startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
     },
     { enabled: isAuthenticated && !!recipeStringId }
   );
   
-  // Memoize: 搵呢個食譜嘅排餐日期
-  const recipeMealPlanDate = useMemo(() => {
-    if (!mealPlansQ.data) return null;
-    const plan = mealPlansQ.data.find((m: any) => m.recipeId === recipeStringId);
-    return plan?.date ?? null;
+  // Memoize: 搵呢個食譜嘅所有排餐日期
+  const allRecipeMealPlans = useMemo(() => {
+    if (!mealPlansQ.data) return [];
+    return mealPlansQ.data
+      .filter((m: any) => m.recipeId === recipeStringId)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [mealPlansQ.data, recipeStringId]);
   
-  const cleanPriceKw = useMemo(() => cleanIngredientName(priceKw), [priceKw]);
-  const isFreshIng = useMemo(() => isFreshIngredient(priceKw), [priceKw]);
-  const priceQ = trpc.priceWatch.search.useQuery(
-    { keyword: cleanPriceKw },
-    { enabled: showPrice && !!cleanPriceKw && !isFreshIng, staleTime: 1000 * 60 * 60 * 6 }
-  );
-  const priceResults = useMemo(() => filterPriceResults(priceQ.data ?? [], cleanPriceKw), [priceQ.data, cleanPriceKw]);
-
+  // 最近的一次排餐（用於快速顯示）
+  const latestMealPlan = allRecipeMealPlans.length > 0 ? allRecipeMealPlans[0] : null;
+  
   const shoppingListQ = trpc.shopping.list.useQuery(undefined, {
     enabled: isAuthenticated && !!user,
     staleTime: 1000 * 30,
@@ -378,31 +395,6 @@ export default function RecipeDetailScreen() {
     }
   };
 
-  const handleUseLowestPrice = () => {
-    if (!priceResults || priceResults.length === 0) return;
-    const selectedResult = priceResults[selectedResultIdx] ?? priceResults[0];
-    const sortedPrices = [...(selectedResult?.prices ?? [])]
-      .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
-      .sort((a: any, b: any) => Number(a.price) - Number(b.price));
-    if (sortedPrices.length > 0) {
-      const lowest = Number(sortedPrices[0].price);
-      setSavePriceInput(String(Math.round(lowest)));
-    }
-  };
-
-  // Auto-select cheapest product when results load
-  useEffect(() => {
-    if (!priceResults || priceResults.length === 0) return;
-    let cheapestIdx = 0;
-    let cheapestPrice = Infinity;
-    priceResults.forEach((item: any, idx: number) => {
-      const validPrices = (item.prices ?? []).map((p: any) => Number(p.price)).filter((v: number) => !isNaN(v) && v > 0);
-      const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : Infinity;
-      if (minPrice < cheapestPrice) { cheapestPrice = minPrice; cheapestIdx = idx; }
-    });
-    setSelectedResultIdx(cheapestIdx);
-  }, [priceResults]);
-
   const ingredients: any[] = recipe?.ingredients ?? [];
   const steps: any[] = recipe?.steps ?? [];
 
@@ -440,8 +432,310 @@ export default function RecipeDetailScreen() {
       '鹽焗雞翼': require('@/assets/recipes/salt-baked-wings.png'),
       '蠔油冬菇炆雞': require('@/assets/recipes/braised-chicken-mushroom.png'),
       '榨菜肉絲湯米粉': require('@/assets/recipes/rice-noodle-soup.png'),
+      '原味蒸肉餅': require('@/assets/recipes/原味蒸肉餅.png'),
+      '咸蛋蒸肉餅': require('@/assets/recipes/咸蛋蒸肉餅.png'),
+      '梅菜蒸肉餅': require('@/assets/recipes/梅菜蒸肉餅.png'),
+      '魷魚絲蒸肉餅': require('@/assets/recipes/魷魚絲蒸肉餅.png'),
+      '馬蹄土魷蒸肉餅': require('@/assets/recipes/馬蹄土魷蒸肉餅.png'),
+      '冬菇蒸雞': require('@/assets/recipes/冬菇蒸雞.png'),
+      '雲耳勝瓜蒸雞': require('@/assets/recipes/雲耳勝瓜蒸雞.png'),
+      '蟲草花蒸雞': require('@/assets/recipes/蟲草花蒸雞.png'),
+      '豉汁蒸排骨': require('@/assets/recipes/豉汁蒸排骨.png'),
+      '南瓜蒸排骨': require('@/assets/recipes/南瓜蒸排骨.png'),
+      '榨菜蒸牛肉': require('@/assets/recipes/榨菜蒸牛肉.png'),
+      '陳皮蒸牛肉球': require('@/assets/recipes/陳皮蒸牛肉球.png'),
+      '清蒸海上鮮': require('@/assets/recipes/清蒸海上鮮.png'),
+      '豉汁蒸鯇魚': require('@/assets/recipes/豉汁蒸鯇魚.png'),
+      '薑蔥蒸魚雲': require('@/assets/recipes/薑蔥蒸魚雲.png'),
+      '豉汁蒸生蠔': require('@/assets/recipes/豉汁蒸生蠔.png'),
+      '蒜蓉粉絲蒸生蠔': require('@/assets/recipes/蒜蓉粉絲蒸生蠔.png'),
+      '蒜蓉粉絲蒸大蝦': require('@/assets/recipes/蒜蓉粉絲蒸大蝦.png'),
+      '蒜蓉粉絲蒸帶子': require('@/assets/recipes/蒜蓉粉絲蒸帶子.png'),
+      '蒸三色蛋': require('@/assets/recipes/蒸三色蛋.png'),
+      '西芹炒雞柳': require('@/assets/recipes/西芹炒雞柳.png'),
+      '西芹炒牛肉': require('@/assets/recipes/西芹炒牛肉.png'),
+      '腰果炒雞丁': require('@/assets/recipes/腰果炒雞丁.png'),
+      '中式牛柳': require('@/assets/recipes/中式牛柳.png'),
+      '黑椒牛仔骨': require('@/assets/recipes/黑椒牛仔骨.png'),
+      '豉汁炒蜆': require('@/assets/recipes/豉汁炒蜆.png'),
+      '豉椒炒牛肉': require('@/assets/recipes/豉椒炒牛肉.png'),
+      '豉椒苦瓜炒牛肉': require('@/assets/recipes/豉椒苦瓜炒牛肉.png'),
+      '菜脯炒蛋': require('@/assets/recipes/菜脯炒蛋.png'),
+      '韭黃炒蛋': require('@/assets/recipes/韭黃炒蛋.png'),
+      '韭菜花炒豬頸肉': require('@/assets/recipes/韭菜花炒豬頸肉.png'),
+      '蝦醬炒鮮魷': require('@/assets/recipes/蝦醬炒鮮魷.png'),
+      '九層塔炒蜆': require('@/assets/recipes/九層塔炒蜆.png'),
+      '炒三鮮': require('@/assets/recipes/炒三鮮.png'),
+      '生炒芥蘭': require('@/assets/recipes/生炒芥蘭.png'),
+      '椒絲腐乳炒通菜': require('@/assets/recipes/椒絲腐乳炒通菜.png'),
+      '蔥爆牛肉': require('@/assets/recipes/蔥爆牛肉.png'),
+      '金沙鹹蛋黃炒蝦仁': require('@/assets/recipes/金沙鹹蛋黃炒蝦仁.png'),
+      '薑蔥炒蟹': require('@/assets/recipes/薑蔥炒蟹.png'),
+      '避風塘炒蟹': require('@/assets/recipes/避風塘炒蟹.png'),
+      '柱侯蘿蔔牛腩煲': require('@/assets/recipes/柱侯蘿蔔牛腩煲.png'),
+      '清湯蘿蔔牛腩': require('@/assets/recipes/清湯蘿蔔牛腩.png'),
+      '港式咖喱牛腩煲': require('@/assets/recipes/港式咖喱牛腩煲.png'),
+      '港式咖喱雞煲': require('@/assets/recipes/港式咖喱雞煲.png'),
+      '啫啫滑雞煲': require('@/assets/recipes/啫啫滑雞煲.png'),
+      '三杯雞': require('@/assets/recipes/三杯雞.png'),
+      '栗子炆雞': require('@/assets/recipes/栗子炆雞.png'),
+      '鮑汁冬菇炆花膠': require('@/assets/recipes/鮑汁冬菇炆花膠.png'),
+      '北菇炆海參': require('@/assets/recipes/北菇炆海參.png'),
+      '紅燒豆腐煲': require('@/assets/recipes/紅燒豆腐煲.png'),
+      '琵琶豆腐': require('@/assets/recipes/琵琶豆腐.png'),
+      '鹹魚雞粒豆腐煲': require('@/assets/recipes/鹹魚雞粒豆腐煲.png'),
+      '海鮮豆腐煲': require('@/assets/recipes/海鮮豆腐煲.png'),
+      '南乳粗齋煲': require('@/assets/recipes/南乳粗齋煲.png'),
+      '雙冬支竹羊腩煲': require('@/assets/recipes/雙冬支竹羊腩煲.png'),
+      '支竹炆豬腩肉': require('@/assets/recipes/支竹炆豬腩肉.png'),
+      '芋頭扣肉': require('@/assets/recipes/芋頭扣肉.png'),
+      '欖菜肉碎四季豆': require('@/assets/recipes/欖菜肉碎四季豆.png'),
+      '魚香茄子煲': require('@/assets/recipes/魚香茄子煲.png'),
+      '鮑汁海參花菇大鴨': require('@/assets/recipes/鮑汁海參花菇大鴨.png'),
+      '煎釀三寶': require('@/assets/recipes/煎釀三寶.png'),
+      '香煎紅衫魚': require('@/assets/recipes/香煎紅衫魚.png'),
+      '香煎黃花魚': require('@/assets/recipes/香煎黃花魚.png'),
+      '香煎馬友魚': require('@/assets/recipes/香煎馬友魚.png'),
+      '香煎肉餅': require('@/assets/recipes/香煎肉餅.png'),
+      '香煎蓮藕餅': require('@/assets/recipes/香煎蓮藕餅.png'),
+      '煎釀蓮藕夾': require('@/assets/recipes/煎釀蓮藕夾.png'),
+      '香煎生薯仔餅': require('@/assets/recipes/香煎生薯仔餅.png'),
+      '生煎肉餅': require('@/assets/recipes/生煎肉餅.png'),
+      '香煎蛋餃': require('@/assets/recipes/香煎蛋餃.png'),
+      '韭菜煎蛋角': require('@/assets/recipes/韭菜煎蛋角.png'),
+      '椒鹽豬扒': require('@/assets/recipes/椒鹽豬扒.png'),
+      '椒鹽九吐魚': require('@/assets/recipes/椒鹽九吐魚.png'),
+      '椒鹽鮮魷': require('@/assets/recipes/椒鹽鮮魷.png'),
+      '椒鹽豆腐': require('@/assets/recipes/椒鹽豆腐.png'),
+      '脆皮炸大腸': require('@/assets/recipes/脆皮炸大腸.png'),
+      '生炸雞翼': require('@/assets/recipes/生炸雞翼.png'),
+      '南乳炸雞翼': require('@/assets/recipes/南乳炸雞翼.png'),
+      '吉列豬扒': require('@/assets/recipes/吉列豬扒.png'),
+      '咕嚕肉': require('@/assets/recipes/咕嚕肉.png'),
+      '口水雞': require('@/assets/recipes/口水雞.png'),
+      '沙薑手撕雞': require('@/assets/recipes/沙薑手撕雞.png'),
+      '沙薑浸滑雞': require('@/assets/recipes/沙薑浸滑雞.png'),
+      '白切雞': require('@/assets/recipes/白切雞.png'),
+      '豉油雞': require('@/assets/recipes/豉油雞.png'),
+      '潮州滷水拼盤': require('@/assets/recipes/潮州滷水拼盤.png'),
+      '五香牛肉': require('@/assets/recipes/五香牛肉.png'),
+      '花雕醉雞': require('@/assets/recipes/花雕醉雞.png'),
+      '涼拌皮蛋豆腐': require('@/assets/recipes/涼拌皮蛋豆腐.png'),
+      '涼拌拍青瓜': require('@/assets/recipes/涼拌拍青瓜.png'),
+      '上湯浸莧菜': require('@/assets/recipes/上湯浸莧菜.png'),
+      '金銀蛋浸絲瓜': require('@/assets/recipes/金銀蛋浸絲瓜.png'),
+      '鮮蝦蒸水蛋': require('@/assets/recipes/鮮蝦蒸水蛋.png'),
+      '魚湯勝瓜浸魚餅': require('@/assets/recipes/魚湯勝瓜浸魚餅.png'),
+      '港式辣子雞': require('@/assets/recipes/港式辣子雞.png'),
+      '酸甜咕嚕魚塊': require('@/assets/recipes/酸甜咕嚕魚塊.png'),
+      '粟米斑塊': require('@/assets/recipes/粟米斑塊.png'),
+      '賽螃蟹': require('@/assets/recipes/賽螃蟹.png'),
+      '什錦炒雜菜': require('@/assets/recipes/什錦炒雜菜.png'),
+      '日式親子丼': require('@/assets/recipes/日式親子丼.png'),
+      '日式照燒雞': require('@/assets/recipes/日式照燒雞.png'),
+      '日式咖喱豬扒飯': require('@/assets/recipes/日式咖喱豬扒飯.png'),
+      '日式味噌湯': require('@/assets/recipes/日式味噌湯.png'),
+      '日式大根燉五花肉': require('@/assets/recipes/日式大根燉五花肉.png'),
+      '豚汁': require('@/assets/recipes/豚汁.png'),
+      '日式生薑燒肉': require('@/assets/recipes/日式生薑燒肉.png'),
+      '日式壽喜燒': require('@/assets/recipes/日式壽喜燒.png'),
+      '天婦羅炸大蝦': require('@/assets/recipes/天婦羅炸大蝦.png'),
+      '日式章魚小丸子': require('@/assets/recipes/日式章魚小丸子.png'),
+      '日式玉子燒': require('@/assets/recipes/日式玉子燒.png'),
+      '日式漢堡排': require('@/assets/recipes/日式漢堡排.png'),
+      '韓式拌飯': require('@/assets/recipes/韓式拌飯.png'),
+      '韓式泡菜豆腐湯': require('@/assets/recipes/韓式泡菜豆腐湯.png'),
+      '韓式炸雞': require('@/assets/recipes/韓式炸雞.png'),
+      '韓式海鮮煎餅': require('@/assets/recipes/韓式海鮮煎餅.png'),
+      '韓式泡菜炒飯': require('@/assets/recipes/韓式泡菜炒飯.png'),
+      '韓式人參雞湯': require('@/assets/recipes/韓式人參雞湯.png'),
+      '韓式大醬湯': require('@/assets/recipes/韓式大醬湯.png'),
+      '韓式炒年糕': require('@/assets/recipes/韓式炒年糕.png'),
+      '韓式部隊鍋': require('@/assets/recipes/韓式部隊鍋.png'),
+      '韓式烤牛肉': require('@/assets/recipes/韓式烤牛肉.png'),
+      '韓式安東燉雞': require('@/assets/recipes/韓式安東燉雞.png'),
+      '韓式辣豆腐湯': require('@/assets/recipes/韓式辣豆腐湯.png'),
+      '泰式青咖喱雞': require('@/assets/recipes/泰式青咖喱雞.png'),
+      '泰式冬蔭功湯': require('@/assets/recipes/泰式冬蔭功湯.png'),
+      '越式牛肉河粉': require('@/assets/recipes/越式牛肉河粉.png'),
+      '泰式炒金邊粉': require('@/assets/recipes/泰式炒金邊粉.png'),
+      '印尼炒飯': require('@/assets/recipes/印尼炒飯.png'),
+      '新加坡海南雞飯': require('@/assets/recipes/新加坡海南雞飯.png'),
+      '泰式香葉肉碎炒飯': require('@/assets/recipes/泰式香葉肉碎炒飯.png'),
+      '肉骨茶': require('@/assets/recipes/肉骨茶.png'),
+      '越式春卷': require('@/assets/recipes/越式春卷.png'),
+      '新加坡叻沙湯麵': require('@/assets/recipes/新加坡叻沙湯麵.png'),
+      '馬來沙嗲雞肉串': require('@/assets/recipes/馬來沙嗲雞肉串.png'),
+      '泰式芒果糯米飯': require('@/assets/recipes/泰式芒果糯米飯.png'),
+      '粟米忌廉湯': require('@/assets/recipes/粟米忌廉湯.png'),
+      '粟米蛋花湯': require('@/assets/recipes/粟米蛋花湯.png'),
+      '紫菜豆腐魚蛋湯': require('@/assets/recipes/紫菜豆腐魚蛋湯.png'),
+      '番茄紅衫魚': require('@/assets/recipes/番茄紅衫魚.png'),
+      '蒜蓉粉絲蒸魷魚': require('@/assets/recipes/蒜蓉粉絲蒸魷魚.png'),
+      '雜菜炒粉絲': require('@/assets/recipes/雜菜炒粉絲.png'),
+      '揚州炒飯': require('@/assets/recipes/揚州炒飯.png'),
+      '星洲炒米': require('@/assets/recipes/星洲炒米.png'),
+      '乾炒牛河': require('@/assets/recipes/乾炒牛河.png'),
+      '鹹魚雞粒炒飯': require('@/assets/recipes/鹹魚雞粒炒飯.png'),
+      '瑤柱蛋白炒飯': require('@/assets/recipes/瑤柱蛋白炒飯.png'),
+      '肉絲炒麵': require('@/assets/recipes/肉絲炒麵.png'),
+      '廈門炒米': require('@/assets/recipes/廈門炒米.png'),
+      '餐蛋炒飯': require('@/assets/recipes/餐蛋炒飯.png'),
+      '羅漢齋炒麵': require('@/assets/recipes/羅漢齋炒麵.png'),
+      '肉片炒麵': require('@/assets/recipes/肉片炒麵.png'),
+      '炒雞絲烏冬': require('@/assets/recipes/炒雞絲烏冬.png'),
+      '日式牛肉炒烏冬': require('@/assets/recipes/日式牛肉炒烏冬.png'),
+      '意式番茄肉醬意粉': require('@/assets/recipes/意式番茄肉醬意粉.png'),
+      '凱撒沙律': require('@/assets/recipes/凱撒沙律.png'),
+      '奶油蘑菇湯': require('@/assets/recipes/奶油蘑菇湯.png'),
+      '蒜蓉炒時蔬': require('@/assets/recipes/蒜蓉炒時蔬.png'),
+      '咖哩魚蛋': require('@/assets/recipes/咖哩魚蛋.png'),
+      '碗仔翅': require('@/assets/recipes/碗仔翅.png'),
+      '生菜魚肉': require('@/assets/recipes/生菜魚肉.png'),
+      '懷舊砵仔糕': require('@/assets/recipes/懷舊砵仔糕.png'),
+      '椰汁紅豆糕': require('@/assets/recipes/椰汁紅豆糕.png'),
+      '香煎蘿蔔糕': require('@/assets/recipes/香煎蘿蔔糕.png'),
+      '豉汁蒸鳳爪': require('@/assets/recipes/豉汁蒸鳳爪.png'),
+      '青紅蘿蔔椰子豬骨湯': require('@/assets/recipes/青紅蘿蔔椰子豬骨湯.png'),
+      '粉葛赤小豆扁豆鯪魚湯': require('@/assets/recipes/粉葛赤小豆扁豆鯪魚湯.png'),
+      '海底椰無花果雪梨瘦肉湯': require('@/assets/recipes/海底椰無花果雪梨瘦肉湯.png'),
+      '花膠響螺片燉雞湯': require('@/assets/recipes/花膠響螺片燉雞湯.png'),
+      '木瓜花生排骨湯': require('@/assets/recipes/木瓜花生排骨湯.png'),
+      '五指毛桃土茯苓煲豬骨湯': require('@/assets/recipes/五指毛桃土茯苓煲豬骨湯.png'),
+      '楊枝甘露': require('@/assets/recipes/楊枝甘露.png'),
+      '腐竹白果雞蛋糖水': require('@/assets/recipes/腐竹白果雞蛋糖水.png'),
+      '番薯薑汁糖水': require('@/assets/recipes/番薯薑汁糖水.png'),
+      '生磨芝麻糊': require('@/assets/recipes/生磨芝麻糊.png'),
+      '竹蔗茅根馬蹄水': require('@/assets/recipes/竹蔗茅根馬蹄水.png'),
+      '生薑紅棗桂圓茶': require('@/assets/recipes/生薑紅棗桂圓茶.png'),
+      '港式絲襪奶茶': require('@/assets/recipes/港式絲襪奶茶.png'),
+      '日式蛋包飯': require('@/assets/recipes/日式蛋包飯.png'),
+      '番茄芝士焗肉丸': require('@/assets/recipes/番茄芝士焗肉丸.png'),
+      '南瓜薯仔雞肉泥': require('@/assets/recipes/南瓜薯仔雞肉泥.png'),
+      '肉餅蒸蛋': require('@/assets/recipes/肉餅蒸蛋.png'),
+      '芝士焗西蘭花': require('@/assets/recipes/芝士焗西蘭花.png'),
+      '香脆魚柳條': require('@/assets/recipes/香脆魚柳條.png'),
+      '霸王花煲豬骨湯': require('@/assets/recipes/霸王花煲豬骨湯.png'),
+      '極品鮑汁花菇炆扣肉': require('@/assets/recipes/極品鮑汁花菇炆扣肉.png'),
+      '當紅炸子雞': require('@/assets/recipes/當紅炸子雞.png'),
+      '富貴黃金大蝦': require('@/assets/recipes/富貴黃金大蝦.png'),
+      '發財好市炆豬手': require('@/assets/recipes/發財好市炆豬手.png'),
+      '豉汁排骨蒸陳村粉': require('@/assets/recipes/豉汁排骨蒸陳村粉.png'),
+      '蓮藕炆排骨': require('@/assets/recipes/蓮藕炆排骨.png'),
+      '港式沙爹牛肉公仔麵': require('@/assets/recipes/港式沙爹牛肉公仔麵.png'),
+      '花雕醉溏心蛋': require('@/assets/recipes/花雕醉溏心蛋.png'),
+      '朱古力心太軟': require('@/assets/recipes/朱古力心太軟.png'),
+      '日式炒烏冬': require('@/assets/recipes/日式炒烏冬.png'),
+      '台式滷肉飯': require('@/assets/recipes/台式滷肉飯.png'),
+      '意大利千層麵': require('@/assets/recipes/意大利千層麵.png'),
+      '經典芝士漢堡': require('@/assets/recipes/經典芝士漢堡.png'),
+      '意式提拉米蘇': require('@/assets/recipes/意式提拉米蘇.png'),
+      '順德雙皮奶': require('@/assets/recipes/順德雙皮奶.png'),
+      '港式街頭雞蛋仔': require('@/assets/recipes/港式街頭雞蛋仔.png'),
+      '蒜泥白肉': require('@/assets/recipes/蒜泥白肉.png'),
+      '薑蔥生蠔煲': require('@/assets/recipes/薑蔥生蠔煲.png'),
+      '電飯煲香菇滑雞飯': require('@/assets/recipes/電飯煲香菇滑雞飯.png'),
+      '電飯煲臘味糯米飯': require('@/assets/recipes/電飯煲臘味糯米飯.png'),
+      '電飯煲台式香菇油飯': require('@/assets/recipes/電飯煲台式香菇油飯.png'),
+      '電飯煲南瓜排骨燜飯': require('@/assets/recipes/電飯煲南瓜排骨燜飯.png'),
+      '電飯煲意式奶油煙肉野菌燉飯': require('@/assets/recipes/電飯煲意式奶油煙肉野菌燉飯.png'),
+      '電飯煲日式蒲燒鰻魚滑蛋飯': require('@/assets/recipes/電飯煲日式蒲燒鰻魚滑蛋飯.png'),
+      '電飯煲台式高麗菜鹹飯': require('@/assets/recipes/電飯煲台式高麗菜鹹飯.png'),
+      '電飯煲川味麻辣牛肉豆腐飯': require('@/assets/recipes/電飯煲川味麻辣牛肉豆腐飯.png'),
+      '電飯煲豉油皇肥牛煲仔飯': require('@/assets/recipes/電飯煲豉油皇肥牛煲仔飯.png'),
+      '電飯煲韓式春川辣炒雞拉麵': require('@/assets/recipes/電飯煲韓式春川辣炒雞拉麵.png'),
+      '電飯煲豉油皇雞翼飯': require('@/assets/recipes/電飯煲豉油皇雞翼飯.png'),
+      '電飯煲番茄芝士肉醬意粉': require('@/assets/recipes/電飯煲番茄芝士肉醬意粉.png'),
+      '電飯煲日式鮭魚菇菌炊飯': require('@/assets/recipes/電飯煲日式鮭魚菇菌炊飯.png'),
+      '電飯煲南洋風味椰漿雞肉飯': require('@/assets/recipes/電飯煲南洋風味椰漿雞肉飯.png'),
+      '電飯煲廣東經典滑蛋牛肉粥': require('@/assets/recipes/電飯煲廣東經典滑蛋牛肉粥.png'),
+      '電飯煲海南雞飯': require('@/assets/recipes/電飯煲海南雞飯.png'),
+      '蒜香煙肉蘑菇意粉': require('@/assets/recipes/蒜香煙肉蘑菇意粉.png'),
+      '焗芝士菠菜': require('@/assets/recipes/焗芝士菠菜.png'),
+      '韓式水冷麵': require('@/assets/recipes/韓式水冷麵.png'),
+      '經典南乳花生炆豬手': require('@/assets/recipes/經典南乳花生炆豬手.png'),
+      '忌廉南瓜湯': require('@/assets/recipes/忌廉南瓜湯.png'),
+      '忌廉周打蜆湯': require('@/assets/recipes/忌廉周打蜆湯.png'),
+      '支竹冬菇炆牛筋腩': require('@/assets/recipes/支竹冬菇炆牛筋腩.png'),
+      '勝瓜炒蝦仁': require('@/assets/recipes/勝瓜炒蝦仁.png'),
+      '八寶豆腐': require('@/assets/recipes/八寶豆腐.png'),
+      '肉碎豆腐煲': require('@/assets/recipes/肉碎豆腐煲.png'),
+      '韓式炸醬麵': require('@/assets/recipes/韓式炸醬麵.png'),
+      '泰式酸辣無骨雞爪': require('@/assets/recipes/泰式酸辣無骨雞爪.png'),
+      '俄式羅宋湯': require('@/assets/recipes/俄式羅宋湯.png'),
+      '豉油雞翼': require('@/assets/recipes/豉油雞翼.png'),
+      '經典紅豆沙': require('@/assets/recipes/經典紅豆沙.png'),
+      '忌廉蘑菇湯': require('@/assets/recipes/忌廉蘑菇湯.png'),
+      '日式叉燒豬骨拉麵': require('@/assets/recipes/日式叉燒豬骨拉麵.png'),
+      '西班牙海鮮鐵鍋飯': require('@/assets/recipes/西班牙海鮮鐵鍋飯.png'),
+      '無水雞肉椰菜煲': require('@/assets/recipes/無水雞肉椰菜煲.png'),
+      '雪菜牛肉米粉': require('@/assets/recipes/雪菜牛肉米粉.png'),
+      '洋蔥炒豬肉片': require('@/assets/recipes/洋蔥炒豬肉片.png'),
+      '日式茶碗蒸': require('@/assets/recipes/日式茶碗蒸.png'),
+      '台式紅燒牛肉麵': require('@/assets/recipes/台式紅燒牛肉麵.png'),
+      '花甲蒸水蛋': require('@/assets/recipes/花甲蒸水蛋.png'),
+      '白灼蠔油生菜': require('@/assets/recipes/白灼蠔油生菜.png'),
+      '白灼蠔油菜心': require('@/assets/recipes/白灼蠔油菜心.png'),
+      '白灼蠔油芥蘭': require('@/assets/recipes/白灼蠔油芥蘭.png'),
+      '白灼蠔油西蘭花': require('@/assets/recipes/白灼蠔油西蘭花.png'),
+      '上湯枸杞浸菜心': require('@/assets/recipes/上湯枸杞浸菜心.png'),
+      '匈牙利牛肉湯': require('@/assets/recipes/匈牙利牛肉湯.png'),
+      '大牌檔風味薑蔥炒牛肉': require('@/assets/recipes/大牌檔風味薑蔥炒牛肉.png'),
+      '海南雞飯': require('@/assets/recipes/海南雞飯.png'),
+      '清蒸白切鮮魷': require('@/assets/recipes/清蒸白切鮮魷.png'),
+      '港式洋蔥豬扒飯': require('@/assets/recipes/港式洋蔥豬扒飯.png'),
+      '港式蔥油撈麵': require('@/assets/recipes/港式蔥油撈麵.png'),
+      '焗蜜汁金沙骨': require('@/assets/recipes/焗蜜汁金沙骨.png'),
+      '焗蜜糖雞翼': require('@/assets/recipes/焗蜜糖雞翼.png'),
+      '生煎土魷肉餅': require('@/assets/recipes/生煎土魷肉餅.png'),
+      '番茄肥牛過橋米線': require('@/assets/recipes/番茄肥牛過橋米線.png'),
+      '經典榨菜肉絲米粉': require('@/assets/recipes/經典榨菜肉絲米粉.png'),
+      '經典港式生炒牛肉飯': require('@/assets/recipes/經典港式生炒牛肉飯.png'),
+      '花雕醉大蝦': require('@/assets/recipes/花雕醉大蝦.png'),
+      '花雕醉小鮑魚': require('@/assets/recipes/花雕醉小鮑魚.png'),
+      '蒜蓉豆豉蒸雞髀肉': require('@/assets/recipes/蒜蓉豆豉蒸雞髀肉.png'),
+      '蒜香焗金沙骨': require('@/assets/recipes/蒜香焗金沙骨.png'),
+      '蜜汁焗叉燒': require('@/assets/recipes/蜜汁焗叉燒.png'),
+      '蝦仁豆腐蒸水蛋': require('@/assets/recipes/蝦仁豆腐蒸水蛋.png'),
+      '避風塘炒蝦仁': require('@/assets/recipes/避風塘炒蝦仁.png'),
+      '金銀蛋浸莧菜': require('@/assets/recipes/金銀蛋浸莧菜.png'),
+      '電飯煲三色藜麥時蔬雞胸肉飯': require('@/assets/recipes/電飯煲三色藜麥時蔬雞胸肉飯.png'),
+      '電飯煲日式咖喱雞肉燉飯': require('@/assets/recipes/電飯煲日式咖喱雞肉燉飯.png'),
+      '電飯煲番茄牛肉燉飯': require('@/assets/recipes/電飯煲番茄牛肉燉飯.png'),
+      '電飯煲韓式泡菜五花肉燜飯': require('@/assets/recipes/電飯煲韓式泡菜五花肉燜飯.png'),
+      '香煎三文魚配檸檬牛油汁': require('@/assets/recipes/香煎三文魚配檸檬牛油汁.png'),
+      '希臘檸檬雞湯': require('@/assets/recipes/希臘檸檬雞湯.png'),
+      '意大利牛肝菌燉飯': require('@/assets/recipes/意大利牛肝菌燉飯.png'),
+      '意大利蔬菜湯': require('@/assets/recipes/意大利蔬菜湯.png'),
+      '日式五目炊飯': require('@/assets/recipes/日式五目炊飯.png'),
+      '正宗意式卡邦尼意粉': require('@/assets/recipes/正宗意式卡邦尼意粉.png'),
+      '法式洋蔥湯': require('@/assets/recipes/法式洋蔥湯.png'),
+      '法式焦糖燉蛋': require('@/assets/recipes/法式焦糖燉蛋.png'),
+      '法式白汁燉雞': require('@/assets/recipes/法式白汁燉雞.png'),
+      '波蘭酸黑麥湯': require('@/assets/recipes/波蘭酸黑麥湯.png'),
+      '牧羊人派': require('@/assets/recipes/牧羊人派.png'),
+      '番茄大蝦意粉': require('@/assets/recipes/番茄大蝦意粉.png'),
+      '番茄肉醬意粉': require('@/assets/recipes/番茄肉醬意粉.png'),
+      '白汁煙肉意粉': require('@/assets/recipes/白汁煙肉意粉.png'),
+      '經典瑪格麗特薄餅': require('@/assets/recipes/經典瑪格麗特薄餅.png'),
+      '經典芝士焗通心粉': require('@/assets/recipes/經典芝士焗通心粉.png'),
+      '經典西冷牛排': require('@/assets/recipes/經典西冷牛排.png'),
+      '美式BBQ烤豬肋骨': require('@/assets/recipes/美式BBQ烤豬肋骨.png'),
+      '芒果班戟': require('@/assets/recipes/芒果班戟.png'),
+      '芒果西米露': require('@/assets/recipes/芒果西米露.png'),
+      '英式下午茶鬆餅': require('@/assets/recipes/英式下午茶鬆餅.png'),
+      '蒜香橄欖油大蝦意粉': require('@/assets/recipes/蒜香橄欖油大蝦意粉.png'),
+      '薑汁撞奶': require('@/assets/recipes/薑汁撞奶.png'),
+      '西式番茄濃湯': require('@/assets/recipes/西式番茄濃湯.png'),
+      '西式香草檸檬焗雞': require('@/assets/recipes/西式香草檸檬焗雞.png'),
     };
-    return nameMap[recipeName];
+    const exactMatch = nameMap[recipeName];
+    if (exactMatch) return exactMatch;
+
+    const cleanName = recipeName
+      .replace(/^(港式|日式|韓式|泰式|西式|意式|台式|電飯煲|經典|正宗|傳統|風味|大牌檔風味)/g, '')
+      .replace(/\s*\([^)]+\)\s*$/g, '');
+    return nameMap[cleanName];
   };
   
   const localImage = recipe ? getLocalImage(recipe.name) : null;
@@ -645,16 +939,34 @@ export default function RecipeDetailScreen() {
           {/* ─ Hero Image ── */}
           <View style={s.hero}>
             {imgUrl ? (
-              localImage
-                ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
+              sourceUrl ? (
+                // User imported recipe: make image clickable to open source URL
+                <TouchableOpacity
+                  style={{ width: SW, height: SW }}
+                  onPress={() => Linking.openURL(sourceUrl)}
+                  activeOpacity={0.85}
+                >
+                  {localImage
+                    ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
+                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />}
+                  {/* Source link overlay indicator */}
+                  <View style={s.sourceLinkOverlay}>
+                    <Ionicons name="play-circle" size={32} color="#fff" />
+                    <Text style={s.sourceLinkOverlayText}>觀看教學影片</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                localImage
+                  ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
+                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
+              )
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder]}>
                 <Ionicons name="restaurant" size={56} color={HINT} />
               </View>
             )}
             {/* Back button */}
-            <TouchableOpacity style={s.heroBack} onPress={() => router.back()}>
+            <TouchableOpacity style={s.heroBack} onPress={handleBack}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
             {/* Share button */}
@@ -774,7 +1086,7 @@ export default function RecipeDetailScreen() {
                 setSelectedIngs(new Set(ings.map((_: any, i: number) => i)));
                 
                 // 智能判斷日期
-                const defaultDate = recipeMealPlanDate ?? new Date().toISOString().split("T")[0];
+                const defaultDate = latestMealPlan?.date ?? new Date().toISOString().split("T")[0];
                 setShoppingDate(defaultDate);
                 setShowDateEditor(false);
                 setShowIngPicker(true);
@@ -787,6 +1099,125 @@ export default function RecipeDetailScreen() {
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
             </View>
+
+            {/* ── Meal Plan Display (Unified) ── */}
+            {allRecipeMealPlans.length > 0 && (
+              <View style={s.mealPlanCard}>
+                <View style={s.mealPlanHeader}>
+                  <Ionicons name="calendar-outline" size={16} color={BRAND} />
+                  <Text style={s.mealPlanTitle}>📅 已排餐 ({allRecipeMealPlans.length} 次)</Text>
+                </View>
+                <View style={s.mealPlanList}>
+                  {/* 默認顯示最近 3 次 */}
+                  {allRecipeMealPlans.slice(0, 3).map((plan: any, idx: number) => {
+                    const planDate = new Date(plan.date + "T00:00:00");
+                    const dayOfWeek = ["日", "一", "二", "三", "四", "五", "六"][planDate.getDay()];
+                    const mealTypeLabel = plan.mealType === "dinner" ? "晚餐" : plan.mealType === "lunch" ? "午餐" : plan.mealType === "breakfast" ? "早餐" : "小食";
+                    return (
+                      <TouchableOpacity
+                        key={plan.id}
+                        style={s.mealPlanItem}
+                        onPress={() => {
+                          // 點擊日期→跳轉排餐頁
+                          router.push({
+                            pathname: "/(tabs)/planner",
+                            params: { openRecommend: "true" }
+                          });
+                        }}
+                      >
+                        <View style={s.mealPlanDateBox}>
+                          <Text style={s.mealPlanDate}>{planDate.getMonth() + 1}/{planDate.getDate()}</Text>
+                          <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
+                        </View>
+                        <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
+                        <TouchableOpacity
+                          style={s.mealPlanRemove}
+                          onPress={() => {
+                            Alert.alert(
+                              "移除排餐",
+                              `確定要移除${planDate.getMonth() + 1}/${planDate.getDate()}(${dayOfWeek})${mealTypeLabel}嗎？`,
+                              [
+                                { text: "取消", style: "cancel" },
+                                {
+                                  text: "移除",
+                                  style: "destructive",
+                                  onPress: () => {
+                                    deleteMealM.mutate({ id: plan.id });
+                                    utils.mealPlan.listByDateRange.invalidate();
+                                  }
+                                }
+                              ]
+                            );
+                          }}
+                        >
+                          <Ionicons name="close-circle" size={14} color="#DC2626" />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {/* 展開更多 */}
+                  {allRecipeMealPlans.length > 3 && (
+                    <TouchableOpacity
+                      style={s.mealPlanExpand}
+                      onPress={() => {
+                        // 展開顯示全部
+                        setShowAllMealPlans(!showAllMealPlans);
+                      }}
+                    >
+                      <Text style={s.mealPlanExpandText}>
+                        {showAllMealPlans ? "收起" : `展開更多 (${allRecipeMealPlans.length - 3} 次)`}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {/* 顯示全部 */}
+                  {showAllMealPlans && allRecipeMealPlans.slice(3).map((plan: any, idx: number) => {
+                    const planDate = new Date(plan.date + "T00:00:00");
+                    const dayOfWeek = ["日", "一", "二", "三", "四", "五", "六"][planDate.getDay()];
+                    const mealTypeLabel = plan.mealType === "dinner" ? "晚餐" : plan.mealType === "lunch" ? "午餐" : plan.mealType === "breakfast" ? "早餐" : "小食";
+                    return (
+                      <TouchableOpacity
+                        key={plan.id}
+                        style={s.mealPlanItem}
+                        onPress={() => {
+                          router.push({
+                            pathname: "/(tabs)/planner",
+                            params: { openRecommend: "true" }
+                          });
+                        }}
+                      >
+                        <View style={s.mealPlanDateBox}>
+                          <Text style={s.mealPlanDate}>{planDate.getMonth() + 1}/{planDate.getDate()}</Text>
+                          <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
+                        </View>
+                        <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
+                        <TouchableOpacity
+                          style={s.mealPlanRemove}
+                          onPress={() => {
+                            Alert.alert(
+                              "移除排餐",
+                              `確定要移除${planDate.getMonth() + 1}/${planDate.getDate()}(${dayOfWeek})${mealTypeLabel}嗎？`,
+                              [
+                                { text: "取消", style: "cancel" },
+                                {
+                                  text: "移除",
+                                  style: "destructive",
+                                  onPress: () => {
+                                    deleteMealM.mutate({ id: plan.id });
+                                    utils.mealPlan.listByDateRange.invalidate();
+                                  }
+                                }
+                              ]
+                            );
+                          }}
+                        >
+                          <Ionicons name="close-circle" size={14} color="#DC2626" />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
             {/* ── Housewife Tips ── */}
             {(recipe as any).housewifeTips && (
@@ -838,11 +1269,7 @@ export default function RecipeDetailScreen() {
                         )}
                         <TouchableOpacity style={s.priceBtn} onPress={() => {
                           setPriceKw(ing.name);
-                          setEditablePriceKw(ing.name);
                           setPriceIngCat(ing.category ?? "");
-                          setSelectedResultIdx(0);
-                          setShowAllResults(false);
-                          setShowAllSupermarkets(false);
                           const existingPrice = recordedPrice;
                           setSavePriceInput(existingPrice ? String(existingPrice) : "");
                           setShowPrice(true);
@@ -1024,6 +1451,11 @@ export default function RecipeDetailScreen() {
                 {sourceAuthor && <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>by {sourceAuthor}</Text>}
               </TouchableOpacity>
             )}
+
+            {/* ── Disclaimer ── */}
+            <View style={s.disclaimerContainer}>
+              <Text style={s.disclaimerText}>圖片及食譜只供參考</Text>
+            </View>
           </View>
         </ScrollView>
 
@@ -1069,401 +1501,107 @@ export default function RecipeDetailScreen() {
           </View>
         </Modal>
 
-        {/* ── Price comparison modal — synced with shopping page ─ */}
-        <Modal visible={showPrice} transparent animationType="slide">
-          <View style={s.overlay}>
-            <View style={[s.sheet, { maxHeight: "88%" }]}>
-              <View style={s.sheetHandle} />
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View style={s.sheetHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.sheetTitle}>各平台比價</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND, marginTop: 2 }}>{priceKw}</Text>
-                    {cleanPriceKw !== priceKw && (
-                      <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>搜尋關鍵字：「{cleanPriceKw}」</Text>
-                    )}
-                  </View>
-                  <TouchableOpacity onPress={() => { setShowPrice(false); setPriceKw(""); setEditablePriceKw(""); setSelectedResultIdx(0); setShowAllResults(false); setShowAllSupermarkets(false); }}>
-                    <Ionicons name="close" size={22} color={TEXT} />
-                  </TouchableOpacity>
+        {/* ── Price comparison modal (shared component) ─ */}
+        <PriceCompareModal
+          visible={showPrice}
+          keyword={priceKw}
+          onClose={() => { setShowPrice(false); setPriceKw(""); setSavePriceInput(""); }}
+          renderFooter={({ keyword, results, selectedResultIdx: _selIdx }) => {
+            const kw = keyword;
+            const handleUseLowestPrice = () => {
+              if (!results || results.length === 0) return;
+              const selectedResult = results[_selIdx] ?? results[0];
+              const sortedPrices = [...(selectedResult?.prices ?? [])]
+                .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
+                .sort((a: any, b: any) => Number(a.price) - Number(b.price));
+              if (sortedPrices.length > 0) {
+                setSavePriceInput(String(Math.round(Number(sortedPrices[0].price))));
+              }
+            };
+            return (
+              <View style={{ backgroundColor: "#F9FAFB", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", padding: 14 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                  <Ionicons name="cart-outline" size={14} color={BRAND} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>記錄價格到購物清單</Text>
                 </View>
 
-                {/* Editable keyword */}
-                <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 10, color: SUB, marginBottom: 4 }}>編輯搜尋關鍵字</Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <TextInput
-                      style={{ flex: 1, backgroundColor: "#F5F5F5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: TEXT, borderWidth: 1, borderColor: "#E8E8E8" }}
-                      placeholder="例如：雞湯 罐頭"
-                      placeholderTextColor={SUB}
-                      value={editablePriceKw}
-                      onChangeText={setEditablePriceKw}
-                    />
-                    <TouchableOpacity
-                      style={{ backgroundColor: BRAND, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, justifyContent: "center" }}
-                      onPress={() => { if (editablePriceKw.trim()) { setPriceKw(editablePriceKw.trim()); } }}
-                    >
-                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>搜尋</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Fresh ingredient notice */}
-                {isFreshIng && (
-                  <View style={s.priceNotice}>
-                    <Ionicons name="leaf-outline" size={13} color={GREEN} />
-                    <Text style={s.priceNoticeTxt}>新鮮食材建議到街市或超市比價，消委會格價未涵蓋此類商品</Text>
-                  </View>
-                )}
-
-                {/* Loading */}
-                {!isFreshIng && priceQ.isLoading && (
-                  <View style={s.priceNotice}>
-                    <ActivityIndicator size="small" color={BRAND} />
-                    <Text style={{ fontSize: 12, color: BRAND }}>正在查詢消委會格價資料…</Text>
-                  </View>
-                )}
-
-                {/* Error */}
-                {!isFreshIng && priceQ.isError && (
-                  <View style={[s.priceNotice, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-                    <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
-                    <Text style={{ fontSize: 12, color: "#DC2626", flex: 1 }}>無法載入消委會格價資料</Text>
-                    <TouchableOpacity onPress={() => priceQ.refetch()}>
-                      <Text style={{ fontSize: 11, color: "#DC2626", fontWeight: "700" }}>重試</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* No results */}
-                {!isFreshIng && !priceQ.isLoading && !priceQ.isError && priceResults.length === 0 && (
-                  <View style={[s.priceNotice, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}>
-                    <Text style={{ fontSize: 12, color: SUB }}>消委會格價中未找到「{cleanPriceKw}」，可直接前往各平台搜尋</Text>
-                  </View>
-                )}
-
-                {/* Consumer Council data */}
-                {!isFreshIng && priceResults.length > 0 && (() => {
-                  const results = priceResults;
-                  const selectedResult = results[selectedResultIdx] ?? results[0];
-                  const sortedPrices = [...(selectedResult?.prices ?? [])]
-                    .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
-                    .sort((a: any, b: any) => Number(a.price) - Number(b.price));
-                  const lowestPrice = sortedPrices[0] ? Number(sortedPrices[0].price) : null;
-                  const top3 = sortedPrices.slice(0, 3);
-                  const hasMore = sortedPrices.length > 3;
-                  const summaryCheapest = sortedPrices[0];
-
+                {(() => {
+                  const existingItem = shoppingItemsByName[kw];
+                  const lastPrice = lastPricesMap[kw];
+                  const sessionPrice = ingredientPrices[kw];
                   return (
                     <>
-                      {/* Summary card */}
-                      {summaryCheapest && lowestPrice !== null && (
-                        <View style={{ marginHorizontal: 20, marginBottom: 14, backgroundColor: "#F0FDF4", borderRadius: 14, borderWidth: 1, borderColor: "#86EFAC", padding: 14 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
-                              <Text style={{ fontSize: 22 }}>🏆</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 12, color: "#16A34A", fontWeight: "800" }}>最抵格價</Text>
-                              <Text style={{ fontSize: 15, fontWeight: "800", color: TEXT }} numberOfLines={1}>{summaryCheapest.supermarketName}</Text>
-                            </View>
-                            <Text style={{ fontSize: 24, fontWeight: "900", color: "#16A34A" }}>HK${lowestPrice.toFixed(1)}</Text>
-                          </View>
-                          {sortedPrices[1] && (
-                            <Text style={{ fontSize: 11, color: SUB, marginTop: 6 }}>
-                              較第二平慳 HK${(Number(sortedPrices[1].price) - lowestPrice).toFixed(1)}
-                            </Text>
-                          )}
+                      {existingItem?.estimatedPrice && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#EEF4FB", borderRadius: 8 }}>
+                          <Ionicons name="information-circle-outline" size={12} color={BRAND} />
+                          <Text style={{ fontSize: 11, color: BRAND }}>購物清單已有價格：${existingItem.estimatedPrice}</Text>
                         </View>
                       )}
-
-                      {/* CC data badge */}
-                      <View style={s.ccBadge}>
-                        <Text style={s.ccBadgeTxt}>消委會數據 · 今日更新</Text>
-                      </View>
-
-                      {/* Product selector — multiple results */}
-                      {results.length > 1 && (
-                        <View style={{ marginBottom: 10 }}>
-                          <TouchableOpacity
-                            style={s.productSelector}
-                            onPress={() => setShowAllResults(v => !v)}
-                          >
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 10, color: SUB }}>產品規格</Text>
-                              <Text style={{ fontSize: 12, fontWeight: "700", color: TEXT }} numberOfLines={1}>
-                                {selectedResult?.brand ? `${selectedResult.brand} ` : ""}{selectedResult?.name}
-                              </Text>
-                            </View>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                              {lowestPrice !== null && (
-                                <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>
-                                  最低 HK${lowestPrice.toFixed(1)}
-                                </Text>
-                              )}
-                              <Ionicons name={showAllResults ? "chevron-up" : "chevron-down"} size={14} color={BRAND} />
-                            </View>
-                          </TouchableOpacity>
-
-                          {showAllResults && (
-                            <View style={s.productList}>
-                              {results.map((r: any, idx: number) => {
-                                const rPrices = (r.prices ?? []).map((p: any) => Number(p.price)).filter((v: number) => v > 0);
-                                const rMin = rPrices.length > 0 ? Math.min(...rPrices) : null;
-                                const allMins = results.map((item: any) => {
-                                  const ps = (item.prices ?? []).map((p: any) => Number(p.price)).filter((v: number) => v > 0);
-                                  return ps.length > 0 ? Math.min(...ps) : Infinity;
-                                });
-                                const globalMin = Math.min(...allMins);
-                                const isCheapest = rMin !== null && rMin === globalMin;
-                                const isSelected = idx === selectedResultIdx;
-                                return (
-                                  <TouchableOpacity
-                                    key={r.code ?? idx}
-                                    style={[s.productItem, isSelected && s.productItemSelected]}
-                                    onPress={() => { setSelectedResultIdx(idx); setShowAllResults(false); }}
-                                  >
-                                    <View style={{ flex: 1, minWidth: 0 }}>
-                                      <Text style={{ fontSize: 12, fontWeight: isSelected ? "800" : "600", color: TEXT }} numberOfLines={1}>
-                                        {r.brand ? `${r.brand} ` : ""}{r.name}
-                                      </Text>
-                                      {r.category && <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>{r.category}</Text>}
-                                    </View>
-                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                      {isCheapest && (
-                                        <View style={{ backgroundColor: "#DCFCE7", borderRadius: 20, paddingHorizontal: 6, paddingVertical: 1 }}>
-                                          <Text style={{ fontSize: 9, fontWeight: "700", color: "#15803D" }}>最便宜</Text>
-                                        </View>
-                                      )}
-                                      {rMin !== null && (
-                                        <Text style={{ fontSize: 13, fontWeight: "800", color: isCheapest ? "#15803D" : TEXT }}>
-                                          HK${rMin.toFixed(1)}起
-                                        </Text>
-                                      )}
-                                      {isSelected && <Ionicons name="checkmark-outline" size={10} color={BRAND} />}
-                                    </View>
-                                  </TouchableOpacity>
-                                );
-                              })}
-                            </View>
-                          )}
+                      {lastPrice && !sessionPrice && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#FFFBEB", borderRadius: 8 }}>
+                          <Ionicons name="time-outline" size={12} color="#92400E" />
+                          <Text style={{ fontSize: 11, color: "#92400E" }}>上次記錄價格：${lastPrice}</Text>
                         </View>
                       )}
-
-                      {/* Single product name */}
-                      {results.length === 1 && selectedResult && (
-                        <View style={s.singleProduct}>
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: TEXT }}>{selectedResult.name}</Text>
-                          {selectedResult.brand && <Text style={{ fontSize: 11, color: SUB, marginLeft: 6 }}>{selectedResult.brand}</Text>}
-                        </View>
-                      )}
-
-                      {/* Supermarket prices - top 3 */}
-                      {top3.length > 0 && (
-                        <View style={{ marginBottom: 12 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>超市格價</Text>
-                          {top3.map((p: any, idx: number) => {
-                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
-                            const isLowest = idx === 0;
-                            return (
-                              <View key={p.supermarketCode} style={[s.smPriceRow, { backgroundColor: st.bg, borderColor: isLowest ? "#22C55E" : st.border, marginBottom: 8 }]}>
-                                {isLowest && (
-                                  <View style={s.lowestBadge}>
-                                    <Ionicons name="checkmark-outline" size={10} color="#fff" />
-                                    <Text style={s.lowestBadgeTxt}>最低格價</Text>
-                                  </View>
-                                )}
-                                <View style={[s.smLogo, { backgroundColor: "#fff" }]}>
-                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.supermarketName}</Text>
-                                  <Text style={{ fontSize: 10, color: SUB }}>{p.supermarketCode}</Text>
-                                </View>
-                                <Text style={{ fontSize: 18, fontWeight: "900", color: isLowest ? "#15803D" : TEXT }}>HK${Number(p.price).toFixed(1)}</Text>
-                              </View>
-                            );
-                          })}
-                          {hasMore && (
-                            <TouchableOpacity onPress={() => setShowAllSupermarkets(v => !v)} style={{ marginHorizontal: 20, marginTop: 6, paddingVertical: 6 }}>
-                              <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", textAlign: "center" }}>
-                                {showAllSupermarkets ? "收起" : `顯示全部 ${sortedPrices.length} 間超市`}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                          {showAllSupermarkets && sortedPrices.slice(3).map((p: any, idx: number) => {
-                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
-                            return (
-                              <View key={p.supermarketCode} style={[s.smPriceRow, { backgroundColor: st.bg, borderColor: st.border, marginBottom: 8 }]}>
-                                <View style={[s.smLogo, { backgroundColor: "#fff" }]}>
-                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT }}>{p.supermarketName}</Text>
-                                  <Text style={{ fontSize: 10, color: SUB }}>{p.supermarketCode}</Text>
-                                </View>
-                                <Text style={{ fontSize: 18, fontWeight: "900", color: TEXT }}>HK${Number(p.price).toFixed(1)}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      )}
-
-                      {/* Special offers */}
-                      {selectedResult?.offers && selectedResult.offers.length > 0 && (
-                        <View style={{ marginBottom: 14 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 6 }}>特別優惠</Text>
-                          {selectedResult.offers.map((o: any, i: number) => (
-                            <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: "8px 12px" as any, borderRadius: 10, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", marginBottom: 4, paddingHorizontal: 12, paddingVertical: 8 }}>
-                              <Ionicons name="pricetag-outline" size={12} color="#92400E" />
-                              <Text style={{ fontSize: 11, color: "#92400E" }}>{o.supermarketName}：{o.text}</Text>
-                            </View>
-                          ))}
+                      {sessionPrice && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#DCFCE7", borderRadius: 8 }}>
+                          <Ionicons name="checkmark-circle-outline" size={12} color="#15803D" />
+                          <Text style={{ fontSize: 11, color: "#15803D", fontWeight: "600" }}>本次已記錄價格：${sessionPrice}</Text>
                         </View>
                       )}
                     </>
                   );
                 })()}
 
-                {/* ── Save price to shopping list section ── */}
-                <View style={{ marginHorizontal: 20, marginBottom: 14, backgroundColor: "#F9FAFB", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", padding: 14 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                    <Ionicons name="cart-outline" size={14} color={BRAND} />
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>記錄價格到購物清單</Text>
-                  </View>
-
-                  {/* Show existing recorded price */}
-                  {(() => {
-                    const existingItem = shoppingItemsByName[priceKw];
-                    const lastPrice = lastPricesMap[priceKw];
-                    const sessionPrice = ingredientPrices[priceKw];
-                    return (
-                      <>
-                        {existingItem?.estimatedPrice && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#EEF4FB", borderRadius: 8 }}>
-                            <Ionicons name="information-circle-outline" size={12} color={BRAND} />
-                            <Text style={{ fontSize: 11, color: BRAND }}>購物清單已有價格：${existingItem.estimatedPrice}</Text>
-                          </View>
-                        )}
-                        {lastPrice && !sessionPrice && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#FFFBEB", borderRadius: 8 }}>
-                            <Ionicons name="time-outline" size={12} color="#92400E" />
-                            <Text style={{ fontSize: 11, color: "#92400E" }}>上次記錄價格：${lastPrice}</Text>
-                          </View>
-                        )}
-                        {sessionPrice && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#DCFCE7", borderRadius: 8 }}>
-                            <Ionicons name="checkmark-circle-outline" size={12} color="#15803D" />
-                            <Text style={{ fontSize: 11, color: "#15803D", fontWeight: "600" }}>本次已記錄價格：${sessionPrice}</Text>
-                          </View>
-                        )}
-                      </>
-                    );
-                  })()}
-
-                  {/* Price input */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={{ fontSize: 12, color: SUB }}>價格</Text>
-                    <TextInput
-                      style={{ flex: 1, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontWeight: "600", color: TEXT }}
-                      placeholder="輸入價格"
-                      placeholderTextColor={SUB}
-                      value={savePriceInput}
-                      onChangeText={setSavePriceInput}
-                      keyboardType="number-pad"
-                    />
-                    <TouchableOpacity
-                      style={{ backgroundColor: "#E8F0FA", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: "#BFDBFE" }}
-                      onPress={handleUseLowestPrice}
-                    >
-                      <Text style={{ fontSize: 11, color: BRAND, fontWeight: "700" }}>最低價</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Save button */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 12, color: SUB }}>價格</Text>
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontWeight: "600", color: TEXT }}
+                    placeholder="輸入價格"
+                    placeholderTextColor={SUB}
+                    value={savePriceInput}
+                    onChangeText={setSavePriceInput}
+                    keyboardType="number-pad"
+                  />
                   <TouchableOpacity
-                    style={{ marginTop: 10, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
-                    onPress={() => {
-                      const price = parseInt(savePriceInput.trim(), 10);
-                      if (isNaN(price) || price <= 0) { Alert.alert("請輸入有效價格"); return; }
-                      const currentIng = ingredients.find((ing: any) => ing.name === priceKw);
-                      handleSavePriceToShopping(
-                        priceKw,
-                        price,
-                        priceIngCat || currentIng?.category || "其他",
-                        currentIng?.unit || "",
-                        currentIng?.quantity || "",
-                      );
-                    }}
-                    disabled={savePriceM.isPending}
+                    style={{ backgroundColor: "#E8F0FA", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: "#BFDBFE" }}
+                    onPress={handleUseLowestPrice}
                   >
-                    {savePriceM.isPending ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-                        {shoppingItemsByName[priceKw] ? "更新購物清單價格" : "儲存並加入購物清單"}
-                      </Text>
-                    )}
+                    <Text style={{ fontSize: 11, color: BRAND, fontWeight: "700" }}>最低價</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* Platform redirect buttons - horizontal scroll */}
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>
-                    {priceResults.length > 0 ? "其他平台搜尋" : "直接前往平台搜尋"}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-                    {REDIRECT_PLATFORMS.map(p => (
-                      <TouchableOpacity
-                        key={p.name}
-                        style={[{ width: 100, alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 10, paddingBottom: 12, backgroundColor: p.bg, borderColor: p.border }]}
-                        onPress={() => openPlatform(p, cleanPriceKw)}
-                      >
-                        <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
-                          <Text style={{ fontSize: 22 }}>{p.logo}</Text>
-                        </View>
-                        <Text style={{ fontSize: 12, fontWeight: "800", color: TEXT, marginTop: 6 }} numberOfLines={1}>{p.name}</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BRAND, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8 }}>
-                          <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>搜尋</Text>
-                          <Ionicons name="open-outline" size={11} color="#fff" />
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-
-                {/* Consumer Council website link */}
                 <TouchableOpacity
-                  style={s.ccLink}
-                  onPress={() => Linking.openURL(`https://online-price-watch.consumer.org.hk/opw/?keyword=${encodeURIComponent(cleanPriceKw)}`)}
+                  style={{ marginTop: 10, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
+                  onPress={() => {
+                    const price = parseInt(savePriceInput.trim(), 10);
+                    if (isNaN(price) || price <= 0) { Alert.alert("請輸入有效價格"); return; }
+                    const currentIng = ingredients.find((ing: any) => ing.name === kw);
+                    handleSavePriceToShopping(
+                      kw,
+                      price,
+                      priceIngCat || currentIng?.category || "其他",
+                      currentIng?.unit || "",
+                      currentIng?.quantity || "",
+                    );
+                  }}
+                  disabled={savePriceM.isPending}
                 >
-                  <View style={s.ccLinkIcon}>
-                    <Ionicons name="business-outline" size={18} color="#fff" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: BRAND }}>消委會格價網查詢</Text>
-                    <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>Consumer Council · 網上價格一覽通</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={BRAND} />
+                  {savePriceM.isPending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                      {shoppingItemsByName[kw] ? "更新購物清單價格" : "儲存並加入購物清單"}
+                    </Text>
+                  )}
                 </TouchableOpacity>
-
-                {/* Disclaimer */}
-                <View style={s.disclaimer}>
-                  <Text style={s.disclaimerTxt}>
-                    {priceResults.length > 0
-                      ? "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。"
-                      : "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。"
-                    }
-                  </Text>
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
+              </View>
+            );
+          }}
+        />
         {/* ── Tag editor modal ── */}
         <Modal visible={showTagEditor} transparent animationType="slide">
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
           <View style={s.overlay}>
             <View style={s.sheet}>
               <View style={s.sheetHandle} />
@@ -1528,10 +1666,12 @@ export default function RecipeDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── AI Edit modal ── */}
         <Modal visible={showAIEdit} transparent animationType="slide">
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
           <View style={s.overlay}>
             <View style={[s.sheet, { maxHeight: "80%" }]}>
               <View style={s.sheetHandle} />
@@ -1581,6 +1721,7 @@ export default function RecipeDetailScreen() {
               )}
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* ── Ingredient Picker Modal ── */}
@@ -1595,11 +1736,11 @@ export default function RecipeDetailScreen() {
               </View>
               
               {/* 日期選擇器 */}
-              {recipeMealPlanDate && !showDateEditor ? (
+              {latestMealPlan && !showDateEditor ? (
                 <View style={s.dateInfoRow}>
                   <Ionicons name="checkmark-circle" size={16} color={GREEN} />
                   <Text style={s.dateInfoText}>已關聯排餐日期：</Text>
-                  <Text style={s.dateInfoValue}>{recipeMealPlanDate}</Text>
+                  <Text style={s.dateInfoValue}>{latestMealPlan.date}</Text>
                   <TouchableOpacity onPress={() => setShowDateEditor(true)}>
                     <Ionicons name="create-outline" size={14} color={SUB} />
                   </TouchableOpacity>
@@ -1776,6 +1917,8 @@ const s = StyleSheet.create({
   heroBack: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroShare: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroInfo: { position: "absolute", bottom: 16, left: 16, right: 16 },
+  sourceLinkOverlay: { position: "absolute", bottom: 16, right: 16, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  sourceLinkOverlayText: { fontSize: 13, fontWeight: "700", color: "#fff" },
   officialBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, alignSelf: "flex-start", marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   officialTxt: { fontSize: 12, fontWeight: "700", color: "#1C2E4A", letterSpacing: 0.5 },
   heroTitle: { fontSize: 24, fontWeight: "800", color: "#fff", marginBottom: 6, textShadowColor: "rgba(0,0,0,0.5)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
@@ -1813,6 +1956,20 @@ const s = StyleSheet.create({
   btnSecTxt: { color: BRAND, fontSize: 13, fontWeight: "800" },
   btnAI: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#F5F3FF", paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DDD6FE" },
   btnAITxt: { color: "#7C3AED", fontSize: 12, fontWeight: "800" },
+
+  // Meal Plan Card
+  mealPlanCard: { backgroundColor: "#F8FAFC", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: BRAND },
+  mealPlanHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  mealPlanTitle: { fontSize: 15, fontWeight: "800", color: BRAND },
+  mealPlanList: { gap: 6 },
+  mealPlanItem: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  mealPlanDateBox: { alignItems: "center" },
+  mealPlanDate: { fontSize: 13, fontWeight: "800", color: TEXT },
+  mealPlanDay: { fontSize: 10, color: SUB },
+  mealPlanMealType: { flex: 1, fontSize: 13, fontWeight: "600", color: TEXT },
+  mealPlanRemove: { padding: 4 },
+  mealPlanExpand: { paddingVertical: 8, alignItems: "center" },
+  mealPlanExpandText: { fontSize: 12, fontWeight: "700", color: BRAND },
 
   // Tips
   tipsCard: { backgroundColor: "#FFFBEB", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
@@ -1946,26 +2103,8 @@ const s = StyleSheet.create({
   mealChipTxt: { fontSize: 13, fontWeight: "700", color: TEXT },
   confirmBtn: { backgroundColor: BRAND, paddingVertical: 16, borderRadius: 14, alignItems: "center", shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   confirmBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  // Price comparison modal styles
-  priceNotice: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 14, backgroundColor: "#FFF7ED", borderWidth: 1.5, borderColor: "#FED7AA", marginBottom: 12 },
-  priceNoticeTxt: { flex: 1, fontSize: 12, fontWeight: "600", color: "#92400E" },
-  ccBadge: { flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 10, backgroundColor: "#EEF4FB", borderWidth: 1, borderColor: "#BFDBFE", marginBottom: 10 },
-  ccBadgeTxt: { fontSize: 10, color: BRAND, fontWeight: "700" },
-  productSelector: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: CARD, borderWidth: 1.5, borderColor: "#BFDBFE" },
-  productList: { borderWidth: 1.5, borderColor: "#BFDBFE", borderRadius: 10, overflow: "hidden", marginTop: 4 },
-  productItem: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  productItemSelected: { backgroundColor: "#DBEAFE" },
-  singleProduct: { flexDirection: "row", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: CARD, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
-  smPriceRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, borderWidth: 1.5, position: "relative" },
-  lowestBadge: { position: "absolute", top: -8, right: 10, backgroundColor: "#22C55E", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, flexDirection: "row", alignItems: "center", gap: 2 },
-  lowestBadgeTxt: { fontSize: 9, fontWeight: "700", color: "#fff" },
-  smLogo: { width: 38, height: 38, borderRadius: 10, backgroundColor: CARD, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 2 },
   platformRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, borderWidth: 1.5 },
   goBuyBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: "#1A1A1A" },
-  ccLink: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BRAND, marginBottom: 10 },
-  ccLinkIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: BRAND, alignItems: "center", justifyContent: "center" },
-  disclaimer: { padding: 10, borderRadius: 12, backgroundColor: "#EEF4FB", marginBottom: 8 },
-  disclaimerTxt: { fontSize: 10, color: SUB, lineHeight: 15 },
 
   // Ingredient picker
   ingPickerSheet: { backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, height: "75%", maxHeight: "80%", paddingBottom: Platform.OS === "ios" ? 44 : 24 },
@@ -2001,4 +2140,16 @@ const s = StyleSheet.create({
   ingPickerQtyInput: { width: 60, backgroundColor: "#F9FAFB", borderWidth: 1.5, borderColor: BORDER, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: TEXT, textAlign: "center" as any },
   ingPickerConfirm: { backgroundColor: BRAND, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   ingPickerConfirmTxt: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  disclaimerContainer: {
+    alignItems: "center" as any,
+    justifyContent: "center" as any,
+    marginTop: 24,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  disclaimerText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    textAlign: "center" as any,
+  },
 });

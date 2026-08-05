@@ -5,11 +5,12 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Image, Modal,
-  KeyboardAvoidingView, Platform, BackHandler,
+  KeyboardAvoidingView, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -27,6 +28,7 @@ type EditableStep = { id: number; instruction: string; duration: number; imageUr
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ onboarding?: string }>();
   const isOnboarding = params.onboarding === "true";
   const { user: authUser } = useAuth();
@@ -213,6 +215,24 @@ export default function ImportScreen() {
       const text = await Clipboard.getStringAsync();
       if (text && (text.startsWith("http://") || text.startsWith("https://"))) {
         setClipboardUrl(text);
+        
+        // 如果偵測到 Instagram URL，自動提示用戶
+        if (isInstagramURL(text)) {
+          Alert.alert(
+            "📸 偵測到 Instagram 食譜",
+            "想唔想匯入呢個 Instagram 食譜？",
+            [
+              { text: "取消", style: "cancel" },
+              { 
+                text: "匯入",
+                onPress: () => {
+                  setUrlInput(text);
+                  handleParseUrl(text);
+                }
+              }
+            ]
+          );
+        }
       }
     } catch (e) {
       // 剪貼板讀取失敗，忽略
@@ -350,6 +370,17 @@ export default function ImportScreen() {
     return null;
   }
 
+  // Instagram URL pattern detection
+  function isInstagramURL(url: string): boolean {
+    const patterns = [
+      /instagram\.com\/p\/[a-zA-Z0-9_-]+/,      // Post
+      /instagram\.com\/reel\/[a-zA-Z0-9_-]+/,   // Reel
+      /instagram\.com\/stories\/[a-zA-Z0-9_-]+/, // Stories
+      /instagr\.am\/[a-zA-Z0-9_-]+/,            // Short link
+    ];
+    return patterns.some(p => p.test(url));
+  }
+
   function getPlatformHelp(platform: string): string {
     const tips: Record<string, string> = {
       "Instagram": "• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe",
@@ -408,9 +439,14 @@ export default function ImportScreen() {
         });
         setSelectedImage(null);
       } catch {
+        const fallbackBase64 = asset.base64 || "";
+        if (!fallbackBase64) {
+          Alert.alert("圖片處理失敗", "無法讀取這張圖片，請重新選擇");
+          return;
+        }
         setPendingScreenshot({
           uri: asset.uri,
-          base64: asset.base64 || "",
+          base64: fallbackBase64,
           mimeType: asset.mimeType || "image/jpeg",
         });
         setSelectedImage(null);
@@ -534,6 +570,49 @@ export default function ImportScreen() {
     }
   }, [importMutation.isPending]);
 
+  // ── 離開確認：任何步驟有未保存嘅輸入／編輯內容時，先提醒用戶 ──
+  // 覆蓋 iOS header 返回、iOS 滑動手勢、Android 硬體返回
+  const hasUnsavedImport = () => {
+    if (step === "preview" && parsedRecipe) {
+      return true; // 預覽編輯步驟必定有內容需要保存
+    }
+    if (step === "input") {
+      return (
+        urlInput.trim().length > 0 ||
+        textInput.trim().length > 0 ||
+        !!selectedImage ||
+        !!pendingScreenshot
+      );
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    const sub = navigation.addListener("beforeRemove", (e: any) => {
+      if (!hasUnsavedImport()) return;
+      e.preventDefault();
+      const leaveAction = () => {
+        if (step === "preview" && parsedRecipe) {
+          // 預覽 -> 返回輸入步驟（同一畫面內，唔會真係離開）
+          setStep("input");
+          setParsedRecipe(null);
+        } else {
+          // 真係離開此畫面
+          navigation.dispatch(e.data.action);
+        }
+      };
+      Alert.alert(
+        "確定要離開？",
+        "已輸入或編輯的內容將不會儲存",
+        [
+          { text: "繼續編輯", style: "cancel" },
+          { text: "離開", style: "destructive", onPress: leaveAction },
+        ]
+      );
+    });
+    return sub;
+  }, [navigation, step, parsedRecipe, urlInput, textInput, selectedImage, pendingScreenshot]);
+
   // ── 解析中畫面 ──
   if (step === "parsing") {
     return (
@@ -576,21 +655,6 @@ export default function ImportScreen() {
   // ── 解析成功預覽（可編輯）──
   if (step === "preview" && parsedRecipe) {
     const isFormPending = importMutation.isPending || isSaving;
-
-    useEffect(() => {
-      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-        Alert.alert(
-          "確定要離開？",
-          "已編輯的內容將不會儲存",
-          [
-            { text: "繼續編輯", style: "cancel" },
-            { text: "離開", style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },
-          ]
-        );
-        return true;
-      });
-      return () => sub.remove();
-    }, []);
 
     return (
       <>
@@ -770,8 +834,17 @@ export default function ImportScreen() {
             ))}
           </View>
 
+          {/* Save Reminder Banner */}
+          <View style={{ backgroundColor: "#FEF3C7", paddingHorizontal: 16, paddingVertical: 12, marginHorizontal: 16, marginTop: 16, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="information-circle" size={18} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#92400E" }}>請按下方「儲存到食譜庫」</Text>
+              <Text style={{ fontSize: 11, color: "#92400E", marginTop: 2 }}>儲存後才會出現在「我的食譜」中</Text>
+            </View>
+          </View>
+
           {/* Save Button */}
-          <View style={{ marginHorizontal: 16, marginBottom: Math.max(insets.bottom + 12, 40) }}>
+          <View style={{ marginHorizontal: 16, marginBottom: Math.max(insets.bottom + 12, 40), marginTop: 16 }}>
             <TouchableOpacity style={es.saveBtn} onPress={handleSaveEdited} disabled={isFormPending}>
               {isFormPending ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -964,8 +1037,13 @@ export default function ImportScreen() {
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={[styles.headerSection, { paddingTop: insets.top + 20 }]}>
-        <Text style={styles.pageTitle}>新增食譜</Text>
+      <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4 }}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={[styles.pageTitle, { marginBottom: 0 }]}>新增食譜</Text>
+        </View>
         <Text style={styles.pageSubtitle}>貼連結、貼文字、截圖上傳或手動輸入</Text>
       </View>
 

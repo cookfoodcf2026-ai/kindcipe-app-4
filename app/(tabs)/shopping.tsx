@@ -1,6 +1,6 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, FlatList,
-  TextInput, Modal, Linking, ScrollView, ActivityIndicator, Platform,
+  TextInput, Modal, ScrollView, ActivityIndicator, Platform,
   KeyboardAvoidingView, Dimensions, RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,15 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
-import {
-  isFreshIngredient,
-  isProcessedSnackName,
-  filterPriceResults,
-  SM_STYLE,
-  REDIRECT_PLATFORMS,
-  openPlatform,
-} from "@/lib/price";
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
+import PriceCompareModal from "@/src/components/PriceCompareModal";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "待採購", color: "#013E77", bg: "#E8F0FE" },
@@ -184,9 +177,6 @@ export default function ShoppingTab() {
 
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
-  const [selectedResultIdx, setSelectedResultIdx] = useState(0);
-  const [showAllResults, setShowAllResults] = useState(false);
-  const [showAllSupermarkets, setShowAllSupermarkets] = useState(false);
 
   const [showSavePrice, setShowSavePrice] = useState(false);
   const [savePriceItem, setSavePriceItem] = useState<any>(null);
@@ -213,30 +203,6 @@ export default function ShoppingTab() {
       setSavePriceVal("");
     }
   }, [savePriceItem, lastPricesMap]);
-
-  const cleanPriceKw = useMemo(() => priceKw.replace(/[\d.]+(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|)?\s*$/, "").replace(/\(.*?\)/g, "").trim(), [priceKw]);
-  const isFreshIng = useMemo(() => isFreshIngredient(priceKw), [priceKw]);
-  const priceQ = trpc.priceWatch.search.useQuery(
-    { keyword: cleanPriceKw },
-    { enabled: showPrice && !!cleanPriceKw && !isFreshIng },
-  );
-  const priceResults = useMemo(() => filterPriceResults(priceQ.data ?? [], cleanPriceKw), [priceQ.data, cleanPriceKw]);
-
-  // Auto-select the product with the lowest price when results load
-  useEffect(() => {
-    if (!priceResults || priceResults.length === 0) return;
-    let cheapestIdx = 0;
-    let cheapestPrice = Infinity;
-    priceResults.forEach((item: any, idx: number) => {
-      const validPrices = (item.prices ?? []).map((p: any) => Number(p.price)).filter((v: number) => !isNaN(v) && v > 0);
-      const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : Infinity;
-      if (minPrice < cheapestPrice) {
-        cheapestPrice = minPrice;
-        cheapestIdx = idx;
-      }
-    });
-    setSelectedResultIdx(cheapestIdx);
-  }, [priceResults]);
 
   const utils = trpc.useUtils();
 
@@ -1263,7 +1229,7 @@ export default function ShoppingTab() {
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
-          keyboardVerticalOffset={insets.bottom}
+          keyboardVerticalOffset={0}
         >
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
@@ -1331,203 +1297,12 @@ export default function ShoppingTab() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={showPrice} transparent animationType="slide" presentationStyle="overFullScreen" statusBarTranslucent>
-        <View style={styles.pOverlay}>
-          <View style={[styles.pSheet, { maxHeight: "88%" }]}>
-            <View style={styles.pHandle} />
-            <View style={{ maxHeight: "88%" }}>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.pHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.pTitle}>各平台比價</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#013E77", marginTop: 2 }}>{priceKw}</Text>
-                    {cleanPriceKw !== priceKw && (
-                      <Text style={{ fontSize: 10, color: "#9CA3AF", marginTop: 1 }}>搜尋關鍵字：「{cleanPriceKw}」</Text>
-                    )}
-                  </View>
-                  <TouchableOpacity onPress={() => { setShowPrice(false); setPriceKw(""); setSelectedResultIdx(0); setShowAllResults(false); setShowAllSupermarkets(false); }}>
-                    <Ionicons name="close" size={22} color="#1A1A1A" />
-                  </TouchableOpacity>
-                </View>
+      <PriceCompareModal
+        visible={showPrice}
+        keyword={priceKw}
+        onClose={() => { setShowPrice(false); setPriceKw(""); }}
+      />
 
-                {isFreshIng && (
-                  <View style={styles.pNotice}>
-                    <Ionicons name="leaf-outline" size={13} color="#16A34A" />
-                    <Text style={styles.pNoticeTxt}>新鮮食材建議到街市或超市比價，消委會格價未涵蓋此類商品</Text>
-                  </View>
-                )}
-                {!isFreshIng && priceQ.isLoading && (
-                  <View style={styles.pNotice}>
-                    <ActivityIndicator size="small" color="#013E77" />
-                    <Text style={{ fontSize: 12, color: "#013E77" }}>正在查詢消委會格價資料…</Text>
-                  </View>
-                )}
-                {!isFreshIng && priceQ.isError && (
-                  <View style={[styles.pNotice, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-                    <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
-                    <Text style={{ fontSize: 12, color: "#DC2626", flex: 1 }}>無法載入消委會格價資料</Text>
-                    <TouchableOpacity onPress={() => priceQ.refetch()}>
-                      <Text style={{ fontSize: 11, color: "#DC2626", fontWeight: "700" }}>重試</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                {!isFreshIng && !priceQ.isLoading && !priceQ.isError && priceResults.length === 0 && (
-                  <View style={[styles.pNotice, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}>
-                    <Text style={{ fontSize: 12, color: "#9CA3AF" }}>消委會格價中未找到「{cleanPriceKw}」，可直接前往各平台搜尋</Text>
-                  </View>
-                )}
-
-                {!isFreshIng && priceResults.length > 0 && (() => {
-                  const results = priceResults;
-                  const selectedResult = results[selectedResultIdx] ?? results[0];
-                  const sortedPrices = [...(selectedResult?.prices ?? [])]
-                    .filter((p: any) => !isNaN(Number(p.price)) && Number(p.price) > 0)
-                    .sort((a: any, b: any) => Number(a.price) - Number(b.price));
-                  const lowestPrice = sortedPrices[0] ? Number(sortedPrices[0].price) : null;
-                  const top3 = sortedPrices.slice(0, 3);
-                  const hasMore = sortedPrices.length > 3;
-
-                  const summaryCheapest = sortedPrices[0];
-
-                  return (
-                    <>
-                      {summaryCheapest && lowestPrice !== null && (
-                        <View style={styles.pSummaryCard}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                            <View style={styles.pSummaryLogo}>
-                              <Text style={{ fontSize: 22 }}>🏆</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 12, color: "#16A34A", fontWeight: "800" }}>最抵格價</Text>
-                              <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A" }} numberOfLines={1}>{summaryCheapest.supermarketName}</Text>
-                            </View>
-                            <Text style={{ fontSize: 24, fontWeight: "900", color: "#16A34A" }}>HK${lowestPrice.toFixed(1)}</Text>
-                          </View>
-                          {sortedPrices[1] && (
-                            <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>
-                              較第二平慳 HK${(Number(sortedPrices[1].price) - lowestPrice).toFixed(1)}
-                            </Text>
-                          )}
-                        </View>
-                      )}
-
-                      <View style={styles.pBadge}>
-                        <Text style={styles.pBadgeTxt}>消委會數據 · 今日更新</Text>
-                      </View>
-
-                      {results.length > 1 && (
-                        <View style={{ marginBottom: 10 }}>
-                          <TouchableOpacity style={styles.pProdSel} onPress={() => setShowAllResults(v => !v)}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 10, color: "#9CA3AF" }}>產品規格</Text>
-                              <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }} numberOfLines={1}>
-                                {selectedResult?.brand ? `${selectedResult.brand} ` : ""}{selectedResult?.name}
-                              </Text>
-                            </View>
-                            <Ionicons name={showAllResults ? "chevron-up" : "chevron-down"} size={16} color="#9CA3AF" />
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                      {showAllResults && results.length > 1 && (
-                        <View style={{ marginBottom: 10, gap: 4 }}>
-                          {results.map((r: any, idx: number) => (
-                            <TouchableOpacity key={idx} style={[styles.pProdOption, selectedResultIdx === idx && styles.pProdOptionOn]} onPress={() => { setSelectedResultIdx(idx); setShowAllResults(false); }}>
-                              <Text style={[styles.pProdOptionTxt, selectedResultIdx === idx && { color: "#013E77" }]}>{r.brand ? `${r.brand} ` : ""}{r.name}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-
-                      {top3.length > 0 && (
-                        <View style={{ marginBottom: 12 }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#9CA3AF", marginBottom: 8, marginHorizontal: 20 }}>超市格價</Text>
-                          {top3.map((p: any, i: number) => {
-                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
-                            const isLowest = i === 0;
-                            return (
-                              <View key={p.supermarketCode} style={[styles.pSmRow, { backgroundColor: st.bg, borderColor: isLowest ? "#22C55E" : st.border }]}>
-                                {isLowest && (
-                                  <View style={styles.pLowestBadge}>
-                                    <Text style={styles.pLowestBadgeTxt}>最低格價</Text>
-                                  </View>
-                                )}
-                                <View style={[styles.pSmLogo, { backgroundColor: "#fff" }]}>
-                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#1A1A1A" }}>{p.supermarketName}</Text>
-                                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{p.supermarketCode}</Text>
-                                </View>
-                                <Text style={{ fontSize: 18, fontWeight: "900", color: isLowest ? "#15803D" : "#1A1A1A" }}>HK${Number(p.price).toFixed(1)}</Text>
-                              </View>
-                            );
-                          })}
-                          {hasMore && (
-                            <TouchableOpacity onPress={() => setShowAllSupermarkets(v => !v)} style={{ marginHorizontal: 20, marginTop: 6, paddingVertical: 6 }}>
-                              <Text style={{ fontSize: 12, color: "#013E77", fontWeight: "700", textAlign: "center" }}>
-                                {showAllSupermarkets ? "收起" : `顯示全部 ${sortedPrices.length} 間超市`}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                          {showAllSupermarkets && sortedPrices.slice(3).map((p: any, i: number) => {
-                            const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
-                            return (
-                              <View key={p.supermarketCode} style={[styles.pSmRow, { backgroundColor: st.bg, borderColor: st.border }]}>
-                                <View style={[styles.pSmLogo, { backgroundColor: "#fff" }]}>
-                                  <Text style={{ fontSize: 18, fontWeight: "800", color: st.color }}>{st.logo}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#1A1A1A" }}>{p.supermarketName}</Text>
-                                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{p.supermarketCode}</Text>
-                                </View>
-                                <Text style={{ fontSize: 18, fontWeight: "900", color: "#1A1A1A" }}>HK${Number(p.price).toFixed(1)}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      )}
-                    </>
-                  );
-                })()}
-
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#9CA3AF", marginBottom: 8, marginHorizontal: 20 }}>
-                    {priceResults.length > 0 ? "其他平台搜尋" : "直接前往平台搜尋"}
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-                    {REDIRECT_PLATFORMS.map(p => (
-                      <TouchableOpacity key={p.name} style={[styles.pPlatformCard, { backgroundColor: p.bg, borderColor: p.border }]} onPress={() => openPlatform(p, cleanPriceKw)}>
-                        <View style={styles.pLogoCard}><Text style={{ fontSize: 22 }}>{p.logo}</Text></View>
-                        <Text style={{ fontSize: 12, fontWeight: "800", color: "#1A1A1A", marginTop: 6 }} numberOfLines={1}>{p.name}</Text>
-                        <View style={styles.pGoCard}>
-                          <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>搜尋</Text>
-                          <Ionicons name="open-outline" size={11} color="#fff" />
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-
-                <TouchableOpacity style={styles.pCcLink} onPress={() => Linking.openURL(`https://online-price-watch.consumer.org.hk/opw/?keyword=${encodeURIComponent(cleanPriceKw)}`)}>
-                  <View style={styles.pCcIcon}><Ionicons name="business-outline" size={18} color="#fff" /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#013E77" }}>消委會格價網查詢</Text>
-                    <Text style={{ fontSize: 10, color: "#9CA3AF", marginTop: 1 }}>Consumer Council · 網上價格一覽通</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#013E77" />
-                </TouchableOpacity>
-                <View style={styles.pDisclaimer}>
-                  <Text style={styles.pDisclaimerTxt}>
-                    {priceResults.length > 0
-                      ? "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。"
-                      : "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。"}
-                  </Text>
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -2289,263 +2064,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#fff",
-  },
-  pOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  pSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 40,
-  },
-  pHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#D1D5DB",
-    alignSelf: "center",
-    marginTop: 8,
-  },
-  pHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  pTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  pNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#86EFAC",
-    borderRadius: 10,
-    padding: 10,
-  },
-  pNoticeTxt: {
-    fontSize: 11,
-    color: "#16A34A",
-    flex: 1,
-  },
-  pBadge: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-  },
-  pBadgeTxt: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#013E77",
-    backgroundColor: "#E8F0FE",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    overflow: "hidden",
-    alignSelf: "flex-start",
-  },
-  pProdSel: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 10,
-    padding: 10,
-  },
-  pProdOption: {
-    marginHorizontal: 24,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  pProdOptionOn: {
-    backgroundColor: "#E8F0FE",
-  },
-  pProdOptionTxt: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  pPriceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  pPriceRowBest: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 8,
-  },
-  pStoreCol: {
-    flex: 1,
-  },
-  pStoreName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  pPriceCol: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  pPriceVal: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#374151",
-  },
-  pPriceValBest: {
-    color: "#16A34A",
-  },
-  pBestBadge: {
-    backgroundColor: "#16A34A",
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  pBestTxt: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  pSummaryCard: {
-    marginHorizontal: 20,
-    marginBottom: 14,
-    backgroundColor: "#F0FDF4",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#86EFAC",
-    padding: 14,
-  },
-  pSummaryLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pSmRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 10,
-    overflow: "hidden",
-  },
-  pSmLogo: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  pLowestBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#16A34A",
-    borderBottomLeftRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  pLowestBadgeTxt: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  pPlatform: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 20,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-  },
-  pLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-  pGo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#013E77",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  pPlatformCard: {
-    width: 100,
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 10,
-    paddingBottom: 12,
-  },
-  pLogoCard: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pGoCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#013E77",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginTop: 8,
-  },
-  pCcLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    backgroundColor: "#E8F0FE",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  pCcIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "#013E77",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pDisclaimer: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-  },
-  pDisclaimerTxt: {
-    fontSize: 10,
-    color: "#9CA3AF",
-    lineHeight: 15,
   },
 });

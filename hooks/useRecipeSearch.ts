@@ -7,6 +7,7 @@ interface UseRecipeSearchOptions {
   tags?: string[];
   cookTimeMax?: number;
   popularChips?: string[];
+  ingredientCategory?: string;
   limit?: number;
 }
 
@@ -17,6 +18,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     tags,
     cookTimeMax,
     popularChips,
+    ingredientCategory,
     limit = 20,
   } = options;
 
@@ -27,6 +29,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
       tags: tags || undefined,
       cookTimeMax: cookTimeMax || undefined,
       popularChips: popularChips || undefined,
+      ingredientCategory: ingredientCategory || undefined,
       limit,
     },
     {
@@ -43,6 +46,14 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     return result.data?.pages[0]?.total ?? 0;
   }, [result.data]);
 
+  const officialCount = useMemo(() => {
+    return result.data?.pages[0]?.officialCount ?? 0;
+  }, [result.data]);
+
+  const customCount = useMemo(() => {
+    return result.data?.pages[0]?.customCount ?? 0;
+  }, [result.data]);
+
   const fetchNextPage = useCallback(() => {
     if (result.hasNextPage && !result.isFetchingNextPage) {
       result.fetchNextPage();
@@ -52,6 +63,8 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
   return {
     recipes,
     total,
+    officialCount,
+    customCount,
     isLoading: result.isLoading,
     isFetching: result.isFetching,
     isFetchingNextPage: result.isFetchingNextPage,

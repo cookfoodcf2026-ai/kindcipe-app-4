@@ -1,10 +1,10 @@
 /**
  * 自訂食譜編輯器 — 新增 / 編輯 用戶自訂食譜
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Alert, Image, Modal,
+  StyleSheet, ActivityIndicator, Alert, Image, Modal, BackHandler,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +24,7 @@ const GREEN = "#4CAF50";
 const ROSE = "#EF4444";
 
 const DIFFICULTY_OPTIONS = ["簡單", "中等", "困難"];
+const SUGGESTED_TAGS = ["蒸", "炒", "炆", "焗", "煎", "炸", "燉", "涼拌", "烤", "紅燒", "清淡", "鹹香", "酸甜", "辛辣", "鮮味", "家常菜", "快手菜", "宴客菜", "高蛋白", "低卡", "素食", "減脂餐", "小朋友", "30 分鐘內"];
 const CATEGORY_OPTIONS = [
   { key: "中菜",   label: "中菜",   icon: "restaurant-outline" },
   { key: "西餐",   label: "西餐",   icon: "leaf-outline" },
@@ -65,6 +66,23 @@ export default function RecipeEditorScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStep, setSaveStep] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const currentTagList = useMemo(
+    () => tags.split(/[\s,，]+/).map(t => t.replace(/^#/, "").trim()).filter(t => t.length > 0),
+    [tags]
+  );
+
+  const toggleTag = useCallback((tag: string) => {
+    setTags(prev => {
+      const list = prev.split(/[\s,，]+/).map(t => t.replace(/^#/, "").trim()).filter(t => t.length > 0);
+      const idx = list.findIndex(t => t === tag);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        return list.join(" ");
+      }
+      return [...list, tag].join(" ");
+    });
+  }, []);
 
   // Load existing recipe if editing
   const recipeQ = trpc.recipes.getById.useQuery(
@@ -268,6 +286,15 @@ export default function RecipeEditorScreen() {
     ]);
   };
 
+  // Android 硬體返回：與 header 返回一樣，先確認「放棄編輯」
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleDiscard();
+      return true;
+    });
+    return () => sub.remove();
+  }, [handleDiscard]);
+
   const validIngCount = ingredients.filter(i => i.name.trim()).length;
   const validStepCount = steps.filter(s => s.instruction.trim()).length;
   const isPending = createM.isPending || updateM.isPending || isSaving;
@@ -282,6 +309,7 @@ export default function RecipeEditorScreen() {
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },
+          gestureEnabled: false,
           headerLeft: () => (
             <TouchableOpacity onPress={handleDiscard} style={{ marginLeft: 4 }}>
               <Ionicons name="close" size={24} color={TEXT} />
@@ -374,6 +402,19 @@ export default function RecipeEditorScreen() {
           <Text style={[st.label, { marginTop: 12 }]}>標籤</Text>
           <TextInput style={st.input} value={tags} onChangeText={setTags}
             placeholder="例：家常菜 快手菜 雞肉" placeholderTextColor={HINT} />
+          <Text style={st.tagSuggestLabel}>常用標籤</Text>
+          <View style={st.catGrid}>
+            {SUGGESTED_TAGS.map(tag => {
+              const active = currentTagList.includes(tag);
+              return (
+                <TouchableOpacity key={tag}
+                  style={[st.catChip, active && st.catChipActive]}
+                  onPress={() => toggleTag(tag)}>
+                  <Text style={[st.catLabel, active && st.catLabelActive]}>{tag}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* Ingredients */}
@@ -569,6 +610,7 @@ const st = StyleSheet.create({
   chipTxt: { fontSize: 13, fontWeight: "700", color: "#5A4A3A" },
   chipTxtActive: { color: "#fff" },
   catGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tagSuggestLabel: { fontSize: 12, fontWeight: "700", color: SUB, marginBottom: 8, marginTop: -4 },
   catChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 13, paddingVertical: 8,

@@ -9,12 +9,14 @@ import {
   TextInput,
   Dimensions,
   Modal,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { trpc } from "@/lib/trpc";
 import { scheduleMealNotification, requestNotificationPermission } from "@/lib/notifications";
-import { useMemo, useState, useCallback, useRef } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/hooks/useAuth";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -75,24 +77,118 @@ const isPast = (d: Date) => {
   return d < now;
 };
 
+// ─── AI Weekly Menu constants and helpers ───────────────────────
+const DAY_LABELS = ["", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+const DAY_SHORT = ["", "一", "二", "三", "四", "五", "六", "日"];
+
+type SlotType = "meat" | "seafood" | "veg" | "soup";
+
+const SLOT_META: Record<SlotType, { icon: string; label: string; color: string }> = {
+  meat: { icon: "restaurant-outline", label: "肉類", color: "#FFF0D6" },
+  seafood: { icon: "fish-outline", label: "海鮮", color: "#E0F2FE" },
+  veg: { icon: "leaf-outline", label: "蔬菜", color: "#DCFCE7" },
+  soup: { icon: "cafe-outline", label: "湯水", color: "#FEF9C3" },
+};
+
+const SLOT_COLORS: Record<SlotType, string> = {
+  meat: "#DC2626", seafood: "#0284C7", veg: "#16A34A", soup: "#0891B2",
+};
+
+function getTodayDow(): number {
+  const d = new Date().getDay();
+  return d === 0 ? 7 : d;
+}
+
+function getDateForDow(weekStart: string, dow: number): string {
+  const monday = new Date(weekStart + "T00:00:00");
+  const d = new Date(monday);
+  d.setDate(monday.getDate() + (dow - 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getDayBefore(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+function matchRecipeForSlot(r: any, slotType: SlotType): boolean {
+  const cat = r.recipeCategory || "";
+  const tags = Array.isArray(r.tags) ? r.tags.join(" ") : (r.tags || "");
+  const name = r.name || "";
+
+  if (slotType === "soup") {
+    return cat === "soup" || tags.includes("湯") || name.includes("湯") || cat === "湯水" || tags.includes("湯水");
+  }
+
+  if (slotType === "seafood") {
+    const seafoodKws = ["海鮮", "魚", "蝦", "蟹", "蜆", "蠔", "魷", "帶子", "鮑", "海參", "螺"];
+    return cat === "seafood" || seafoodKws.some(kw => name.includes(kw) || tags.includes(kw));
+  }
+
+  if (slotType === "veg") {
+    const vegKws = ["菜", "蔬", "西蘭花", "芥蘭", "通菜", "莧菜", "瓜", "茄子", "豆腐", "蛋", "菇", "耳", "腐竹", "筍", "番茄", "薯仔", "椰菜", "菠菜", "生菜", "白菜", "芹菜", "韭菜"];
+    const meatSeafoodKws = ["肉", "排骨", "雞", "豬", "牛", "羊", "鴨", "翼", "腿", "腩", "扒", "魚", "蝦", "蟹", "蠔", "蜆", "帶子", "魷", "鮑", "海參"];
+    const hasVegKw = vegKws.some(kw => name.includes(kw) || tags.includes(kw));
+    const hasMeatSeafoodKw = meatSeafoodKws.some(kw => name.includes(kw));
+    return cat === "vegetable" || cat === "egg" || cat === "素食" || (hasVegKw && (!hasMeatSeafoodKw || tags.includes("素食") || tags.includes("蔬菜")));
+  }
+
+  if (slotType === "meat") {
+    const meatKws = ["肉", "排骨", "骨", "雞", "豬", "牛", "羊", "鴨", "鵝", "翼", "腿", "腩", "扒", "丸", "腸", "叉燒", "蹄", "手", "鴿", "柳", "丁", "肚", "肝", "腎"];
+    return cat === "pork" || cat === "beef" || cat === "poultry" || cat === "meat" || cat === "中菜" || meatKws.some(kw => name.includes(kw) || tags.includes(kw));
+  }
+
+  return false;
+}
+
 export default function PlannerTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { openRecommend } = useLocalSearchParams<{ openRecommend?: string }>();
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addDayIndex, setAddDayIndex] = useState<number>(-1);
   const [addMealType, setAddMealType] = useState<string>("dinner");
   const [pickerSearch, setPickerSearch] = useState("");
-  const [eatOutDays, setEatOutDays] = useState<Set<string>>(new Set());
   const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
+  // ─── AI Weekly Recommendation States ───
+  const [showSmartRecommend, setShowSmartRecommend] = useState(false);
+  const [recommendCurrentDay, setRecommendCurrentDay] = useState(getTodayDow());
+  const [editingSlot, setEditingSlot] = useState<{ day: number; slot: SlotType } | null>(null);
+  const [showAISuggest, setShowAISuggest] = useState(false);
+  const [selectedPreviewRecipe, setSelectedPreviewRecipe] = useState<any | null>(null);
+
+  // Automatically open the weekly recommendation modal if requested via parameters
+  useEffect(() => {
+    if (openRecommend === "true") {
+      setShowSmartRecommend(true);
+      router.setParams({ openRecommend: undefined });
+    }
+  }, [openRecommend]);
+
   const { startDate, endDate, monday, sunday } = getWeekRange(weekOffset);
 
   const utils = trpc.useUtils();
+  const { activeFamilyId } = useAuth();
+
+  // 當切換廚房時，主動刷新相關查詢
+  useEffect(() => {
+    if (activeFamilyId) {
+      utils.mealPlan.listByDateRange.invalidate();
+      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
+      utils.recipes.listUser.invalidate();
+    }
+  }, [activeFamilyId, startDate]);
 
   const { data: mealPlans = [], isLoading } =
     trpc.mealPlan.listByDateRange.useQuery(
@@ -101,7 +197,7 @@ export default function PlannerTab() {
     );
 
   const { data: officialRecipes = [] } = trpc.recipes.listOfficial.useQuery(
-    { limit: 200, offset: 0 },
+    { limit: 500, offset: 0 },
     { staleTime: 1000 * 60 },
   );
 
@@ -109,6 +205,287 @@ export default function PlannerTab() {
     { limit: 200, offset: 0 },
     { staleTime: 1000 * 60 },
   );
+
+  // ─── AI Weekly Menu Queries & Mutations ────────────────────
+  const { data: recommendWeekData, refetch: refetchRecommendWeek } = trpc.weeklyMenu.getWeek.useQuery(
+    { weekStart: startDate },
+    { staleTime: 30000 },
+  );
+
+  const recommendItemsByDay: Record<number, any> = useMemo(() => {
+    const map: Record<number, any> = {};
+    (recommendWeekData?.items ?? []).forEach((item: any) => { map[item.dayOfWeek] = item; });
+    return map;
+  }, [recommendWeekData]);
+
+  const setDayM = trpc.weeklyMenu.setDay.useMutation({
+    onSuccess: () => {
+      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
+      Alert.alert("已設定");
+    },
+    onError: (e) => Alert.alert("設定失敗", e.message),
+  });
+
+  const removeDayM = trpc.weeklyMenu.removeDay.useMutation({
+    onSuccess: () => {
+      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
+      Alert.alert("已移除");
+    },
+    onError: (e) => Alert.alert("失敗", e.message),
+  });
+
+  const setEatOutM = trpc.weeklyMenu.setEatOut.useMutation({
+    onSuccess: () => {
+      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
+    },
+    onError: (e) => setToast({ visible: true, message: `設定外出失敗：${e.message}`, type: "error" }),
+  });
+
+  const addBatchM = trpc.mealPlan.addBatch.useMutation({
+    onSuccess: (_, variables) => {
+      utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.invalidate();
+      const days = new Set(variables.items.map(i => i.date));
+      const recipes = new Set(variables.items.map(i => i.recipeName));
+      setToast({ 
+        visible: true, 
+        message: `✅ 已排入 ${days.size} 天晚餐（${variables.items.length} 個餐次）`, 
+        type: "success" 
+      });
+    },
+    onError: (e) => {
+      setToast({ visible: true, message: `批量排餐失敗：${e.message}`, type: "error" });
+    },
+  });
+
+  const officialMap = useMemo(() => {
+    const map = new Map<number, any>();
+    officialRecipes.forEach((r: any) => map.set(r.id, r));
+    return map;
+  }, [officialRecipes]);
+
+  const handleApplyEntireWeek = async () => {
+    if (!recommendWeekData || !recommendWeekData.items || recommendWeekData.items.length === 0) {
+      Alert.alert("沒有可導入的整週推薦", "請先使用 AI 生成推薦餐單");
+      return;
+    }
+    const daysWithSlots = recommendWeekData.items.filter((item: any) => {
+      return item.meatId || item.seafoodId || item.vegId || item.soupId;
+    });
+    if (daysWithSlots.length === 0) {
+      Alert.alert("沒有已設定的推薦", "請先使用 AI 生成推薦餐單");
+      return;
+    }
+
+    // 確認對話框（關鍵：讓用戶知道這是批量操作）
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        "📦 一鍵套用整週推薦",
+        `將 ${daysWithSlots.length} 天的晚餐推薦全部套用到排餐計劃？\n\n注意：此操作只會寫入排餐，不會自動加入購物清單。`,
+        [
+          { text: "取消", style: "cancel", onPress: () => resolve(false) },
+          { text: "確認套用", onPress: () => resolve(true) }
+        ]
+      );
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setToast({ visible: true, message: "正在將整週推薦導入排餐中...", type: "info" });
+      const allMeals: Array<{ date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }> = [];
+      const allPickerRecipes: PickerRecipe[] = [];
+      
+      // 收集所有要寫入的 meals
+      for (const item of daysWithSlots) {
+        const itemDateStr = getDateForDow(startDate, item.dayOfWeek);
+        const daySlots: SlotType[] = ["meat", "seafood", "veg", "soup"];
+        
+        for (const slot of daySlots) {
+          const dishId = item[`${slot}Id`] ?? null;
+          const dishName = item[`${slot}Name`] ?? null;
+          const dishImage = item[`${slot}Image`] ?? null;
+          
+          if (dishId && dishName) {
+            allMeals.push({
+              date: itemDateStr,
+              mealType: "dinner" as const,
+              recipeId: dishId.startsWith("official:") ? `official_${dishId.slice(9)}` : `user_${dishId}`,
+              recipeName: dishName,
+              recipeImage: dishImage,
+            });
+            
+            // 收集食材資訊
+            const cleanId = dishId.startsWith("official:") ? dishId.slice(9) : dishId;
+            const numId = parseInt(cleanId, 10);
+            const official = officialRecipes.find((r: any) => r.id === numId);
+            if (official && Array.isArray(official.ingredients) && official.ingredients.length > 0) {
+              allPickerRecipes.push({
+                id: dishId,
+                name: dishName,
+                ingredients: official.ingredients,
+                date: getDayBefore(itemDateStr),
+              });
+            }
+          }
+        }
+      }
+      
+      // 批量寫入（一次過 call）
+      await addBatchM.mutateAsync({ items: allMeals });
+      
+      setShowSmartRecommend(false);
+      utils.mealPlan.listByDateRange.invalidate();
+      
+      // 詢問用戶下一步操作
+      Alert.alert(
+        "🎉 整週晚餐推薦已成功排入！",
+        `已套用 ${daysWithSlots.length} 天的晚餐推薦\n\n排餐已記錄！下一步要做什麼？`,
+        [
+          {
+            text: "繼續審視排餐",
+            style: "cancel",
+            onPress: () => {} // 留在排餐頁
+          },
+          {
+            text: "去購物清單加食材",
+            onPress: () => {
+              if (allPickerRecipes.length > 0) {
+                // 合併所有食材，按排餐日期分組
+                const mergedIngredients: any[] = [];
+                const seenNames = new Set<string>();
+                allPickerRecipes.forEach(pr => {
+                  pr.ingredients.forEach((ing: any) => {
+                    const normalized = ing.name.trim();
+                    if (!seenNames.has(normalized)) {
+                      seenNames.add(normalized);
+                      mergedIngredients.push({
+                        ...ing,
+                        recipeName: "本週 AI 晚餐推薦",
+                        recipeId: pr.id,
+                        plannedDate: pr.date,
+                      });
+                    }
+                  });
+                });
+                
+                if (mergedIngredients.length > 0) {
+                  setPickerRecipe({
+                    id: "batch_ai_weekly",
+                    name: "本週 AI 推薦晚餐所有食材",
+                    ingredients: mergedIngredients,
+                    date: getDayBefore(getDateForDow(startDate, 1)),
+                  });
+                } else {
+                  router.push("/(tabs)/shopping");
+                }
+              } else {
+                router.push("/(tabs)/shopping");
+              }
+            }
+          }
+        ]
+      );
+    } catch (e: any) {
+      console.error("[handleApplyEntireWeek] Error:", e);
+      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
+      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
+    }
+  };
+
+  const handleApplyToday = async (item: any) => {
+    if (!item) return;
+    const itemDateStr = getDateForDow(startDate, item.dayOfWeek);
+    const daySlots: SlotType[] = ["meat", "seafood", "veg", "soup"];
+    const toAdd = daySlots.filter(s => item[`${s}Id`] && item[`${s}Name`]);
+
+    if (toAdd.length === 0) {
+      Alert.alert("本日沒有推薦的菜式", "請先使用 AI 生成或手動添加菜式");
+      return;
+    }
+
+    try {
+      setToast({ visible: true, message: `正在將本日推薦導入排餐中...`, type: "info" });
+      const allMeals: Array<{ date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }> = [];
+      const pickerRecipes: PickerRecipe[] = [];
+
+      for (const slot of toAdd) {
+        const dishId = item[`${slot}Id`]!;
+        const dishName = item[`${slot}Name`]!;
+        const dishImage = item[`${slot}Image`] ?? null;
+
+        allMeals.push({
+          date: itemDateStr,
+          mealType: "dinner" as const,
+          recipeId: dishId.startsWith("official:") ? `official_${dishId.slice(9)}` : `user_${dishId}`,
+          recipeName: dishName,
+          recipeImage: dishImage,
+        });
+
+        const cleanId = dishId.startsWith("official:") ? dishId.slice(9) : dishId;
+        const numId = parseInt(cleanId, 10);
+        const official = officialRecipes.find((r: any) => r.id === numId);
+        if (official && Array.isArray(official.ingredients) && official.ingredients.length > 0) {
+          pickerRecipes.push({
+            id: dishId,
+            name: dishName,
+            ingredients: official.ingredients,
+            date: getDayBefore(itemDateStr),
+          });
+        }
+      }
+
+      // 批量寫入（一次過 call）
+      await addBatchM.mutateAsync({ items: allMeals });
+
+      setShowSmartRecommend(false);
+      utils.mealPlan.listByDateRange.invalidate();
+
+      // 詢問用戶下一步操作（關鍵：分離排餐和購物清單）
+      Alert.alert(
+        `✅ 已套用${DAY_LABELS[item.dayOfWeek]}的晚餐推薦`,
+        "排餐已記錄！下一步要做什麼？",
+        [
+          {
+            text: "繼續審視其他日期",
+            style: "cancel",
+            onPress: () => {} // 留在排餐頁
+          },
+          {
+            text: "去購物清單加食材",
+            onPress: () => {
+              if (pickerRecipes.length > 0) {
+                const mergedIngredients: any[] = [];
+                pickerRecipes.forEach(pr => {
+                  pr.ingredients.forEach((ing: any) => {
+                    mergedIngredients.push({
+                      ...ing,
+                      recipeName: pr.name,
+                      recipeId: pr.id,
+                      plannedDate: pr.date,
+                    });
+                  });
+                });
+
+                setPickerRecipe({
+                  id: `day_${item.dayOfWeek}_ai`,
+                  name: `${DAY_LABELS[item.dayOfWeek]} 晚餐推薦食材`,
+                  ingredients: mergedIngredients,
+                  date: getDayBefore(itemDateStr),
+                });
+              } else {
+                router.push("/(tabs)/shopping");
+              }
+            }
+          }
+        ]
+      );
+    } catch (e: any) {
+      console.error("[handleApplyEntireWeek] Error:", e);
+      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
+      setToast({ visible: true, message: `套用失敗：${e.message}`, type: "error" });
+    }
+  };
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: (_, variables) => {
@@ -206,17 +583,22 @@ export default function PlannerTab() {
   }, [mealPlans]);
 
   const weekDays = useMemo(() => {
-    const days: { dateStr: string; date: Date; dayIndex: number }[] = [];
+    const days: { dateStr: string; date: Date; dayIndex: number; dayOfWeek: number }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      days.push({ dateStr: d.toISOString().split("T")[0], date: d, dayIndex: i });
+      days.push({ dateStr: d.toISOString().split("T")[0], date: d, dayIndex: i, dayOfWeek: i + 1 });
     }
     return days;
   }, [monday]);
 
   const pickerRecipes = useMemo(() => {
+    const templates = [
+      { id: "template_hotpot", name: "🍲 經典打邊爐聚餐", _source: "template" as const, ingredients: [], image: null, cookTime: null, description: "經典打邊爐聚會，自動倍增換算" },
+      { id: "template_bbq", name: "🍢 經典 BBQ 燒烤聚會", _source: "template" as const, ingredients: [], image: null, cookTime: null, description: "經典 BBQ 燒烤聚餐，一鍵算齊材料" },
+    ];
     const all = [
+      ...templates,
       ...officialRecipes.map((r: any) => ({ ...r, _source: "official" as const })),
       ...userRecipes.map((r: any) => ({ ...r, _source: "user" as const })),
     ];
@@ -236,7 +618,7 @@ export default function PlannerTab() {
       if (addDayIndex < 0) return;
       const dateStr = weekDays[addDayIndex]?.dateStr;
       if (!dateStr) return;
-      const prefix = recipe._source === "user" ? "user_" : "official_";
+      const prefix = recipe._source === "user" ? "user_" : recipe._source === "template" ? "" : "official_";
       pendingIngredientsRef.current = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
       addMealM.mutate({
         date: dateStr,
@@ -327,18 +709,34 @@ export default function PlannerTab() {
     const sConfig = STATUS_CONFIG[mp.status] || STATUS_CONFIG.confirmed;
     const mConfig = MEAL_TYPE_CONFIG[mp.mealType] || MEAL_TYPE_CONFIG.dinner;
     const isPending = mp.status === "pending";
+    const isTemplate = mp.recipeId && mp.recipeId.startsWith("template_");
+    const templateIcon = mp.recipeId === "template_hotpot" ? "flame-outline" : mp.recipeId === "template_bbq" ? "restaurant-outline" : "rose-outline";
+    const templateColor = mp.recipeId === "template_hotpot" ? "#EF4444" : mp.recipeId === "template_bbq" ? "#FF8C00" : "#F59E0B";
+    const templateBg = mp.recipeId === "template_hotpot" ? "#FEE2E2" : mp.recipeId === "template_bbq" ? "#FFF7ED" : "#FEF3C7";
+
     return (
       <View key={mp.id} style={[styles.mealItem, { borderLeftColor: sConfig.color }]}>
         <TouchableOpacity
           style={styles.mealTouchable}
-          onPress={() =>
-            router.push({
-              pathname: "/recipe/[id]",
-              params: { id: mp.recipeId },
-            })
-          }
+          onPress={() => {
+            if (isTemplate) {
+              router.push({
+                pathname: "/shopping-templates",
+                params: { templateId: mp.recipeId, date: mp.date },
+              });
+            } else {
+              router.push({
+                pathname: "/recipe/[id]",
+                params: { id: mp.recipeId },
+              });
+            }
+          }}
         >
-          {mp.recipeImage ? (
+          {isTemplate ? (
+            <View style={[styles.mealImage, { backgroundColor: templateBg, alignItems: "center", justifyContent: "center" }]}>
+              <Ionicons name={templateIcon as any} size={20} color={templateColor} />
+            </View>
+          ) : mp.recipeImage ? (
             <Image source={{ uri: mp.recipeImage }} style={styles.mealImage} />
           ) : (
             <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
@@ -360,7 +758,12 @@ export default function PlannerTab() {
             <Text style={styles.mealName} numberOfLines={1}>
               {mp.recipeName}
             </Text>
-            {mp.proposedByName ? (
+            {isTemplate ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <Ionicons name="cart-outline" size={10} color="#FF8C00" />
+                <Text style={{ fontSize: 9, color: "#FF8C00", fontWeight: "700" }}>點擊開啟 🛒 買餸食材清單</Text>
+              </View>
+            ) : mp.proposedByName ? (
               <Text style={styles.mealProposer}>由 {mp.proposedByName} 提案</Text>
             ) : null}
           </View>
@@ -443,19 +846,19 @@ export default function PlannerTab() {
           </View>
           <View style={styles.dayHeaderRight}>
             <TouchableOpacity
-              style={[styles.eatOutBtn, eatOutDays.has(day.dateStr) && styles.eatOutBtnActive]}
+              style={[styles.eatOutBtn, recommendItemsByDay[day.dayOfWeek]?.eatOut && styles.eatOutBtnActive]}
               onPress={(e) => {
                 e.stopPropagation?.();
-                setEatOutDays(prev => {
-                  const next = new Set(prev);
-                  if (next.has(day.dateStr)) next.delete(day.dateStr);
-                  else next.add(day.dateStr);
-                  return next;
+                const currentEatOut = recommendItemsByDay[day.dayOfWeek]?.eatOut ?? false;
+                setEatOutM.mutate({
+                  weekStart: startDate,
+                  dayOfWeek: day.dayOfWeek,
+                  eatOut: !currentEatOut,
                 });
               }}
             >
-              <Ionicons name="restaurant-outline" size={11} color={eatOutDays.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
-              <Text style={[styles.eatOutTxt, eatOutDays.has(day.dateStr) && styles.eatOutTxtActive]}>
+              <Ionicons name="restaurant-outline" size={11} color={recommendItemsByDay[day.dayOfWeek]?.eatOut ? "#D97706" : "#9CA3AF"} />
+              <Text style={[styles.eatOutTxt, recommendItemsByDay[day.dayOfWeek]?.eatOut && styles.eatOutTxtActive]}>
                 外出
               </Text>
             </TouchableOpacity>
@@ -465,7 +868,7 @@ export default function PlannerTab() {
                   {dayMeals.length} 餐
                 </Text>
               </View>
-            ) : eatOutDays.has(day.dateStr) ? (
+            ) : recommendItemsByDay[day.dayOfWeek]?.eatOut ? (
               <View style={styles.eatOutBadge}>
                 <Text style={styles.eatOutBadgeTxt}>外出用餐</Text>
               </View>
@@ -548,6 +951,24 @@ export default function PlannerTab() {
           <Text style={styles.weekNavArrow}>▶</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ✨ AI 智能晚餐推薦懸浮 Banner */}
+      <TouchableOpacity
+        style={styles.aiRecommendBanner}
+        onPress={() => setShowSmartRecommend(true)}
+        activeOpacity={0.8}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "#F3E8FF", alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="sparkles" size={17} color="#7C3AED" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.aiRecommendTitle}>✨ AI 智能晚餐推薦</Text>
+            <Text style={styles.aiRecommendSub}>一鍵智能生成本週「三菜一湯」，套用至日常排餐</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
+      </TouchableOpacity>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -655,6 +1076,243 @@ export default function PlannerTab() {
         }}
       />
 
+      {/* ─── Smart Weekly Recommendation Modal ─── */}
+      <Modal visible={showSmartRecommend} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "90%" }}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC", backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="sparkles" size={14} color="#fff" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A" }}>本週 AI 晚餐推薦搭配</Text>
+                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>均衡膳食結構（三菜一湯）</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#7C3AED", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
+                  onPress={() => setShowAISuggest(true)}
+                >
+                  <Ionicons name="sparkles" size={11} color="#fff" />
+                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>AI 生成</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowSmartRecommend(false)} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
+                  <Ionicons name="close" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Content */}
+            <View style={{ flex: 1 }}>
+              {/* Day navigation tabs */}
+              <View style={{ flexDirection: "row", justifyContent: "space-around", paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
+                {[1, 2, 3, 4, 5, 6, 7].map(d => {
+                  const dayItem = recommendItemsByDay[d];
+                  const has = dayItem && (dayItem.meatId || dayItem.seafoodId || dayItem.vegId || dayItem.soupId);
+                  const isCurrent = recommendCurrentDay === d;
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={{ alignItems: "center", width: 44, paddingVertical: 6, borderRadius: 10, backgroundColor: isCurrent ? "#FF8C00" : "transparent" }}
+                      onPress={() => setRecommendCurrentDay(d)}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: isCurrent ? "#fff" : "#4B5563" }}>{DAY_SHORT[d]}</Text>
+                      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: has ? (isCurrent ? "#fff" : "#FF8C00") : "transparent", marginTop: 4 }} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <ScrollView style={{ flex: 1, padding: 14 }}>
+                {/* Info summary */}
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: "#4B5563" }}>
+                    {DAY_LABELS[recommendCurrentDay]} 晚餐推薦搭配：
+                  </Text>
+                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>
+                    {getDateForDow(startDate, recommendCurrentDay)}
+                  </Text>
+                </View>
+
+                {/* 4 slots */}
+                <View style={{ gap: 8 }}>
+                  {(["meat", "seafood", "veg", "soup"] as SlotType[]).map(slot => {
+                    const item = recommendItemsByDay[recommendCurrentDay];
+                    const dishId = item ? item[`${slot}Id`] ?? null : null;
+                    const dishName = item ? item[`${slot}Name`] ?? null : null;
+                    const meta = SLOT_META[slot];
+                    const hasDish = dishId && dishName;
+
+                    const cleanId = dishId && dishId.startsWith("official:") ? dishId.slice(9) : dishId;
+                    const numId = cleanId ? parseInt(cleanId, 10) : NaN;
+                    const official = !isNaN(numId) ? officialMap.get(numId) : null;
+                    const resolvedImage = official ? official.thumbnailUrl || official.image : null;
+
+                    return (
+                      <View key={slot} style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, borderWidth: 1.5, borderColor: "#F0E8DC", padding: 8, gap: 10 }}>
+                        {/* Slot icon */}
+                        <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: meta.color, alignItems: "center", justifyContent: "center" }}>
+                          <Ionicons name={meta.icon as any} size={18} color={SLOT_COLORS[slot]} />
+                        </View>
+
+                        {/* Dish Details - Clickable for preview */}
+                        <TouchableOpacity
+                          disabled={!hasDish}
+                          onPress={() => {
+                            // 支持 official + user 食譜 + name 兜底查詢
+                            let foundRecipe: any = null;
+                            if (official) {
+                              foundRecipe = official;
+                            } else if (dishId && !dishId.startsWith("official:")) {
+                              // 用戶自創食譜
+                              const cleanId = dishId.startsWith("user:") ? dishId.slice(5) : dishId;
+                              const numId = parseInt(cleanId, 10);
+                              foundRecipe = userRecipes.find((r: any) => r.id === numId);
+                            }
+                            // Name-based fallback (for recipes beyond limit or ID mismatch)
+                            if (!foundRecipe && dishName) {
+                              foundRecipe = [...officialRecipes, ...userRecipes].find((r: any) => r.name === dishName);
+                            }
+                            if (foundRecipe) {
+                              setSelectedPreviewRecipe(foundRecipe);
+                            } else {
+                              Alert.alert("找不到食譜詳情", "此食譜暫無詳細內容");
+                            }
+                          }}
+                          style={{ flex: 1 }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{meta.label}</Text>
+                              <Text style={{ fontSize: 13, fontWeight: "800", color: hasDish ? "#1A1A1A" : "#9CA3AF", marginTop: 1 }} numberOfLines={1}>
+                                {hasDish ? dishName : `請添加${meta.label}`}
+                              </Text>
+                            </View>
+                            {/* Image preview */}
+                            {hasDish && resolvedImage && (
+                              <Image source={{ uri: resolvedImage }} style={{ width: 34, height: 34, borderRadius: 6 }} />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+
+                        {/* Actions */}
+                        <View style={{ flexDirection: "row", gap: 4 }}>
+                          {hasDish && (
+                            <TouchableOpacity
+                              style={{ backgroundColor: "#FEE2E2", borderRadius: 6, padding: 6 }}
+                              onPress={() => {
+                                Alert.alert("清除", `確定清除本日的「${meta.label}」嗎？`, [
+                                  { text: "取消", style: "cancel" },
+                                  {
+                                    text: "清除",
+                                    style: "destructive",
+                                    onPress: () => {
+                                      setDayM.mutate({
+                                        weekStart: startDate,
+                                        dayOfWeek: recommendCurrentDay,
+                                        [`${slot}Id`]: null,
+                                        [`${slot}Name`]: null,
+                                        [`${slot}Image`]: null,
+                                        [`${slot}CookTime`]: null,
+                                      });
+                                    }
+                                  }
+                                ]);
+                              }}
+                            >
+                              <Ionicons name="trash-outline" size={13} color="#EF4444" />
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            style={{ backgroundColor: "#F3F4F6", borderRadius: 6, padding: 6 }}
+                            onPress={() => setEditingSlot({ day: recommendCurrentDay, slot })}
+                          >
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+                              <Ionicons name={hasDish ? "swap-horizontal" : "add"} size={13} color="#6B7280" />
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#6B7280" }}>換</Text>
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Bottom Actions */}
+            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: "#F0E8DC", backgroundColor: "#fff", flexDirection: "row", gap: 8 }}>
+              {/* 按鈕 A: 套用本日推薦 */}
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E8F0FE", alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
+                onPress={() => handleApplyToday(recommendItemsByDay[recommendCurrentDay])}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>✅ 套用本日 ({DAY_SHORT[recommendCurrentDay]})</Text>
+              </TouchableOpacity>
+              {/* 按鈕 B: 一鍵套用整週推薦 */}
+              <TouchableOpacity
+                style={{ flex: 1.2, paddingVertical: 11, borderRadius: 12, backgroundColor: "#FF8C00", alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 }}
+                onPress={handleApplyEntireWeek}
+              >
+                <Ionicons name="calendar-outline" size={13} color="#fff" />
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>📦 一鍵套用整週</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── Slot Picker Modal ─── */}
+      {editingSlot && (
+        <Modal visible transparent animationType="slide">
+          <SlotPickerModal
+            dayOfWeek={editingSlot.day}
+            slotType={editingSlot.slot}
+            officialRecipes={officialRecipes}
+            isPending={setDayM.isPending}
+            onSelect={(recipe) => {
+              setDayM.mutate({
+                weekStart: startDate,
+                dayOfWeek: editingSlot.day,
+                [`${editingSlot.slot}Id`]: `official:${recipe.id}`,
+                [`${editingSlot.slot}Name`]: recipe.name,
+                [`${editingSlot.slot}Image`]: recipe.thumbnailUrl || recipe.image || "",
+                [`${editingSlot.slot}CookTime`]: recipe.cookTime || 20,
+              });
+              setEditingSlot(null);
+            }}
+            onClose={() => setEditingSlot(null)}
+          />
+        </Modal>
+      )}
+
+      {/* ─── AI Suggestion Configure Modal ─── */}
+      {showAISuggest && (
+        <AISuggestModalRN
+          visible={showAISuggest}
+          weekStart={startDate}
+          officialRecipes={officialRecipes}
+          onClose={() => setShowAISuggest(false)}
+          onPublished={() => {
+            setShowAISuggest(false);
+            utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
+            refetchRecommendWeek();
+          }}
+          onPreviewRecipe={(r) => setSelectedPreviewRecipe(r)}
+        />
+      )}
+
+      {/* ─── Recipe Details Preview Modal ─── */}
+      {selectedPreviewRecipe && (
+        <RecipePreviewModal
+          recipe={selectedPreviewRecipe}
+          onClose={() => setSelectedPreviewRecipe(null)}
+        />
+      )}
+
       <Toast
         visible={toast.visible}
         message={toast.message}
@@ -665,10 +1323,543 @@ export default function PlannerTab() {
   );
 }
 
+// ─── AI Weekly Menu Supporting Modals ───────────────────────────────────────────
+
+function SlotPickerModal({
+  dayOfWeek, slotType, officialRecipes, onSelect, onClose, isPending,
+}: {
+  dayOfWeek: number; slotType: SlotType; officialRecipes: any[];
+  onSelect: (recipe: any) => void; onClose: () => void; isPending: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const meta = SLOT_META[slotType];
+
+  const filtered = useMemo(() => {
+    const results = officialRecipes.filter(r => matchRecipeForSlot(r, slotType));
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return results.filter(r => r.name.toLowerCase().includes(q));
+    }
+    return results;
+  }, [slotType, officialRecipes, search]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+      <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "75%", minHeight: "50%" }}>
+        <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{DAY_LABELS[dayOfWeek]}{meta.label}</Text>
+            <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
+              <Ionicons name="close" size={14} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3F4F6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+            <Ionicons name="search" size={14} color="#9CA3AF" />
+            <TextInput
+              style={{ flex: 1, fontSize: 13, color: "#1A1A1A" }}
+              value={search}
+              onChangeText={setSearch}
+              placeholder={`搜尋${meta.label}食譜...`}
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+        <ScrollView style={{ flex: 1 }}>
+          {filtered.length === 0 ? (
+            <View style={{ padding: 32, alignItems: "center" }}>
+              <Text style={{ fontSize: 12, color: "#9CA3AF" }}>食譜庫中暫無{meta.label}食譜</Text>
+              <Text style={{ fontSize: 11, color: "#B0BAC9", marginTop: 4 }}>請先在食譜庫加入相關食譜</Text>
+            </View>
+          ) : (
+            filtered.map(recipe => (
+              <TouchableOpacity
+                key={recipe.id}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }}
+                onPress={() => onSelect(recipe)}
+                disabled={isPending}
+              >
+                {recipe.thumbnailUrl || recipe.image ? (
+                  <Image source={{ uri: recipe.thumbnailUrl || recipe.image }} style={{ width: 44, height: 44, borderRadius: 10 }} />
+                ) : (
+                  <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: meta.color, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name={meta.icon as any} size={20} color={SLOT_COLORS[slotType]} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>{recipe.name}</Text>
+                  {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}分鐘</Text>}
+                </View>
+                {isPending && <ActivityIndicator size="small" color="#013E77" />}
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+function AISuggestModalRN({
+  visible, weekStart, officialRecipes, onClose, onPublished, onPreviewRecipe,
+}: {
+  visible: boolean; weekStart: string; officialRecipes: any[];
+  onClose: () => void; onPublished: () => void;
+  onPreviewRecipe: (recipe: any) => void;
+}) {
+  const [suggestedDays, setSuggestedDays] = useState<any[] | null>(null);
+  const [reasoning, setReasoning] = useState("");
+  const [swapTarget, setSwapTarget] = useState<{ day: number; slot: SlotType } | null>(null);
+
+  const aiSuggestM = trpc.weeklyMenu.aiSuggest.useMutation({
+    onSuccess: (data: any) => {
+      setSuggestedDays(data.days);
+      setReasoning(data.reasoning || "");
+    },
+    onError: (e) => Alert.alert("AI 推薦失敗", e.message),
+  });
+  const setWeekM = trpc.weeklyMenu.setWeek.useMutation({
+    onSuccess: () => {
+      Alert.alert(
+        "🎉 一星期晚餐推薦設定成功！",
+        "已為您生成本週的晚餐靈感。\n\n您可以點擊下方「套用整週推薦」，一鍵將整週美味晚餐排入日程並預備買餸清單！",
+        [{ text: "確定", onPress: onPublished }]
+      );
+    },
+    onError: (e) => Alert.alert("發布失敗", e.message),
+  });
+
+  const handleSwap = (dayOfWeek: number, slotType: SlotType, newDish: any) => {
+    setSuggestedDays(prev =>
+      prev ? prev.map(d =>
+        d.dayOfWeek === dayOfWeek ? { ...d, [slotType]: { ...newDish, reason: "手動替換" } } : d
+      ) : prev
+    );
+  };
+
+  const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
+    Alert.alert(
+      "清空菜式",
+      `確定要清空週${DAY_SHORT[dayOfWeek]}${SLOT_META[slotType].label}？`,
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "清空",
+          style: "destructive",
+          onPress: () => {
+            setSuggestedDays(prev =>
+              prev ? prev.map(d =>
+                d.dayOfWeek === dayOfWeek ? { ...d, [slotType]: { id: null, name: null, image: null, cookTime: null, reason: null } } : d
+              ) : prev
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const slots: SlotType[] = ["meat", "seafood", "veg", "soup"];
+
+  if (!visible) return null;
+
+  return (
+    <>
+      <Modal visible transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)" }}>
+          <View style={{ flex: 1, backgroundColor: "#FFFBF5", marginTop: 60, borderTopLeftRadius: 22, borderTopRightRadius: 22 }}>
+            {/* Header */}
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="sparkles" size={16} color="#fff" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: "900", color: "#1A1A1A" }}>AI 智能週餐推薦</Text>
+                    <Text style={{ fontSize: 10, color: "#9CA3AF" }}>每天：1肉 + 1海鮮 + 1蔬菜 + 1湯</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
+                  <Ionicons name="close" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView style={{ flex: 1, padding: 16 }}>
+              {!suggestedDays && !aiSuggestM.isPending && (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(124,58,237,0.13)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                    <Ionicons name="sparkles" size={28} color="#7C3AED" />
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A", marginBottom: 8 }}>讓 AI 幫你安排本週 7 天晚餐</Text>
+                  <Text style={{ fontSize: 12, color: "#6B7280", textAlign: "center", marginBottom: 24 }}>每天自動安排：肉類 + 海鮮/魚 + 蔬菜 + 湯</Text>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#7C3AED", paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14 }}
+                    onPress={() => aiSuggestM.mutate({ city: "香港" })}
+                  >
+                    <Ionicons name="sparkles" size={16} color="#fff" />
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>開始 AI 生成</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {aiSuggestM.isPending && (
+                <View style={{ alignItems: "center", paddingVertical: 48 }}>
+                  <ActivityIndicator size="large" color="#7C3AED" />
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginTop: 16 }}>AI 正在分析...</Text>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>正在獲取天氣資料、分析飲食記錄</Text>
+                </View>
+              )}
+
+              {suggestedDays && (
+                <>
+                  {reasoning && (
+                    <View style={{ backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "#DDD6FE" }}>
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        <Ionicons name="sparkles" size={12} color="#7C3AED" style={{ marginTop: 2 }} />
+                        <Text style={{ fontSize: 11, color: "#5B21B6", lineHeight: 18 }}>{reasoning}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={{ gap: 10 }}>
+                    {[...suggestedDays].sort((a, b) => a.dayOfWeek - b.dayOfWeek).map(day => (
+                      <View key={day.dayOfWeek} style={{ backgroundColor: "#fff", borderRadius: 14, borderWidth: 1.5, borderColor: "#F0E8DC", overflow: "hidden" }}>
+                        <View style={{ padding: 8, backgroundColor: day.dayOfWeek >= 6 ? "#FFF7ED" : "#F8FAFC", borderBottomWidth: 1, borderBottomColor: "#F0E8DC", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                          <Text style={{ fontSize: 12, fontWeight: "900", color: day.dayOfWeek >= 6 ? "#FF8C00" : "#374151" }}>
+                            {DAY_LABELS[day.dayOfWeek]}{day.dayOfWeek >= 6 ? " 週末" : ""}
+                          </Text>
+                        </View>
+                        <View style={{ padding: 8, gap: 6 }}>
+                          {slots.map(slotType => {
+                            const dish = day[slotType];
+                            const meta = SLOT_META[slotType];
+                            const hasValidDish = dish && dish.id && dish.name;
+                            return (
+                              <View key={slotType} style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FAFAFA", borderRadius: 10, padding: 6, borderWidth: 1, borderColor: "#F0E8DC" }}>
+                                <View style={{ width: 36, alignItems: "center" }}>
+                                  <Ionicons name={meta.icon as any} size={16} color={SLOT_COLORS[slotType]} />
+                                </View>
+                                <TouchableOpacity
+                                  style={{ flex: 1 }}
+                                  disabled={!hasValidDish}
+                                  onPress={() => {
+                                    const cleanId = dish.id.replace("official:", "");
+                                    const found = officialRecipes.find((r: any) => r.id.toString() === cleanId || r.name === dish.name);
+                                    if (found) {
+                                      onPreviewRecipe(found);
+                                    } else {
+                                      Alert.alert("找不到食譜詳情", "此食譜暫無詳細內容");
+                                    }
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={{ fontSize: 12, fontWeight: "700", color: hasValidDish ? "#1A1A1A" : "#9CA3AF" }} numberOfLines={1}>
+                                    {hasValidDish ? dish.name : `${meta.label}（未設定）`}
+                                  </Text>
+                                  {dish?.reason && <Text style={{ fontSize: 9, color: "#9CA3AF" }}><Ionicons name="bulb" size={9} color="#9CA3AF" /> {dish.reason}</Text>}
+                                </TouchableOpacity>
+                                <View style={{ flexDirection: "row", gap: 4 }}>
+                                  {hasValidDish && (
+                                    <TouchableOpacity
+                                      style={{ backgroundColor: "#FEE2E2", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4 }}
+                                      onPress={() => handleClearSlot(day.dayOfWeek, slotType)}
+                                    >
+                                      <Ionicons name="close" size={10} color="#EF4444" />
+                                    </TouchableOpacity>
+                                  )}
+                                  <TouchableOpacity
+                                    style={{ backgroundColor: "#F3F4F6", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4 }}
+                                    onPress={() => setSwapTarget({ day: day.dayOfWeek, slot: slotType })}
+                                  >
+                                    <Text style={{ fontSize: 10, fontWeight: "700", color: "#6B7280" }}>換</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            {suggestedDays && (
+              <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: "#F0E8DC", flexDirection: "row", gap: 8, backgroundColor: "#fff" }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                  onPress={() => aiSuggestM.mutate({ city: "香港" })}
+                  disabled={aiSuggestM.isPending}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#374151" }}>重新生成</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 2, paddingVertical: 10, borderRadius: 12, backgroundColor: "#FF8C00", alignItems: "center" }}
+                  onPress={() => {
+                    if (!suggestedDays) return;
+                    setWeekM.mutate({
+                      weekStart,
+                      days: suggestedDays.map((d: any) => ({
+                        dayOfWeek: d.dayOfWeek,
+                        meat: { id: d.meat.id, name: d.meat.name, image: d.meat.image, cookTime: d.meat.cookTime },
+                        seafood: { id: d.seafood.id, name: d.seafood.name, image: d.seafood.image, cookTime: d.seafood.cookTime },
+                        veg: { id: d.veg.id, name: d.veg.name, image: d.veg.image, cookTime: d.veg.cookTime },
+                        soup: { id: d.soup.id, name: d.soup.name, image: d.soup.image, cookTime: d.soup.cookTime },
+                      }) as any),
+                    });
+                  }}
+                  disabled={setWeekM.isPending}
+                >
+                  {setWeekM.isPending ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>一鍵確認發布</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Swap Picker overlay */}
+      {swapTarget && suggestedDays && (
+        <SwapPickerRN
+          dayOfWeek={swapTarget.day}
+          slotType={swapTarget.slot}
+          officialRecipes={officialRecipes}
+          currentId={suggestedDays.find(d => d.dayOfWeek === swapTarget.day)?.[swapTarget.slot]?.id || ""}
+          onSelect={(dish) => { handleSwap(swapTarget.day, swapTarget.slot, dish); setSwapTarget(null); }}
+          onClose={() => setSwapTarget(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function SwapPickerRN({
+  dayOfWeek, slotType, officialRecipes, onSelect, onClose,
+}: {
+  dayOfWeek: number; slotType: SlotType; officialRecipes: any[]; currentId: string;
+  onSelect: (dish: any) => void; onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const meta = SLOT_META[slotType];
+
+  const filtered = useMemo(() => {
+    const results = officialRecipes.filter(r => matchRecipeForSlot(r, slotType));
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return results.filter(r => r.name.toLowerCase().includes(q));
+    }
+    return results;
+  }, [slotType, officialRecipes, search]);
+
+  return (
+    <Modal transparent animationType="slide">
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
+          <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{DAY_LABELS[dayOfWeek]}{meta.label}</Text>
+              <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
+                <Ionicons name="close" size={14} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={{ backgroundColor: "#F3F4F6", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: "#1A1A1A" }}
+              value={search}
+              onChangeText={setSearch}
+              placeholder={`搜尋${meta.label}食譜...`}
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+          <ScrollView style={{ flex: 1 }}>
+            {filtered.length === 0 ? (
+              <View style={{ padding: 32, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, color: "#9CA3AF" }}>食譜庫中暫無相關的{meta.label}食譜</Text>
+              </View>
+            ) : (
+              filtered.map(recipe => (
+                <TouchableOpacity
+                  key={recipe.id}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" }}
+                  onPress={() => onSelect({ id: `official:${recipe.id}`, name: recipe.name, image: recipe.thumbnailUrl || recipe.image, cookTime: recipe.cookTime })}
+                >
+                  <Image source={{ uri: recipe.image || recipe.thumbnailUrl || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=80&q=60" }} style={{ width: 40, height: 40, borderRadius: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>{recipe.name}</Text>
+                    {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}分鐘</Text>}
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function RecipePreviewModal({
+  recipe, onClose,
+}: {
+  recipe: any; onClose: () => void;
+}) {
+  const imageSource = useMemo(() => {
+    if (!recipe) return null;
+    const img = recipe.thumbnailUrl || recipe.image;
+    if (!img) return null;
+    if (typeof img === "number" || (typeof img === "object" && img.uri)) {
+      return img;
+    }
+    return { uri: img };
+  }, [recipe]);
+
+  const stepsList = useMemo(() => {
+    if (!recipe || !Array.isArray(recipe.steps)) return [];
+    return recipe.steps.map((step: any) => {
+      if (typeof step === "string") return step;
+      return step.instruction || step.description || step.step || "";
+    });
+  }, [recipe]);
+
+  if (!recipe) return null;
+
+  return (
+    <Modal transparent animationType="slide" visible={recipe !== null}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 22, borderTopRightRadius: 22, height: "85%" }}>
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
+            <View style={{ flex: 1, marginRight: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: "900", color: "#1A1A1A" }} numberOfLines={1}>{recipe.name}</Text>
+              {recipe.description && (
+                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }} numberOfLines={1}>{recipe.description}</Text>
+              )}
+            </View>
+            <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
+              <Ionicons name="close" size={16} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
+            {/* Image */}
+            {imageSource ? (
+              <Image source={imageSource} style={{ width: "100%", height: 180 }} resizeMode="cover" />
+            ) : (
+              <View style={{ width: "100%", height: 120, backgroundColor: "#EAEAEA", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="restaurant-outline" size={48} color="#C0C0C0" />
+              </View>
+            )}
+
+            {/* Meta Row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 12, borderBottomWidth: 1, borderBottomColor: "#F0E8DC", backgroundColor: "#FFFFFF" }}>
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>⏱ 烹飪時間</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.cookTime || 20} 分鐘</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: "#F0E8DC" }} />
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>👥 分量</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.servings || 2} 人份</Text>
+              </View>
+              <View style={{ width: 1, backgroundColor: "#F0E8DC" }} />
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>🔥 難易度</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.difficulty || "簡單"}</Text>
+              </View>
+            </View>
+
+            {/* Ingredients Section */}
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <Ionicons name="leaf" size={16} color="#16A34A" />
+                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>🥬 需要食材</Text>
+              </View>
+              <View style={{ backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1.5, borderColor: "#F0E8DC", paddingHorizontal: 12, paddingVertical: 6 }}>
+                {Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 ? (
+                  recipe.ingredients.map((ing: any, i: number) => (
+                    <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: i < recipe.ingredients.length - 1 ? 1 : 0, borderBottomColor: "#F3F4F6" }}>
+                      <Text style={{ fontSize: 13, color: "#1A1A1A" }}>{ing.name}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#4B5563" }}>{ing.quantity} {ing.unit}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>暫無食材資訊</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Steps Section */}
+            <View style={{ paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <Ionicons name="restaurant" size={16} color="#FF8C00" />
+                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>🍳 烹飪步驟</Text>
+              </View>
+              <View style={{ gap: 10 }}>
+                {stepsList.length > 0 ? (
+                  stepsList.map((step: string, i: number) => (
+                    <View key={i} style={{ flexDirection: "row", gap: 10, backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1.5, borderColor: "#F0E8DC", padding: 12 }}>
+                      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "#FF8C00", alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "800" }}>{i + 1}</Text>
+                      </View>
+                      <Text style={{ flex: 1, fontSize: 13, color: "#1A1A1A", lineHeight: 18 }}>{step}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>暫無步驟資訊</Text>
+                )}
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Footer Action */}
+          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: "#F0E8DC", backgroundColor: "#FFFFFF" }}>
+            <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#013E77", paddingVertical: 12, borderRadius: 12, alignItems: "center" }}>
+              <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800" }}>我知道了</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  aiRecommendBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 6,
+    padding: 12,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E9D5FF", // light purple border for AI branding
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  aiRecommendTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1A1A1A",
+  },
+  aiRecommendSub: {
+    fontSize: 10,
+    color: "#7C3AED",
+    fontWeight: "600",
+    marginTop: 2,
   },
   header: {
     paddingHorizontal: 16,

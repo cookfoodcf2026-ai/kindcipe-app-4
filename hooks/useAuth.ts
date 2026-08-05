@@ -54,17 +54,22 @@ export function useAuth() {
     async (familyId: string) => {
       setActiveFamilyId(familyId);
       await AsyncStorage.setItem(FAMILY_ID_KEY, familyId);
+      // 不等待 invalidate，讓它在背景刷新
       utils.invalidate();
     },
     [utils],
   );
 
   // 獲取當前活躍家庭的詳細資料（後端根據 X-Family-Id header 決定回傳哪個家庭）
-  const { data: activeFamily, refetch: refetchActiveFamily } = trpc.family.get.useQuery(undefined, {
-    enabled: isAuthenticated,
-    staleTime: 0, // 取消 stale cache，確保每次都能拿到最新資料
-    refetchOnMount: true,
-  });
+  const familyIdNum = activeFamilyId ? parseInt(activeFamilyId, 10) : undefined;
+  const { data: activeFamily, refetch: refetchActiveFamily } = trpc.family.get.useQuery(
+    familyIdNum ? { id: familyIdNum } : undefined,
+    {
+      enabled: isAuthenticated && !!activeFamilyId,
+      staleTime: 0,
+      refetchOnMount: 'always',
+    },
+  );
 
   // 當前用戶在活躍家庭中的角色
   const familyRole = (() => {

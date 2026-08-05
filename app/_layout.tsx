@@ -247,6 +247,14 @@ export default function RootLayout() {
               options={{ headerShown: false, gestureEnabled: false }}
             />
             <Stack.Screen
+              name="import"
+              options={{ 
+                headerShown: false,
+                title: "",
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
               name="settings"
               options={{ 
                 headerShown: false,

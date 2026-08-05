@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   FlatList, Dimensions, ScrollView, ActivityIndicator,
-  Modal, Platform, RefreshControl, TextInput,
+  Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -33,54 +33,36 @@ const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
 const CATEGORY_ORDER = ["全部", "中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"];
 
 const POPULAR_CHIPS = [
-  { key: "quick15", label: "⚡ 快手 15 分鐘", filter: (r: any) => (r.cookTime ?? 999) <= 15 },
-  { key: "quick30", label: "⏱ 快手 30 分鐘", filter: (r: any) => (r.cookTime ?? 999) <= 30 },
-  { key: "tonight", label: " 今晚食", filter: (r: any) => r.recipeCategory === "中菜" || (r.tags ?? []).includes("家常菜") },
-  { key: "hk-style", label: "🇰 港式家常", filter: (r: any) => (r.tags ?? []).includes("港式") },
-  { key: "kids", label: "👶 小朋友啱食", filter: (r: any) => {
-      const tags = r.tags ?? [];
-      const ingredients = r.ingredients ?? [];
-      if (tags.some((t: string) => t.includes("小朋友"))) return true;
-      const hasSpicy = ingredients.some((i: any) => ["辣椒", "胡椒", "辣油", "豆瓣", "花椒"].some(s => i.name?.includes(s)));
-      const hasDeepFry = r.steps?.some((s: any) => s.instruction?.includes("炸"));
-      return r.difficulty === "簡單" && !hasSpicy && !hasDeepFry;
-    }
-  },
-  { key: "vegetarian", label: " 素食主義", filter: (r: any) => {
-      const tags = r.tags ?? [];
-      const ingredients = r.ingredients ?? [];
-      if (tags.some((t: string) => t.includes("素食"))) return true;
-      const MEAT_KEYWORDS = ["雞", "豬", "牛", "羊", "魚", "蝦", "蟹", "肉", "腩", "翼", "腿", "排骨", "臘", "大腸", "牛柳", "牛仔骨", "蜆", "", "帶子", "三文魚", "西冷", "拉麵", "叉燒"];
-      return !ingredients.some((i: any) => MEAT_KEYWORDS.some(m => i.name?.includes(m)));
-    }
-  },
-  { key: "light", label: "🥗 清淡少油", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("清淡") || t.includes("健康") || t.includes("少油")) },
-  { key: "one-person", label: "👤 一人食", filter: (r: any) => (r.servings ?? 999) <= 2 },
-  { key: "high-protein", label: "💪 高蛋白", filter: (r: any) => (r.ingredients ?? []).some((i: any) => ["雞肉", "豬肉", "牛肉", "魚", "蝦", "豆腐", "雞蛋", "牛柳", "牛仔骨", "三文魚", "西冷"].some(p => i.name?.includes(p))) },
-  { key: "soup", label: "🍲 湯水", filter: (r: any) => r.recipeCategory === "湯水" || r.name.includes("湯") || (r.tags ?? []).includes("湯水") },
-  { key: "fridge", label: "🧊 冰箱清庫存", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("家常") || t.includes("簡單")) },
-  { key: "beginner", label: "⭐ 新手必學", filter: (r: any) => r.difficulty === "簡單" && (r.tags ?? []).some((t: string) => t.includes("新手") || t.includes("基礎")) },
-  { key: "party", label: "🍽️ 請客食譜", filter: (r: any) => (r.servings ?? 0) >= 4 || (r.tags ?? []).some((t: string) => t.includes("宴客")) },
-  { key: "low-calorie", label: "🥗 低卡減肥", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("低卡") || t.includes("減肥")) },
-  { key: "3d1s", label: "🍱 3 餸 1 湯", filter: (r: any) => r.recipeCategory === "中菜" },
-  { key: "steamed", label: " 蒸餸", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("蒸")) },
-  { key: "stir-fry", label: " 小炒", filter: (r: any) => (r.tags ?? []).some((t: string) => t.includes("炒")) },
+  { key: "quick15", label: "⚡ 快手 15 分鐘" },
+  { key: "quick30", label: "⏱ 快手 30 分鐘" },
+  { key: "tonight", label: " 今晚食" },
+  { key: "hk-style", label: "🇰 港式家常" },
+  { key: "kids", label: "👶 小朋友啱食" },
+  { key: "vegetarian", label: " 素食主義" },
+  { key: "light", label: "🥗 清淡少油" },
+  { key: "one-person", label: "👤 一人食" },
+  { key: "high-protein", label: "💪 高蛋白" },
+  { key: "soup", label: "🍲 湯水" },
+  { key: "fridge", label: "🧊 冰箱清庫存" },
+  { key: "beginner", label: "⭐ 新手必學" },
+  { key: "party", label: "🍽️ 請客食譜" },
+  { key: "low-calorie", label: "🥗 低卡減肥" },
+  { key: "3d1s", label: "🍱 3 餸 1 湯" },
+  { key: "steamed", label: " 蒸餸" },
+  { key: "stir-fry", label: " 小炒" },
+];
+
+const INGREDIENT_CATEGORIES = [
+  { key: "meat", label: "🥩 肉類", keywords: ["雞肉", "豬肉", "牛肉", "羊肉", "鴨肉", "排骨", "雞翼", "雞腿", "午餐肉", "香腸", "火腿", "培根"] },
+  { key: "seafood", label: "🐟 海鮮", keywords: ["魚", "蝦", "蟹", "三文魚", "帶子", "蜆", "蠔", "魷魚", "章魚", "海參", "鮑魚"] },
+  { key: "vegetable", label: "🥬 蔬菜", keywords: ["菜心", "白菜", "生菜", "菠菜", "西蘭花", "椰菜", "甘藍", "芹菜", "韭菜", "蔥", "蒜", "洋蔥"] },
+  { key: "tofu", label: "🍲 豆製品", keywords: ["豆腐", "豆乾", "豆皮", "腐竹", "油豆腐", "素雞"] },
+  { key: "egg", label: "🥚 蛋類", keywords: ["雞蛋", "鴨蛋", "鵪鶉蛋", "皮蛋", "鹹蛋"] },
+  { key: "mushroom", label: "🍄 菌菇", keywords: ["香菇", "蘑菇", "金針菇", "杏鮑菇", "木耳", "靈芝"] },
+  { key: "carb", label: "🍚 主食", keywords: ["飯", "麵", "米粉", "河粉", "烏冬", "意粉", "饅頭", "包"] },
 ];
 
 const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "電飯煲料理", "家常", "簡單", "素食", "低卡"];
-
-const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
-  "中菜": { bg: "#FFF1F0", text: "#B91C1C" },
-  "西餐": { bg: "#EFF6FF", text: "#1D4ED8" },
-  "日式": { bg: "#FFF0F6", text: "#BE185D" },
-  "韓式": { bg: "#FFF7ED", text: "#C2410C" },
-  "東南亞": { bg: "#F0FDF4", text: "#15803D" },
-  "甜品": { bg: "#FEFCE8", text: "#A16207" },
-  "飲品": { bg: "#F5F3FF", text: "#7C3AED" },
-  "其他": { bg: "#F3F4F6", text: "#4B5563" },
-};
-
-const getCategoryColor = (key?: string) => CATEGORY_COLORS[key || "其他"] || CATEGORY_COLORS["其他"];
 
 const mealName = (m: any) => m.recipeName || m.name || "未命名食譜";
 
@@ -203,45 +185,28 @@ function PendingActionsCard({ router, isAdmin }: {
 }
 
 // ── Weekly Menu Bar ──────────────────────────────────────────────────
-function WeeklyMenuBar({ router }: { router: ReturnType<typeof useRouter> }) {
-  const weekStart = useMemo(() => {
-    const d = new Date();
-    const day = d.getDay();
-    d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  }, []);
-  const { data } = trpc.weeklyMenu.getWeek.useQuery({ weekStart }, { staleTime: 60000 });
-  const items = (data?.items ?? []) as any[];
-  const filled = items.filter(i => i.meatId || i.seafoodId || i.vegId || i.soupId);
-  if (filled.length === 0) return null;
-  const DAY_SHORT = ["", "一", "二", "三", "四", "五", "六", "日"];
-  const todayDow = new Date().getDay() === 0 ? 7 : new Date().getDay();
+
+// ── Recipe Card Skeleton (loading placeholder) ─────────────────────────
+function RecipeCardSkeleton({ anim }: { anim: Animated.Value }) {
+  const animatedStyle = {
+    opacity: anim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.4, 0.85],
+    }),
+  };
+
   return (
-    <TouchableOpacity style={s.weeklyBar} onPress={() => router.push("/weekly-menu")} activeOpacity={0.85}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Ionicons name="star-outline" size={14} color="#FF8C00" />
-          <Text style={s.weeklyBarTitle}>本週晚餐推薦</Text>
-        </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-          <Text style={{ fontSize: 11, color: "#9CA3AF" }}>{filled.length}/7 天</Text>
-          <Ionicons name="chevron-forward" size={13} color="#9CA3AF" />
+    <View style={s.skeletonCard}>
+      <Animated.View style={[s.skeletonImg, animatedStyle]} />
+      <View style={s.skeletonInfo}>
+        <Animated.View style={[s.skeletonNameLine, animatedStyle]} />
+        <Animated.View style={[s.skeletonNameLineShort, animatedStyle]} />
+        <View style={s.skeletonMetaRow}>
+          <Animated.View style={[s.skeletonMetaItem, animatedStyle]} />
+          <Animated.View style={[s.skeletonMetaItem, animatedStyle]} />
         </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 8 }}>
-        {[1,2,3,4,5,6,7].map(dow => {
-          const day = items.find((i: any) => i.dayOfWeek === dow);
-          const has = day && (day.meatId || day.seafoodId || day.vegId || day.soupId);
-          const isToday = dow === todayDow;
-          return (
-            <View key={dow} style={[s.weekDot, isToday && s.weekDotToday, !has && s.weekDotEmpty]}>
-              <Text style={[s.weekDotLabel, isToday && { color: "#fff" }]}>{DAY_SHORT[dow]}</Text>
-              {has && <Text style={s.weekDotDish} numberOfLines={1}>{day.meatName || day.seafoodName || day.vegName || day.soupName}</Text>}
-            </View>
-          );
-        })}
-      </ScrollView>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -299,6 +264,7 @@ export default function RecipesTab() {
   const [viewType, setViewType] = useState<"grid" | "list">("grid");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
   const searchInputRef = useRef<TextInput>(null);
   const skeletonAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -318,21 +284,25 @@ export default function RecipesTab() {
     return () => animation.stop();
   }, []);
 
-  // Debounce search query (300ms)
+  // Debounce search query (300ms) - ONLY update query, DO NOT save history here!
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-      // Save to search history if non-empty
-      if (searchQuery.trim().length > 0) {
-        setSearchHistory(prev => {
-          const updated = [searchQuery.trim(), ...prev.filter(s => s !== searchQuery.trim())].slice(0, 10);
-          AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
-          return updated;
-        });
-      }
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Save search history manually (only when user submits search)
+  const handleSaveSearchHistory = (query: string) => {
+    const trimmed = query.trim();
+    if (trimmed.length > 0) {
+      setSearchHistory(prev => {
+        const updated = [trimmed, ...prev.filter(s => s !== trimmed)].slice(0, 20);
+        AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
+        return updated;
+      });
+    }
+  };
 
   const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; image?: string; ingredients?: any[] } | null>(null);
   const [quickPlanDate, setQuickPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -349,6 +319,8 @@ export default function RecipesTab() {
   const {
     recipes: searchRecipes,
     total: searchTotal,
+    officialCount: searchOfficialCount,
+    customCount: searchCustomCount,
     isLoading: searchLoading,
     isFetchingNextPage,
     hasNextPage,
@@ -362,6 +334,7 @@ export default function RecipesTab() {
     tags: activeTagFilters.length > 0 ? activeTagFilters : undefined,
     cookTimeMax: activePopularChips.includes("quick15") ? 15 : activePopularChips.includes("quick30") ? 30 : filterCookTimeMax,
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
+    ingredientCategory: activeIngredientCategory,
     limit: viewType === "grid" ? 20 : 30,
   });
 
@@ -474,7 +447,8 @@ export default function RecipesTab() {
     );
   };
 
-  const hasFilters = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0;
+  const hasFilters = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
+  const hasActiveTokens = activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined || filterCookTimeMax !== undefined;
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -491,15 +465,18 @@ export default function RecipesTab() {
     if (activeTagFilters.length > 0) {
       activeTagFilters.forEach(tag => parts.push(`#${tag}`));
     }
+    if (activeIngredientCategory) {
+      const ingCat = INGREDIENT_CATEGORIES.find(c => c.key === activeIngredientCategory);
+      parts.push(ingCat?.label || activeIngredientCategory);
+    }
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
-  }, [activeCategory, activePopularChips, activeTagFilters, searchQuery, categories]);
+  }, [activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories]);
 
   const ListHeader = (
     <>
       <TonightMenuCard todayMeals={todayMeals} router={router} isAdmin={isAdmin} />
       <PendingActionsCard router={router} isAdmin={isAdmin} />
-      <WeeklyMenuBar router={router} />
       {!isPaid && <PremiumPromoBanner onPress={() => setShowPaywall(true)} />}
 
       <View style={[s.searchWrap, { marginRight: Math.max(14, insets.right) }]}>
@@ -516,7 +493,10 @@ export default function RecipesTab() {
           }}
           onFocus={() => searchHistory.length > 0 && setShowSearchHistory(true)}
           returnKeyType="search"
-          clearButtonMode="while-editing"
+          onSubmitEditing={() => {
+            handleSaveSearchHistory(searchQuery);
+            setShowSearchHistory(false);
+          }}
         />
         {searchQuery ? (
           <TouchableOpacity onPress={() => {
@@ -535,10 +515,10 @@ export default function RecipesTab() {
         {/* Filter Button */}
         <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
           <Ionicons name="filter-outline" size={18} color={BRAND} />
-          {(activeTagFilters.length > 0 || activePopularChips.length > 0 || activeCategory !== "all" || filterCookTimeMax !== undefined) && (
+          {(activeTagFilters.length > 0 || activePopularChips.length > 0 || activeCategory !== "all" || filterCookTimeMax !== undefined || activeIngredientCategory !== undefined) && (
             <View style={s.filterBadge}>
               <Text style={s.filterBadgeTxt}>
-                {activeTagFilters.length + activePopularChips.length + (activeCategory !== "all" ? 1 : 0) + (filterCookTimeMax !== undefined ? 1 : 0)}
+                {activeTagFilters.length + activePopularChips.length + (activeCategory !== "all" ? 1 : 0) + (filterCookTimeMax !== undefined ? 1 : 0) + (activeIngredientCategory !== undefined ? 1 : 0)}
               </Text>
             </View>
           )}
@@ -551,97 +531,114 @@ export default function RecipesTab() {
           <View style={s.searchHistoryHeader}>
             <Text style={s.searchHistoryTitle}>最近搜尋</Text>
             <TouchableOpacity onPress={() => { setSearchHistory([]); AsyncStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
-              <Ionicons name="trash-outline" size={16} color="#9CA3AF" />
+              <Text style={s.searchHistoryClear}>全部清除</Text>
             </TouchableOpacity>
           </View>
-          <View style={s.searchHistoryRow}>
-            {searchHistory.slice(0, 5).map((query, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={s.searchHistoryChip}
-                onPress={() => {
-                  setSearchQuery(query);
-                  setShowSearchHistory(false);
-                  searchInputRef.current?.blur();
-                }}
-              >
-                <Ionicons name="time-outline" size={12} color="#6B7280" />
-                <Text style={s.searchHistoryChipTxt} numberOfLines={1}>{query}</Text>
-              </TouchableOpacity>
+          <View style={s.searchHistoryList}>
+            {searchHistory.slice(0, 20).map((query, idx) => {
+              const removeItem = () => {
+                const updated = searchHistory.filter(s => s !== query);
+                setSearchHistory(updated);
+                AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
+              };
+              return (
+                <View key={`${query}-${idx}`}>
+                  {idx > 0 && <View style={s.searchHistoryDivider} />}
+                  <TouchableOpacity
+                    style={s.searchHistoryItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      handleSaveSearchHistory(query);
+                      setSearchQuery(query);
+                      setShowSearchHistory(false);
+                      searchInputRef.current?.blur();
+                    }}
+                  >
+                    <View style={s.searchHistoryAvatar}>
+                      <Ionicons name="time-outline" size={16} color="#6B7280" />
+                    </View>
+                    <Text style={s.searchHistoryTerm} numberOfLines={1}>{query}</Text>
+                    <TouchableOpacity onPress={removeItem} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={18} color="#C4C4C4" />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* Smart Filter Tokens */}
+      {hasActiveTokens && (
+        <View style={s.smartFilterWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.smartFilterRow}>
+            {/* Category Token */}
+            {activeCategory !== "all" && (
+              <View style={s.smartToken}>
+                <Text style={s.smartTokenTxt}>
+                  {categories.find(c => c.key === activeCategory)?.emoji || "🍽️"} {categories.find(c => c.key === activeCategory)?.label || activeCategory}
+                </Text>
+                <TouchableOpacity onPress={() => setActiveCategory("all")}>
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Ingredient Category Token */}
+            {activeIngredientCategory !== undefined && (
+              <View style={s.smartToken}>
+                <Text style={s.smartTokenTxt}>
+                  {INGREDIENT_CATEGORIES.find(c => c.key === activeIngredientCategory)?.label || activeIngredientCategory}
+                </Text>
+                <TouchableOpacity onPress={() => setActiveIngredientCategory(undefined)}>
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Popular Chips Tokens */}
+            {activePopularChips.map(chipKey => {
+              const chip = POPULAR_CHIPS.find(c => c.key === chipKey);
+              return (
+                <View key={chipKey} style={s.smartToken}>
+                  <Text style={s.smartTokenTxt}>{chip?.label || chipKey}</Text>
+                  <TouchableOpacity onPress={() => setActivePopularChips(prev => prev.filter(k => k !== chipKey))}>
+                    <Ionicons name="close" size={12} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+            {/* Cook Time Token */}
+            {filterCookTimeMax !== undefined && (
+              <View style={s.smartToken}>
+                <Text style={s.smartTokenTxt}>⏱ {filterCookTimeMax}分鐘內</Text>
+                <TouchableOpacity onPress={() => setFilterCookTimeMax(undefined)}>
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Tag Tokens */}
+            {activeTagFilters.map(tag => (
+              <View key={tag} style={s.smartToken}>
+                <Text style={s.smartTokenTxt}>#{tag}</Text>
+                <TouchableOpacity onPress={() => setActiveTagFilters(prev => prev.filter(t => t !== tag))}>
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
             ))}
-          </View>
-        </View>
-      )}
-
-      {/* Sort Indicator */}
-      {sortBy !== "popular" && (
-        <View style={s.sortIndicator}>
-          <Text style={s.sortIndicatorTxt}>
-            {sortBy === "cookTime" ? "⏱ 時間" : "⭐ 難度"}
-          </Text>
-          <TouchableOpacity onPress={() => setSortBy("popular")}>
-            <Ionicons name="close" size={14} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={s.sourceToggle}>
-        {([
-          { key: "all",      label: "全部",   count: searchTotal },
-          { key: "official", label: "官方食譜", count: searchTotal },
-          { key: "user",     label: "我的食譜", count: userRecipes.length },
-        ] as const).map(t => (
-          <TouchableOpacity
-            key={t.key}
-            style={[s.sourceToggleBtn, viewMode === t.key && s.sourceToggleBtnActive]}
-            onPress={() => { setViewMode(t.key); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); }}
-          >
-            <Text style={[s.sourceToggleTxt, viewMode === t.key && s.sourceToggleTxtActive]}>{t.label}</Text>
-            <View style={[s.sourceToggleCount, viewMode === t.key && s.sourceToggleCountActive]}>
-              <Text style={[s.sourceToggleCountTxt, viewMode === t.key && s.sourceToggleCountTxtActive]}>{t.count}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Category Scroll Bar */}
-      <View style={s.catSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
-          {[ALL_ENTRY, ...categories].map(cat => (
-            <TouchableOpacity
-              key={cat.key}
-              style={[s.catPill, activeCategory === cat.key && s.catPillActive]}
-              onPress={() => setActiveCategory(cat.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={s.catPillEmoji}>{cat.emoji || "🍽️"}</Text>
-              <Text style={[s.catPillLabel, activeCategory === cat.key && s.catPillLabelActive]}>{cat.label}</Text>
+            {/* Clear All */}
+            <TouchableOpacity style={s.clearAllBtn} onPress={() => {
+              setActiveCategory("all");
+              setActiveTagFilters([]);
+              setActivePopularChips([]);
+              setActiveIngredientCategory(undefined);
+              setFilterCookTimeMax(undefined);
+              setSearchQuery("");
+            }}>
+              <Ionicons name="close-circle" size={18} color="#666" />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Popular Chips - Keep for quick access */}
-      <View style={s.popularSection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.popularRow}>
-          {POPULAR_CHIPS.map(chip => {
-            const isActive = activePopularChips.includes(chip.key);
-            return (
-              <TouchableOpacity
-                key={chip.key}
-                style={[s.popularChip, isActive && s.popularChipActive]}
-                onPress={() => {
-                  setActivePopularChips(prev =>
-                    prev.includes(chip.key) ? prev.filter(k => k !== chip.key) : [...prev, chip.key]
-                  );
-                }}
-              >
-                <Text style={[s.popularChipTxt, isActive && s.popularChipTxtActive]}>{chip.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </View>
+      )}
 
       {(viewMode === "user" || viewMode === "all") && allUserTags.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
@@ -683,13 +680,18 @@ export default function RecipesTab() {
       {hasFilters && (
         <View style={s.resultSummary}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            {filterSummary ? (
+            {isLoading ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <ActivityIndicator size="small" color="#9CA3AF" />
+                <Text style={s.resultSummaryTxt}>正在搜尋...</Text>
+              </View>
+            ) : filterSummary ? (
               <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {searchTotal} 個結果</Text>
             ) : (
               <Text style={s.resultSummaryTxt}>找到 {searchTotal} 個食譜</Text>
             )}
           </View>
-          <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setSearchQuery(""); }}>
+          <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); }}>
             <Text style={s.resultSummaryClear}>清除篩選</Text>
           </TouchableOpacity>
         </View>
@@ -720,44 +722,64 @@ export default function RecipesTab() {
         </View>
       )}
 
-      <FlatList
-        data={filteredRecipes}
-        keyExtractor={(item: any) => item.id}
-        numColumns={2}
-        columnWrapperStyle={s.gridRow}
-        contentContainerStyle={[s.gridContent, { paddingBottom: Math.max(100, insets.bottom + 80) }]}
-        ListHeaderComponent={ListHeader}
-        renderItem={renderCard}
-        onEndReached={() => fetchNextPage()}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          isFetchingNextPage ? (
-            <View style={{ paddingVertical: 20 }}>
-              <ActivityIndicator color={BRAND} size="small" />
-            </View>
-          ) : null
-        }
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+        <FlatList
+          data={filteredRecipes}
+          keyExtractor={(item: any) => item.id}
+          numColumns={2}
+          columnWrapperStyle={s.gridRow}
+          contentContainerStyle={[s.gridContent, { paddingBottom: Math.max(100, insets.bottom + 80) }]}
+          ListHeaderComponent={ListHeader}
+          renderItem={renderCard}
+          onEndReached={() => fetchNextPage()}
+          onEndReachedThreshold={0.3}
+          keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={{ paddingVertical: 20 }}>
+                <ActivityIndicator color={BRAND} size="small" />
+              </View>
+            ) : null
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         ListEmptyComponent={
+          isLoading ? (
+            <View style={s.skeletonGrid}>
+              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} />
+            </View>
+          ) : (
           <View style={s.empty}>
             {isSearchError ? (
               <>
                 <Ionicons name="warning-outline" size={44} color="#EF4444" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>搜尋出錯</Text>
-                <Text style={s.emptySub}>{searchError?.message || "請稍後再試"}</Text>
+                <Text style={s.emptySub}>
+                  {searchError?.message?.includes("SQL") || searchError?.message?.includes("搜尋失敗")
+                    ? "系統搜尋時遇到問題，請稍後再試" :
+                    searchError?.message?.includes("UNAUTHORIZED") || searchError?.message?.includes("login") || searchError?.message?.includes("登入")
+                    ? "請重新登入後再試" :
+                    searchError?.message || "請稍後再試"}
+                </Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => refetchSearch()}>
                   <Text style={s.emptyBtnTxt}>重試</Text>
                 </TouchableOpacity>
               </>
-            ) : isLoading ? (
-              <ActivityIndicator color={BRAND} size="large" />
             ) : hasFilters ? (
               <>
                 <Ionicons name="search-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>找不到符合嘅食譜</Text>
                 <Text style={s.emptySub}>試下清除篩選或者揀其他分類</Text>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
-                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); }}>
+                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); }}>
                     <Text style={s.emptySuggestChipTxt}>清除篩選</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["quick30"]); }}>
@@ -784,8 +806,10 @@ export default function RecipesTab() {
               </>
             )}
           </View>
+          )
         }
       />
+      </KeyboardAvoidingView>
 
       <FilterModal
         visible={showFilterSheet}
@@ -793,13 +817,20 @@ export default function RecipesTab() {
         activeCategory={activeCategory}
         setActiveCategory={setActiveCategory}
         categories={categories}
+        activeIngredientCategory={activeIngredientCategory}
+        setActiveIngredientCategory={setActiveIngredientCategory}
         filterCookTimeMax={filterCookTimeMax}
         setFilterCookTimeMax={setFilterCookTimeMax}
         activeTagFilters={activeTagFilters}
         setActiveTagFilters={setActiveTagFilters}
         allUserTags={allUserTags}
         setActivePopularChips={setActivePopularChips}
+        activePopularChips={activePopularChips}
         setSortBy={setSortBy}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        officialCount={searchOfficialCount}
+        userCount={searchCustomCount}
       />
 
       <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
@@ -947,8 +978,6 @@ const s = StyleSheet.create({
   quickActionSub: { fontSize: 10, color: "#9CA3AF", marginTop: 1 },
 
   // Weekly bar
-  weeklyBar: { marginHorizontal: 14, marginBottom: 8, backgroundColor: "#fff", borderRadius: 16, padding: 12, borderWidth: 1.5, borderColor: "#FEF3C7", shadowColor: "#FF8C00", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 },
-  weeklyBarTitle: { fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
   weekDot: { width: 58, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", padding: 6, alignItems: "center" },
   weekDotToday: { backgroundColor: "#FF8C00", borderColor: "#FF8C00" },
   weekDotEmpty: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
@@ -1038,6 +1067,37 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
 
+  // Smart Filter Tokens
+  smartFilterWrap: {
+    marginHorizontal: 14,
+    marginBottom: 10,
+  },
+  smartFilterRow: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  smartToken: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 99,
+    backgroundColor: BRAND,
+  },
+  smartTokenTxt: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  clearAllBtn: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   // Search history dropdown
   searchHistoryWrap: {
     marginHorizontal: 14,
@@ -1053,38 +1113,90 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F0F0F0",
   },
+
+  // Ingredient category filter
+  ingCatWrap: {
+    marginHorizontal: 14,
+    marginBottom: 10,
+    position: "relative",
+  },
+  ingCatRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 40,
+  },
+  ingCatChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  ingCatChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  ingCatClear: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   searchHistoryHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   searchHistoryTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#666",
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1A1A",
   },
-  searchHistoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
+  searchHistoryClear: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: BRAND,
   },
-  searchHistoryChip: {
+  searchHistoryList: {
+    flexDirection: "column",
+  },
+  searchHistoryItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 99,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E8E8E8",
+    gap: 10,
+    paddingVertical: 10,
   },
-  searchHistoryChipTxt: {
-    fontSize: 12,
+  searchHistoryAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchHistoryTerm: {
+    flex: 1,
+    fontSize: 14,
     color: "#1A1A1A",
     fontWeight: "500",
-    maxWidth: 120,
+  },
+  searchHistoryDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#EFEFEF",
   },
 
   // Source toggle
@@ -1296,6 +1408,55 @@ const s = StyleSheet.create({
   // Grid
   gridContent: { paddingHorizontal: 14, paddingBottom: 100 },
   gridRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
+
+  // Recipe card skeleton (loading)
+  skeletonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingTop: 8,
+  },
+  skeletonCard: {
+    width: CARD_WIDTH,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+  },
+  skeletonImg: {
+    width: "100%",
+    height: CARD_WIDTH * 0.8,
+    backgroundColor: "#F3F4F6",
+  },
+  skeletonInfo: {
+    padding: 10,
+    gap: 8,
+  },
+  skeletonNameLine: {
+    width: "85%",
+    height: 14,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 4,
+  },
+  skeletonNameLineShort: {
+    width: "50%",
+    height: 14,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 4,
+  },
+  skeletonMetaRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  skeletonMetaItem: {
+    width: 45,
+    height: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 4,
+  },
 
   // Recipe card
   card: { 

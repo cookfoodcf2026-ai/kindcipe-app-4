@@ -929,10 +929,6 @@ export default function AIChefScreen() {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
-        console.log("[AI Chef] Meal plan response - recipes:", data.recipes?.length);
-        data.recipes?.forEach((r: any, i: number) => {
-          console.log(`[AI Chef] Recipe ${i + 1}: ${r.name}, ingredients: ${r.ingredients?.length}, steps: ${r.steps?.length}`);
-        });
         if (data.recipes?.length > 0) {
           const safeRecipes = data.recipes.map((r: any) => ({ ...r, steps: r.steps ?? [], ingredients: r.ingredients ?? [] }));
           setMealResult(safeRecipes);
@@ -1007,15 +1003,10 @@ export default function AIChefScreen() {
 
   const addMealPlanBatch = async (recipes: AIRecipe[]) => {
     const validRecipes = recipes.filter(isValidRecipe);
-    console.log("[AI Chef] Batch add meal plan - total recipes:", recipes.length, "valid:", validRecipes.length);
-    recipes.forEach((r, i) => {
-      console.log(`[AI Chef] Recipe ${i + 1}:`, r.name, "ingredients:", r.ingredients?.length, "steps:", r.steps?.length);
-    });
     if (validRecipes.length === 0) {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
     }
-    console.log("[AI Chef] Batch add meal plan clicked, recipes:", validRecipes.length);
     // Override servings with user's preference if from meal plan flow
     const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
       ? mealPrefs.people
@@ -1093,16 +1084,13 @@ const categorizeIngredient = (name: string): string => {
 };
 
 const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
-    console.log("[AI Chef] openShoppingSelection - recipes:", recipes.length, recipes.map(r => r.name));
     setShopRecipes(recipes);
     setShopPlannedDate(plannedDate || new Date().toISOString().split("T")[0]);
     const selected = new Set<string>();
     recipes.forEach(r => {
-      console.log(`[AI Chef] Recipe "${r.name}" has ${r.ingredients.length} ingredients`);
       r.ingredients.forEach((ing, i) => {
         const isPantry = COMMON_PANTRY.some(p => ing.name.includes(p));
         if (!isPantry) selected.add(`${r.name}::${i}`);
-        else console.log(`[AI Chef] Filtered pantry item: ${ing.name} from ${r.name}`);
       });
     });
     setShopSelected(selected);
@@ -1125,10 +1113,6 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           items.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) });
         }
       });
-    });
-    console.log("[AI Chef] confirmShopBatch - recipes:", shopRecipes.length, "items:", items.length);
-    shopRecipes.forEach((r, i) => {
-      console.log(`[AI Chef] Shopping recipe ${i + 1}:`, r.name, "ingredients:", r.ingredients?.length);
     });
     addShoppingM.mutate({
       items,
@@ -1194,7 +1178,6 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   };
 
   const handleQuickPlanFromText = () => {
-    console.log("[AI Chef] Quick action '加入排餐' clicked");
     const lastBot = [...messages].reverse().find(m => m.role === "assistant");
     const text = lastBot ? contentToText(lastBot.content) : "";
     const parsedRecipes = tryParseRecipes(text);
@@ -1222,7 +1205,6 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   // ─── Plan modal confirm ────────────────────────────────
 
   const confirmAction = () => {
-    console.log("[AI Chef] confirmAction called, planAction:", planAction, "planDate:", planDate, "planMeal:", planMeal);
     // Guard: ensure modal was shown
     if (!showPlan) {
       console.error("[AI Chef] confirmAction called without modal being shown!");
@@ -1251,7 +1233,6 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             }))
           );
           if (allIngredients.length > 0) {
-            console.log("[AI Chef] Opening shopping for", batchRecipes.length, "recipes:", batchRecipes.map((r: any) => r.name));
             openShoppingSelection(batchRecipes, planDate);
           }
         }).catch((e: any) => {
@@ -1522,9 +1503,9 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
-        <SafeAreaView style={s.root} edges={["top"]}>
+        <View style={[s.root, { paddingTop: insets.top }]}>
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -1533,6 +1514,13 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={messages.length === 0 ? s.emptyList : s.list}
           onContentSizeChange={() => messages.length > 0 && scrollToLatestMessage()}
+          onScrollToIndexFailed={(info) =>
+            setTimeout(() =>
+              flatListRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: true,
+              }), 50)
+          }
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={chatMutation.isPending ? (
@@ -1623,7 +1611,6 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                         style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
                         onPress={() => {
                           if (isValidRecipe(r)) {
-                            console.log("[AI Chef] Recipe card '加排餐' clicked:", r.name);
                             setPlanRecipe(r);
                             setPlanAction("meal");
                             setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
@@ -1668,7 +1655,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           </View>
         )}
 
-        <View style={[s.inputBar, { paddingBottom: Math.max(insets.bottom, 8) + keyboardH }]}>
+        <View style={[s.inputBar, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
           <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
             <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
           </TouchableOpacity>
@@ -1681,8 +1668,10 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             {chatMutation.isPending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
           </TouchableOpacity>
         </View>
-        <Text style={s.disclaimer}>AI Chef 由 AI 生成內容，可能會出錯，請仔細檢查食材及步驟。</Text>
-      </SafeAreaView>
+        {keyboardH === 0 && (
+          <Text style={s.disclaimer}>AI Chef 由 AI 生成內容，可能會出錯，請仔細檢查食材及步驟。</Text>
+        )}
+      </View>
       </KeyboardAvoidingView>
 
       {toast.visible && (

@@ -6,13 +6,15 @@
 import { useState, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Alert, Linking,
+  StyleSheet, ActivityIndicator, Alert,
   Dimensions,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import { REDIRECT_PLATFORMS, openPlatform } from "@/lib/price";
+import PriceCompareModal from "@/src/components/PriceCompareModal";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -24,20 +26,10 @@ const HINT = "#B0BAC9";
 const BORDER = "#E0EAF4";
 
 const SUPERMARKETS = [
-  { id: "HKTVMALL", name: "HKTVmall", color: "#FF6600", icon: "cart-outline" },
-  { id: "PARKNSHOP", name: "百佳", color: "#007DC5", icon: "checkmark-circle-outline" },
-  { id: "WELLCOME", name: "惠康", color: "#E31837", icon: "close-circle-outline" },
+  { platform: REDIRECT_PLATFORMS[0], color: "#FF6600", icon: "cart-outline" },
+  { platform: REDIRECT_PLATFORMS[3], color: "#007DC5", icon: "checkmark-circle-outline" },
+  { platform: REDIRECT_PLATFORMS[2], color: "#E31837", icon: "close-circle-outline" },
 ];
-
-async function openSupermarket(id: string, keyword: string) {
-  const kw = encodeURIComponent(keyword.replace(/\d+/g, "").trim());
-  const urls: Record<string, string> = {
-    HKTVMALL: `https://www.hktvmall.com/hktv/zh/search?query=${kw}`,
-    PARKNSHOP: `https://www.parknshop.com/search?q=${kw}`,
-    WELLCOME: `https://www.wellcome.com.hk/search?q=${kw}`,
-  };
-  await Linking.openURL(urls[id] ?? urls.HKTVMALL);
-}
 
 function daysSince(d: Date | string): number {
   const date = typeof d === "string" ? new Date(d) : d;
@@ -51,6 +43,8 @@ export default function RestockScreen() {
   const [activeTab, setActiveTab] = useState<"urgent" | "predict">("urgent");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [markedRestocked, setMarkedRestocked] = useState<Set<string>>(new Set());
+  const [showPrice, setShowPrice] = useState(false);
+  const [priceKw, setPriceKw] = useState("");
 
   const { data: pantryData = [], isLoading: pantryLoading } = trpc.pantry.list.useQuery();
   const { data: frequency = [], isLoading: freqLoading } = trpc.purchaseHistory.frequency.useQuery();
@@ -236,16 +230,22 @@ export default function RestockScreen() {
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {SUPERMARKETS.map(sm => (
                               <TouchableOpacity
-                                key={sm.id}
+                                key={sm.platform.name}
                                 style={{ flex: 1, alignItems: "center", backgroundColor: CARD, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: BORDER }}
-                                onPress={() => openSupermarket(sm.id, item.name)}
+                                onPress={() => openPlatform(sm.platform, item.name)}
                               >
                                 <Ionicons name={sm.icon as any} size={16} color={sm.color} />
-                                <Text style={{ fontSize: 10, fontWeight: "700", color: sm.color, marginTop: 2 }}>{sm.name}</Text>
+                                <Text style={{ fontSize: 10, fontWeight: "700", color: sm.color, marginTop: 2 }}>{sm.platform.name}</Text>
                                 <Text style={{ fontSize: 9, color: SUB }}>前往搜尋</Text>
                               </TouchableOpacity>
                             ))}
                           </View>
+                          <TouchableOpacity
+                            style={{ marginTop: 8, backgroundColor: "#EEF4FB", borderRadius: 10, paddingVertical: 8, alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
+                            onPress={() => { setPriceKw(item.name); setShowPrice(true); }}
+                          >
+                            <Text style={{ color: BRAND, fontSize: 12, fontWeight: "700" }}>詳細比價（消委會）</Text>
+                          </TouchableOpacity>
                           <TouchableOpacity
                             style={{ marginTop: 8, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 8, alignItems: "center" }}
                             onPress={() => { handleAddToShopping(item.name); setExpandedItem(null); }}
@@ -302,6 +302,12 @@ export default function RestockScreen() {
           </ScrollView>
         )}
       </View>
+
+      <PriceCompareModal
+        visible={showPrice}
+        keyword={priceKw}
+        onClose={() => { setShowPrice(false); setPriceKw(""); }}
+      />
     </>
   );
 }

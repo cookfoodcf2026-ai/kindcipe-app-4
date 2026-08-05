@@ -14,7 +14,12 @@ import { AUTH_TOKEN_KEY, FAMILY_ID_KEY, getAuthToken } from "./auth";
 import type { AppRouter } from "./router-types";
 
 // ─── 後端 API 地址 ───────────────────────────────────────
+// 生產環境（Railway 雲端）
 export const API_BASE_URL = "https://kindcipe-backend-production.up.railway.app";
+// 本地測試用（模擬器）
+// export const API_BASE_URL = "http://localhost:3000";
+// 本地測試用（真機同 Wi-Fi）
+// export const API_BASE_URL = "http://192.168.68.85:3000";
 
 // ─── 請求逾時設定（毫秒）─────────────────────────────────
 const REQUEST_TIMEOUT_MS = 90_000;

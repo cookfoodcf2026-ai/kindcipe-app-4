@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
   StyleSheet, ActivityIndicator, Alert, Modal, Image,
-  Platform, Dimensions,
+  Platform, Dimensions, KeyboardAvoidingView,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -158,6 +158,36 @@ export default function AdminScreen() {
     recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
   });
 
+  // 關閉新增食譜表單：若已有輸入內容，先提醒用戶
+  const handleCloseForm = () => {
+    const hasContent =
+      form.name.trim() ||
+      form.nameEn.trim() ||
+      form.description.trim() ||
+      form.image.trim() ||
+      form.tags.trim() ||
+      form.reelAuthor.trim() ||
+      form.reelUrl.trim() ||
+      (form.estimatedCost && form.estimatedCost.trim() && form.estimatedCost !== "60");
+    if (hasContent) {
+      Alert.alert("確定關閉？", "已輸入嘅食譜內容將不會保存。", [
+        { text: "繼續編輯", style: "cancel" },
+        { text: "關閉", style: "destructive", onPress: () => setShowForm(false) },
+      ]);
+    } else {
+      setShowForm(false);
+    }
+  };
+
+  // 離開頁面：若表單開著且有內容，先提醒用戶
+  const handleAdminBack = () => {
+    if (showForm) {
+      handleCloseForm();
+    } else {
+      router.back();
+    }
+  };
+
   const handlePinSubmit = () => {
     if (pin === "8888") {
       setUnlocked(true);
@@ -188,6 +218,7 @@ export default function AdminScreen() {
 
   if (!unlocked) {
     return (
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
       <View style={{ flex: 1, backgroundColor: DARK, alignItems: "center", justifyContent: "center", padding: 32 }}>
         <View style={{ backgroundColor: "#1E293B", borderRadius: 20, padding: 36, width: "100%" as any, maxWidth: 340, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
           <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: BRAND, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
@@ -212,6 +243,7 @@ export default function AdminScreen() {
         </View>
         <Stack.Screen options={{ headerShown: false }} />
       </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -226,7 +258,7 @@ export default function AdminScreen() {
           headerTintColor: "#F1F5F9",
           headerTitleStyle: { fontWeight: "800" },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={handleAdminBack} style={{ marginLeft: 4 }}>
               <Ionicons name="chevron-back" size={24} color="#F1F5F9" />
             </TouchableOpacity>
           ),
@@ -294,7 +326,7 @@ export default function AdminScreen() {
                   <ScrollView style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: "85%" as any }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
                       <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT }}>新增食譜</Text>
-                      <TouchableOpacity onPress={() => setShowForm(false)}>
+                      <TouchableOpacity onPress={handleCloseForm}>
                         <Ionicons name="close" size={22} color={TEXT} />
                       </TouchableOpacity>
                     </View>

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Share, Modal, TextInput, FlatList,
+  Platform, KeyboardAvoidingView,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +10,7 @@ import QRCode from "react-native-qrcode-svg";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import * as Clipboard from "expo-clipboard";
 
 const BRAND = "#013E77";
 
@@ -31,12 +33,15 @@ export default function FamilyScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
+  const createInputRef = useRef<TextInput>(null);
+  const joinInputRef = useRef<TextInput>(null);
   const [selectedFamilyId, setSelectedFamilyId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const createM = trpc.family.create.useMutation({
     onSuccess: async (data) => {
-      utils.family.list.invalidate();
+      await utils.family.list.refetch();
+      utils.family.get.refetch();
       setShowCreateModal(false);
       setFamilyName("");
       const id = String((data as any).id);
@@ -47,7 +52,8 @@ export default function FamilyScreen() {
 
   const joinM = trpc.family.join.useMutation({
     onSuccess: async (data) => {
-      utils.family.list.invalidate();
+      await utils.family.list.refetch();
+      utils.family.get.refetch();
       setShowJoinModal(false);
       setInviteCode("");
       const id = String((data as any).family?.id);
@@ -71,15 +77,16 @@ export default function FamilyScreen() {
     ? families.find((f: any) => String(f.id) === selectedFamilyId)
     : activeFamily;
 
-  const handleShareInvite = async () => {
-    if (!(selectedFamily as any)?.inviteCode) return;
+  const handleShareInvite = async (family: any) => {
+    if (!family?.inviteCode) {
+      Alert.alert("錯誤", "該廚房沒有邀請碼");
+      return;
+    }
     try {
-      await Share.share({
-        message: `加入我的家庭廚房「${(selectedFamily as any).name}」！\n\n邀請碼：${(selectedFamily as any).inviteCode}\n\n下載 Kindcipe App 後，點選「加入家庭」並輸入邀請碼。`,
-        title: "邀請加入家庭廚房",
-      });
-    } catch {
-      Alert.alert("分享失敗");
+      await Clipboard.setStringAsync(family.inviteCode);
+      Alert.alert("已複製", `邀請碼 ${family.inviteCode} 已複製到剪貼簿`);
+    } catch (e) {
+      Alert.alert("分享失敗", "無法複製邀請碼");
     }
   };
 
@@ -92,8 +99,20 @@ export default function FamilyScreen() {
   };
 
   const handleSwitchAndNavigate = async (id: string) => {
-    await switchFamily(id);
-    router.push("/kitchen-settings");
+    try {
+      const targetFamily = families.find((f: any) => String(f.id) === id);
+      await switchFamily(id);
+      const newFamilyName = targetFamily?.name || "廚房";
+      Alert.alert(
+        "已切換廚房",
+        `現在使用：${newFamilyName}`,
+        [
+          { text: "確定", onPress: () => router.push("/kitchen-settings") },
+        ]
+      );
+    } catch (e) {
+      Alert.alert("切換失敗", "無法切換至此廚房，請稍後再試");
+    }
   };
 
   const currentRole = (() => {
@@ -191,7 +210,7 @@ export default function FamilyScreen() {
                         style={s.actionRow}
                         onPress={() => {
                           setSelectedFamilyId(String(item.id));
-                          handleShareInvite();
+                          handleShareInvite(item);
                         }}
                       >
                         <Ionicons name="share-outline" size={18} color={BRAND} />
@@ -207,17 +226,28 @@ export default function FamilyScreen() {
         />
 
         {/* Create modal */}
-        <Modal visible={showCreateModal} animationType="slide" transparent>
+        <Modal
+          visible={showCreateModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowCreateModal(false)}
+          onShow={() => {
+            setTimeout(() => {
+              createInputRef.current?.focus();
+            }, 100);
+          }}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
           <View style={s.modalOverlay}>
             <View style={s.modalContainer}>
               <Text style={s.modalTitle}>建立廚房</Text>
               <TextInput
+                ref={createInputRef}
                 style={s.modalInput}
                 placeholder="輸入廚房名稱"
                 placeholderTextColor="#999"
                 value={familyName}
                 onChangeText={setFamilyName}
-                autoFocus
               />
               <View style={s.modalActions}>
                 <TouchableOpacity
@@ -233,20 +263,32 @@ export default function FamilyScreen() {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Join modal */}
-        <Modal visible={showJoinModal} animationType="slide" transparent>
+        <Modal
+          visible={showJoinModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowJoinModal(false)}
+          onShow={() => {
+            setTimeout(() => {
+              joinInputRef.current?.focus();
+            }, 100);
+          }}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
           <View style={s.modalOverlay}>
             <View style={s.modalContainer}>
               <Text style={s.modalTitle}>加入廚房</Text>
               <TextInput
+                ref={joinInputRef}
                 style={s.modalInput}
                 placeholder="輸入邀請碼"
                 placeholderTextColor="#999"
                 value={inviteCode}
                 onChangeText={setInviteCode}
-                autoFocus
                 autoCapitalize="characters"
               />
               <TouchableOpacity
@@ -281,6 +323,7 @@ export default function FamilyScreen() {
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
 
         {/* Scanner */}

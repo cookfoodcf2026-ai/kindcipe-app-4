@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Switch, ActivityIndicator,
+  TextInput, Alert, Switch, ActivityIndicator, BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
@@ -28,21 +28,48 @@ export default function KitchenSettingsScreen() {
   const { activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
   const utils = trpc.useUtils();
 
-  // Debug: log activeFamily to check if inviteCode is present
-  useEffect(() => {
-    console.log("[KitchenSettings] activeFamily:", activeFamily);
-    console.log("[KitchenSettings] inviteCode:", (activeFamily as any)?.inviteCode);
-  }, [activeFamily]);
-
-  // Force refetch family data when screen mounts to ensure fresh data
-  useEffect(() => {
-    utils.family.get.invalidate();
-  }, []);
-
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [changingRole, setChangingRole] = useState<{ userId: string; role: string } | null>(null);
   const [showRolePicker, setShowRolePicker] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(true);
+
+  // 當 activeFamilyId 改變時，等待數據刷新完成
+  useEffect(() => {
+    if (activeFamilyId) {
+      const familyIdNum = parseInt(activeFamilyId, 10);
+      if (!isNaN(familyIdNum)) {
+        setIsRefreshing(true);
+        utils.family.get.refetch({ id: familyIdNum }).finally(() => {
+          setIsRefreshing(false);
+        });
+      }
+    }
+  }, [activeFamilyId]);
+
+  // 返回：若改名輸入有文字未儲存，先提醒用戶
+  const handleBack = () => {
+    if (editingName && nameInput.trim().length > 0) {
+      Alert.alert(
+        "確定離開？",
+        "你輸入嘅廚房名稱尚未儲存，離開後將不會保存。",
+        [
+          { text: "取消", style: "cancel" },
+          { text: "離開", style: "destructive", onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [editingName, nameInput]);
 
   const isOwner = familyRole === "owner";
   const isAdmin = familyRole === "owner" || familyRole === "admin";
@@ -140,6 +167,27 @@ export default function KitchenSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <Stack.Screen
+        options={{
+          title: "廚房設定",
+          headerShown: true,
+          headerBackTitle: '',
+          headerStyle: { backgroundColor: BG },
+          headerTintColor: BRAND,
+          headerTitleStyle: { fontWeight: "700", color: TEXT },
+          headerLeft: () => (
+            <TouchableOpacity onPress={handleBack} style={{ marginLeft: 4 }}>
+              <Ionicons name="chevron-back" size={24} color={TEXT} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      {isRefreshing ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 60 }}>
+          <ActivityIndicator size="large" color={BRAND} />
+          <Text style={{ color: SUB, marginTop: 12, fontSize: 14 }}>載入廚房資料中...</Text>
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Kitchen name */}
         <View style={s.section}>
@@ -223,7 +271,7 @@ export default function KitchenSettingsScreen() {
                       <TouchableOpacity
                         style={s.iconBtn}
                         onPress={() => {
-                          setChangingRole({ userId: m.userId, role: m.familyRole });
+                          setChangingRole({ userId: String(m.userId), role: m.familyRole });
                           setShowRolePicker(true);
                         }}
                       >
@@ -231,7 +279,7 @@ export default function KitchenSettingsScreen() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={s.iconBtn}
-                        onPress={() => handleRemoveMember(m.userId, m.name || m.nickname || m.familyRole)}
+                        onPress={() => handleRemoveMember(String(m.userId), m.name || m.nickname || m.familyRole)}
                       >
                         <Ionicons name="close-outline" size={18} color="#EF4444" />
                       </TouchableOpacity>
@@ -322,6 +370,7 @@ export default function KitchenSettingsScreen() {
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
+      )}
     </View>
   );
 }

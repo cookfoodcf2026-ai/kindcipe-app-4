@@ -322,7 +322,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => router.push("/weekly-menu")}
+            onPress={() => router.push({ pathname: "/(tabs)/planner", params: { openRecommend: "true" } })}
           >
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>

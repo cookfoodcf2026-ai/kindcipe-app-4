@@ -1,10 +1,10 @@
 import * as ImageManipulator from "expo-image-manipulator";
 
 const MAX_DIMENSION = 1920;
-const MAX_SIZE_BYTES = 6 * 1024 * 1024; // 6MB
+const MAX_BASE64_LENGTH = 5_000_000; // ≈ 3.75MB, under backend 5.5M char limit
 const INITIAL_QUALITY = 0.8;
-const FALLBACK_QUALITY = 0.7;
-const FALLBACK_DIMENSION = 1280;
+const MIN_QUALITY = 0.4;
+const MIN_DIMENSION = 800;
 
 export type CompressedImage = {
   uri: string;
@@ -15,17 +15,25 @@ export type CompressedImage = {
 };
 
 export async function compressImage(uri: string): Promise<CompressedImage> {
+  let quality = INITIAL_QUALITY;
+  let dimension = MAX_DIMENSION;
   let result = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: MAX_DIMENSION, height: MAX_DIMENSION } }],
-    { compress: INITIAL_QUALITY, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    [{ resize: { width: dimension, height: dimension } }],
+    { compress: quality, format: ImageManipulator.SaveFormat.JPEG, base64: true }
   );
 
-  if (result.base64 && result.base64.length * 0.75 > MAX_SIZE_BYTES) {
+  while (
+    result.base64 &&
+    result.base64.length > MAX_BASE64_LENGTH &&
+    (quality > MIN_QUALITY || dimension > MIN_DIMENSION)
+  ) {
+    if (quality > MIN_QUALITY) quality -= 0.2;
+    if (dimension > MIN_DIMENSION) dimension = Math.floor(dimension * 0.8);
     result = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: FALLBACK_DIMENSION, height: FALLBACK_DIMENSION } }],
-      { compress: FALLBACK_QUALITY, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      [{ resize: { width: dimension, height: dimension } }],
+      { compress: quality, format: ImageManipulator.SaveFormat.JPEG, base64: true }
     );
   }
 
