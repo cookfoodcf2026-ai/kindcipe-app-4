@@ -73,18 +73,18 @@ const MENU_ITEMS: MenuItemDef[] = [
     iconColor: UNIFIED_ICON_COLOR,
   },
   {
-    icon: "funnel-outline",
-    label: "分類管理",
-    sub: "自訂食譜分類與排序",
-    route: "/category-manager",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
     icon: "storefront-outline",
     label: "街市指南",
     sub: "97 個香港濕貨市場",
     route: "/markets",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
+  },
+  {
+    icon: "basket-outline",
+    label: "聚會買餸單",
+    sub: "打邊爐/BBQ 一鍵買齊",
+    route: "/shopping-templates",
     iconBg: UNIFIED_ICON_BG,
     iconColor: UNIFIED_ICON_COLOR,
   },
@@ -130,6 +130,18 @@ const MENU_ITEMS: MenuItemDef[] = [
   },
 ];
 
+// 管理員專用選單：一般用戶隱藏（分類為 AI 週餐推薦基礎，僅供系統/管理員調整）
+const ADMIN_MENU_ITEMS: MenuItemDef[] = [
+  {
+    icon: "funnel-outline",
+    label: "分類管理",
+    sub: "系統食譜分類",
+    route: "/category-manager",
+    iconBg: UNIFIED_ICON_BG,
+    iconColor: UNIFIED_ICON_COLOR,
+  },
+];
+
 export default function MoreTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -147,6 +159,16 @@ export default function MoreTab() {
     }
     return true;
   });
+
+  // 管理員專用選單（一般用戶唔顯示）
+  const adminMenuItems = ADMIN_MENU_ITEMS.filter(item => {
+    if (item.route === "/category-manager") {
+      return user?.role === "admin";
+    }
+    return true;
+  });
+
+  const allVisibleItems = [...visibleMenuItems, ...adminMenuItems];
 
   const handleLogout = () => {
     Alert.alert("登出", "確定要登出嗎？", [
@@ -194,11 +216,17 @@ export default function MoreTab() {
 
         {/* Menu grid */}
         <View style={s.grid}>
-          {visibleMenuItems.map(item => (
+          {allVisibleItems.map(item => (
             <TouchableOpacity
               key={item.route}
               style={s.gridItem}
-              onPress={() => router.push(item.route as any)}
+              onPress={() => {
+                if (item.route === "/weekly-menu") {
+                  router.push({ pathname: "/(tabs)/planner", params: { openRecommend: "true" } });
+                } else {
+                  router.push(item.route as any);
+                }
+              }}
             >
               <View style={[s.gridIcon, { backgroundColor: item.iconBg }]}>
                 <Ionicons name={item.icon} size={26} color={item.iconColor} />
