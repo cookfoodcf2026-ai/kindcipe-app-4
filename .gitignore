@@ -5,3 +5,13 @@
 expo-env.d.ts
 # @end expo-cli
 node_modules
+
+# macOS
+.DS_Store
+
+# Expo
+.expo/
+expo.log
+
+# Backups
+*.bak
