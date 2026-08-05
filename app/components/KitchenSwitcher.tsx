@@ -88,11 +88,21 @@ export default function KitchenSwitcher() {
               style={s.createBtn}
               onPress={() => {
                 setShowSheet(false);
-                router.push("/family");
+                router.push("/kitchen-settings");
               }}
             >
               <Ionicons name="add-circle-outline" size={18} color={BRAND} />
               <Text style={s.createBtnText}>建立或加入廚房</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.manageBtn}
+              onPress={() => {
+                setShowSheet(false);
+                router.push("/kitchen-settings");
+              }}
+            >
+              <Ionicons name="settings-outline" size={18} color={BRAND} />
+              <Text style={s.manageBtnText}>管理廚房</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -213,5 +223,21 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: BRAND,
+  },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: BRAND,
+  },
+  manageBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
   },
 });

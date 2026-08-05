@@ -267,31 +267,15 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => router.push("/family")}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
-                <Ionicons name="people-outline" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.settingLabel}>家庭管理</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingRow}
             onPress={() => router.push("/kitchen-settings")}
           >
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
                 <Ionicons name="home-outline" size={20} color="#013E77" />
               </View>
-              <Text style={styles.settingLabel}>廚房設定</Text>
+              <Text style={styles.settingLabel}>管理廚房</Text>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <KitchenSwitcher />
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
           <TouchableOpacity

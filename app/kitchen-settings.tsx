@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, Switch, ActivityIndicator, BackHandler,
+  Modal, FlatList, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Stack } from "expo-router";
@@ -34,7 +35,38 @@ export default function KitchenSettingsScreen() {
   const [showRolePicker, setShowRolePicker] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(true);
 
-  // 當 activeFamilyId 改變時，等待數據刷新完成
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [familyName, setFamilyName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+
+  const createInputRef = useRef<TextInput | null>(null);
+  const joinInputRef = useRef<TextInput | null>(null);
+
+  const createM = trpc.family.create.useMutation({
+    onSuccess: async (data) => {
+      await utils.family.list.refetch();
+      utils.family.get.refetch();
+      setShowCreateModal(false);
+      setFamilyName("");
+      const id = String((data as any).id);
+      await switchFamily(id);
+    },
+    onError: (e) => Alert.alert("建立失敗", e.message),
+  });
+
+  const joinM = trpc.family.join.useMutation({
+    onSuccess: async (data) => {
+      await utils.family.list.refetch();
+      utils.family.get.refetch();
+      setShowJoinModal(false);
+      setInviteCode("");
+      const id = String((data as any).family?.id);
+      if (id) await switchFamily(id);
+    },
+    onError: (e) => Alert.alert("加入失敗", e.message),
+  });
+
   useEffect(() => {
     if (activeFamilyId) {
       const familyIdNum = parseInt(activeFamilyId, 10);
@@ -47,7 +79,6 @@ export default function KitchenSettingsScreen() {
     }
   }, [activeFamilyId]);
 
-  // 返回：若改名輸入有文字未儲存，先提醒用戶
   const handleBack = () => {
     if (editingName && nameInput.trim().length > 0) {
       Alert.alert(
@@ -102,7 +133,7 @@ export default function KitchenSettingsScreen() {
     onSuccess: async () => {
       await switchFamily("");
       utils.family.list.invalidate();
-      router.replace("/family");
+      router.replace("/(tabs)");
     },
     onError: (e) => Alert.alert("解散失敗", e.message),
   });
@@ -161,6 +192,21 @@ export default function KitchenSettingsScreen() {
     );
   };
 
+  const handleSwitchKitchen = async (id: string) => {
+    try {
+      const targetFamily = families.find((f: any) => String(f.id) === id);
+      await switchFamily(id);
+      const newFamilyName = targetFamily?.name || "廚房";
+      Alert.alert(
+        "已切換廚房",
+        `現在使用：${newFamilyName}`,
+        [{ text: "確定" }]
+      );
+    } catch (e) {
+      Alert.alert("切換失敗", "無法切換至此廚房，請稍後再試");
+    }
+  };
+
   const roleOptions = isOwner
     ? ["owner", "admin", "helper", "member"]
     : ["admin", "helper", "member"];
@@ -189,7 +235,73 @@ export default function KitchenSettingsScreen() {
         </View>
       ) : (
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Kitchen name */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>轉換廚房</Text>
+          <View style={s.card}>
+            {families.length === 0 ? (
+              <View style={s.empty}>
+                <Ionicons name="home-outline" size={48} color="#ccc" />
+                <Text style={s.emptyTitle}>尚未加入任何廚房</Text>
+                <Text style={s.emptySub}>建立一個廚房或輸入邀請碼加入</Text>
+                <View style={s.emptyActions}>
+                  <TouchableOpacity style={s.createBtn} onPress={() => setShowCreateModal(true)}>
+                    <Text style={s.createBtnText}>建立廚房</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.joinBtn} onPress={() => setShowJoinModal(true)}>
+                    <Text style={s.joinBtnText}>加入廚房</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <FlatList
+                data={families}
+                keyExtractor={(item: any) => String(item.id)}
+                scrollEnabled={false}
+                renderItem={({ item }: { item: any }) => {
+                  const isActive = String(item.id) === String(activeFamilyId);
+                  return (
+                    <TouchableOpacity
+                      style={[s.kitchenRow, isActive && s.kitchenRowActive]}
+                      onPress={() => handleSwitchKitchen(String(item.id))}
+                    >
+                      <View style={s.kitchenIcon}>
+                        <Ionicons name="home-outline" size={20} color={isActive ? "#fff" : BRAND} />
+                      </View>
+                      <View style={s.kitchenInfo}>
+                        <Text style={[s.kitchenName, isActive && s.kitchenNameActive]}>
+                          {item.name}
+                        </Text>
+                        <Text style={s.kitchenMeta}>
+                          {ROLE_LABEL[item.role] ?? item.role} · {item.memberCount ?? 0} 位成員
+                        </Text>
+                      </View>
+                      {isActive && <Ionicons name="checkmark-circle" size={20} color={BRAND} />}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+            {families.length > 0 && (
+              <View style={s.switchActions}>
+                <TouchableOpacity
+                  style={s.switchActionBtn}
+                  onPress={() => setShowCreateModal(true)}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color={BRAND} />
+                  <Text style={s.switchActionBtnText}>建立廚房</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.switchActionBtn}
+                  onPress={() => setShowJoinModal(true)}
+                >
+                  <Ionicons name="qr-code-outline" size={18} color={BRAND} />
+                  <Text style={s.switchActionBtnText}>加入廚房</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+
         <View style={s.section}>
           <Text style={s.sectionTitle}>廚房名稱</Text>
           <View style={s.card}>
@@ -222,7 +334,6 @@ export default function KitchenSettingsScreen() {
           </View>
         </View>
 
-        {/* Approval toggle */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>審批設定</Text>
           <View style={s.card}>
@@ -242,7 +353,6 @@ export default function KitchenSettingsScreen() {
           </View>
         </View>
 
-        {/* Members */}
         <View style={s.section}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <Text style={s.sectionTitle}>成員 ({members.length})</Text>
@@ -291,7 +401,6 @@ export default function KitchenSettingsScreen() {
           )}
         </View>
 
-        {/* Role Picker Modal */}
         {showRolePicker && changingRole && (
           <View style={s.overlay}>
             <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => { setShowRolePicker(false); setChangingRole(null); }} />
@@ -314,7 +423,6 @@ export default function KitchenSettingsScreen() {
           </View>
         )}
 
-        {/* Invite code */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>邀請碼</Text>
           <View style={s.card}>
@@ -336,16 +444,11 @@ export default function KitchenSettingsScreen() {
                   <Ionicons name="copy-outline" size={16} color={BRAND} />
                   <Text style={s.secondaryBtnText}>複製</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.primaryBtn} onPress={() => router.push("/family")}>
-                  <Ionicons name="share-outline" size={16} color="#fff" />
-                  <Text style={s.primaryBtnText}>分享</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Danger Zone */}
         {isOwner && (
           <View style={s.section}>
             <Text style={[s.sectionTitle, { color: "#EF4444" }]}>危險區域</Text>
@@ -371,6 +474,87 @@ export default function KitchenSettingsScreen() {
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
       )}
+
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCreateModal(false)}
+        onShow={() => {
+          setTimeout(() => {
+            createInputRef.current?.focus();
+          }, 100);
+        }}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContainer}>
+            <Text style={s.modalTitle}>建立廚房</Text>
+            <TextInput
+              ref={createInputRef}
+              style={s.modalInput}
+              placeholder="輸入廚房名稱"
+              placeholderTextColor="#999"
+              value={familyName}
+              onChangeText={setFamilyName}
+            />
+            <View style={s.modalActions}>
+              <TouchableOpacity
+                style={[s.primaryBtn, !familyName.trim() && { opacity: 0.5 }]}
+                onPress={() => createM.mutate({ name: familyName.trim() })}
+                disabled={!familyName.trim() || createM.isPending}
+              >
+                {createM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>建立</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Text style={{ color: "#999", fontSize: 14 }}>取消</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showJoinModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowJoinModal(false)}
+        onShow={() => {
+          setTimeout(() => {
+            joinInputRef.current?.focus();
+          }, 100);
+        }}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContainer}>
+            <Text style={s.modalTitle}>加入廚房</Text>
+            <TextInput
+              ref={joinInputRef}
+              style={s.modalInput}
+              placeholder="輸入邀請碼"
+              placeholderTextColor="#999"
+              value={inviteCode}
+              onChangeText={setInviteCode}
+              autoCapitalize="characters"
+            />
+            <View style={s.modalActions}>
+              <TouchableOpacity
+                style={[s.primaryBtn, !inviteCode.trim() && { opacity: 0.5 }]}
+                onPress={() => joinM.mutate({ inviteCode: inviteCode.trim() })}
+                disabled={!inviteCode.trim() || joinM.isPending}
+              >
+                {joinM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>加入</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowJoinModal(false)}>
+                <Text style={{ color: "#999", fontSize: 14 }}>取消</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -383,6 +567,42 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
   },
+  empty: { alignItems: "center", justifyContent: "center", paddingVertical: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: "700", color: BRAND, marginTop: 12, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: SUB, textAlign: "center", marginBottom: 20 },
+  emptyActions: { flexDirection: "row", gap: 10 },
+  createBtn: {
+    backgroundColor: BRAND, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 20,
+  },
+  createBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  joinBtn: {
+    borderWidth: 1.5, borderColor: BRAND, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 20,
+  },
+  joinBtnText: { fontSize: 14, fontWeight: "700", color: BRAND },
+  kitchenRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: "#F0F0F0",
+  },
+  kitchenRowActive: { backgroundColor: "#EEF4FB", borderRadius: 10, paddingHorizontal: 12, borderBottomWidth: 0 },
+  kitchenIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center",
+  },
+  kitchenName: { fontSize: 15, fontWeight: "700", color: TEXT },
+  kitchenNameActive: { color: BRAND },
+  kitchenMeta: { fontSize: 12, color: SUB, marginTop: 2 },
+  kitchenInfo: { flex: 1 },
+  switchActions: {
+    flexDirection: "row", gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F0F0F0",
+  },
+  switchActionBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
+    paddingVertical: 10, borderRadius: 8, borderWidth: 1.5, borderColor: BRAND,
+  },
+  switchActionBtnText: { fontSize: 13, fontWeight: "700", color: BRAND },
   input: {
     borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT,
@@ -455,4 +675,19 @@ const s = StyleSheet.create({
   },
   dangerText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },
   dangerSub: { fontSize: 11, color: SUB, marginTop: 2 },
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center", alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#fff", borderRadius: 20, padding: 24,
+    width: "85%",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#1A1A1A", marginBottom: 16 },
+  modalInput: {
+    borderWidth: 1, borderColor: "#E0E0E0", borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16,
+    color: "#1A1A1A", marginBottom: 20,
+  },
+  modalActions: { gap: 12, alignItems: "center" },
 });

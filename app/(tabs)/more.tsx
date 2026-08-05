@@ -97,14 +97,6 @@ const MENU_ITEMS: MenuItemDef[] = [
     iconColor: UNIFIED_ICON_COLOR,
   },
   {
-    icon: "people-outline",
-    label: "家庭管理",
-    sub: "邀請成員、查看家庭資訊",
-    route: "/family",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
     icon: "server-outline",
     label: "管理員面板",
     sub: "食譜 CRUD・數據分析",
@@ -114,8 +106,8 @@ const MENU_ITEMS: MenuItemDef[] = [
   },
   {
     icon: "home-outline",
-    label: "廚房設定",
-    sub: "預設份量・螢幕・計時器",
+    label: "管理廚房",
+    sub: "切換廚房・成員管理・設定",
     route: "/kitchen-settings",
     iconBg: UNIFIED_ICON_BG,
     iconColor: UNIFIED_ICON_COLOR,
