@@ -64,6 +64,52 @@ function calcAdjustedQty(rawQty: string, unit: string, category: string, ratio: 
   return String(Math.round(adj));
 }
 
+// ── Seasoning keywords (from IngredientPickerModal) ──────────────────
+const SEASONING_KEYWORDS = [
+  "鹽", "糖", "油", "醬油", "生抽", "老抽", "豉油", "蠔油",
+  "胡椒粉", "醋", "料酒", "米酒", "紹興酒", "雞粉", "味精",
+  "生粉", "粟粉", "蒜蓉", "薑蓉", "蔥花",
+];
+
+function isSeasoning(name: string): boolean {
+  return SEASONING_KEYWORDS.some((kw) => name.includes(kw));
+}
+
+const toISODate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+function getDayBefore(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() - 1);
+  return toISODate(d);
+}
+
+const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+const WEEKDAYS_SHORT = ["日", "一", "二", "三", "四", "五", "六"];
+
+function formatPlannedDate(dateStr: string): string {
+  const today = toISODate(new Date());
+  const tomorrow = toISODate(new Date(Date.now() + 86400000));
+  
+  if (dateStr === today) return "今日";
+  if (dateStr === tomorrow) return "聽日";
+  
+  const date = new Date(dateStr + "T00:00:00");
+  return `${WEEKDAYS[date.getDay()]} (${dateStr.slice(5).replace("-", "/")})`;
+}
+
+function formatMealDate(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const weekday = WEEKDAYS_SHORT[date.getDay()];
+  return `${month}/${day} (${weekday})`;
+}
+
 // ── Per-step timer component ────────────────────────────────────────
 function StepTimer({ defaultSeconds = 0 }: { defaultSeconds?: number }) {
   const [mode, setMode] = useState<"idle" | "input" | "counting">("idle");
@@ -239,8 +285,9 @@ export default function RecipeDetailScreen() {
   const [showSteps, setShowSteps] = useState(true);
   // Plan modal
   const [showPlan, setShowPlan] = useState(false);
-  const [planDate, setPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [planDate, setPlanDate] = useState<string | null>(() => toISODate(new Date()));
   const [planMeal, setPlanMeal] = useState("dinner");
+  const [autoAddCart, setAutoAddCart] = useState(true);
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
@@ -261,14 +308,15 @@ export default function RecipeDetailScreen() {
   const [aiEditResult, setAIEditResult] = useState<string | null>(null);
   // Added to cart feedback
   const [addedToCart, setAddedToCart] = useState(false);
+  const [lastAddedShoppingDate, setLastAddedShoppingDate] = useState<string | null>(null);
   // Ingredient picker for add-to-cart
   const [showIngPicker, setShowIngPicker] = useState(false);
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
-  const [shoppingDate, setShoppingDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [showDateEditor, setShowDateEditor] = useState(false);
+  const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  const autoAddCartRef = useRef(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -312,8 +360,8 @@ export default function RecipeDetailScreen() {
   // 查詢呢個食譜係咪已經有排餐（未來 30 日）
   const mealPlansQ = trpc.mealPlan.listByDateRange.useQuery(
     { 
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      startDate: toISODate(new Date()),
+      endDate: toISODate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
     },
     { enabled: isAuthenticated && !!recipeStringId }
   );
@@ -740,6 +788,8 @@ export default function RecipeDetailScreen() {
   
   const localImage = recipe ? getLocalImage(recipe.name) : null;
   const imgUrl = localImage || (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
+  // recipeImage 只接受字串 URL；require() 回傳的數字 asset id 不能送出後端
+  const remoteImageUrl = (recipe as any)?.image || (recipe as any)?.thumbnailUrl || undefined;
   const isUserRecipe = (recipe as any)?.source === "user";
   const sourceUrl = (recipe as any)?.sourceUrl;
   const sourceAuthor = (recipe as any)?.sourceAuthor;
@@ -814,24 +864,58 @@ export default function RecipeDetailScreen() {
     onError: (e: any) => Alert.alert("失敗", e.message),
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
-    onSuccess: () => {
-      setShowPlan(false);
-      utils.mealPlan.listByDateRange.invalidate();
+    onSuccess: (result) => {
       const ings = adjustedIngredients.map((ing: any) => ({
         name: ing.name,
         quantity: ing.adjustedQty ?? ing.quantity ?? "",
         unit: ing.unit ?? "",
         category: ing.category ?? "食材",
       }));
-      if (ings.length > 0) {
-        setPlanPickerRecipe({
-          id: recipeStringId,
-          name: recipe?.name ?? "",
-          ingredients: ings,
-          date: planDate,
-        });
+
+      const continueFlow = () => {
+        setShowPlan(false);
+        utils.mealPlan.listByDateRange.invalidate();
+        if (autoAddCartRef.current) {
+          utils.shopping.list.invalidate();
+          setToast({
+            visible: true,
+            message: `✅ 已加入排餐及購物車（${adjustedIngredients.length} 項食材）`,
+            type: "success",
+          });
+        } else if (ings.length > 0) {
+          setPlanPickerRecipe({
+            id: recipeStringId,
+            name: recipe?.name ?? "",
+            ingredients: ings,
+            date: planDate ?? undefined,
+            fromMealPlanId: result.newPlanId,
+          });
+        } else {
+          Alert.alert("已加入排餐");
+        }
+      };
+
+      // Check if there's a conflict (eatOut or duplicate recipe)
+      if (result.warning && result.hasConflict) {
+        const isEatOutConflict = result.warning.includes("外出");
+        Alert.alert(
+          isEatOutConflict ? "衝突提示" : "重複食譜提示",
+          result.warning,
+          [
+            { text: "取消", style: "cancel", onPress: () => {
+              if (result.newPlanId) {
+                deleteMealM.mutate({ id: result.newPlanId });
+              }
+              setShowPlan(false);
+              utils.mealPlan.listByDateRange.invalidate();
+            }},
+            { text: "確定", onPress: () => {
+              continueFlow();
+            }},
+          ]
+        );
       } else {
-        Alert.alert("已加入排餐");
+        continueFlow();
       }
     },
     onError: (e) => Alert.alert("失敗", e.message),
@@ -840,20 +924,59 @@ export default function RecipeDetailScreen() {
     onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
-      utils.shopping.list.refetch();
       setAddedToCart(true);
       setPlanPickerRecipe(null);
       const count = variables.items.length;
-      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
+      const dateLabel = variables.plannedDate ? formatMealDate(variables.plannedDate) : "";
+      setToast({ 
+        visible: true, 
+        message: `✅ ${count} 件食材已加入購物清單${dateLabel ? `，採購日：${dateLabel}` : ""}`, 
+        type: "success" 
+      });
     },
     onError: (e) => {
       setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
     },
   });
+  const updateItemM = trpc.shopping.updateItem.useMutation({
+    onError: (e) => {
+      setToast({ visible: true, message: `更新失敗：${e.message}`, type: "error" });
+    },
+  });
+
+  // Adjusted ingredients based on serving ratio (must be before mutations that use it)
+  const effectiveServings = servings > 0 ? servings : ((recipe?.servings ?? 0) || 2);
+  const baseServings = (recipe?.servings ?? 0) || effectiveServings;
+  const ratio = baseServings > 0 ? effectiveServings / baseServings : 1;
+
+  const adjustedIngredients = useMemo(() => {
+    return ingredients.map((ing: any) => {
+      const rawQty = String(ing.quantity ?? "");
+      const adjusted = ratio === 1 ? rawQty : calcAdjustedQty(rawQty, ing.unit ?? "", ing.category ?? "", ratio);
+      return { ...ing, adjustedQty: adjusted };
+    });
+  }, [ingredients, ratio]);
+
   const aiEditM = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => setAIEditResult(data.content),
     onError: (e) => Alert.alert("AI Edit 失敗", e.message),
   });
+
+  // 修改購物車項目（同步食譜的購物項目）
+  const handleModifyShopping = useCallback(() => {
+    // 先準備食材清單
+    const ings = adjustedIngredients.map((ing: any, i: number) => ({
+      ...ing, _idx: i, _qty: String(ing.adjustedQty ?? ing.quantity ?? ""), _unit: ing.unit ?? "",
+    }));
+    setEditIngs(ings);
+    const defaultSelected = new Set<number>();
+    ings.forEach((_: any, i: number) => {
+      if (!isSeasoning(_.name)) defaultSelected.add(i);
+    });
+    setSelectedIngs(defaultSelected);
+    // 不重置 lastAddedShoppingDate，讓用戶在彈窗改日期
+    setShowIngPicker(true);
+  }, [adjustedIngredients]);
 
   // Cooking terms for highlighting
   const cookingTerms = useMemo(() => COOKING_TERM_LIST, []);
@@ -888,19 +1011,6 @@ export default function RecipeDetailScreen() {
       </Text>
     );
   }, [cookingTerms]);
-
-  // Adjusted ingredients based on serving ratio
-  const effectiveServings = servings > 0 ? servings : ((recipe?.servings ?? 0) || 2);
-  const baseServings = (recipe?.servings ?? 0) || effectiveServings;
-  const ratio = baseServings > 0 ? effectiveServings / baseServings : 1;
-
-  const adjustedIngredients = useMemo(() => {
-    return ingredients.map((ing: any) => {
-      const rawQty = String(ing.quantity ?? "");
-      const adjusted = ratio === 1 ? rawQty : calcAdjustedQty(rawQty, ing.unit ?? "", ing.category ?? "", ratio);
-      return { ...ing, adjustedQty: adjusted };
-    });
-  }, [ingredients, ratio]);
 
   if (recipeQ.isLoading) {
     return (
@@ -966,32 +1076,64 @@ export default function RecipeDetailScreen() {
               </View>
             )}
             {/* Back button */}
-            <TouchableOpacity style={s.heroBack} onPress={handleBack}>
-              <Ionicons name="chevron-back" size={22} color="#fff" />
+            <TouchableOpacity style={[s.heroBack, { backgroundColor: "rgba(255,255,255,0.9)" }]} onPress={handleBack}>
+              <Ionicons name="chevron-back" size={22} color="#013E77" />
             </TouchableOpacity>
             {/* Share button */}
             <TouchableOpacity
-              style={s.heroShare}
+              style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)" }]}
               onPress={() => {
-                const ingText = ingredients.map((i: any) => `• ${i.name}${i.quantity ? ` ${i.quantity}` : ""}${i.unit ? ` ${i.unit}` : ""}`).join("\n");
-                const stepText = steps.map((s: any, i: number) => `${i + 1}. ${typeof s === "string" ? s : s.description}`).join("\n");
+                // 處理食材 - 使用 adjustedQty (已調整份量)
+                const ingText = adjustedIngredients
+                  .map((i: any) => {
+                    const name = i.name ?? "未知食材";
+                    const qty = i.adjustedQty ?? i.quantity ?? "";
+                    const unit = i.unit ?? "";
+                    return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
+                  })
+                  .join("\n");
+                
+                // 處理步驟 - 支援多種屬性名稱，包含小貼士
+                const stepText = steps
+                  .map((s: any, i: number) => {
+                    const instruction = typeof s === "string" 
+                      ? s 
+                      : (s.instruction ?? s.description ?? s.step ?? `步驟 ${i + 1}`);
+                    const tip = s.tip ?? s.tips ?? "";
+                    
+                    let result = `${i + 1}. ${instruction}`;
+                    if (tip) result += `\n   💡 ${tip}`;
+                    return result;
+                  })
+                  .join("\n");
+                
+                // 組合完整分享文字
                 const shareText = [
-                  `🍽️ ${recipe.name}`,
-                  recipe.cookTime ? `⏱ ${recipe.cookTime} 分鐘` : "",
-                  recipe.servings ? `👥 ${recipe.servings} 人份` : "",
+                  `🍽️ ${recipe?.name ?? "食譜"}`,
+                  (recipe as any).description ? `${(recipe as any).description}` : "",
                   "",
-                  "📋 食材：",
+                  recipe?.cookTime ? `⏱ ${recipe.cookTime} 分鐘` : "",
+                  recipe?.servings ? `👥 ${recipe.servings} 人份` : "",
+                  (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
+                  "",
+                  "📋 食材清單：",
                   ingText,
                   "",
-                  "👨‍🍳 做法：",
+                  "👨‍🍳 烹飪步驟：",
                   stepText,
+                  "",
+                  (recipe as any).housewifeTips ? `💡 主婦貼士：${(recipe as any).housewifeTips}` : "",
+                  (recipe as any).tags && (recipe as any).tags.length > 0 
+                    ? `🏷️ 標籤：${(recipe as any).tags.join(", ")}` 
+                    : "",
                   "",
                   `— 來自 Kindcipe 家庭廚房`,
                 ].filter(Boolean).join("\n");
-                Share.share({ message: shareText, title: recipe.name });
+                
+                Share.share({ message: shareText, title: recipe?.name ?? "食譜" });
               }}
             >
-              <Ionicons name="share-outline" size={20} color="#fff" />
+              <Ionicons name="share-outline" size={20} color="#013E77" />
             </TouchableOpacity>
             {/* Recipe info overlay */}
             <View style={s.heroInfo}>
@@ -1083,12 +1225,16 @@ export default function RecipeDetailScreen() {
                 }));
                 if (ings.length === 0) { Alert.alert("沒有食材資訊"); return; }
                 setEditIngs(ings);
-                setSelectedIngs(new Set(ings.map((_: any, i: number) => i)));
+                // 預設只勾非調味料（與 IngredientPickerModal 一致）
+                const defaultSelected = new Set<number>();
+                ings.forEach((_: any, i: number) => {
+                  if (!isSeasoning(_.name)) defaultSelected.add(i);
+                });
+                setSelectedIngs(defaultSelected);
                 
-                // 智能判斷日期
-                const defaultDate = latestMealPlan?.date ?? new Date().toISOString().split("T")[0];
+                // 智能判斷日期：預設為排餐日前一日（購物日），無排餐則為今日
+                const defaultDate = latestMealPlan ? getDayBefore(latestMealPlan.date) : toISODate(new Date());
                 setShoppingDate(defaultDate);
-                setShowDateEditor(false);
                 setShowIngPicker(true);
               }}>
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
@@ -1099,6 +1245,25 @@ export default function RecipeDetailScreen() {
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
             </View>
+
+            {/* 已加入採購提示 Banner */}
+            {addedToCart && (
+              <View style={s.addedBanner}>
+                <Ionicons name="checkmark-circle" size={16} color={GREEN} />
+                <Text style={s.addedBannerText}>已加入採購</Text>
+                {lastAddedShoppingDate && (
+                  <>
+                    <View style={s.addedBannerDivider} />
+                    <Ionicons name="calendar-outline" size={14} color={GREEN} />
+                    <Text style={s.addedBannerDate}>{formatMealDate(lastAddedShoppingDate)}</Text>
+                  </>
+                )}
+                <TouchableOpacity style={s.addedBannerEdit} onPress={handleModifyShopping}>
+                  <Ionicons name="create-outline" size={14} color={BRAND} />
+                  <Text style={s.addedBannerEditText}>修改</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* ── Meal Plan Display (Unified) ── */}
             {allRecipeMealPlans.length > 0 && (
@@ -1392,7 +1557,7 @@ export default function RecipeDetailScreen() {
                 {notesQ.data && notesQ.data.map((note: any) => (
                   <View key={note.id} style={s.noteItem}>
                     <View style={s.noteAvatar}>
-                      <Text style={s.noteAvatarTxt}>{(note.userName ?? "?")[0].toUpperCase()}</Text>
+                      <Text style={s.noteAvatarTxt}>{((note.userName || "?")[0] ?? "?").toUpperCase()}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
@@ -1474,7 +1639,15 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={s.sheetLabel}>選擇日期</Text>
-              <PlanDatePicker value={planDate} onChange={setPlanDate} />
+              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
+              {planDate && (
+                <TouchableOpacity 
+                  onPress={() => setPlanDate(null)} 
+                  style={{ alignSelf: "flex-end", marginTop: -8 }}
+                >
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                </TouchableOpacity>
+              )}
               <Text style={s.sheetLabel}>餐次</Text>
               <View style={s.mealRow}>
                 {MEAL_TYPES.map(m => (
@@ -1483,16 +1656,48 @@ export default function RecipeDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 16 }}>
+                <TouchableOpacity
+                  onPress={() => setAutoAddCart(!autoAddCart)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 4,
+                    borderWidth: 2,
+                    borderColor: autoAddCart ? BRAND : "#D1D5DB",
+                    backgroundColor: autoAddCart ? BRAND : "transparent",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {autoAddCart && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setAutoAddCart(!autoAddCart)} style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: TEXT, fontWeight: "500" }}>同時加入購物車（{adjustedIngredients.length} 項食材）</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
                 style={[s.confirmBtn, addPlanM.isPending && { opacity: 0.6 }]}
-                onPress={() => addPlanM.mutate({
-                  date: planDate,
-                  mealType: planMeal as any,
-                  recipeId: recipeStringId,
-                  recipeName: recipe.name,
-                  recipeImage: imgUrl ?? undefined,
-                  autoAddIngredients: false,
-                })}
+                onPress={() => {
+                  if (!planDate) {
+                    Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
+                    return;
+                  }
+                  autoAddCartRef.current = autoAddCart;
+                  addPlanM.mutate({
+                    date: planDate,
+                    mealType: planMeal as any,
+                    recipeId: recipeStringId,
+                    recipeName: recipe.name,
+                    recipeImage: remoteImageUrl,
+                    autoAddIngredients: autoAddCart,
+                    ingredients: autoAddCart ? adjustedIngredients.map((ing: any) => ({
+                      name: ing.name,
+                      quantity: ing.adjustedQty ?? ing.quantity ?? "",
+                      unit: ing.unit ?? "",
+                    })) : undefined,
+                  });
+                }}
                 disabled={addPlanM.isPending}
               >
                 {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>確認加入</Text>}
@@ -1735,27 +1940,69 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               
-              {/* 日期選擇器 */}
-              {latestMealPlan && !showDateEditor ? (
-                <View style={s.dateInfoRow}>
-                  <Ionicons name="checkmark-circle" size={16} color={GREEN} />
-                  <Text style={s.dateInfoText}>已關聯排餐日期：</Text>
-                  <Text style={s.dateInfoValue}>{latestMealPlan.date}</Text>
-                  <TouchableOpacity onPress={() => setShowDateEditor(true)}>
-                    <Ionicons name="create-outline" size={14} color={SUB} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={s.datePickerRow}>
-                  <Ionicons name="calendar-outline" size={16} color={SUB} />
-                  <Text style={s.datePickerLabel}>購物日期：</Text>
-                  <PlanDatePicker 
-                    value={shoppingDate} 
-                    onChange={setShoppingDate}
-                    showShortcuts={true}
-                  />
+              {/* 日期選擇器 - 永遠直接顯示可編輯 */}
+              <View style={s.datePickerRow}>
+                <Ionicons name="calendar-outline" size={16} color={SUB} />
+                <Text style={s.datePickerLabel}>購物日期：</Text>
+                <PlanDatePicker 
+                  value={shoppingDate} 
+                  onChange={setShoppingDate}
+                  showShortcuts={true}
+                  maxDate={latestMealPlan?.date}
+                />
+              </View>
+              {shoppingDate && (
+                <TouchableOpacity 
+                  onPress={() => setShoppingDate(null)} 
+                  style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
+                >
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                </TouchableOpacity>
+              )}
+              {latestMealPlan && (
+                <View style={s.dateHintRow}>
+                  <Ionicons name="information-circle-outline" size={12} color={SUB} />
+                  <Text style={s.dateHintText}>已關聯 {latestMealPlan.date} 晚餐，建議採購日為前一日</Text>
                 </View>
               )}
+              {latestMealPlan && shoppingDate && shoppingDate > latestMealPlan.date && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 }}>
+                  <Ionicons name="warning" size={14} color="#DC2626" />
+                  <Text style={{ fontSize: 12, color: "#DC2626", fontWeight: "600" }}>
+                    ⚠️ 採購日期（{shoppingDate}）晚於排餐日期（{latestMealPlan.date}）
+                  </Text>
+                </View>
+              )}
+              
+              {/* 快捷鍵：全選主要食材／全選／取消 */}
+              <View style={s.quickActionsRow}>
+                <TouchableOpacity style={s.quickBtn} onPress={() => {
+                  const newSet = new Set<number>();
+                  editIngs.forEach((ing: any, i: number) => {
+                    if (!isSeasoning(ing.name)) newSet.add(i);
+                  });
+                  setSelectedIngs(newSet);
+                }}>
+                  <Ionicons name="checkmark-done" size={14} color={BRAND} />
+                  <Text style={s.quickBtnText}>全選主要食材</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.quickBtn} onPress={() => {
+                  const newSet = new Set<number>();
+                  editIngs.forEach((_: any, i: number) => newSet.add(i));
+                  setSelectedIngs(newSet);
+                }}>
+                  <Ionicons name="checkmark" size={14} color={BRAND} />
+                  <Text style={s.quickBtnText}>全選</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.quickBtn} onPress={() => setSelectedIngs(new Set())}>
+                  <Ionicons name="close" size={14} color={SUB} />
+                  <Text style={[s.quickBtnText, { color: SUB }]}>取消</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={s.seasoningHintRow}>
+                <Text style={s.seasoningHintText}>（調味料如家中常備可不勾）</Text>
+                <Text style={s.seasoningHintText}>勾選的項目將被更新，未勾選的保持原狀</Text>
+              </View>
               
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
                 {editIngs.length === 0 ? (
@@ -1805,8 +2052,22 @@ export default function RecipeDetailScreen() {
               <View style={{ padding: 16 }}>
                 <TouchableOpacity
                   style={s.ingPickerConfirm}
-                  onPress={() => {
-                    const toAdd = editIngs
+                  onPress={async () => {
+                    // 情況 1 驗證：有排餐時，採購日期不能遲於排餐日
+                    if (!shoppingDate) {
+                      Alert.alert("日期無效", "請選擇購物日期", [{ text: "確定" }]);
+                      return;
+                    }
+                    if (latestMealPlan && shoppingDate > latestMealPlan.date) {
+                      Alert.alert(
+                        "日期無效",
+                        `採購日期（${shoppingDate}）不能遲於排餐日期（${latestMealPlan.date}）\n\n建議選擇 ${getDayBefore(latestMealPlan.date)} 或更早的日期`,
+                        [{ text: "確定" }]
+                      );
+                      return;
+                    }
+                    
+                    const selectedItems = editIngs
                       .filter((_: any, i: number) => selectedIngs.has(i))
                       .map((ing: any) => ({
                         name: ing.name,
@@ -1814,46 +2075,98 @@ export default function RecipeDetailScreen() {
                         unit: ing._unit,
                         category: ing.category || "食材",
                       }));
-                    if (toAdd.length > 0) {
-                      addShoppingM.mutate({ 
-                        items: toAdd, 
-                        fromRecipeId: recipeStringId, 
-                        fromRecipeName: recipe.name, 
-                        plannedDate: shoppingDate,
-                      });
-                      const itemsWithPrice = toAdd.filter(item => getIngRecordedPrice(item.name) !== null);
-                      if (itemsWithPrice.length > 0) {
+                    
+                    if (selectedItems.length === 0) {
+                      setToast({ visible: true, message: "未選擇任何食材", type: "info" });
+                      setShowIngPicker(false);
+                      return;
+                    }
+                    
+                    // 同步邏輯（方案 A）：只更新勾選項目，不刪除未勾選的
+                    // 未勾選 = 保持原狀，不處理
+                    const existingItems = (shoppingListQ.data ?? []).filter(
+                      (item: any) => item.fromRecipeId === recipeStringId && item.status !== "bought"
+                    );
+                    
+                    const toUpdate: { id: number; name: string; quantity: string; unit: string; plannedDate: string }[] = [];
+                    const toAdd: typeof selectedItems = [];
+                    
+                    // 建立現有項目的映射，方便查找
+                    const existingMap = new Map<string, any>();
+                    existingItems.forEach((item: any) => {
+                      existingMap.set(`${item.name.trim()}::${item.unit}`, item);
+                    });
+                    
+                    // 處理勾選的項目：更新或新增
+                    for (const selected of selectedItems) {
+                      const key = `${selected.name.trim()}::${selected.unit}`;
+                      const existing = existingMap.get(key);
+                      if (existing) {
+                        // 已存在 → 更新
+                        toUpdate.push({
+                          id: existing.id,
+                          name: selected.name,
+                          quantity: selected.quantity,
+                          unit: selected.unit,
+                          plannedDate: shoppingDate,
+                        });
+                      } else {
+                        // 不存在 → 新增
+                        toAdd.push(selected);
+                      }
+                    }
+                    
+                    // 執行：先更新，再新增
+                    try {
+                      const updatePromises = toUpdate.map((u) =>
+                        updateItemM.mutateAsync({
+                          id: u.id,
+                          name: u.name,
+                          quantity: u.quantity,
+                          unit: u.unit,
+                          plannedDate: u.plannedDate,
+                        })
+                      );
+                      await Promise.all(updatePromises);
+                      
+                      if (toAdd.length > 0) {
+                        setLastAddedShoppingDate(shoppingDate);
+                        addShoppingM.mutate({
+                          items: toAdd,
+                          fromRecipeId: recipeStringId,
+                          fromRecipeName: recipe.name,
+                          fromMealPlanId: latestMealPlan?.id,
+                          plannedDate: shoppingDate,
+                        });
+                      } else {
+                        // 沒有新增，只更新了現有項目
+                        setLastAddedShoppingDate(shoppingDate);
+                        setAddedToCart(true);
+                        // 延遲關閉 Modal，然後顯示成功提示（避免被 Modal 擋住）
                         setTimeout(() => {
                           utils.shopping.list.invalidate();
-                          setTimeout(() => {
-                            const currentList = shoppingListQ.data ?? [];
-                            let savedCount = 0;
-                            itemsWithPrice.forEach(item => {
-                              const price = getIngRecordedPrice(item.name);
-                              if (price === null) return;
-                              const existingItem = currentList.find((si: any) => si.name === item.name);
-                              if (existingItem) {
-                                savePriceM.mutate({
-                                  itemId: existingItem.id,
-                                  itemName: item.name,
-                                  price,
-                                  category: item.category,
-                                  unit: item.unit,
-                                  quantity: item.quantity,
-                                });
-                                savedCount++;
-                              }
-                            });
-                            if (savedCount > 0) {
-                              Alert.alert("已加入購物清單", `${toAdd.length} 項食材已加入，${savedCount} 項已記錄價格`);
-                            }
-                          }, 500);
-                        }, 300);
+                          setShowIngPicker(false);
+                          setToast({
+                            visible: true,
+                            message: toUpdate.length > 0 
+                              ? `✅ 已更新 ${toUpdate.length} 項食材` 
+                              : `✅ 已更新採購日：${formatMealDate(shoppingDate)}`,
+                            type: "success",
+                          });
+                        }, 1500);
+                        return; // 提前返回，避免重複執行
                       }
-                    } else {
-                      Alert.alert("未選擇任何食材");
+                      
+                      // 刷新購物清單
+                      utils.shopping.list.invalidate();
+                      setShowIngPicker(false);
+                    } catch (e: any) {
+                      setToast({
+                        visible: true,
+                        message: `修改失敗：${e.message}`,
+                        type: "error",
+                      });
                     }
-                    setShowIngPicker(false);
                   }}
                 >
                   <Text style={s.ingPickerConfirmTxt}>
@@ -1869,8 +2182,11 @@ export default function RecipeDetailScreen() {
           visible={!!planPickerRecipe}
           recipes={planPickerRecipe ? [planPickerRecipe] : []}
           loading={addShoppingM.isPending}
+          defaultDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
+          maxDate={planPickerRecipe?.date}
           onConfirm={(items) => {
             if (items.length > 0) {
+              setLastAddedShoppingDate(items[0].plannedDate || toISODate(new Date()));
               addShoppingM.mutate({
                 items: items.map((i) => ({
                   name: i.name,
@@ -1880,6 +2196,7 @@ export default function RecipeDetailScreen() {
                 })),
                 fromRecipeId: items[0].recipeId,
                 fromRecipeName: items[0].recipeName,
+                fromMealPlanId: items[0].fromMealPlanId,
                 plannedDate: items[0].plannedDate,
               });
             } else {
@@ -2132,6 +2449,19 @@ const s = StyleSheet.create({
     borderBottomColor: BORDER 
   },
   datePickerLabel: { fontSize: 13, color: SUB },
+  dateHintRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingVertical: 6, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: BORDER },
+  dateHintText: { fontSize: 11, color: SUB },
+  quickActionsRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: BORDER },
+  quickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#E8F0FE" },
+  quickBtnText: { fontSize: 12, fontWeight: "600", color: BRAND },
+  seasoningHintRow: { paddingHorizontal: 20, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: BORDER },
+  seasoningHintText: { fontSize: 11, color: SUB, fontStyle: "italic" },
+  addedBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F0FDF4", borderRadius: 12, padding: 10, marginTop: 12, borderWidth: 1, borderColor: "#BBF7D0" },
+  addedBannerText: { fontSize: 13, fontWeight: "700", color: GREEN },
+  addedBannerDivider: { width: 1, height: 14, backgroundColor: "#86EFAC" },
+  addedBannerDate: { fontSize: 12, fontWeight: "600", color: GREEN },
+  addedBannerEdit: { flexDirection: "row", alignItems: "center", gap: 3, marginLeft: "auto", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "#EFF6FF" },
+  addedBannerEditText: { fontSize: 12, fontWeight: "600", color: BRAND },
   ingPickerRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: "#F3F4F6" },
   ingPickerCheck: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   ingPickerDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: BRAND, alignItems: "center", justifyContent: "center" },
