@@ -10,7 +10,7 @@
  * - 確保不同帳戶都會看到 onboarding
  * - 同一帳戶完成後不再重複顯示
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, createTrpcClient } from "@/lib/trpc";
@@ -23,9 +23,36 @@ import { initLanguage } from "@/lib/i18n";
 import KitchenSwitcher from "@/app/components/KitchenSwitcher";
 import { authenticateBiometric, isBiometricAvailable, isBiometricEnabled, clearAuthToken } from "@/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 
 // 以用戶 ID 為 key，確保不同帳戶都有獨立的 onboarding 狀態
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
+
+// Helper functions for clipboard detection
+function isValidUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function detectPlatform(url: string): string | null {
+  const u = url.toLowerCase();
+  if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
+  if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
+  if (u.includes("xiaohongshu.com") || u.includes("xhslink.com")) return "小紅書";
+  if (u.includes("threads.net")) return "Threads";
+  if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
+  if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
+  if (u.includes("weibo.com")) return "微博";
+  if (u.includes("bilibili.com") || u.includes("b23.tv")) return "B 站";
+  return null;
+}
+
+// 高成功率平台清單（顯示提示）
+const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,10 +70,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
-  const [showDevReset, setShowDevReset] = useState(false);
-  const [biometricChecked, setBiometricChecked] = useState(false);
+  const [showDevReset, setShowDevReset] = useState(true); // Always show for testing
   const [biometricPrompt, setBiometricPrompt] = useState(false);
   const [biometricFailed, setBiometricFailed] = useState(false);
+  const hasCheckedClipboard = useRef(false);
 
   // 載入 2 秒後顯示重置按鈕
   useEffect(() => {
@@ -132,6 +159,60 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     };
     checkOnboarding();
   }, [meQuery.data?.id]);
+  
+  // Global clipboard detection on app open
+  useEffect(() => {
+    if (hasCheckedClipboard.current) return;
+    hasCheckedClipboard.current = true;
+    
+    const checkClipboardOnOpen = async () => {
+      try {
+        const text = await Clipboard.getStringAsync();
+        if (text && isValidUrl(text.trim())) {
+          const platform = detectPlatform(text);
+          
+          if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+            // Check if already hinted in 24 hours
+            const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
+            if (hintedData) {
+              const { url, timestamp } = JSON.parse(hintedData);
+              const now = Date.now();
+              const hours24 = 24 * 60 * 60 * 1000;
+              if (url === text && now - timestamp < hours24) {
+                return; // Already hinted in 24 hours
+              }
+            }
+            
+            Alert.alert(
+              "偵測到食譜連結",
+              `發現 ${platform} 連結，是否立即匯入？`,
+              [
+                { text: "取消", style: "cancel" },
+                {
+                  text: "匯入食譜",
+                  onPress: () => {
+                    // Save to prevent repeat hint
+                    AsyncStorage.setItem(
+                      "kindcipe_clipboard_hinted",
+                      JSON.stringify({ url: text, timestamp: Date.now() })
+                    );
+                    router.push({
+                      pathname: "/import",
+                      params: { clipboardUrl: text },
+                    });
+                  }
+                }
+              ]
+            );
+          }
+        }
+      } catch (e) {
+        // Clipboard read failed, ignore
+      }
+    };
+    
+    checkClipboardOnOpen();
+  }, []);
 
   useEffect(() => {
     if (biometricFailed) {

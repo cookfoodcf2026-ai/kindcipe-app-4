@@ -1,6 +1,6 @@
 /**
- * 食譜匯入頁面 — 最核心功能
- * 支援：剪貼板自動偵測 URL、手動貼上 URL、截圖上傳、文字貼上
+ * 食譜匯入頁面 — 零摩擦體驗
+ * 支援：剪貼板自動偵測 URL、Universal Smart Input、截圖上傳、文字貼上
  */
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -21,28 +21,30 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
-type ImportMethod = "url" | "text" | "xiaohongshu" | "screenshot" | "manual";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
 type EditableStep = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
+
+// 高成功率平台清單（顯示 Magic Card）
+const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ onboarding?: string }>();
+  const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string }>();
   const isOnboarding = params.onboarding === "true";
   const { user: authUser } = useAuth();
+  
   const [step, setStep] = useState<ImportStep>("input");
-  const [method, setMethod] = useState<ImportMethod>("url");
-  const [urlInput, setUrlInput] = useState("");
-  const [textInput, setTextInput] = useState("");
+  const [universalInput, setUniversalInput] = useState("");
+  const [clipboardContent, setClipboardContent] = useState<string | null>(null);
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
   const [parsedRecipe, setParsedRecipe] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
+  const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("中菜");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
@@ -65,6 +67,7 @@ export default function ImportScreen() {
   const saveStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const SAVE_STEPS = ["上載圖片...", "整理食譜資料...", "儲存到食譜庫..."];
+  const PARSE_STEPS = ["讀取內容", "識別食材", "整理步驟", "生成食譜"];
 
   // Initialize editable states when parsedRecipe is set
   const initEditFromParsed = (recipe: any) => {
@@ -165,8 +168,6 @@ export default function ImportScreen() {
     setEditSteps(prev => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, id: i + 1 })));
   };
 
-  const PARSE_STEPS = ["讀取內容", "識別食材", "整理步驟", "生成食譜"];
-
   const startParseProgress = () => {
     setParseStepIndex(0);
     parseStepTimer.current = setInterval(() => {
@@ -205,34 +206,36 @@ export default function ImportScreen() {
     };
   }, []);
 
-  // 偵測剪貼板是否有 URL
+  // 偵測剪貼板（只對高成功率平台）
   useEffect(() => {
     checkClipboard();
+    
+    // 如果有 params.clipboardUrl（從首頁提示跳轉過來），自動填充
+    if (params.clipboardUrl) {
+      const url = params.clipboardUrl as string;
+      setUniversalInput(url);
+      const platform = detectPlatform(url);
+      if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+        setClipboardUrl(url);
+        setDetectedPlatform(platform);
+      }
+    }
   }, []);
 
   const checkClipboard = async () => {
     try {
       const text = await Clipboard.getStringAsync();
-      if (text && (text.startsWith("http://") || text.startsWith("https://"))) {
-        setClipboardUrl(text);
-        
-        // 如果偵測到 Instagram URL，自動提示用戶
-        if (isInstagramURL(text)) {
-          Alert.alert(
-            "📸 偵測到 Instagram 食譜",
-            "想唔想匯入呢個 Instagram 食譜？",
-            [
-              { text: "取消", style: "cancel" },
-              { 
-                text: "匯入",
-                onPress: () => {
-                  setUrlInput(text);
-                  handleParseUrl(text);
-                }
-              }
-            ]
-          );
+      if (text && isValidUrl(text.trim())) {
+        const platform = detectPlatform(text);
+        // 只對高成功率平台顯示 Magic Card
+        if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+          setClipboardUrl(text);
+          setDetectedPlatform(platform);
+          setClipboardContent(text);
         }
+      } else if (text) {
+        // 非 URL 的文字內容也儲存（用於貼上按鈕）
+        setClipboardContent(text);
       }
     } catch (e) {
       // 剪貼板讀取失敗，忽略
@@ -249,23 +252,23 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
-        const platform = detectPlatform(urlInput);
+        const platform = detectPlatform(universalInput);
         const platformHelp = platform ? `\n\n平台提示（${platform}）：\n${getPlatformHelp(platform)}` : "";
         setErrorMsg(
-          `這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。${platformHelp}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 複製帖子文字貼上解析\n• 換另一個包含完整食材和步驟的帖子`
+          `這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。${platformHelp}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 換另一個包含完整食材和步驟的帖子`
         );
-        setFailedInput({ type: "url", value: urlInput });
+        setFailedInput({ type: "url", value: universalInput });
         setStep("failed");
       } else {
-        const platform = detectPlatform(urlInput);
+        const platform = detectPlatform(universalInput);
         let msg = "無法讀取此連結的內容，可能需要登入或內容已被刪除。";
         if (platform === "小紅書") {
-          msg += "\n\n小紅書限制了自動讀取，請改用「貼上文字」功能：\n1. 在小紅書複製筆記的文字內容\n2. 切換到「貼上文字」分頁\n3. 貼上文字後點擊解析";
+          msg += "\n\n小紅書限制了自動讀取，請改用「截圖上傳」或「貼上文字」功能。";
         } else {
           msg += "\n\n建議改用截圖上傳。";
         }
         setErrorMsg(msg);
-        setFailedInput({ type: "url", value: urlInput });
+        setFailedInput({ type: "url", value: universalInput });
         setStep("failed");
       }
     },
@@ -273,7 +276,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(err.message || "無法連接到解析服務，請稍後重試");
-      setFailedInput({ type: "url", value: urlInput });
+      setFailedInput({ type: "url", value: universalInput });
       setStep("failed");
     },
   });
@@ -289,7 +292,7 @@ export default function ImportScreen() {
         setStep("preview");
       } else {
         setErrorMsg("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。");
-        setFailedInput({ type: "text", value: textInput });
+        setFailedInput({ type: "text", value: universalInput });
         setStep("failed");
       }
     },
@@ -297,7 +300,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(err.message || "無法解析文字內容");
-      setFailedInput({ type: "text", value: textInput });
+      setFailedInput({ type: "text", value: universalInput });
       setStep("failed");
     },
   });
@@ -346,7 +349,53 @@ export default function ImportScreen() {
           router.replace({
             pathname: "/recipe/[id]",
             params: { id: `user_${data.id}` },
-          });
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: "#F5F8FC",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  modalOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#013E77",
+  },
+  modalCancelBtn: {
+    marginTop: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+});
         }, 1500);
       }
     },
@@ -356,7 +405,7 @@ export default function ImportScreen() {
     },
   });
 
-  // ── Platform detection for better error messages ────────────────
+  // ── Platform detection ────────────────
   function detectPlatform(url: string): string | null {
     const u = url.toLowerCase();
     if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
@@ -366,19 +415,8 @@ export default function ImportScreen() {
     if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
     if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
     if (u.includes("weibo.com")) return "微博";
-    if (u.includes("bilibili.com") || u.includes("b23.tv")) return "B站";
+    if (u.includes("bilibili.com") || u.includes("b23.tv")) return "B 站";
     return null;
-  }
-
-  // Instagram URL pattern detection
-  function isInstagramURL(url: string): boolean {
-    const patterns = [
-      /instagram\.com\/p\/[a-zA-Z0-9_-]+/,      // Post
-      /instagram\.com\/reel\/[a-zA-Z0-9_-]+/,   // Reel
-      /instagram\.com\/stories\/[a-zA-Z0-9_-]+/, // Stories
-      /instagr\.am\/[a-zA-Z0-9_-]+/,            // Short link
-    ];
-    return patterns.some(p => p.test(url));
   }
 
   function getPlatformHelp(platform: string): string {
@@ -401,33 +439,51 @@ export default function ImportScreen() {
     } catch { return false; }
   }
 
-  // 開始解析 URL
-  const handleParseUrl = (url: string) => {
+  // 通用解析函數（自動偵測 URL 或文字）
+  const handleUniversalParse = (input: string) => {
     if (isParsingRef.current) return;
-    const trimmed = url.trim();
+    const trimmed = input.trim();
     if (!trimmed) {
-      Alert.alert("請輸入連結");
-      return;
-    }
-    if (!isValidUrl(trimmed)) {
-      setErrorMsg("連結格式不正確，請輸入完整的網址（以 http:// 或 https:// 開頭）");
-      setFailedInput({ type: "url", value: trimmed });
-      setStep("failed");
+      Alert.alert("請輸入連結或食譜內容");
       return;
     }
     isParsingRef.current = true;
     setStep("parsing");
     startParseProgress();
-    parseUrlMutation.mutate({ url: trimmed });
+    
+    if (isValidUrl(trimmed)) {
+      parseUrlMutation.mutate({ url: trimmed });
+    } else {
+      parseTextMutation.mutate({ text: trimmed });
+    }
   };
 
-  // 選擇截圖（只預覽，不直接解析）
-  const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      base64: false,
-    });
+  // 貼上按鈕邏輯
+  const handlePaste = async () => {
+    const content = await Clipboard.getStringAsync();
+    if (content) {
+      setUniversalInput(content);
+    }
+  };
+
+  // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
+  const handlePickImage = async (source?: "camera" | "library") => {
+    setShowPhotoSourceModal(false);
+    
+    let result;
+    if (source === "camera") {
+      result = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+        base64: false,
+      });
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        base64: false,
+      });
+    }
+    
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       try {
@@ -437,7 +493,6 @@ export default function ImportScreen() {
           base64: compressed.base64,
           mimeType: compressed.mimeType,
         });
-        setSelectedImage(null);
       } catch {
         const fallbackBase64 = asset.base64 || "";
         if (!fallbackBase64) {
@@ -449,7 +504,6 @@ export default function ImportScreen() {
           base64: fallbackBase64,
           mimeType: asset.mimeType || "image/jpeg",
         });
-        setSelectedImage(null);
       }
     }
   };
@@ -457,7 +511,6 @@ export default function ImportScreen() {
   // 確認截圖並開始解析
   const handleConfirmScreenshot = async () => {
     if (!pendingScreenshot) return;
-    setSelectedImage(pendingScreenshot.uri);
     setStep("parsing");
     startParseProgress();
     try {
@@ -478,18 +531,6 @@ export default function ImportScreen() {
   // 重新選擇截圖
   const handleReselectImage = () => {
     setPendingScreenshot(null);
-    setSelectedImage(null);
-  };
-
-  // 解析文字
-  const handleParseText = () => {
-    if (!textInput.trim()) {
-      Alert.alert("請貼上食譜文字");
-      return;
-    }
-    setStep("parsing");
-    startParseProgress();
-    parseTextMutation.mutate({ text: textInput.trim() });
   };
 
   // Save edited recipe with overlay
@@ -570,17 +611,14 @@ export default function ImportScreen() {
     }
   }, [importMutation.isPending]);
 
-  // ── 離開確認：任何步驟有未保存嘅輸入／編輯內容時，先提醒用戶 ──
-  // 覆蓋 iOS header 返回、iOS 滑動手勢、Android 硬體返回
+  // ── 離開確認 ──
   const hasUnsavedImport = () => {
     if (step === "preview" && parsedRecipe) {
-      return true; // 預覽編輯步驟必定有內容需要保存
+      return true;
     }
     if (step === "input") {
       return (
-        urlInput.trim().length > 0 ||
-        textInput.trim().length > 0 ||
-        !!selectedImage ||
+        universalInput.trim().length > 0 ||
         !!pendingScreenshot
       );
     }
@@ -593,11 +631,9 @@ export default function ImportScreen() {
       e.preventDefault();
       const leaveAction = () => {
         if (step === "preview" && parsedRecipe) {
-          // 預覽 -> 返回輸入步驟（同一畫面內，唔會真係離開）
           setStep("input");
           setParsedRecipe(null);
         } else {
-          // 真係離開此畫面
           navigation.dispatch(e.data.action);
         }
       };
@@ -611,7 +647,7 @@ export default function ImportScreen() {
       );
     });
     return sub;
-  }, [navigation, step, parsedRecipe, urlInput, textInput, selectedImage, pendingScreenshot]);
+  }, [navigation, step, parsedRecipe, universalInput, pendingScreenshot]);
 
   // ── 解析中畫面 ──
   if (step === "parsing") {
@@ -924,7 +960,7 @@ export default function ImportScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.successSecondaryBtn}
-              onPress={() => { setStep("input"); setParsedRecipe(null); setUrlInput(""); setTextInput(""); setSelectedImage(null); setPendingScreenshot(null); setFailedInput(null); }}
+              onPress={() => { setStep("input"); setParsedRecipe(null); setUniversalInput(""); setPendingScreenshot(null); setFailedInput(null); }}
             >
               <Ionicons name="add-circle-outline" size={18} color="#013E77" />
               <Text style={styles.successSecondaryBtnText}>繼續匯入</Text>
@@ -959,7 +995,7 @@ export default function ImportScreen() {
               </View>
               <View style={styles.tipBoxRow}>
                 <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                <Text style={styles.tipBoxText}>包含食材清單（如：雞肉 300g、蒜頭 3粒）</Text>
+                <Text style={styles.tipBoxText}>包含食材清單（如：雞肉 300g、蒜頭 3 粒）</Text>
               </View>
               <View style={styles.tipBoxRow}>
                 <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
@@ -981,20 +1017,12 @@ export default function ImportScreen() {
           )}
 
           <View style={styles.failedActions}>
-            {failedInput && failedInput.value ? (
+            {failedInput && failedInput.value && (
               <TouchableOpacity
                 style={styles.tryScreenshotButton}
                 onPress={() => {
-                  if (failedInput.type === "url") {
-                    setStep("input");
-                    setMethod("url");
-                    setSelectedPlatform(null);
-                    setErrorMsg("");
-                  } else {
-                    setStep("input");
-                    setMethod("text");
-                    setErrorMsg("");
-                  }
+                  setStep("input");
+                  setErrorMsg("");
                 }}
               >
                 <Ionicons name="refresh-outline" size={18} color="#fff" />
@@ -1002,13 +1030,17 @@ export default function ImportScreen() {
                   重試{failedInput.type === "url" ? "此連結" : "此文字"}
                 </Text>
               </TouchableOpacity>
-            ) : null}
+            )}
             <TouchableOpacity
-              style={failedInput ? styles.tryTextButton : styles.tryScreenshotButton}
-              onPress={() => { setStep("input"); setMethod("screenshot"); setErrorMsg(""); setFailedInput(null); }}
+              style={styles.tryScreenshotButton}
+              onPress={() => {
+                setShowPhotoSourceModal(true);
+                setErrorMsg("");
+                setFailedInput(null);
+              }}
             >
-              <Ionicons name="image" size={18} color={failedInput ? "#013E77" : "#fff"} />
-              <Text style={failedInput ? styles.tryTextButtonText : styles.tryScreenshotText}>截圖上傳試試</Text>
+              <Ionicons name="image" size={18} color="#fff" />
+              <Text style={styles.tryScreenshotText}>截圖上傳試試</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.tryTextButton}
@@ -1019,7 +1051,7 @@ export default function ImportScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => { setStep("input"); setErrorMsg(""); setFailedInput(null); setUrlInput(""); setTextInput(""); }}
+              onPress={() => { setStep("input"); setErrorMsg(""); setFailedInput(null); setUniversalInput(""); }}
             >
               <Text style={styles.retryButtonText}>換另一個</Text>
             </TouchableOpacity>
@@ -1033,315 +1065,158 @@ export default function ImportScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4 }}>
-            <Ionicons name="chevron-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={[styles.pageTitle, { marginBottom: 0 }]}>新增食譜</Text>
+        {/* Header */}
+        <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4 }}>
+              <Ionicons name="chevron-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={[styles.pageTitle, { marginBottom: 0 }]}>新增食譜</Text>
+          </View>
         </View>
-        <Text style={styles.pageSubtitle}>貼連結、貼文字、截圖上傳或手動輸入</Text>
-      </View>
 
-      {/* 步驟指示器 */}
-      <View style={styles.stepIndicator}>
-        {[
-          { label: "選擇方式", active: true },
-          { label: "貼上內容", active: false },
-          { label: "AI 解析", active: false },
-          { label: "確認儲存", active: false },
-        ].map((s, i) => (
-          <View key={s.label} style={styles.stepItem}>
-            <View style={[styles.stepDot, s.active && styles.stepDotActive]}>
-              {s.active && <View style={styles.stepDotInner} />}
+        {/* Magic Clipboard Card */}
+        {clipboardUrl && detectedPlatform && (
+          <View style={styles.magicClipboardCard}>
+            <View style={styles.clipboardHeader}>
+              <Ionicons name="sparkles" size={20} color="#013E77" />
+              <Text style={styles.clipboardTitle}>偵測到 {detectedPlatform} 連結</Text>
             </View>
-            <Text style={[styles.stepLabel, s.active && styles.stepLabelActive]}>{s.label}</Text>
-            {i < 3 && <View style={styles.stepLine} />}
-          </View>
-        ))}
-      </View>
-
-      {/* 剪貼板偵測提示 */}
-      {clipboardUrl && (
-        <TouchableOpacity
-          style={styles.clipboardBanner}
-          onPress={() => handleParseUrl(clipboardUrl)}
-        >
-          <Ionicons name="clipboard" size={20} color="#013E77" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.clipboardTitle}>偵測到剪貼板連結</Text>
             <Text style={styles.clipboardUrl} numberOfLines={1}>{clipboardUrl}</Text>
+            <TouchableOpacity
+              style={styles.magicButton}
+              onPress={() => {
+                setUniversalInput(clipboardUrl);
+                handleUniversalParse(clipboardUrl);
+              }}
+            >
+              <Ionicons name="flash" size={20} color="#fff" />
+              <Text style={styles.magicButtonText}>一鍵 AI 匯入此食譜</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.clipboardButton}>
-            <Text style={styles.clipboardButtonText}>立即解析</Text>
+        )}
+
+        {/* Divider: 或輸入 */}
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>或輸入</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Universal Smart Input */}
+        <View style={styles.inputSection}>
+          <Text style={styles.inputLabel}>貼上連結或食譜內文</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.universalInput}
+              placeholder="貼上 IG / YouTube / Threads 連結或食譜文字..."
+              placeholderTextColor="#9CA3AF"
+              value={universalInput}
+              onChangeText={setUniversalInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              multiline
+              textAlignVertical="top"
+            />
+            {!universalInput && clipboardContent && (
+              <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
+                <Ionicons name="document" size={16} color="#013E77" />
+                <Text style={styles.pasteButtonText}>貼上</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <TouchableOpacity
+            style={[styles.parseButton, !universalInput.trim() && styles.parseButtonDisabled]}
+            onPress={() => handleUniversalParse(universalInput)}
+            disabled={!universalInput.trim()}
+          >
+            <Ionicons name="flash" size={20} color="#fff" />
+            <Text style={styles.parseButtonText}>開始 AI 解析</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Divider: 其他匯入方式 */}
+        <View style={styles.secondaryDivider}>
+          <Text style={styles.secondaryDividerText}>其他匯入方式</Text>
+        </View>
+
+        {/* Secondary Action Buttons */}
+        <View style={styles.secondaryActions}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => setShowPhotoSourceModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="image-outline" size={24} color="#013E77" />
+            <Text style={styles.secondaryButtonText}>拍照上傳分析</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => router.push("/recipe-editor")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={24} color="#013E77" />
+            <Text style={styles.secondaryButtonText}>自訂食譜</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Xiaohongshu Tip */}
+        <View style={styles.xiaohongshuTip}>
+          <Ionicons name="information-circle" size={16} color="#6B7280" />
+          <Text style={styles.xiaohongshuTipText}>小紅書用戶請用：截圖上傳 或 貼上文字</Text>
+        </View>
+
+        <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
+      </ScrollView>
+      
+      {/* Photo Source Modal */}
+      <Modal
+        visible={showPhotoSourceModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPhotoSourceModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPhotoSourceModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>選擇圖片來源</Text>
+            
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => handlePickImage("camera")}
+            >
+              <Ionicons name="camera" size={24} color="#013E77" />
+              <Text style={styles.modalOptionText}>拍照</Text>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => handlePickImage("library")}
+            >
+              <Ionicons name="image" size={24} color="#013E77" />
+              <Text style={styles.modalOptionText}>從相簿選擇</Text>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setShowPhotoSourceModal(false)}
+            >
+              <Text style={styles.modalCancelText}>取消</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      )}
-
-      {/* 方法選擇 Tab */}
-      <ScrollView style={styles.methodTabScroll} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.methodTabContainer}>
-        {[
-          { key: "url", label: "貼上連結", icon: "link" },
-          { key: "text", label: "貼上文字", icon: "document-text" },
-          { key: "xiaohongshu", label: "小紅書", icon: "book" },
-          { key: "screenshot", label: "截圖上傳", icon: "image" },
-          { key: "manual", label: "手動輸入", icon: "create-outline" },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.methodTab, method === tab.key && styles.methodTabActive]}
-            onPress={() => { setMethod(tab.key as ImportMethod); setSelectedPlatform(null); }}
-          >
-            <Ionicons
-              name={tab.icon as any}
-              size={16}
-              color={method === tab.key ? "#013E77" : "#9CA3AF"}
-            />
-            <Text style={[styles.methodTabText, method === tab.key && styles.methodTabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* 匯入 — 平台選擇 */}
-      {method === "url" && !selectedPlatform && (
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>選擇食譜來源</Text>
-          <View style={styles.platformGrid}>
-            {[
-              { id: "instagram", label: "Instagram", icon: "logo-instagram" as any, color: "#E1306C" },
-              { id: "youtube",   label: "YouTube",   icon: "logo-youtube" as any, color: "#FF0000" },
-              { id: "threads",   label: "Threads",   icon: "at" as any, color: "#000" },
-              { id: "tiktok",    label: "TikTok",    icon: "musical-notes" as any, color: "#000" },
-            ].map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={styles.platformCard}
-                onPress={() => setSelectedPlatform(p.id)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.platformCardIcon, { backgroundColor: p.color + "18" }]}>
-                  <Ionicons name={p.icon} size={26} color={p.color} />
-                </View>
-                <Text style={styles.platformCardLabel}>{p.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* 匯入 — 平台專屬輸入 (IG / YouTube / Threads / TikTok) */}
-      {method === "url" && selectedPlatform && selectedPlatform !== "xiaohongshu" && (
-        <View style={styles.inputSection}>
-          <TouchableOpacity style={styles.backRow} onPress={() => { setSelectedPlatform(null); setUrlInput(""); }}>
-            <Ionicons name="arrow-back" size={18} color="#013E77" />
-            <Text style={styles.backRowText}>選擇其他平台</Text>
-          </TouchableOpacity>
-          <Text style={styles.inputLabel}>貼上 {selectedPlatform === "instagram" ? "Instagram" : selectedPlatform === "youtube" ? "YouTube" : selectedPlatform === "threads" ? "Threads" : "TikTok"} 食譜連結</Text>
-          <TextInput
-            style={styles.urlInput}
-            placeholder={`https://www.${selectedPlatform === "youtube" ? "youtube.com" : selectedPlatform === "threads" ? "threads.net" : selectedPlatform === "tiktok" ? "tiktok.com" : "instagram.com"}/...`}
-            placeholderTextColor="#9CA3AF"
-            value={urlInput}
-            onChangeText={setUrlInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.parseButton, !urlInput.trim() && styles.parseButtonDisabled]}
-            onPress={() => handleParseUrl(urlInput)}
-            disabled={!urlInput.trim()}
-          >
-            <Ionicons name="sparkles" size={20} color="#fff" />
-            <Text style={styles.parseButtonText}>AI 解析食譜</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 匯入 — 小紅書 */}
-      {method === "url" && selectedPlatform === "xiaohongshu" && (
-        <View style={styles.inputSection}>
-          <TouchableOpacity style={styles.backRow} onPress={() => setSelectedPlatform(null)}>
-            <Ionicons name="arrow-back" size={18} color="#013E77" />
-            <Text style={styles.backRowText}>選擇其他平台</Text>
-          </TouchableOpacity>
-          <Text style={styles.inputLabel}>貼上小紅書筆記連結</Text>
-          <Text style={styles.inputSubLabel}>後端會嘗試讀取，如失敗可改用下方替代方法</Text>
-          <TextInput
-            style={styles.urlInput}
-            placeholder="https://www.xiaohongshu.com/..." 
-            placeholderTextColor="#9CA3AF"
-            value={urlInput}
-            onChangeText={setUrlInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.parseButton, !urlInput.trim() && styles.parseButtonDisabled]}
-            onPress={() => handleParseUrl(urlInput)}
-            disabled={!urlInput.trim()}
-          >
-            <Ionicons name="sparkles" size={20} color="#fff" />
-            <Text style={styles.parseButtonText}>AI 解析食譜</Text>
-          </TouchableOpacity>
-          <View style={styles.xhsCard}>
-            <Ionicons name="information-circle" size={22} color="#FF2442" />
-            <Text style={styles.xhsTitle}>如果連結讀取失敗</Text>
-            <View style={styles.xhsOption}>
-              <Ionicons name="copy-outline" size={18} color="#013E77" />
-              <Text style={styles.xhsOptionText}>複製筆記文字，選擇「貼上文字」</Text>
-            </View>
-            <View style={styles.xhsOption}>
-              <Ionicons name="image-outline" size={18} color="#013E77" />
-              <Text style={styles.xhsOptionText}>截圖食譜內容，用「截圖上傳」</Text>
-            </View>
-            <View style={styles.xhsActionRow}>
-              <TouchableOpacity style={styles.xhsAction} onPress={() => { setMethod("text"); setSelectedPlatform(null); }}>
-                <Text style={styles.xhsActionText}>貼上文字</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.xhsAction, { backgroundColor: "#EEF4FB" }]} onPress={() => { setMethod("screenshot"); setSelectedPlatform(null); }}>
-                <Text style={[styles.xhsActionText, { color: "#013E77" }]}>截圖上傳</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* 貼上文字 */}
-      {method === "text" && (
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>貼上食譜文字</Text>
-          <Text style={styles.inputSubLabel}>從任何平台複製食材和步驟文字，貼上即可自動解析</Text>
-          <TextInput
-            style={[styles.urlInput, { minHeight: 160 }]}
-            placeholder={`例如：\n材料：\n- 雞翼 10 隻\n- 生抽 2 湯匙\n\n步驟：\n1. 雞翼洗淨抹乾\n2. 加入生抽醃 30 分鐘`}
-            placeholderTextColor="#9CA3AF"
-            value={textInput}
-            onChangeText={setTextInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            multiline
-            textAlignVertical="top"
-          />
-          <TouchableOpacity
-            style={[styles.parseButton, !textInput.trim() && styles.parseButtonDisabled]}
-            onPress={handleParseText}
-            disabled={!textInput.trim()}
-          >
-            <Ionicons name="sparkles" size={20} color="#fff" />
-            <Text style={styles.parseButtonText}>AI 解析文字</Text>
-          </TouchableOpacity>
-          <View style={styles.tipRow}>
-            <Ionicons name="bulb" size={14} color="#6B7280" />
-            <Text style={styles.tipText}>
-              小貼士：確保文字包含食材清單（如：雞肉 300g）和烹飪步驟（如：1. 熱鍋下油...），解析效果最佳
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* 小紅書 */}
-      {method === "xiaohongshu" && (
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>匯入小紅書食譜</Text>
-          <View style={styles.xhsCard}>
-            <Ionicons name="information-circle" size={24} color="#FF2442" />
-            <Text style={styles.xhsTitle}>小紅書連結無法自動讀取</Text>
-            <Text style={styles.xhsDesc}>
-              小紅書的連結是 app deeplink，複製後會跳轉到 app 而非網頁，後端無法讀取內容。請使用以下方法：
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.xhsMethodCard} onPress={() => setMethod("text")} activeOpacity={0.7}>
-            <View style={[styles.xhsMethodIcon, { backgroundColor: "#EEF4FB" }]}>
-              <Ionicons name="copy-outline" size={22} color="#013E77" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.xhsMethodTitle}>貼上文字</Text>
-              <Text style={styles.xhsMethodDesc}>在小紅書複製筆記文字，貼上即可解析</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.xhsMethodCard} onPress={() => setMethod("screenshot")} activeOpacity={0.7}>
-            <View style={[styles.xhsMethodIcon, { backgroundColor: "#F0FDF4" }]}>
-              <Ionicons name="image-outline" size={22} color="#16A34A" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.xhsMethodTitle}>截圖上傳</Text>
-              <Text style={styles.xhsMethodDesc}>截圖食譜內容（食材 + 步驟），AI 自動識別</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 截圖上傳 */}
-      {method === "screenshot" && (
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>上傳食譜截圖</Text>
-
-          {pendingScreenshot ? (
-            <>
-              <Image source={{ uri: pendingScreenshot.uri }} style={styles.selectedImage} />
-              <Text style={styles.previewHint}>確認圖片清晰，包含食材和步驟</Text>
-              <View style={styles.screenshotActions}>
-                <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
-                  <Ionicons name="refresh-outline" size={16} color="#6B7280" />
-                  <Text style={styles.screenshotReselectText}>重新選擇</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.screenshotConfirmBtn} onPress={handleConfirmScreenshot}>
-                  <Ionicons name="sparkles" size={16} color="#fff" />
-                  <Text style={styles.screenshotConfirmText}>開始解析</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity style={styles.imagePickerArea} onPress={handlePickImage}>
-                {selectedImage ? (
-                  <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
-                ) : (
-                  <>
-                    <Ionicons name="cloud-upload-outline" size={48} color="#9CA3AF" />
-                    <Text style={styles.imagePickerText}>點擊選擇截圖</Text>
-                    <Text style={styles.imagePickerSubText}>支援 JPG、PNG 格式</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      )}
-
-      {/* 手動輸入 */}
-      {method === "manual" && (
-        <View style={styles.inputSection}>
-          <TouchableOpacity style={styles.manualCard} onPress={() => router.push("/recipe-editor")} activeOpacity={0.85}>
-            <View style={styles.manualIcon}>
-              <Ionicons name="create-outline" size={40} color="#013E77" />
-            </View>
-            <Text style={styles.manualTitle}>想自己逐樣輸入？</Text>
-            <Text style={styles.manualSub}>手動建立食材、步驟同烹飪時間</Text>
-            <View style={styles.manualBtn}>
-              <Ionicons name="restaurant-outline" size={18} color="#fff" />
-              <Text style={styles.manualBtnTxt}>開始手動輸入</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
-    </ScrollView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1355,172 +1230,197 @@ const styles = StyleSheet.create({
   headerSection: {
     backgroundColor: "#013E77", padding: 20, paddingBottom: 24,
   },
-  pageTitle: { fontSize: 22, fontWeight: "900", color: "#fff" },
-  pageSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 4 },
-  stepIndicator: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    paddingVertical: 14, paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F0F0F0",
+  pageTitle: { fontSize: 22, fontWeight: "900", color: "#fff", marginBottom: 4 },
+  pageSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)" },
+  
+  // Magic Clipboard Card
+  magicClipboardCard: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: "#E8F0F8",
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  stepItem: { flexDirection: "row", alignItems: "center", flex: 1 },
-  stepDot: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: "#D1D5DB",
-    alignItems: "center", justifyContent: "center",
+  clipboardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  stepDotActive: { borderColor: "#013E77", backgroundColor: "#013E77" },
-  stepDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
-  stepLabel: { fontSize: 11, color: "#9CA3AF", marginLeft: 4, fontWeight: "600" },
-  stepLabelActive: { color: "#013E77" },
-  stepLine: { flex: 1, height: 1.5, backgroundColor: "#E5E0D8", marginHorizontal: 4 },
-  clipboardBanner: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    margin: 12, padding: 12, backgroundColor: "#EFF6FF",
-    borderRadius: 12, borderWidth: 1.5, borderColor: "#BFDBFE",
+  clipboardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#013E77",
   },
-  clipboardTitle: { fontSize: 13, fontWeight: "700", color: "#013E77" },
-  clipboardUrl: { fontSize: 11, color: "#6B7280", marginTop: 2 },
-  clipboardButton: {
-    backgroundColor: "#013E77", paddingHorizontal: 10, paddingVertical: 6,
+  clipboardUrl: {
+    fontSize: 12,
+    color: "#6B7280",
+    backgroundColor: "#FFFFFF",
+    padding: 8,
     borderRadius: 8,
   },
-  clipboardButtonText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-  methodTabScroll: {
-    marginHorizontal: 12, marginTop: 12, marginBottom: 0,
+  magicButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#013E77",
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 4,
+    shadowColor: "#013E77",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  methodTabContainer: {
-    flexDirection: "row", gap: 8,
-    backgroundColor: "#fff", borderRadius: 12, padding: 4,
-    borderWidth: 1, borderColor: "#E5E0D8",
+  magicButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
-  methodTab: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
-    flexShrink: 0,
+  
+  // Divider
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginVertical: 8,
   },
-  methodTabActive: { backgroundColor: "#EFF6FF" },
-  methodTabText: { fontSize: 13, fontWeight: "600", color: "#9CA3AF" },
-  methodTabTextActive: { color: "#013E77" },
-  inputSection: { padding: 12 },
-  inputLabel: { fontSize: 14, fontWeight: "700", color: "#374151", marginBottom: 8 },
-  inputSubLabel: { fontSize: 12, color: "#6B7280", marginBottom: 10, lineHeight: 18 },
-  platformGrid: {
-    flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 8,
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E0D8",
   },
-  platformCard: {
-    width: "47%", aspectRatio: 1.3, borderRadius: 16,
-    backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: "#E5E0D8",
-    alignItems: "center", justifyContent: "center", gap: 8,
+  dividerText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    paddingHorizontal: 12,
   },
-  platformCardIcon: {
-    width: 52, height: 52, borderRadius: 26,
-    alignItems: "center", justifyContent: "center",
+  
+  // Universal Input
+  inputSection: {
+    padding: 16,
   },
-  platformCardLabel: { fontSize: 13, fontWeight: "700", color: "#374151" },
-  backRow: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    marginBottom: 12,
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 8,
   },
-  backRowText: { fontSize: 13, fontWeight: "600", color: "#013E77" },
-  xhsCard: {
-    backgroundColor: "#FFF2F0", borderRadius: 14, padding: 16, marginTop: 16,
-    borderWidth: 1.5, borderColor: "#FFCCC7", gap: 10,
+  inputWrapper: {
+    position: "relative",
   },
-  xhsTitle: { fontSize: 14, fontWeight: "800", color: "#CF1322" },
-  xhsDesc: { fontSize: 13, color: "#5A4A3A", lineHeight: 20 },
-  xhsOption: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-  },
-  xhsOptionText: { fontSize: 13, color: "#5A4A3A", flex: 1, lineHeight: 19 },
-  xhsActionRow: { flexDirection: "row", gap: 8, marginTop: 4 },
-  xhsAction: {
-    flex: 1, borderRadius: 10, paddingVertical: 10,
-    alignItems: "center", backgroundColor: "#FF4D4F",
-  },
-  xhsActionText: { fontSize: 13, fontWeight: "700", color: "#fff" },
-  xhsMethodCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14, marginTop: 12,
-    borderWidth: 1.5, borderColor: "#E5E0D8",
-  },
-  xhsMethodIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", flexShrink: 0,
-  },
-  xhsMethodTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginBottom: 2 },
-  xhsMethodDesc: { fontSize: 12, color: "#6B7280", lineHeight: 17 },
-  urlInput: {
-    backgroundColor: "#fff", borderRadius: 12, padding: 14,
-    fontSize: 14, color: "#1A1A1A", minHeight: 80,
-    borderWidth: 1.5, borderColor: "#E5E0D8",
+  universalInput: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 14,
+    color: "#1A1A1A",
+    minHeight: 120,
+    borderWidth: 1.5,
+    borderColor: "#E5E0D8",
     textAlignVertical: "top",
   },
-  supportedPlatforms: { flexDirection: "row", gap: 6, marginTop: 8, marginBottom: 12 },
-  platformBadge: {
-    backgroundColor: "#F3F4F6", paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 6,
+  pasteButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#E8F0F8",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  platformBadgeText: { fontSize: 11, color: "#6B7280", fontWeight: "600" },
+  pasteButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#013E77",
+  },
   parseButton: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", padding: 14, borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#013E77",
+    paddingVertical: 18,
+    borderRadius: 20,
+    marginTop: 12,
+    shadowColor: "#013E77",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  parseButtonDisabled: { backgroundColor: "#9CA3AF" },
-  parseButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  manualCard: {
-    backgroundColor: "#F5F8FC", borderRadius: 20, padding: 32,
-    alignItems: "center", borderWidth: 2, borderColor: "#013E77",
-    borderStyle: "dashed",
+  parseButtonDisabled: {
+    backgroundColor: "#013E77",
+    opacity: 0.6,
   },
-  manualIcon: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center",
-    marginBottom: 16,
+  parseButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
-  manualTitle: { fontSize: 20, fontWeight: "900", color: "#013E77", marginBottom: 6 },
-  manualSub: { fontSize: 14, color: "#6B7280", marginBottom: 20 },
-  manualBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", paddingHorizontal: 28, paddingVertical: 14,
+  
+  // Secondary Actions
+  secondaryActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 14,
     borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#A8C5E0",
   },
-  manualBtnTxt: { fontSize: 16, fontWeight: "800", color: "#fff" },
-  imagePickerArea: {
-    backgroundColor: "#fff", borderRadius: 12, padding: 32,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#E5E0D8", borderStyle: "dashed",
-    minHeight: 180, marginBottom: 12,
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#013E77",
   },
-  selectedImage: { width: "100%", height: 200, borderRadius: 8 },
-  imagePickerText: { fontSize: 16, fontWeight: "600", color: "#6B7280", marginTop: 8 },
-  imagePickerSubText: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
-  previewHint: { fontSize: 12, color: "#6B7280", textAlign: "center", marginTop: 8, marginBottom: 12 },
-  screenshotActions: { flexDirection: "row", gap: 10, marginBottom: 12 },
-  screenshotReselectBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#F5F8FC", paddingVertical: 14, borderRadius: 14,
-    borderWidth: 1.5, borderColor: "#E5E0D8",
+  
+  // Secondary Divider
+  secondaryDivider: {
+    marginTop: 20,
+    alignItems: "center",
   },
-  screenshotReselectText: { fontSize: 15, fontWeight: "700", color: "#6B7280" },
-  screenshotConfirmBtn: {
-    flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    backgroundColor: "#013E77", paddingVertical: 14, borderRadius: 14,
+  secondaryDividerText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#9CA3AF",
   },
-  screenshotConfirmText: { fontSize: 15, fontWeight: "700", color: "#fff" },
-  tipRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 6,
-    backgroundColor: "#FFFBF5", padding: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: "#F0E8DC",
+  
+  // Xiaohongshu Tip
+  xiaohongshuTip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 20,
   },
-  tipText: {
-    flex: 1, fontSize: 12, color: "#6B7280", lineHeight: 18,
+  xiaohongshuTipText: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 20,
   },
-  textInput: {
-    backgroundColor: "#fff", borderRadius: 12, padding: 14,
-    fontSize: 14, color: "#1A1A1A", minHeight: 200,
-    borderWidth: 1.5, borderColor: "#E5E0D8",
-    marginBottom: 12,
-  },
+  
+  // Parsing
   parsingTitle: { fontSize: 18, fontWeight: "800", color: "#013E77", marginTop: 16 },
   parsingSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 24 },
   parsingSteps: { gap: 12 },
@@ -1535,62 +1435,13 @@ const styles = StyleSheet.create({
     borderRadius: 24, borderWidth: 1.5, borderColor: "#E5E0D8",
   },
   cancelBtnText: { fontSize: 14, fontWeight: "600", color: "#9CA3AF" },
+  
+  // Preview
   previewHeader: { alignItems: "center", padding: 20, paddingBottom: 12 },
   previewTitle: { fontSize: 20, fontWeight: "800", color: "#1A1A1A", marginTop: 8 },
   previewSubtitle: { fontSize: 13, color: "#6B7280" },
-  previewCard: {
-    margin: 12, backgroundColor: "#fff", borderRadius: 16, padding: 16,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
-  },
-  previewRecipeName: { fontSize: 18, fontWeight: "900", color: "#013E77", marginBottom: 8 },
-  previewMeta: { fontSize: 13, color: "#6B7280", marginBottom: 4 },
-  previewSectionTitle: { fontSize: 14, fontWeight: "800", color: "#1A1A1A", marginTop: 12, marginBottom: 6 },
-  previewCategorySection: { marginTop: 12, marginBottom: 8 },
-  categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 },
-  categoryChip: {
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1.5, borderColor: "#E5E0D8", backgroundColor: "#fff",
-  },
-  categoryChipActive: {
-    borderColor: "#013E77", backgroundColor: "#013E77",
-  },
-  categoryChipText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
-  categoryChipTextActive: { color: "#fff" },
-  previewIngredientRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingVertical: 4,
-  },
-  ingredientCheckbox: {
-    width: 18, height: 18, borderRadius: 4,
-    borderWidth: 1.5, borderColor: "#013E77",
-    alignItems: "center", justifyContent: "center",
-  },
-  previewIngredient: { flex: 1, fontSize: 13, color: "#374151" },
-  previewStepRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 10,
-    marginBottom: 8,
-  },
-  stepNumberCircle: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: "#013E77",
-    alignItems: "center", justifyContent: "center",
-    marginTop: 1,
-  },
-  stepNumberText: { fontSize: 12, fontWeight: "800", color: "#fff" },
-  previewStep: { flex: 1, fontSize: 13, color: "#374151", lineHeight: 20 },
-  previewMore: { fontSize: 12, color: "#9CA3AF", fontStyle: "italic" },
-  previewActions: { padding: 12, gap: 10 },
-  importButton: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", padding: 14, borderRadius: 12,
-  },
-  importButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  retryButton: {
-    alignItems: "center", padding: 12, borderRadius: 12,
-    borderWidth: 1.5, borderColor: "#E5E0D8",
-  },
-  retryButtonText: { color: "#6B7280", fontSize: 14, fontWeight: "600" },
+  
+  // Success
   successTitle: { fontSize: 22, fontWeight: "900", color: "#22C55E", marginTop: 16 },
   successSubtitle: { fontSize: 14, color: "#6B7280", marginTop: 4 },
   successActions: { width: "100%", marginTop: 32, gap: 10 },
@@ -1605,6 +1456,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#C5D9F0",
   },
   successSecondaryBtnText: { fontSize: 16, fontWeight: "700", color: "#013E77" },
+  
+  // Failed
   failedTitle: { fontSize: 20, fontWeight: "800", color: "#EF4444", marginTop: 12 },
   failedMsg: { fontSize: 14, color: "#6B7280", marginTop: 8, textAlign: "center", marginBottom: 16, lineHeight: 21 },
   failedActions: { gap: 10, width: "100%", marginTop: 8 },
@@ -1619,25 +1472,23 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#C5D9F0",
   },
   tryTextButtonText: { color: "#013E77", fontSize: 14, fontWeight: "700" },
-  // Tips box
+  retryButton: {
+    alignItems: "center", padding: 12, borderRadius: 12,
+    borderWidth: 1.5, borderColor: "#E5E0D8",
+  },
+  retryButtonText: { color: "#6B7280", fontSize: 14, fontWeight: "600" },
   tipBox: {
     backgroundColor: "#FFF7ED", borderRadius: 14, padding: 16,
     borderWidth: 1.5, borderColor: "#FED7AA",
     marginBottom: 16, width: "100%", gap: 8,
   },
-  tipBoxTitleRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginBottom: 4,
-  },
+  tipBoxTitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   tipBoxTitle: { fontSize: 13, fontWeight: "800", color: "#92400E" },
-  tipBoxRow: {
-    flexDirection: "row", alignItems: "flex-start", gap: 6,
-  },
+  tipBoxRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   tipBoxText: { flex: 1, fontSize: 12, color: "#78350F", lineHeight: 20 },
 });
 
 const es = StyleSheet.create({
-  // Image
   card: {
     backgroundColor: "#FFFFFF", marginHorizontal: 16, marginTop: 12,
     borderRadius: 20, padding: 18,
@@ -1659,8 +1510,6 @@ const es = StyleSheet.create({
     borderRadius: 16,
   },
   imageOverlayTxt: { fontSize: 12, color: "#fff", fontWeight: "700" },
-
-  // Form
   cardTitle: { flex: 1, fontSize: 15, fontWeight: "800", color: "#1A1A1A" },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
   cardIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
@@ -1671,8 +1520,6 @@ const es = StyleSheet.create({
     fontSize: 15, color: "#1A1A1A", marginBottom: 14,
   },
   multilineInput: { height: 72, textAlignVertical: "top" },
-
-  // Chips
   chip: {
     paddingHorizontal: 16, paddingVertical: 8,
     borderRadius: 20, backgroundColor: "#EEF4FB",
@@ -1682,8 +1529,6 @@ const es = StyleSheet.create({
   chipTxt: { fontSize: 13, fontWeight: "700", color: "#5A4A3A" },
   chipTxtActive: { color: "#fff" },
   categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-
-  // Ingredient
   addBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "#E8F5E9", borderRadius: 10,
@@ -1698,52 +1543,45 @@ const es = StyleSheet.create({
   },
   delBtn: {
     width: 32, height: 32, borderRadius: 10,
-    backgroundColor: "rgba(239,68,68,0.08)", alignItems: "center", justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FCA5A5",
   },
-  delBtnDisabled: { backgroundColor: "#EEF4FB" },
-
-  // Steps
-  stepRow: { flexDirection: "row", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F9F6F2" },
+  delBtnDisabled: { backgroundColor: "#F3F4F6", borderColor: "#E5E0D8" },
+  stepRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   stepNum: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: "#013E77",
-    alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 8,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "#013E77", alignItems: "center", justifyContent: "center",
   },
-  stepNumTxt: { fontSize: 13, fontWeight: "900", color: "#fff" },
-  stepImageWrap: { marginBottom: 8, position: "relative" as const },
-  stepImage: { width: "100%", height: 140, borderRadius: 10 },
-  stepImageDel: { position: "absolute" as const, top: -6, right: -6 },
+  stepNumTxt: { fontSize: 12, fontWeight: "800", color: "#fff" },
+  stepImageWrap: { position: "relative", marginBottom: 8 },
+  stepImage: { width: 100, height: 100, borderRadius: 8 },
+  stepImageDel: {
+    position: "absolute", top: -8, right: -8,
+    backgroundColor: "#fff", borderRadius: 12,
+  },
   stepCameraBtn: {
-    flexDirection: "row" as const, alignItems: "center" as const, gap: 4,
-    backgroundColor: "#F5F8FC", borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 6,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 8, backgroundColor: "#F3F4F6",
   },
-  stepCameraTxt: { fontSize: 11, fontWeight: "600", color: "#9CA3AF" },
-
-  // Save
+  stepCameraTxt: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
   saveBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: "#013E77", paddingVertical: 18, borderRadius: 20,
-    shadowColor: "#013E77", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, shadowRadius: 12, elevation: 5,
-    marginBottom: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#013E77", paddingVertical: 16, borderRadius: 14,
   },
-  saveBtnTxt: { color: "#fff", fontSize: 17, fontWeight: "900" },
-
-  // Save overlay
+  saveBtnTxt: { fontSize: 16, fontWeight: "700", color: "#fff" },
   saveOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center", alignItems: "center",
+    flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center",
   },
   saveOverlayBox: {
-    backgroundColor: "#FFFFFF", borderRadius: 20, padding: 32,
-    width: "80%", alignItems: "center",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15, shadowRadius: 24, elevation: 8,
+    backgroundColor: "#fff", borderRadius: 20, padding: 24,
+    alignItems: "center", width: "85%",
   },
-  saveOverlayTitle: { fontSize: 18, fontWeight: "800", color: "#013E77", marginTop: 16, marginBottom: 4 },
-  saveOverlaySub: { fontSize: 13, color: "#9CA3AF", marginBottom: 20 },
-  saveStepsList: { width: "100%", gap: 10 },
-  saveStepRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  saveStepTxt: { fontSize: 14, color: "#9CA3AF" },
+  saveOverlayTitle: { fontSize: 18, fontWeight: "800", color: "#013E77", marginTop: 16 },
+  saveOverlaySub: { fontSize: 13, color: "#6B7280", marginTop: 4 },
+  saveStepsList: { width: "100%", marginTop: 20, gap: 10 },
+  saveStepRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  saveStepTxt: { fontSize: 14, color: "#6B7280" },
   saveStepDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: "#D1D5DB" },
 });

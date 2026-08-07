@@ -54,10 +54,11 @@ export default function ShoppingTemplatesScreen() {
   // 1. 核心狀態
   const [selectedTemplate, setSelectedTemplate] = useState<ShoppingTemplate | null>(null);
   const [peopleCount, setPeopleCount] = useState(4); // 預設 4 人
-  const [planDate, setPlanDate] = useState(() => {
+  const [planDate, setPlanDate] = useState<string | null>(() => {
     const d = new Date();
     return d.toISOString().split("T")[0]; // YYYY-MM-DD
   });
+  const planDateLabel = planDate ?? "未設定";
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [quantityOverrides, setQuantityOverrides] = useState<Record<string, number>>({});
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
@@ -102,7 +103,7 @@ export default function ShoppingTemplatesScreen() {
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("已加入購物車", `已將選取嘅食材加入購物車 🛒\n預定日子：${planDate}`, [
+      Alert.alert("已加入購物車", `已將選取嘅食材加入購物車 🛒\n預定日子：${planDateLabel}`, [
         { text: "繼續選購", style: "cancel" },
         { text: "查看購物車", onPress: () => router.push("/shopping") },
       ]);
@@ -426,7 +427,7 @@ export default function ShoppingTemplatesScreen() {
 
     Alert.alert(
       "加入購物車",
-      `確定將 ${totalSelectedCount} 項食材加入購物清單嗎？\n預定聚餐日子：${planDate}`,
+      `確定將 ${totalSelectedCount} 項食材加入購物清單嗎？\n預定聚餐日子：${planDateLabel}`,
       [
         { text: "取消", style: "cancel" },
         {
@@ -450,7 +451,7 @@ export default function ShoppingTemplatesScreen() {
             addShoppingBatchM.mutate({
               items: finalBatch,
               fromRecipeName: `${selectedTemplate.name}（${peopleCount}人份）`,
-              plannedDate: planDate,
+              plannedDate: planDate === null ? undefined : planDate,
             });
           },
         },
@@ -468,7 +469,7 @@ export default function ShoppingTemplatesScreen() {
     const perPerson = (total / peopleCount).toFixed(1);
     const templateName = selectedTemplate?.name || "打邊爐/BBQ";
     
-    const message = `📣 【和諧食譜】${templateName}開支分攤：\n📅 日期: ${planDate}\n👥 聚會人數: ${peopleCount} 人\n💰 實際總開支: $${total}\n💸 每人分攤: $${perPerson}\n\n唔該晒大家！記得 PayMe / 轉數快比我啦！😘`;
+    const message = `📣 【和諧食譜】${templateName}開支分攤：\n📅 日期: ${planDateLabel}\n👥 聚會人數: ${peopleCount} 人\n💰 實際總開支: $${total}\n💸 每人分攤: $${perPerson}\n\n唔該晒大家！記得 PayMe / 轉數快比我啦！😘`;
     
     Alert.alert(
       "AA制分攤計算結果",
@@ -500,7 +501,7 @@ export default function ShoppingTemplatesScreen() {
       ph: `📋 【Kindcipe】Listahan ng Pamimili (Tagalog)`
     };
 
-    let text = `${titleMap[lang]}\n📅 日期: ${planDate}\n👥 人數: ${peopleCount}人份\n\n`;
+    let text = `${titleMap[lang]}\n📅 日期: ${planDateLabel}\n👥 人數: ${peopleCount}人份\n\n`;
 
     // 輪詢各分類
     selectedTemplate.categories.forEach(category => {
@@ -565,7 +566,7 @@ export default function ShoppingTemplatesScreen() {
       ph: `📋 【Kindcipe】Listahan ng Pamimili`
     };
 
-    let text = `${titleMap[lang]}\n📅 日期：${planDate}\n👥 人數：${peopleCount}人份\n\n`;
+    let text = `${titleMap[lang]}\n📅 日期：${planDateLabel}\n👥 人數：${peopleCount}人份\n\n`;
 
     // 生成清單內容
     selectedTemplate.categories.forEach(category => {
@@ -960,6 +961,14 @@ export default function ShoppingTemplatesScreen() {
             <View style={{ marginTop: 12 }}>
               <Text style={[s.controlLabel, { marginBottom: 8 }]}>📅 聚餐/採購日期</Text>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
+              {planDate && (
+                <TouchableOpacity 
+                  onPress={() => setPlanDate(null)} 
+                  style={{ alignSelf: "flex-end", marginTop: -8 }}
+                >
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
           </View>
@@ -1344,7 +1353,7 @@ export default function ShoppingTemplatesScreen() {
         <View style={[s.floatingBar, { bottom: Platform.OS === "ios" ? 0 : keyboardH, paddingBottom: keyboardH > 0 ? 12 : Math.max(insets.bottom, 12) }]}>
           <View style={{ flex: 1 }}>
             <Text style={s.floatingSelectedCount}>已選 {totalSelectedCount} 項食材</Text>
-            <Text style={s.floatingSubtitle}>適合 {peopleCount} 人份量 · {planDate}</Text>
+            <Text style={s.floatingSubtitle}>適合 {peopleCount} 人份量 · {planDateLabel}</Text>
             {totalEstimatedPrice > 0 && (
               <Text style={s.floatingBudget}>💰 預計總開支：${totalEstimatedPrice}</Text>
             )}

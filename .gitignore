@@ -15,3 +15,6 @@ expo.log
 
 # Backups
 *.bak
+
+# Environment variables (contains API URLs, should not be committed)
+.env

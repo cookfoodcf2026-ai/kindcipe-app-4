@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { trpc } from "@/lib/trpc";
+import { trpc, BACKEND_URL } from "@/lib/trpc";
 import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,8 +22,6 @@ import { TurboModuleRegistry } from "react-native";
 const hasGoogleSignin = TurboModuleRegistry.get("RNGoogleSignin") != null;
 const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
 
-// Kindcipe 後端 (Railway)
-const BACKEND_URL = "https://kindcipe-backend-production.up.railway.app";
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FFFFFF";
@@ -106,7 +104,7 @@ export default function LoginScreen() {
           { text: "去登入", onPress: () => setMode("login") },
         ]);
       } else {
-        const msg = mode === "login" ? "電郵或密碼錯誤" : err?.message || "建立帳號失敗，請稍後再試";
+        const msg = mode === "login" ? (err?.message || "電郵或密碼錯誤") : err?.message || "建立帳號失敗，請稍後再試";
         Alert.alert(mode === "login" ? "登入失敗" : "註冊失敗", msg);
       }
     } finally {

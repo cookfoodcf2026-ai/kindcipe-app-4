@@ -725,7 +725,7 @@ export default function AIChefScreen() {
   const [planAction, setPlanAction] = useState<"meal" | "shopping">("meal");
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
-  const [planDate, setPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [planDate, setPlanDate] = useState<string | null>(() => new Date().toISOString().split("T")[0]);
   const [planMeal, setPlanMeal] = useState("dinner");
 
   const utils = trpc.useUtils();
@@ -1210,6 +1210,11 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       console.error("[AI Chef] confirmAction called without modal being shown!");
       return;
     }
+    // Guard: ensure date is selected
+    if (!planDate) {
+      Alert.alert("請選擇日期");
+      return;
+    }
     // Batch mode: add all recipes to meal plan with selected date/mealType
     if (batchRecipes && batchRecipes.length > 0) {
       if (planAction === "meal") {
@@ -1272,7 +1277,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             autoAddIngredients: false,
             ingredients: planRecipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit })),
           }, {
-            onSuccess: () => {
+            onSuccess: (result) => {
               setShowPlan(false);
               showToast("已加入排餐");
               utils.mealPlan.listByDateRange.invalidate();
@@ -1291,6 +1296,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                     name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
                   })),
                   date: planDate,
+                  fromMealPlanId: result.newPlanId,
                 });
               } else {
                 Alert.alert("已加入排餐");
@@ -1713,7 +1719,15 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             </>}
             <Text style={m.label}>日期</Text>
             <View style={{ width: Dimensions.get("window").width - 32 }}>
-              <PlanDatePicker value={planDate} onChange={setPlanDate} />
+              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
+              {planDate && (
+                <TouchableOpacity 
+                  onPress={() => setPlanDate(null)} 
+                  style={{ alignSelf: "flex-end", marginTop: -8 }}
+                >
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {planRecipe && !batchRecipes && (
               <View style={m.preview}>
@@ -1820,6 +1834,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
               })),
               fromRecipeId: items[0].recipeId,
               fromRecipeName: items[0].recipeName,
+              fromMealPlanId: items[0].fromMealPlanId,
               plannedDate: items[0].plannedDate,
             });
           } else {

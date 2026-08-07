@@ -314,6 +314,7 @@ export default function RecipeDetailScreen() {
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
   const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
+  const [showShoppingDatePicker, setShowShoppingDatePicker] = useState(false);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const autoAddCartRef = useRef(false);
@@ -865,6 +866,12 @@ export default function RecipeDetailScreen() {
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: (result) => {
+      // 檢查排餐是否成功
+      if (!result.newPlanId) {
+        Alert.alert("排餐失敗", "請稍後再試", [{ text: "確定" }]);
+        return;
+      }
+      
       const ings = adjustedIngredients.map((ing: any) => ({
         name: ing.name,
         quantity: ing.adjustedQty ?? ing.quantity ?? "",
@@ -918,7 +925,9 @@ export default function RecipeDetailScreen() {
         continueFlow();
       }
     },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => {
+      Alert.alert("排餐失敗", e.message, [{ text: "確定" }]);
+    },
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: (_, variables) => {
@@ -1658,7 +1667,15 @@ export default function RecipeDetailScreen() {
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 16 }}>
                 <TouchableOpacity
-                  onPress={() => setAutoAddCart(!autoAddCart)}
+                  onPress={() => {
+                    const newAutoAdd = !autoAddCart;
+                    setAutoAddCart(newAutoAdd);
+                    if (newAutoAdd && planDate) {
+                      const d = new Date(planDate + "T00:00:00");
+                      d.setDate(d.getDate() - 1);
+                      setShoppingDate(d.toISOString().split("T")[0]);
+                    }
+                  }}
                   style={{
                     width: 20,
                     height: 20,
@@ -1676,6 +1693,36 @@ export default function RecipeDetailScreen() {
                   <Text style={{ fontSize: 14, color: TEXT, fontWeight: "500" }}>同時加入購物車（{adjustedIngredients.length} 項食材）</Text>
                 </TouchableOpacity>
               </View>
+              {autoAddCart && planDate && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={s.sheetLabel}>採購日期</Text>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor: "#F9FAFB",
+                      borderRadius: 10,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      borderWidth: 1,
+                      borderColor: "#E5E7EB",
+                    }}
+                    onPress={() => setShowShoppingDatePicker(true)}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                      <Text style={{ fontSize: 14, color: TEXT }}>
+                        {shoppingDate ? formatMealDate(shoppingDate) : "請選擇"}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+                    ⚠️ 採購日期唔可以遲過排餐日（{formatMealDate(planDate)}）
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[s.confirmBtn, addPlanM.isPending && { opacity: 0.6 }]}
                 onPress={() => {
@@ -1684,6 +1731,11 @@ export default function RecipeDetailScreen() {
                     return;
                   }
                   autoAddCartRef.current = autoAddCart;
+                  const shoppingDateForBackend = autoAddCart ? (shoppingDate || (() => {
+                    const d = new Date(planDate + "T00:00:00");
+                    d.setDate(d.getDate() - 1);
+                    return d.toISOString().split("T")[0];
+                  })()) : undefined;
                   addPlanM.mutate({
                     date: planDate,
                     mealType: planMeal as any,
@@ -1691,6 +1743,7 @@ export default function RecipeDetailScreen() {
                     recipeName: recipe.name,
                     recipeImage: remoteImageUrl,
                     autoAddIngredients: autoAddCart,
+                    shoppingDate: shoppingDateForBackend,
                     ingredients: autoAddCart ? adjustedIngredients.map((ing: any) => ({
                       name: ing.name,
                       quantity: ing.adjustedQty ?? ing.quantity ?? "",
@@ -1702,6 +1755,31 @@ export default function RecipeDetailScreen() {
               >
                 {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>確認加入</Text>}
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── Shopping date picker modal ── */}
+        <Modal visible={showShoppingDatePicker} transparent animationType="slide">
+          <View style={s.overlay}>
+            <View style={s.sheet}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <Text style={s.sheetTitle}>選擇採購日期</Text>
+                <TouchableOpacity onPress={() => setShowShoppingDatePicker(false)}>
+                  <Ionicons name="close" size={22} color={TEXT} />
+                </TouchableOpacity>
+              </View>
+              <Text style={s.sheetLabel}>採購日期（唔可以遲過排餐日）</Text>
+              <PlanDatePicker
+                value={shoppingDate}
+                onChange={(date) => {
+                  setShoppingDate(date);
+                  setShowShoppingDatePicker(false);
+                }}
+                maxDate={planDate || undefined}
+                showShortcuts={true}
+              />
             </View>
           </View>
         </Modal>
@@ -1944,12 +2022,15 @@ export default function RecipeDetailScreen() {
               <View style={s.datePickerRow}>
                 <Ionicons name="calendar-outline" size={16} color={SUB} />
                 <Text style={s.datePickerLabel}>購物日期：</Text>
-                <PlanDatePicker 
-                  value={shoppingDate} 
+                <PlanDatePicker
+                  value={shoppingDate}
                   onChange={setShoppingDate}
+                  maxDate={planDate || undefined}
                   showShortcuts={true}
-                  maxDate={latestMealPlan?.date}
                 />
+                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+                  ⚠️ 採購日期唔可以遲過排餐日（{planDate ? formatMealDate(planDate) : ""}）
+                </Text>
               </View>
               {shoppingDate && (
                 <TouchableOpacity 

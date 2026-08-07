@@ -794,8 +794,28 @@ export default function ShoppingTab() {
             key={chip.key}
             style={[styles.dateFilterChip, activeDateFilter === chip.key && styles.dateFilterChipActive]}
             onPress={() => {
+              if (chip.key === "today") {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                setDateWindowStart(today);
+                setSelectedDate(today.toISOString().split("T")[0]);
+              } else if (chip.key === "tomorrow") {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(0, 0, 0, 0);
+                setDateWindowStart(tomorrow);
+                setSelectedDate(tomorrow.toISOString().split("T")[0]);
+              } else if (chip.key === "week") {
+                const today = new Date();
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay());
+                startOfWeek.setHours(0, 0, 0, 0);
+                setDateWindowStart(startOfWeek);
+                setSelectedDate(null);
+              } else {
+                setSelectedDate(null);
+              }
               setActiveDateFilter(chip.key);
-              if (chip.key !== "custom") setSelectedDate(null);
             }}
           >
             {chip.key === "custom" && (

@@ -66,7 +66,215 @@ const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "電飯煲料理", "家常", "
 
 const mealName = (m: any) => m.recipeName || m.name || "未命名食譜";
 
-// ── Tonight's Menu Card ─────────────────────────────────────────────
+// ── Next Dinner Card (shows next dinner within 14 days) ─────────────────────────────────────────────
+function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
+  todayMeals: any[];
+  todayEatOut: boolean;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  
+  // Query next 14 days of meal plans
+  const endDate = new Date(todayStr);
+  endDate.setDate(endDate.getDate() + 13); // Include today = 14 days total
+  const endDateStr = endDate.toISOString().split("T")[0];
+  
+  const { data: futureMeals = [] } = trpc.mealPlan.listByDateRange.useQuery(
+    { startDate: todayStr, endDate: endDateStr },
+    { staleTime: 1000 * 60 * 5 }
+  );
+  
+  // Find next confirmed dinner
+  const nextDinner = futureMeals.find(
+    (m: any) => m.mealType === "dinner" && m.status === "confirmed"
+  );
+  
+  // Check if today has eat-out
+  const isTodayEatOut = todayEatOut && todayMeals.some(
+    (m: any) => m.mealType === "dinner" && m.status === "confirmed"
+  );
+  
+  // Check if today has BOTH eat-out AND dinner plan (conflict)
+  const todayDinnerPlan = todayMeals.find(
+    (m: any) => m.mealType === "dinner" && m.status === "confirmed"
+  );
+  const hasConflict = todayEatOut && todayDinnerPlan;
+  
+  // Calculate date label for next dinner
+  const getNextDinnerLabel = () => {
+    if (!nextDinner) return null;
+    
+    const dinnerDate = nextDinner.date;
+    const diffDays = Math.floor(
+      (new Date(dinnerDate).getTime() - new Date(todayStr).getTime()) / 86400000
+    );
+    
+    if (diffDays === 0) return "今天";
+    if (diffDays === 1) return "明天";
+    if (diffDays === 2) return "後天";
+    
+    // Show full date (e.g., 8 月 10 日)
+    const date = new Date(dinnerDate);
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  };
+  
+  const dateLabel = getNextDinnerLabel();
+
+  return (
+    <TouchableOpacity
+      style={s.dualCardWrapper}
+      onPress={() => router.push("/(tabs)/planner" as any)}
+      activeOpacity={0.7}
+    >
+      <View style={s.dualCardHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Ionicons name="moon-outline" size={16} color={BRAND} />
+          <Text style={s.dualCardTitle}>下次晚餐</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={BRAND} />
+      </View>
+
+      {hasConflict ? (
+        // Show both eat-out and dinner plan with conflict warning
+        <View style={s.dualCardContent}>
+          <View style={s.dualCardRow}>
+            <Ionicons name="restaurant-outline" size={12} color="#D97706" />
+            <Text style={s.dualCardRowText}>外出用餐</Text>
+            <View style={s.dateBadge}>
+              <Text style={s.dateBadgeText}>今天</Text>
+            </View>
+          </View>
+          <View style={s.dualCardRow}>
+            <Ionicons name="alert-circle-outline" size={12} color="#DC2626" />
+            <Text style={s.dualCardRowText} numberOfLines={1}>{mealName(todayDinnerPlan)}</Text>
+            <View style={s.conflictBadge}>
+              <Text style={s.conflictBadgeText}>需確認</Text>
+            </View>
+          </View>
+        </View>
+      ) : isTodayEatOut ? (
+        // Show eat-out status for today (orange text + restaurant icon)
+        <View style={s.dualCardContent}>
+          <View style={s.dualCardRow}>
+            <Ionicons name="restaurant-outline" size={12} color="#D97706" />
+            <Text style={s.dualCardRowText}>外出用餐</Text>
+            <View style={s.dateBadge}>
+              <Text style={s.dateBadgeText}>今天</Text>
+            </View>
+          </View>
+        </View>
+      ) : nextDinner ? (
+        // Show next dinner with date label
+        <View style={s.dualCardContent}>
+          <View style={s.dualCardRow}>
+            <Ionicons name="restaurant-outline" size={12} color="#F59E0B" />
+            <Text style={s.dualCardRowText} numberOfLines={1}>{mealName(nextDinner)}</Text>
+            {dateLabel && (
+              <View style={s.dateBadge}>
+                <Text style={s.dateBadgeText}>{dateLabel}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : (
+        // No dinner arranged in 14 days
+        <View style={s.dualCardEmpty}>
+          <Text style={s.dualCardEmptyTxt}>還沒有安排晚餐</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ── Shopping List Preview (shows items within 14 days) ─────────────────────────────────────────────
+function ShoppingListPreview({ router }: {
+  router: ReturnType<typeof useRouter>;
+}) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  
+  // Calculate end date (14 days from today)
+  const endDate = new Date(todayStr);
+  endDate.setDate(endDate.getDate() + 13); // Include today = 14 days total
+  const endDateStr = endDate.toISOString().split("T")[0];
+  
+  const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
+    staleTime: 1000 * 10,
+    refetchInterval: 5000,
+  });
+
+  // Filter: only active items within 14 days
+  const itemsIn14Days = useMemo(() => {
+    return shoppingItems.filter((i: any) => {
+      if (i.status !== "active") return false;
+      if (!i.plannedDate) return true; // No date = show as recent
+      return i.plannedDate >= todayStr && i.plannedDate <= endDateStr;
+    });
+  }, [shoppingItems, todayStr, endDateStr]);
+
+  // Limit to max 4 items
+  const itemsToShow = useMemo(() => {
+    return itemsIn14Days.slice(0, 4);
+  }, [itemsIn14Days]);
+
+  // Calculate date label (今天/明天/後天/日期)
+  const dateLabel = useMemo(() => {
+    if (itemsToShow.length === 0) return null;
+    const firstItemDate = itemsToShow[0]?.plannedDate;
+    
+    if (!firstItemDate) return null;
+    
+    const diffDays = Math.floor(
+      (new Date(firstItemDate).getTime() - new Date(todayStr).getTime()) / 86400000
+    );
+    
+    if (diffDays === 0) return "今天";
+    if (diffDays === 1) return "明天";
+    if (diffDays === 2) return "後天";
+    
+    // Show full date (e.g., 8 月 10 日)
+    const date = new Date(firstItemDate);
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }, [itemsToShow, todayStr]);
+
+  return (
+    <TouchableOpacity
+      style={s.dualCardWrapper}
+      onPress={() => router.push("/(tabs)/shopping" as any)}
+      activeOpacity={0.7}
+    >
+      <View style={s.dualCardHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Ionicons name="cart-outline" size={16} color={BRAND} />
+          <Text style={s.dualCardTitle}>購物清單</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={BRAND} />
+      </View>
+
+      {itemsToShow.length > 0 ? (
+        <View style={s.dualCardContent}>
+          {itemsToShow.map((item: any, idx: number) => (
+            <View key={idx} style={s.dualCardRow}>
+              <Ionicons name="ellipse-outline" size={12} color="#6B7280" />
+              <Text style={s.dualCardRowText} numberOfLines={1}>{item.name}</Text>
+              {/* Only show date label for the first item */}
+              {idx === 0 && dateLabel && (
+                <View style={s.dualCardDateBadge}>
+                  <Text style={s.dualCardDateBadgeText}>{dateLabel}</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={s.dualCardEmpty}>
+          <Text style={s.dualCardEmptyTxt}>購物清單是空的</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ── Tonight's Menu Card (Original - kept for backward compatibility) ─────────────────────────────────────────────
 function TonightMenuCard({ todayMeals, router, isAdmin }: {
   todayMeals: any[];
   router: ReturnType<typeof useRouter>;
@@ -305,13 +513,35 @@ export default function RecipesTab() {
   };
 
   const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; image?: string; ingredients?: any[] } | null>(null);
-  const [quickPlanDate, setQuickPlanDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [quickPlanDate, setQuickPlanDate] = useState<string | null>(() => new Date().toISOString().split("T")[0]);
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayMeals = [] } = trpc.mealPlan.listByDateRange.useQuery({ startDate: todayStr, endDate: todayStr }, { staleTime: 30000 });
+
+  // Use useMemo to stabilize weekStart calculation (fixes infinite re-query issue)
+  const { weekStartStr, todayDow } = useMemo(() => {
+    const today = new Date(todayStr);
+    const weekStart = new Date(today);
+    const dayOfWeek = weekStart.getDay();
+    const diff = weekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
+    weekStart.setDate(diff);
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const todayDow = today.getDay() + 1; // 1=Mon, 7=Sun
+    return { weekStartStr, todayDow };
+  }, [todayStr]);
+
+  const { data: weekMenu = { items: [] } } = trpc.weeklyMenu.getWeek.useQuery(
+    { weekStart: weekStartStr },
+    { staleTime: 1000 * 60 * 5 }
+  );
+
+  // Get today's eat-out status
+  const todayEatOut = weekMenu.items.find(
+    item => item.dayOfWeek === todayDow
+  )?.eatOut ?? false;
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
@@ -345,7 +575,24 @@ export default function RecipesTab() {
   const isLoading = searchLoading || loadingUser;
 
   const addMealM = trpc.mealPlan.add.useMutation({
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      // Check if there's a conflict (eatOut or duplicate recipe)
+      if (result.warning && result.hasConflict) {
+        const isEatOutConflict = result.warning.includes("外出");
+        Alert.alert(
+          isEatOutConflict ? "衝突提示" : "重複食譜提示",
+          result.warning,
+          [
+            { text: "取消", style: "cancel", onPress: () => {
+              if (result.newPlanId) {
+                deleteMealM.mutate({ id: result.newPlanId });
+              }
+            }},
+            { text: "確定", onPress: () => {} },
+          ]
+        );
+      }
+      
       utils.mealPlan.listByDateRange.invalidate();
       utils.shopping.list.invalidate();
       setQuickPlanRecipe(null);
@@ -358,12 +605,20 @@ export default function RecipesTab() {
           name: variables.recipeName,
           ingredients: found.ingredients,
           date: variables.date,
+          fromMealPlanId: result.newPlanId,
         });
       } else {
         setToast({ visible: true, message: "已加入排餐", type: "info" });
       }
     },
     onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
+  });
+
+  const deleteMealM = trpc.mealPlan.delete.useMutation({
+    onSuccess: () => {
+      utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.invalidate();
+    },
   });
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
@@ -475,7 +730,12 @@ export default function RecipesTab() {
 
   const ListHeader = (
     <>
-      <TonightMenuCard todayMeals={todayMeals} router={router} isAdmin={isAdmin} />
+      {/* Dual-card layout: Tonight's Menu + Shopping List Preview */}
+      <View style={s.dualCardContainer}>
+        <TonightMenuCardCompact todayMeals={todayMeals} todayEatOut={todayEatOut} router={router} />
+        <ShoppingListPreview router={router} />
+      </View>
+      
       <PendingActionsCard router={router} isAdmin={isAdmin} />
       {!isPaid && <PremiumPromoBanner onPress={() => setShowPaywall(true)} />}
 
@@ -848,7 +1108,15 @@ export default function RecipesTab() {
             </View>
 
             <Text style={s.planLabel}>選擇日期</Text>
-            <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} />
+            <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} showShortcuts={true} />
+            {quickPlanDate && (
+              <TouchableOpacity 
+                onPress={() => setQuickPlanDate(null)} 
+                style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
+              >
+                <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+              </TouchableOpacity>
+            )}
 
             <Text style={s.planLabel}>餐次</Text>
             <View style={s.planMealRow}>
@@ -864,6 +1132,10 @@ export default function RecipesTab() {
               style={[s.planConfirmBtn, addMealM.isPending && { opacity: 0.6 }]}
               onPress={() => {
                 if (!quickPlanRecipe) return;
+                if (!quickPlanDate) {
+                  Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
+                  return;
+                }
                 addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });
               }}
               disabled={addMealM.isPending}
@@ -894,6 +1166,7 @@ export default function RecipesTab() {
               })),
               fromRecipeId: items[0].recipeId,
               fromRecipeName: items[0].recipeName,
+              fromMealPlanId: items[0].fromMealPlanId,
               plannedDate: items[0].plannedDate,
             });
           } else {
@@ -956,6 +1229,107 @@ const s = StyleSheet.create({
   summaryEmptyTxt: { fontSize: 13, color: "#9CA3AF" },
   pendingBanner: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, padding: 8, backgroundColor: "#FEF2F2", borderRadius: 10, borderWidth: 1, borderColor: "#FECACA" },
   pendingBannerTxt: { flex: 1, fontSize: 12, color: "#EF4444", fontWeight: "700" },
+
+  // Dual-card layout (Tonight's Menu + Shopping List)
+  dualCardContainer: {
+    flexDirection: "row",
+    marginHorizontal: 14,
+    marginBottom: 8,
+    gap: 8,
+  },
+  dualCardWrapper: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#EBEBEB",
+    minHeight: 120,
+  },
+  dualCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  dualCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1A1A1A",
+  },
+  dualCardLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  dualCardLinkText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: BRAND,
+  },
+  dualCardContent: {
+    gap: 6,
+  },
+  dualCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 3,
+    minHeight: 24,
+  },
+  dualCardRowText: {
+    fontSize: 13,
+    color: "#1A1A1A",
+    flex: 1,
+  },
+  dualCardDateBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  dualCardDateBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#D97706",
+  },
+  dateBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  dateBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#D97706",
+  },
+  conflictBadge: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  conflictBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#DC2626",
+  },
+  dualCardEmpty: {
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dualCardEmptyTxt: {
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
 
   // Pending actions card
   pendingCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E8E8E8", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },

@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal, StyleSheet,
-  Dimensions, Platform,
+  Dimensions, Platform, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -70,6 +70,7 @@ export type PickerRecipe = {
   id: string;
   name: string;
   date?: string;
+  fromMealPlanId?: number;
   ingredients: PickerIngredient[];
 };
 
@@ -81,6 +82,7 @@ export type ConfirmedItem = {
   unit: string;
   category: string;
   plannedDate?: string;
+  fromMealPlanId?: number;
 };
 
 interface Props {
@@ -92,16 +94,23 @@ interface Props {
   defaultDate?: string;
   onDateChange?: (date: string) => void;
   showDateSelector?: boolean;
+  maxDate?: string;
   onConfirm: (items: ConfirmedItem[]) => void;
   onSkip: () => void;
 }
 
 export default function IngredientPickerModal({
   visible, recipes, title, initialSelected, loading = false, 
-  defaultDate, onDateChange, showDateSelector = true, onConfirm, onSkip,
+  defaultDate, onDateChange, showDateSelector = true, maxDate, onConfirm, onSkip,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [date, setDate] = useState(defaultDate ?? new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(defaultDate ?? (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })());
 
   // 將食材按類別分組
   const groupedIngredients = useMemo(() => {
@@ -121,8 +130,13 @@ export default function IngredientPickerModal({
     [groupedIngredients]
   );
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
-    if (visible && recipes.length > 0) {
+    if (visible && recipes.length > 0 && !initializedRef.current) {
+      if (defaultDate) {
+        setDate(defaultDate);
+      }
       if (initialSelected) {
         setSelected(new Set(initialSelected));
       } else {
@@ -136,8 +150,12 @@ export default function IngredientPickerModal({
         });
         setSelected(def);
       }
+      initializedRef.current = true;
     }
-  }, [visible, recipes, initialSelected]);
+    if (!visible) {
+      initializedRef.current = false;
+    }
+  }, [visible, initialSelected, defaultDate]);
 
   const toggle = (key: string) => {
     setSelected((prev) => {
@@ -186,6 +204,7 @@ export default function IngredientPickerModal({
             unit: ing.unit || "",
             category: ing.category || detectCategory(ing.name),
             plannedDate: date,
+            fromMealPlanId: r.fromMealPlanId,
           });
         }
       });
@@ -259,7 +278,16 @@ export default function IngredientPickerModal({
                   onDateChange?.(newDate);
                 }}
                 showShortcuts={true}
+                maxDate={maxDate}
               />
+            </View>
+          )}
+          {maxDate && date && date > maxDate && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 }}>
+              <Ionicons name="warning" size={14} color="#DC2626" />
+              <Text style={{ fontSize: 12, color: "#DC2626", fontWeight: "600" }}>
+                ⚠️ 採購日期（{date}）晚於排餐日期（{maxDate}）
+              </Text>
             </View>
           )}
 
@@ -305,7 +333,17 @@ export default function IngredientPickerModal({
           <View style={s.footer}>
             <TouchableOpacity
               style={[s.confirmBtn, (confirmItems.length === 0 || loading) && s.confirmBtnDisabled]}
-              onPress={() => onConfirm(confirmItems)}
+              onPress={() => {
+                if (maxDate && date > maxDate) {
+                  Alert.alert(
+                    "日期無效",
+                    `採購日期（${date}）不能遲於排餐日期（${maxDate}）`,
+                    [{ text: "確定" }]
+                  );
+                  return;
+                }
+                onConfirm(confirmItems);
+              }}
               disabled={confirmItems.length === 0 || loading}
             >
               {loading ? (

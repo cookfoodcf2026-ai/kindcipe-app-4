@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -45,11 +46,12 @@ const formatMonthLabel = (dateStr: string) => {
 };
 
 interface PlanDatePickerProps {
-  value: string;
+  value: string | null;
   onChange: (iso: string) => void;
   monthsAhead?: number;
   showShortcuts?: boolean;
   minDate?: string;
+  maxDate?: string;
 }
 
 export default function PlanDatePicker({
@@ -58,6 +60,7 @@ export default function PlanDatePicker({
   monthsAhead = 2,
   showShortcuts = true,
   minDate,
+  maxDate,
 }: PlanDatePickerProps) {
   const min = minDate || todayISO();
   const today = todayISO();
@@ -69,6 +72,10 @@ export default function PlanDatePicker({
     return d;
   });
   const [visibleMonth, setVisibleMonth] = useState("");
+  const [scrollStarted, setScrollStarted] = useState(false);
+  const [currentScrollX, setCurrentScrollX] = useState(0);
+  const touchStartTimeRef = useRef<number>(0);
+  const isTouchingRef = useRef(false);
 
   const dateCardsData = useMemo(() => {
     const dates: string[] = [];
@@ -92,6 +99,7 @@ export default function PlanDatePicker({
   const handleScroll = useCallback(
     (event: any) => {
       const offsetX = event.nativeEvent.contentOffset.x;
+      setCurrentScrollX(offsetX);
       const cardWidth = 82;
       const index = Math.min(
         Math.max(Math.floor(offsetX / cardWidth), 0),
@@ -104,6 +112,36 @@ export default function PlanDatePicker({
     },
     [dateCardsData],
   );
+
+  const handlePressIn = useCallback(() => {
+    touchStartTimeRef.current = Date.now();
+    isTouchingRef.current = true;
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    isTouchingRef.current = false;
+  }, []);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    setScrollStarted(true);
+  }, []);
+
+  const handleScrollEndDrag = useCallback(() => {
+    setTimeout(() => setScrollStarted(false), 50);
+  }, []);
+
+  const handleDatePress = useCallback((date: string, isPast: boolean) => {
+    if (isPast) return;
+    
+    const touchDuration = Date.now() - touchStartTimeRef.current;
+    
+    if (scrollStarted || touchDuration > 250) {
+      return;
+    }
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onChange(date);
+  }, [scrollStarted, onChange]);
 
   const shiftDateWindow = useCallback((shiftDays: number) => {
     setDateWindowStart((prev) => {
@@ -138,16 +176,21 @@ export default function PlanDatePicker({
 
   const scrollRef = useRef<ScrollView>(null);
 
-  // Scroll to selected date when value changes
+  // Scroll to selected date only when it's not visible
   useEffect(() => {
-    if (value && scrollRef.current) {
+    if (value && scrollRef.current && !isTouchingRef.current) {
       const idx = dateCardsData.findIndex((dc) => dc.date === value);
       if (idx >= 0) {
-        const x = Math.max(0, idx * 82 - 60);
-        scrollRef.current.scrollTo({ x, animated: false });
+        // Only scroll if date is not already in visible range (roughly)
+        const visibleStart = Math.floor(currentScrollX / 82);
+        const visibleEnd = visibleStart + 5; // ~5 cards visible
+        if (idx < visibleStart || idx > visibleEnd) {
+          const x = Math.max(0, idx * 82 - 60);
+          scrollRef.current.scrollTo({ x, animated: true });
+        }
       }
     }
-  }, [value, dateCardsData]);
+  }, [value, dateCardsData, currentScrollX]);
 
   return (
     <View style={s.container}>
@@ -164,6 +207,15 @@ export default function PlanDatePicker({
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 onChange(item.iso);
+                
+                // 更新日期窗口，讓自動滾動生效
+                const selectedDate = new Date(item.iso);
+                setDateWindowStart(() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() - 2);
+                  return d;
+                });
+                setVisibleMonth("");
               }}
             >
               <Text
@@ -185,8 +237,13 @@ export default function PlanDatePicker({
         <View style={s.dateCardsRow}>
           <TouchableOpacity
             style={s.dateArrowBtn}
-            onPress={() => shiftDateWindow(-7)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              shiftDateWindow(-7);
+            }}
             activeOpacity={0.7}
+            delayPressIn={100}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
           >
             <Ionicons name="chevron-back" size={18} color={BRAND} />
           </TouchableOpacity>
@@ -195,6 +252,8 @@ export default function PlanDatePicker({
             horizontal
             showsHorizontalScrollIndicator={false}
             style={s.dateCardsScroll}
+            onScrollBeginDrag={handleScrollBeginDrag}
+            onScrollEndDrag={handleScrollEndDrag}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
@@ -208,21 +267,34 @@ export default function PlanDatePicker({
                     s.dateCard,
                     isSelected && s.dateCardSelected,
                     isPast && s.dateCardDisabled,
+                    maxDate && dc.date > maxDate && s.dateCardDisabled,
                   ]}
                   onPress={() => {
-                    if (!isPast) {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      onChange(dc.date);
+                    if (maxDate && dc.date > maxDate) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      Alert.alert(
+                        "日期超出範圍",
+                        `選擇的日期（${dc.date}）超出允許範圍\n\n最遲可選擇：${maxDate}`,
+                        [{ text: "確定" }]
+                      );
+                      return;
                     }
+                    handleDatePress(dc.date, isPast);
                   }}
-                  disabled={isPast}
-                  activeOpacity={0.7}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  delayPressIn={50}
+                  delayLongPress={250}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  disabled={isPast || !!(maxDate && dc.date > maxDate)}
+                  activeOpacity={0.6}
                 >
                   <Text
                     style={[
                       s.dateCardDay,
                       isSelected && s.dateCardDaySelected,
                       isPast && s.dateCardDayDisabled,
+                      maxDate && dc.date > maxDate && s.dateCardDayDisabled,
                     ]}
                   >
                     {dc.day}
@@ -232,6 +304,7 @@ export default function PlanDatePicker({
                       s.dateCardWeekday,
                       isSelected && s.dateCardWeekdaySelected,
                       isPast && s.dateCardWeekdayDisabled,
+                      maxDate && dc.date > maxDate && s.dateCardWeekdayDisabled,
                     ]}
                   >
                     {dc.weekday}
@@ -242,8 +315,13 @@ export default function PlanDatePicker({
           </ScrollView>
           <TouchableOpacity
             style={s.dateArrowBtn}
-            onPress={() => shiftDateWindow(7)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              shiftDateWindow(7);
+            }}
             activeOpacity={0.7}
+            delayPressIn={100}
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
           >
             <Ionicons name="chevron-forward" size={18} color={BRAND} />
           </TouchableOpacity>
