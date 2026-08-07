@@ -2,8 +2,8 @@ import * as ImageManipulator from "expo-image-manipulator";
 
 const MAX_DIMENSION = 1920;
 const MAX_BASE64_LENGTH = 5_000_000; // ≈ 3.75MB, under backend 5.5M char limit
-const INITIAL_QUALITY = 0.8;
-const MIN_QUALITY = 0.4;
+const INITIAL_QUALITY = 0.9; // Increased from 0.8 to preserve more detail for AI analysis
+const MIN_QUALITY = 0.6; // Increased from 0.4 to maintain minimum quality
 const MIN_DIMENSION = 800;
 
 export type CompressedImage = {

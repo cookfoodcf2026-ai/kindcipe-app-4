@@ -69,6 +69,51 @@ export default function ImportScreen() {
   const SAVE_STEPS = ["上載圖片...", "整理食譜資料...", "儲存到食譜庫..."];
   const PARSE_STEPS = ["讀取內容", "識別食材", "整理步驟", "生成食譜"];
 
+  // 渲染圖片來源選擇 Modal（封裝成函式，可在多個 step 中复用）
+  const renderPhotoSourceModal = () => (
+    <Modal
+      visible={showPhotoSourceModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowPhotoSourceModal(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowPhotoSourceModal(false)}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>選擇圖片來源</Text>
+          
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handlePickImage("camera")}
+          >
+            <Ionicons name="camera" size={24} color="#013E77" />
+            <Text style={styles.modalOptionText}>拍照</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handlePickImage("library")}
+          >
+            <Ionicons name="image" size={24} color="#013E77" />
+            <Text style={styles.modalOptionText}>從相簿選擇</Text>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.modalCancelBtn}
+            onPress={() => setShowPhotoSourceModal(false)}
+          >
+            <Text style={styles.modalCancelText}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   // Initialize editable states when parsedRecipe is set
   const initEditFromParsed = (recipe: any) => {
     setEditName(recipe.name || "");
@@ -349,53 +394,7 @@ export default function ImportScreen() {
           router.replace({
             pathname: "/recipe/[id]",
             params: { id: `user_${data.id}` },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: "#F5F8FC",
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  modalOptionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#013E77",
-  },
-  modalCancelBtn: {
-    marginTop: 8,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#6B7280",
-  },
-});
+          });
         }, 1500);
       }
     },
@@ -467,44 +466,41 @@ export default function ImportScreen() {
   };
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
-  const handlePickImage = async (source?: "camera" | "library") => {
-    setShowPhotoSourceModal(false);
-    
+  const handlePickImage = async (source: "camera" | "library") => {
     let result;
-    if (source === "camera") {
-      result = await ImagePicker.launchCameraAsync({
-        quality: 0.8,
-        base64: false,
-      });
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-        base64: false,
-      });
+    try {
+      result = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8, base64: false })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, base64: false });
+    } catch (e: any) {
+      Alert.alert("開啟失敗", e?.message || "請重試");
+      return;
+    } finally {
+      setShowPhotoSourceModal(false);
     }
-    
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      try {
-        const compressed = await compressImage(asset.uri);
-        setPendingScreenshot({
-          uri: compressed.uri,
-          base64: compressed.base64,
-          mimeType: compressed.mimeType,
-        });
-      } catch {
-        const fallbackBase64 = asset.base64 || "";
-        if (!fallbackBase64) {
-          Alert.alert("圖片處理失敗", "無法讀取這張圖片，請重新選擇");
-          return;
-        }
-        setPendingScreenshot({
-          uri: asset.uri,
-          base64: fallbackBase64,
-          mimeType: asset.mimeType || "image/jpeg",
-        });
+
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    try {
+      const compressed = await compressImage(asset.uri);
+      setPendingScreenshot({
+        uri: compressed.uri,
+        base64: compressed.base64,
+        mimeType: compressed.mimeType,
+      });
+      setStep("input"); // ✅ 成功拿到新圖後，立刻切換回輸入主畫面，這樣才能顯示預覽 UI！
+    } catch {
+      const fallbackBase64 = asset.base64 || "";
+      if (!fallbackBase64) {
+        Alert.alert("圖片處理失敗", "無法讀取這張圖片，請重新選擇");
+        return;
       }
+      setPendingScreenshot({
+        uri: asset.uri,
+        base64: fallbackBase64,
+        mimeType: asset.mimeType || "image/jpeg",
+      });
+      setStep("input"); // ✅ Fallback 成功同樣切換回主畫面
     }
   };
 
@@ -514,15 +510,29 @@ export default function ImportScreen() {
     setStep("parsing");
     startParseProgress();
     try {
+      console.log("[handleConfirmScreenshot] Uploading image:", {
+        base64Length: pendingScreenshot.base64?.length || 0,
+        mimeType: pendingScreenshot.mimeType,
+        uri: pendingScreenshot.uri,
+      });
       const uploadResult = await uploadImageMutation.mutateAsync({
         base64: pendingScreenshot.base64,
         mimeType: pendingScreenshot.mimeType,
       });
-      parseImageMutation.mutate({ storageKey: uploadResult.key });
+      console.log("[handleConfirmScreenshot] Upload result:", uploadResult);
+      await parseImageMutation.mutateAsync({ storageKey: uploadResult.key });
+      // parseImageMutation.onSuccess will handle the result
     } catch (e: any) {
+      console.error("[handleConfirmScreenshot] Error:", e);
       stopParseProgress();
-      setErrorMsg("圖片上傳失敗，請重試");
-      setFailedInput({ type: "url", value: "" });
+      // Check if error is from backend AI analysis
+      const isNoContent = e.message?.includes("沒有足夠") || e.message?.includes("無法識別") || e.message?.includes("no recipe") || e.message?.includes("需要手動輸入");
+      setErrorMsg(
+        isNoContent
+          ? e.message
+          : "無法分析這張圖片的食譜內容。\n\n可能原因：\n• 食物特徵不明顯（太遠/太模糊/只拍表面）\n• 圖片缺少可識別的食材或步驟文字"
+      );
+      setFailedInput(null);
       setStep("failed");
     }
     setPendingScreenshot(null);
@@ -973,102 +983,68 @@ export default function ImportScreen() {
 
   // ── 解析失敗 ──
   if (step === "failed") {
-    const isNoContent = errorMsg.includes("沒有完整的食譜") || errorMsg.includes("沒有足夠的食譜");
     return (
-      <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={styles.centerContainer}>
-          <Ionicons
-            name={isNoContent ? "information-circle" : "alert-circle"}
-            size={64}
-            color={isNoContent ? "#F59E0B" : "#EF4444"}
-          />
-          <Text style={styles.failedTitle}>
-            {isNoContent ? "這個帖子沒有食譜" : "解析失敗"}
-          </Text>
-          <Text style={styles.failedMsg}>{errorMsg}</Text>
+      <>
+        <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
+          <View style={styles.centerContainer}>
+            <Ionicons name="alert-circle" size={64} color="#EF4444" />
+            <Text style={styles.failedTitle}>解析失敗</Text>
+            <Text style={styles.failedMsg}>{errorMsg}</Text>
 
-          {isNoContent && (
-            <View style={styles.tipBox}>
-              <View style={styles.tipBoxTitleRow}>
-                <Ionicons name="bulb" size={16} color="#92400E" />
-                <Text style={styles.tipBoxTitle}>什麼樣的帖子可以匯入？</Text>
-              </View>
-              <View style={styles.tipBoxRow}>
-                <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                <Text style={styles.tipBoxText}>包含食材清單（如：雞肉 300g、蒜頭 3 粒）</Text>
-              </View>
-              <View style={styles.tipBoxRow}>
-                <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
-                <Text style={styles.tipBoxText}>包含烹飪步驟（如：1. 熱鍋下油... 2. 加入...）</Text>
-              </View>
-              <View style={styles.tipBoxRow}>
-                <Ionicons name="close-circle" size={14} color="#DC2626" />
-                <Text style={styles.tipBoxText}>純用餐照片或打卡帖子</Text>
-              </View>
-              <View style={styles.tipBoxRow}>
-                <Ionicons name="close-circle" size={14} color="#DC2626" />
-                <Text style={styles.tipBoxText}>只有食物名稱而無食材/步驟</Text>
-              </View>
-              <View style={styles.tipBoxRow}>
-                <Ionicons name="close-circle" size={14} color="#DC2626" />
-                <Text style={styles.tipBoxText}>廣告推廣帖子</Text>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.failedActions}>
-            {failedInput && failedInput.value && (
+            <View style={styles.failedActions}>
+              {/* 按鈕 1：換一張照片（主按鈕） */}
               <TouchableOpacity
                 style={styles.tryScreenshotButton}
                 onPress={() => {
-                  setStep("input");
+                  setShowPhotoSourceModal(true);
                   setErrorMsg("");
+                  setFailedInput(null);
                 }}
               >
-                <Ionicons name="refresh-outline" size={18} color="#fff" />
+                <Ionicons name="image" size={18} color="#fff" />
                 <Text style={styles.tryScreenshotText}>
-                  重試{failedInput.type === "url" ? "此連結" : "此文字"}
+                  換一張照片（拍清晰食物本體）
                 </Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.tryScreenshotButton}
-              onPress={() => {
-                setShowPhotoSourceModal(true);
-                setErrorMsg("");
-                setFailedInput(null);
-              }}
-            >
-              <Ionicons name="image" size={18} color="#fff" />
-              <Text style={styles.tryScreenshotText}>截圖上傳試試</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.tryTextButton}
-              onPress={() => router.push("/recipe-editor")}
-            >
-              <Ionicons name="create-outline" size={18} color="#013E77" />
-              <Text style={styles.tryTextButtonText}>自訂食譜</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => { setStep("input"); setErrorMsg(""); setFailedInput(null); setUniversalInput(""); }}
-            >
-              <Text style={styles.retryButtonText}>換另一個</Text>
-            </TouchableOpacity>
+
+              {/* 按鈕 2：貼上連結（次要） */}
+              <TouchableOpacity
+                style={styles.tryTextButton}
+                onPress={() => {
+                  setStep("input");
+                  setErrorMsg("");
+                  setFailedInput(null);
+                }}
+              >
+                <Ionicons name="link-outline" size={18} color="#013E77" />
+                <Text style={styles.tryTextButtonText}>貼上連結</Text>
+              </TouchableOpacity>
+
+              {/* 按鈕 3：自訂食譜（最後手段） */}
+              <TouchableOpacity
+                style={styles.tryTextButton}
+                onPress={() => router.push("/recipe-editor")}
+              >
+                <Ionicons name="create-outline" size={18} color="#013E77" />
+                <Text style={styles.tryTextButtonText}>自訂食譜</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+        {renderPhotoSourceModal()}
+      </>
     );
   }
 
   // ── 主要輸入畫面 ──
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
-    >
-      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
+      >
+        <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1099,13 +1075,6 @@ export default function ImportScreen() {
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Divider: 或輸入 */}
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>或輸入</Text>
-          <View style={styles.dividerLine} />
-        </View>
 
         {/* Universal Smart Input */}
         <View style={styles.inputSection}>
@@ -1140,10 +1109,23 @@ export default function ImportScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Divider: 其他匯入方式 */}
-        <View style={styles.secondaryDivider}>
-          <Text style={styles.secondaryDividerText}>其他匯入方式</Text>
-        </View>
+        {/* 截圖預覽 */}
+        {pendingScreenshot && (
+          <View style={styles.screenshotSection}>
+            <Image source={{ uri: pendingScreenshot.uri }} style={styles.screenshotPreview} resizeMode="cover" />
+            <Text style={styles.previewHint}>確認圖片清晰，包含食材和步驟</Text>
+            <View style={styles.screenshotActions}>
+              <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
+                <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+                <Text style={styles.screenshotReselectText}>重新選擇</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.screenshotConfirmBtn} onPress={handleConfirmScreenshot}>
+                <Ionicons name="sparkles" size={16} color="#fff" />
+                <Text style={styles.screenshotConfirmText}>開始解析</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Secondary Action Buttons */}
         <View style={styles.secondaryActions}>
@@ -1174,50 +1156,9 @@ export default function ImportScreen() {
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
-      
-      {/* Photo Source Modal */}
-      <Modal
-        visible={showPhotoSourceModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowPhotoSourceModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowPhotoSourceModal(false)}
-        >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>選擇圖片來源</Text>
-            
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => handlePickImage("camera")}
-            >
-              <Ionicons name="camera" size={24} color="#013E77" />
-              <Text style={styles.modalOptionText}>拍照</Text>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={() => handlePickImage("library")}
-            >
-              <Ionicons name="image" size={24} color="#013E77" />
-              <Text style={styles.modalOptionText}>從相簿選擇</Text>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.modalCancelBtn}
-              onPress={() => setShowPhotoSourceModal(false)}
-            >
-              <Text style={styles.modalCancelText}>取消</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </KeyboardAvoidingView>
+    {renderPhotoSourceModal()}
+    </>
   );
 }
 
@@ -1272,35 +1213,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 20,
     marginTop: 4,
-    shadowColor: "#013E77",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
   },
   magicButtonText: {
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
-  },
-  
-  // Divider
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 16,
-    marginVertical: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E5E0D8",
-  },
-  dividerText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#9CA3AF",
-    paddingHorizontal: 12,
   },
   
   // Universal Input
@@ -1329,8 +1246,8 @@ const styles = StyleSheet.create({
   },
   pasteButton: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    top: 16,
+    right: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -1353,11 +1270,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 20,
     marginTop: 12,
-    shadowColor: "#013E77",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
   },
   parseButtonDisabled: {
     backgroundColor: "#013E77",
@@ -1376,6 +1288,67 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 16,
   },
+  screenshotSection: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  screenshotPreview: {
+    width: "100%",
+    height: 220,
+    borderRadius: 14,
+    backgroundColor: "#EEF4FB",
+  },
+  previewHint: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginTop: 12,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  screenshotActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+    marginTop: 12,
+  },
+  screenshotReselectBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#A8C5E0",
+    backgroundColor: "#FFFFFF",
+  },
+  screenshotReselectText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  screenshotConfirmBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "#013E77",
+  },
+  screenshotConfirmText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
   secondaryButton: {
     flex: 1,
     flexDirection: "row",
@@ -1383,7 +1356,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#A8C5E0",
@@ -1392,17 +1365,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#013E77",
-  },
-  
-  // Secondary Divider
-  secondaryDivider: {
-    marginTop: 20,
-    alignItems: "center",
-  },
-  secondaryDividerText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#9CA3AF",
   },
   
   // Xiaohongshu Tip
@@ -1486,6 +1448,58 @@ const styles = StyleSheet.create({
   tipBoxTitle: { fontSize: 13, fontWeight: "800", color: "#92400E" },
   tipBoxRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   tipBoxText: { flex: 1, fontSize: 12, color: "#78350F", lineHeight: 20 },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: "#F5F8FC",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  modalOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#013E77",
+  },
+  modalCancelBtn: {
+    marginTop: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
 });
 
 const es = StyleSheet.create({
