@@ -439,8 +439,28 @@ export default function ImportScreen() {
     } catch { return false; }
   }
 
+  // Extract Instagram thumbnail from client-side (mobile IP won't be blocked)
+  async function extractInstagramThumbnail(url: string): Promise<string | undefined> {
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) return undefined;
+      const html = await resp.text();
+      const match = html.match(/property="og:image"\s+content="([^"]+)"/) ||
+                    html.match(/content="([^"]+)"\s+property="og:image"/);
+      return match ? match[1] : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   // 通用解析函數（自動偵測 URL 或文字）
-  const handleUniversalParse = (input: string) => {
+  const handleUniversalParse = async (input: string) => {
     if (isParsingRef.current) return;
     const trimmed = input.trim();
     if (!trimmed) {
@@ -452,7 +472,12 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      parseUrlMutation.mutate({ url: trimmed, language: i18n.language });
+      // For Instagram URLs, try client-side thumbnail extraction first (100% reliable on mobile)
+      let clientThumbnail: string | undefined;
+      if (trimmed.includes("instagram.com")) {
+        clientThumbnail = await extractInstagramThumbnail(trimmed);
+      }
+      parseUrlMutation.mutate({ url: trimmed, language: i18n.language, clientThumbnail });
     } else {
       parseTextMutation.mutate({ text: trimmed, language: i18n.language });
     }
