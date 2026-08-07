@@ -454,7 +454,7 @@ export default function ImportScreen() {
     if (isValidUrl(trimmed)) {
       parseUrlMutation.mutate({ url: trimmed, language: i18n.language });
     } else {
-      parseTextMutation.mutate({ text: trimmed });
+      parseTextMutation.mutate({ text: trimmed, language: i18n.language });
     }
   };
 
