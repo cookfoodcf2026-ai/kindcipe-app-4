@@ -3,8 +3,9 @@
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, Image, Modal, BackHandler,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -227,16 +228,15 @@ export default function RecipeEditorScreen() {
       if (imageBase64) {
         setSaveStep(1);
         const up = await uploadImageM.mutateAsync({ base64: imageBase64, mimeType: "image/jpeg" });
-        imageUrl = up.url;
+        imageUrl = up?.url || "";
       }
 
-      // Upload step images
       const stepImages: (string | null)[] = [];
       for (const s of validSteps) {
         if (s.imageBase64) {
           try {
             const up = await uploadImageM.mutateAsync({ base64: s.imageBase64, mimeType: "image/jpeg" });
-            stepImages.push(up.url);
+            stepImages.push(up?.url || null);
           } catch { stepImages.push(null); }
         } else {
           stepImages.push(s.imageUri || null);
@@ -275,7 +275,7 @@ export default function RecipeEditorScreen() {
       clearInterval(timer);
       saveTimerRef.current = null;
       setIsSaving(false);
-      Alert.alert("儲存失敗", "圖片上傳失敗，請重試");
+      Alert.alert("儲存失敗", e?.message || "圖片上傳失敗，請重試");
     }
   };
 
@@ -318,7 +318,13 @@ export default function RecipeEditorScreen() {
         }}
       />
 
-      <ScrollView style={st.root} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={st.root}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={100}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Recipe Photo */}
         <TouchableOpacity style={st.card} onPress={pickImage} activeOpacity={0.85}>
           <View style={st.cardRow}>
@@ -558,7 +564,9 @@ export default function RecipeEditorScreen() {
             </View>
           </View>
         </Modal>
-      </ScrollView>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </>
   );
 }

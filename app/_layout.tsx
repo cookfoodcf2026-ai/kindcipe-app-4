@@ -73,6 +73,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [showDevReset, setShowDevReset] = useState(true); // Always show for testing
   const [biometricPrompt, setBiometricPrompt] = useState(false);
   const [biometricFailed, setBiometricFailed] = useState(false);
+  const [biometricChecked, setBiometricChecked] = useState(false);
   const hasCheckedClipboard = useRef(false);
 
   // 載入 2 秒後顯示重置按鈕
@@ -160,59 +161,66 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     checkOnboarding();
   }, [meQuery.data?.id]);
   
-  // Global clipboard detection on app open
+  // Global clipboard detection on app open (only after login)
+  const isLoggedIn = !!meQuery.data;
   useEffect(() => {
+    if (meQuery.isLoading || !isLoggedIn) return;
     if (hasCheckedClipboard.current) return;
     hasCheckedClipboard.current = true;
     
     const checkClipboardOnOpen = async () => {
       try {
         const text = await Clipboard.getStringAsync();
-        if (text && isValidUrl(text.trim())) {
-          const platform = detectPlatform(text);
-          
-          if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
-            // Check if already hinted in 24 hours
-            const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
-            if (hintedData) {
-              const { url, timestamp } = JSON.parse(hintedData);
-              const now = Date.now();
-              const hours24 = 24 * 60 * 60 * 1000;
-              if (url === text && now - timestamp < hours24) {
-                return; // Already hinted in 24 hours
-              }
-            }
-            
-            Alert.alert(
-              "偵測到食譜連結",
-              `發現 ${platform} 連結，是否立即匯入？`,
-              [
-                { text: "取消", style: "cancel" },
-                {
-                  text: "匯入食譜",
-                  onPress: () => {
-                    // Save to prevent repeat hint
-                    AsyncStorage.setItem(
-                      "kindcipe_clipboard_hinted",
-                      JSON.stringify({ url: text, timestamp: Date.now() })
-                    );
-                    router.push({
-                      pathname: "/import",
-                      params: { clipboardUrl: text },
-                    });
-                  }
-                }
-              ]
-            );
+        if (!text || !isValidUrl(text.trim())) {
+          return;
+        }
+        
+        const platform = detectPlatform(text);
+        if (!platform) {
+          return;
+        }
+        
+        if (!SUPPORTED_PLATFORMS.includes(platform)) {
+          return;
+        }
+        
+        const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
+        if (hintedData) {
+          const { url, timestamp } = JSON.parse(hintedData);
+          const now = Date.now();
+          const hours24 = 24 * 60 * 60 * 1000;
+          if (url === text && now - timestamp < hours24) {
+            return;
           }
         }
+        
+        Alert.alert(
+          "偵測到食譜連結",
+          `發現 ${platform} 連結，是否立即匯入？`,
+          [
+            { text: "取消", style: "cancel" },
+            {
+              text: "匯入食譜",
+              onPress: () => {
+                AsyncStorage.setItem(
+                  "kindcipe_clipboard_hinted",
+                  JSON.stringify({ url: text, timestamp: Date.now() })
+                );
+                router.push({
+                  pathname: "/import",
+                  params: { clipboardUrl: text },
+                });
+              }
+            }
+          ]
+        );
       } catch (e) {
         // Clipboard read failed, ignore
       }
     };
     
     checkClipboardOnOpen();
-  }, []);
+  }, [meQuery.isLoading, isLoggedIn]);
 
   useEffect(() => {
     if (biometricFailed) {

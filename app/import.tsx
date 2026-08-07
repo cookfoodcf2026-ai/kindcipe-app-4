@@ -19,6 +19,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
+import i18n from "@/lib/i18n";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -451,7 +452,7 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      parseUrlMutation.mutate({ url: trimmed });
+      parseUrlMutation.mutate({ url: trimmed, language: i18n.language });
     } else {
       parseTextMutation.mutate({ text: trimmed });
     }
@@ -558,22 +559,21 @@ export default function ImportScreen() {
     }, 3000);
 
     try {
-      let imageUrl = recipeImageUri || parsedRecipe.image || parsedRecipe.thumbnailUrl || "";
+      let imageUrl = recipeImageUri || parsedRecipe?.image || parsedRecipe?.thumbnailUrl || "";
       if (recipeImageBase64) {
         const uploadResult = await uploadImageMutation.mutateAsync({
           base64: recipeImageBase64,
           mimeType: "image/jpeg",
         });
-        imageUrl = uploadResult.url;
+        imageUrl = uploadResult?.url || "";
       }
 
-      // Upload step images
       const stepImages: (string | null)[] = [];
       for (const s of validSteps) {
         if (s.imageBase64) {
           try {
             const up = await uploadImageMutation.mutateAsync({ base64: s.imageBase64, mimeType: "image/jpeg" });
-            stepImages.push(up.url);
+            stepImages.push(up?.url || null);
           } catch { stepImages.push(null); }
         } else {
           stepImages.push(s.imageUri || null);
@@ -602,14 +602,14 @@ export default function ImportScreen() {
           image: stepImages[i] || undefined,
         })),
         tags,
-        sourceUrl: parsedRecipe.sourceUrl || "",
-        sourceAuthor: parsedRecipe.sourceAuthor || "",
+        sourceUrl: parsedRecipe?.sourceUrl || "",
+        sourceAuthor: parsedRecipe?.sourceAuthor || "",
         visibility: "private" as const,
       });
     } catch (e: any) {
       setIsSaving(false);
       if (saveStepTimer.current) { clearInterval(saveStepTimer.current); saveStepTimer.current = null; }
-      Alert.alert("儲存失敗", "圖片上傳失敗，請重試");
+      Alert.alert("儲存失敗", e?.message || "圖片上傳失敗，請重試");
     }
   };
 
@@ -1014,10 +1014,14 @@ export default function ImportScreen() {
                   setStep("input");
                   setErrorMsg("");
                   setFailedInput(null);
+                  setUniversalInput("");
+                  setClipboardUrl(null);
+                  setClipboardContent(null);
+                  setDetectedPlatform(null);
                 }}
               >
                 <Ionicons name="link-outline" size={18} color="#013E77" />
-                <Text style={styles.tryTextButtonText}>貼上連結</Text>
+                <Text style={styles.tryTextButtonText}>試另一條連結</Text>
               </TouchableOpacity>
 
               {/* 按鈕 3：自訂食譜（最後手段） */}
@@ -1095,6 +1099,11 @@ export default function ImportScreen() {
               <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
                 <Ionicons name="document" size={16} color="#013E77" />
                 <Text style={styles.pasteButtonText}>貼上</Text>
+              </TouchableOpacity>
+            )}
+            {!!universalInput && (
+              <TouchableOpacity style={styles.clearButton} onPress={() => setUniversalInput("")}>
+                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
               </TouchableOpacity>
             )}
           </View>
@@ -1237,6 +1246,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 14,
+    paddingRight: 80,
     fontSize: 14,
     color: "#1A1A1A",
     minHeight: 120,
@@ -1260,6 +1270,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#013E77",
+  },
+  clearButton: {
+    position: "absolute",
+    top: 14,
+    right: 16,
+    padding: 6,
   },
   parseButton: {
     flexDirection: "row",
