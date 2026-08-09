@@ -537,9 +537,12 @@ export default function ImportScreen() {
       // For Instagram URLs, extract thumbnail URL (backend will rehost to R2)
       let clientThumbnail: string | undefined;
       if (trimmed.includes("instagram.com")) {
-        clientThumbnail = await extractInstagramThumbnail(trimmed);
-        if (clientThumbnail) {
-          console.log("[Instagram Thumbnail] Got URL, will display in preview");
+        const extractedUrl = await extractInstagramThumbnail(trimmed);
+        if (extractedUrl) {
+          // Set immediately so it shows in preview without waiting for backend
+          setRecipeImageUri(extractedUrl);
+          clientThumbnail = extractedUrl;
+          console.log("[Instagram Thumbnail] Got URL, set for preview");
         } else {
           console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
         }
@@ -560,11 +563,11 @@ export default function ImportScreen() {
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
   const handlePickImage = async (source: "camera" | "library") => {
-    let result;
+    let result: ImagePicker.ImagePickerResult | undefined;
     try {
       result = source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: false })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: false });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
     } catch (e: any) {
       Alert.alert("開啟失敗", e?.message || "請重試");
       return;
@@ -572,34 +575,29 @@ export default function ImportScreen() {
       setShowPhotoSourceModal(false);
     }
 
-    if (result.canceled || !result.assets?.[0]) return;
+    if (!result || result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
     try {
       const compressed = await compressImage(asset.uri);
       setPendingScreenshot({
         uri: compressed.uri,
-        base64: compressed.base64,
+        base64: compressed.base64 || "",
         mimeType: compressed.mimeType,
       });
       setUniversalInput("");
       setClipboardUrl(null);
       setDetectedPlatform(null);
-      setStep("input"); // ✅ 成功拿到新圖後，立刻切換回輸入主畫面，這樣才能顯示預覽 UI！
+      setStep("input");
     } catch {
-      const fallbackBase64 = asset.base64 || "";
-      if (!fallbackBase64) {
-        Alert.alert("圖片處理失敗", "無法讀取這張圖片，請重新選擇");
-        return;
-      }
       setPendingScreenshot({
         uri: asset.uri,
-        base64: fallbackBase64,
+        base64: asset.base64 || "",
         mimeType: asset.mimeType || "image/jpeg",
       });
       setUniversalInput("");
       setClipboardUrl(null);
       setDetectedPlatform(null);
-      setStep("input"); // ✅ Fallback 成功同樣切換回主畫面
+      setStep("input");
     }
   };
 
