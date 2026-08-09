@@ -143,15 +143,18 @@ export default function ImportScreen() {
       }))
     );
     setImageError(false);
-    // Set image from backend R2 URL (rehosted from Instagram CDN)
-    if (recipe.thumbnailUrl) {
-      console.log("[initEditFromParsed] Setting thumbnailUrl:", recipe.thumbnailUrl.substring(0, 80));
-      setRecipeImageUri(recipe.thumbnailUrl);
-    } else if (recipe.image) {
+    // Only replace with R2 URL (permanent), keep CDN URL temporarily
+    const isR2Url = recipe.thumbnailUrl?.includes('r2.cloudflarestorage.com') || 
+                    recipe.thumbnailUrl?.includes('pub-') ||
+                    recipe.image?.includes('r2.cloudflarestorage.com');
+    if (isR2Url) {
+      console.log("[initEditFromParsed] Setting R2 URL:", recipe.thumbnailUrl?.substring(0, 80));
+      setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
+    } else if (recipe.image && !recipe.thumbnailUrl) {
       console.log("[initEditFromParsed] Setting image:", recipe.image.substring(0, 80));
       setRecipeImageUri(recipe.image);
     } else {
-      console.log("[initEditFromParsed] No image from backend");
+      console.log("[initEditFromParsed] Keeping CDN URL or no image from backend");
     }
   };
 
@@ -562,15 +565,15 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      // For Instagram URLs, extract thumbnail URL and pass to backend for rehosting to R2
+      // For Instagram URLs, extract thumbnail URL and display immediately
       let clientThumbnail: string | undefined;
       if (trimmed.includes("instagram.com")) {
         const extractedUrl = await extractInstagramThumbnail(trimmed);
         if (extractedUrl) {
-          // Don't set recipeImageUri here - Instagram CDN URLs get blocked (403)
-          // Wait for backend to rehost to R2 and return permanent URL
+          // Display immediately (temporary CDN URL)
+          setRecipeImageUri(extractedUrl);
           clientThumbnail = extractedUrl;
-          console.log("[Instagram Thumbnail] Got URL, passing to backend for rehost");
+          console.log("[Instagram Thumbnail] Got URL, displaying immediately");
         } else {
           console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
         }
