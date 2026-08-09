@@ -452,42 +452,74 @@ export default function ImportScreen() {
     } catch { return false; }
   }
 
-  // Extract Instagram thumbnail URL (don't download as base64 - CDN blocks with 403)
+  // Extract Instagram thumbnail URL using /media endpoint (most reliable free method)
   async function extractInstagramThumbnail(url: string): Promise<string | undefined> {
     try {
-      // Clean URL: remove query parameters for oEmbed
+      // Clean URL: remove query parameters
       const cleanUrl = url.split("?")[0];
-      let imageUrl: string | undefined;
       
-      // Strategy 1: Instagram oEmbed API (official, free, no auth required)
+      // Extract shortcode from URL (e.g., /reel/DYtC5HfIEEU/ → DYtC5HfIEEU)
+      const shortcodeMatch = cleanUrl.match(/\/(?:reel|p|tv)\/([A-Za-z0-9_-]+)/);
+      const shortcode = shortcodeMatch?.[1];
+      
+      if (!shortcode) {
+        console.log("[Instagram Thumbnail] No shortcode found");
+        return undefined;
+      }
+      
+      // Strategy 1: Instagram /media endpoint (returns JSON with direct image URL)
       try {
-        console.log("[Instagram Thumbnail] Trying oEmbed API:", cleanUrl);
-        const oembedController = new AbortController();
-        const oembedTimeout = setTimeout(() => oembedController.abort(), 5000);
-        const oembedResp = await fetch(
-          `https://api.instagram.com/oembed?url=${encodeURIComponent(cleanUrl)}`,
+        console.log("[Instagram Thumbnail] Trying /media endpoint:", shortcode);
+        const mediaController = new AbortController();
+        const mediaTimeout = setTimeout(() => mediaController.abort(), 8000);
+        const mediaResp = await fetch(
+          `https://www.instagram.com/${shortcode}/media/?__a=1&__d=dis`,
           {
-            signal: oembedController.signal,
+            signal: mediaController.signal,
+            headers: {
+              "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+              "Accept": "application/json",
+              "X-IG-App-ID": "936619743392459",
+            },
           }
         );
-        clearTimeout(oembedTimeout);
-        if (oembedResp.ok) {
-          const oembedData = await oembedResp.json() as { thumbnail_url?: string };
-          if (oembedData.thumbnail_url) {
-            console.log("[Instagram Thumbnail] Found via oEmbed:", oembedData.thumbnail_url.substring(0, 80));
-            return oembedData.thumbnail_url;
+        clearTimeout(mediaTimeout);
+        
+        if (mediaResp.ok) {
+          const json = await mediaResp.json() as any;
+          // Handle both reel and post structures
+          const items = json.items || json.graphql?.shortcode_media || json;
+          const mediaItem = Array.isArray(items) ? items[0] : items;
+          
+          // Extract thumbnail URL from various possible structures
+          let imageUrl: string | undefined;
+          
+          if (mediaItem?.image_versions2?.candidates?.[0]?.url) {
+            // Reel/video structure
+            imageUrl = mediaItem.image_versions2.candidates[0].url;
+          } else if (mediaItem?.display_url) {
+            // Post structure
+            imageUrl = mediaItem.display_url;
+          } else if (mediaItem?.thumbnail_src) {
+            // Fallback structure
+            imageUrl = mediaItem.thumbnail_src;
+          }
+          
+          if (imageUrl) {
+            console.log("[Instagram Thumbnail] Found via /media:", imageUrl.substring(0, 80));
+            return imageUrl;
           }
         }
-      } catch (oembedErr) {
-        console.log("[Instagram Thumbnail] oEmbed failed:", oembedErr);
+      } catch (mediaErr) {
+        console.log("[Instagram Thumbnail] /media endpoint failed:", mediaErr);
         // Continue to fallback
       }
       
-      // Strategy 2: Direct HTML fetch with mobile User-Agent
+      // Strategy 2: Fallback to og:image meta tag
       console.log("[Instagram Thumbnail] Fallback: fetching HTML");
       const htmlController = new AbortController();
       const htmlTimeout = setTimeout(() => htmlController.abort(), 8000);
-      const resp = await fetch(url, {
+      const resp = await fetch(cleanUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -501,23 +533,12 @@ export default function ImportScreen() {
       }
       const html = await resp.text();
       
-      // Strategy 2a: og:image meta tag (multiple patterns)
+      // og:image meta tag
       const ogImageMatch = html.match(/property="og:image"\s+content="([^"]+)"/) ||
-                          html.match(/content="([^"]+)"\s+property="og:image"/) ||
-                          html.match(/property="og:image"\s+content='([^']+)'/) ||
-                          html.match(/content='([^']+)'\s+property="og:image"/);
+                          html.match(/content="([^"]+)"\s+property="og:image"/);
       if (ogImageMatch && ogImageMatch[1]) {
         console.log("[Instagram Thumbnail] Found via og:image:", ogImageMatch[1].substring(0, 80));
         return ogImageMatch[1];
-      }
-      
-      // Strategy 2b: Instagram CDN URL pattern (display_url from GraphQL)
-      const cdnMatch = html.match(/"display_url":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/) ||
-                      html.match(/"displayUrl":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/);
-      if (cdnMatch && cdnMatch[1]) {
-        const decoded = cdnMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
-        console.log("[Instagram Thumbnail] Found via CDN:", decoded.substring(0, 80));
-        return decoded;
       }
       
       console.log("[Instagram Thumbnail] No thumbnail found");
