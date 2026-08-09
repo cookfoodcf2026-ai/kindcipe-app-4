@@ -143,11 +143,15 @@ export default function ImportScreen() {
       }))
     );
     setImageError(false);
-    // Set image from parsedRecipe (clientThumbnail or backend rehosted URL)
+    // Set image from backend R2 URL (rehosted from Instagram CDN)
     if (recipe.thumbnailUrl) {
+      console.log("[initEditFromParsed] Setting thumbnailUrl:", recipe.thumbnailUrl.substring(0, 80));
       setRecipeImageUri(recipe.thumbnailUrl);
     } else if (recipe.image) {
+      console.log("[initEditFromParsed] Setting image:", recipe.image.substring(0, 80));
       setRecipeImageUri(recipe.image);
+    } else {
+      console.log("[initEditFromParsed] No image from backend");
     }
   };
 
@@ -299,6 +303,8 @@ export default function ImportScreen() {
     onSuccess: (data) => {
       isParsingRef.current = false;
       stopParseProgress();
+      console.log("[parseUrlMutation.onSuccess] parseReason:", data.parseReason);
+      console.log("[parseUrlMutation.onSuccess] thumbnailUrl:", data.thumbnailUrl?.substring(0, 80));
       if (data.parseReason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
@@ -327,6 +333,7 @@ export default function ImportScreen() {
     onError: (err) => {
       isParsingRef.current = false;
       stopParseProgress();
+      console.error("[parseUrlMutation.onError]", err);
       setErrorMsg(err.message || "無法連接到解析服務，請稍後重試");
       setFailedInput({ type: "url", value: universalInput });
       setStep("failed");
@@ -534,19 +541,21 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      // For Instagram URLs, extract thumbnail URL (backend will rehost to R2)
+      // For Instagram URLs, extract thumbnail URL and pass to backend for rehosting to R2
       let clientThumbnail: string | undefined;
       if (trimmed.includes("instagram.com")) {
         const extractedUrl = await extractInstagramThumbnail(trimmed);
         if (extractedUrl) {
-          // Set immediately so it shows in preview without waiting for backend
-          setRecipeImageUri(extractedUrl);
+          // Don't set recipeImageUri here - Instagram CDN URLs get blocked (403)
+          // Wait for backend to rehost to R2 and return permanent URL
           clientThumbnail = extractedUrl;
-          console.log("[Instagram Thumbnail] Got URL, set for preview");
+          console.log("[Instagram Thumbnail] Got URL, passing to backend for rehost");
         } else {
           console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
         }
       }
+      // Reset imageError before parsing
+      setImageError(false);
       parseUrlMutation.mutate({ url: trimmed, language: i18n.language, clientThumbnail });
     } else {
       parseTextMutation.mutate({ text: trimmed, language: i18n.language });
