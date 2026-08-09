@@ -16,7 +16,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
+  ActivityIndicator,
 } from "react-native";
+import { useState } from "react";
+import { purchaseSubscription, PRODUCT_IDS, manageSubscription } from "../lib/purchase";
+import { trpc } from "../lib/trpc";
 
 type PaywallFeature =
   | "import_limit"    // 匯入次數超出
@@ -38,12 +42,12 @@ const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; title: string; d
   import_limit: {
     emoji: "📥",
     title: "已達免費匯入上限",
-    desc: "免費版每月最多匯入 5 個食譜\n升級後可無限匯入",
+    desc: "免費版每月最多匯入 20 個食譜\n升級後可匯入最多 200/300 個",
   },
   recipe_limit: {
     emoji: "📚",
     title: "已達食譜儲存上限",
-    desc: "免費版最多儲存 30 個自訂食譜\n升級後可無限儲存",
+    desc: "免費版最多儲存 15 個自訂食譜\n升級後可無限儲存",
   },
   member_limit: {
     emoji: "👨‍👩‍👧",
@@ -79,13 +83,36 @@ export default function PaywallModal({
   trialDaysLeft,
 }: PaywallModalProps) {
   const msg = FEATURE_MESSAGES[feature];
+  const [isPurchasing, setIsPurchasing] = useState<'monthly' | 'yearly' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleUpgrade = () => {
-    // TODO: 替換為實際的 App Store 訂閱連結
-    // iOS: Linking.openURL("https://apps.apple.com/app/idXXXXXXXXX?action=write-review")
-    // 或使用 expo-in-app-purchases 處理訂閱
-    Linking.openURL("https://kindcipe.app/upgrade");
-    onClose();
+  const handlePurchase = async (productId: 'kindcipe_monthly_30' | 'kindcipe_yearly_288') => {
+    setIsPurchasing(productId === 'kindcipe_monthly_30' ? 'monthly' : 'yearly');
+    setError(null);
+
+    try {
+      const result = await purchaseSubscription(productId);
+      if (result.success) {
+        // 購買成功，關閉 Modal
+        onClose();
+      } else if (result.error === 'cancelled') {
+        // 用戶取消，唔使做嘢
+      } else {
+        setError(result.error || '購買失敗，請重試');
+      }
+    } catch (err: any) {
+      setError(err.message || '購買失敗，請重試');
+    } finally {
+      setIsPurchasing(null);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      await manageSubscription();
+    } catch (err) {
+      console.error('[Paywall] manageSubscription failed:', err);
+    }
   };
 
   return (
@@ -116,34 +143,41 @@ export default function PaywallModal({
           {/* Pricing */}
           <View style={styles.pricingBox}>
             <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>家庭版</Text>
+              <Text style={styles.pricingLabel}>家庭版月費</Text>
               <View style={styles.pricingRight}>
-                <Text style={styles.price}>HK$28</Text>
+                <Text style={styles.price}>HK$30</Text>
                 <Text style={styles.pricePer}>/月</Text>
               </View>
             </View>
             <View style={styles.divider} />
             <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>年費優惠</Text>
+              <Text style={styles.pricingLabel}>家庭版年費（省 20%）</Text>
               <View style={styles.pricingRight}>
-                <Text style={styles.price}>HK$218</Text>
+                <Text style={styles.price}>HK$288</Text>
                 <Text style={styles.pricePer}>/年</Text>
                 <View style={styles.saveBadge}>
-                  <Text style={styles.saveText}>省 35%</Text>
+                  <Text style={styles.saveText}>省 HK$72</Text>
                 </View>
               </View>
             </View>
           </View>
 
+          {/* Error message */}
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : null}
+
           {/* Features list */}
           <View style={styles.featuresList}>
             {[
-              "無限匯入食譜",
+              "每月最多 200/300 個食譜匯入",
               "無限儲存食譜",
               "最多 6 位家庭成員",
               "截圖匯入食譜",
               "食材搜尋功能",
               "多語言支援（英文 / 印尼文）",
+              "離線可用",
+              "無廣告",
             ].map((f) => (
               <View key={f} style={styles.featureRow}>
                 <Text style={styles.checkmark}>✓</Text>
@@ -153,8 +187,28 @@ export default function PaywallModal({
           </View>
 
           {/* CTA buttons */}
-          <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade}>
-            <Text style={styles.upgradeBtnText}>立即升級</Text>
+          <TouchableOpacity 
+            style={[styles.upgradeBtn, isPurchasing === 'monthly' && styles.upgradeBtnDisabled]} 
+            onPress={() => handlePurchase(PRODUCT_IDS.MONTHLY)}
+            disabled={!!isPurchasing}
+          >
+            {isPurchasing === 'monthly' ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.upgradeBtnText}>訂閱月費 HK$30</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.yearlyBtn, isPurchasing === 'yearly' && styles.upgradeBtnDisabled]} 
+            onPress={() => handlePurchase(PRODUCT_IDS.YEARLY)}
+            disabled={!!isPurchasing}
+          >
+            {isPurchasing === 'yearly' ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（省 20%）</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
@@ -163,6 +217,10 @@ export default function PaywallModal({
                 ? `繼續試用（剩餘 ${trialDaysLeft} 天）`
                 : "稍後再說"}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.restoreBtn} onPress={handleManageSubscription}>
+            <Text style={styles.restoreBtnText}>管理訂閱</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -287,7 +345,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
+  upgradeBtnDisabled: {
+    backgroundColor: "#6B7280",
+  },
+  yearlyBtn: {
+    backgroundColor: "#013E77",
+    borderRadius: 14,
+    paddingVertical: 16,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   upgradeBtnText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  yearlyBtnText: {
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
@@ -298,5 +372,20 @@ const styles = StyleSheet.create({
   cancelBtnText: {
     color: "#9CA3AF",
     fontSize: 14,
+  },
+  restoreBtn: {
+    paddingVertical: 10,
+    marginTop: 5,
+  },
+  restoreBtnText: {
+    color: "#013E77",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  errorText: {
+    color: "#DC2626",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 12,
   },
 });
