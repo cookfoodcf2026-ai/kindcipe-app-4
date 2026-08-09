@@ -315,6 +315,8 @@ export default function RecipeDetailScreen() {
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
   const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
   const [showShoppingDatePicker, setShowShoppingDatePicker] = useState(false);
+  // Hero image failed to load (404 / offline) — fall back to generic hero so the page never blanks
+  const [heroBroken, setHeroBroken] = useState(false);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const autoAddCartRef = useRef(false);
@@ -351,6 +353,11 @@ export default function RecipeDetailScreen() {
     });
     return () => sub.remove();
   }, [noteInput]);
+
+  // Reset broken-hero fallback when navigating between recipes
+  useEffect(() => {
+    setHeroBroken(false);
+  }, [id]);
 
   const utils = trpc.useUtils();
 
@@ -788,7 +795,8 @@ export default function RecipeDetailScreen() {
   };
   
   const localImage = recipe ? getLocalImage(recipe.name) : null;
-  const imgUrl = localImage || (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
+  const rawImgUrl = localImage || (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
+  const imgUrl = heroBroken && !localImage ? null : rawImgUrl;
   // recipeImage 只接受字串 URL；require() 回傳的數字 asset id 不能送出後端
   const remoteImageUrl = (recipe as any)?.image || (recipe as any)?.thumbnailUrl || undefined;
   const isUserRecipe = (recipe as any)?.source === "user";
@@ -1067,7 +1075,7 @@ export default function RecipeDetailScreen() {
                 >
                   {localImage
                     ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />}
+                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroBroken(true)} />}
                   {/* Source link overlay indicator */}
                   <View style={s.sourceLinkOverlay}>
                     <Ionicons name="play-circle" size={32} color="#fff" />
@@ -1077,7 +1085,7 @@ export default function RecipeDetailScreen() {
               ) : (
                 localImage
                   ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
+                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroBroken(true)} />
               )
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder]}>
