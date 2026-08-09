@@ -143,7 +143,10 @@ export default function ImportScreen() {
       }))
     );
     setImageError(false);
-    if (recipe.image || recipe.thumbnailUrl) {
+    // ONLY set image from backend if we don't already have a base64 image
+    // This prevents overwriting our client-side extracted base64 with expired backend URLs
+    const hasBase64Image = recipeImageUri?.startsWith('data:image');
+    if (!hasBase64Image && (recipe.image || recipe.thumbnailUrl)) {
       setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
     }
   };
@@ -298,13 +301,8 @@ export default function ImportScreen() {
       stopParseProgress();
       if (data.parseReason === "ok") {
         setParsedRecipe(data);
-        // Keep the base64 image we already set (don't overwrite with potentially expired backend URL)
-        const existingImageUri = recipeImageUri;
+        // initEditFromParsed will preserve our base64 image (won't overwrite with backend URL)
         initEditFromParsed(data);
-        // Restore base64 if backend returned empty/expired URL
-        if (existingImageUri && existingImageUri.startsWith('data:image') && !data.thumbnailUrl) {
-          setRecipeImageUri(existingImageUri);
-        }
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
         const platform = detectPlatform(universalInput);
