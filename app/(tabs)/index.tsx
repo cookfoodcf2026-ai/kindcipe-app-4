@@ -565,6 +565,7 @@ export default function RecipesTab() {
     cookTimeMax: activePopularChips.includes("quick15") ? 15 : activePopularChips.includes("quick30") ? 30 : filterCookTimeMax,
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
+    source: viewMode,
     limit: viewType === "grid" ? 20 : 30,
   });
 
@@ -698,6 +699,7 @@ export default function RecipesTab() {
         setActiveTagFilters={setActiveTagFilters}
         setQuickPlanRecipe={setQuickPlanRecipe}
         navigateToRecipe={navigateToRecipe}
+        showQuickPlan={false} // 暫時隱藏快速排餐按鈕（2026-08-09）：簡化食譜卡 UI，用戶仍可透過詳情頁 / 排餐頁 / AI Chef 加入排餐
       />
     );
   };

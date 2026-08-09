@@ -161,10 +161,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     checkOnboarding();
   }, [meQuery.data?.id]);
   
-  // Global clipboard detection on app open (only after login)
+  // Global clipboard detection on app open (only after login, only on tabs page)
   const isLoggedIn = !!meQuery.data;
+  const isTabsGroup = segments[0] === "(tabs)";
   useEffect(() => {
     if (meQuery.isLoading || !isLoggedIn) return;
+    if (!isTabsGroup) return; // Only show clipboard alert on main tabs, not during login/onboarding
     if (hasCheckedClipboard.current) return;
     hasCheckedClipboard.current = true;
     
@@ -220,7 +222,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     };
     
     checkClipboardOnOpen();
-  }, [meQuery.isLoading, isLoggedIn]);
+  }, [meQuery.isLoading, isLoggedIn, isTabsGroup]);
 
   useEffect(() => {
     if (biometricFailed) {

@@ -55,6 +55,7 @@ export default function RecipeEditorScreen() {
   const [cookTime, setCookTime] = useState("30");
   const [difficulty, setDifficulty] = useState("中等");
   const [category, setCategory] = useState("中菜");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [tags, setTags] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { id: `ing_${Date.now()}`, name: "", quantity: "", unit: "克" },
@@ -64,6 +65,7 @@ export default function RecipeEditorScreen() {
   ]);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStep, setSaveStep] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -101,7 +103,9 @@ export default function RecipeEditorScreen() {
       setCookTime(String(r.cookTime ?? 30));
       setDifficulty(r.difficulty ?? "中等");
       setCategory(r.recipeCategory ?? "中菜");
+      setSourceUrl(r.sourceUrl ?? "");
       setTags((r.tags || []).join(" "));
+      setImageError(false);
       if (r.image || r.thumbnailUrl) setImageUri(r.thumbnailUrl || r.image);
       if (Array.isArray(r.ingredients) && r.ingredients.length > 0) {
         setIngredients(r.ingredients.map((ing: any, i: number) => ({
@@ -126,6 +130,7 @@ export default function RecipeEditorScreen() {
   const createM = trpc.recipes.createBlank.useMutation({
     onSuccess: () => {
       utils.recipes.listUser.invalidate();
+      utils.recipes.search.invalidate();
       router.back();
     },
     onError: (e) => { setIsSaving(false); Alert.alert("儲存失敗", e.message); },
@@ -133,7 +138,9 @@ export default function RecipeEditorScreen() {
   const updateM = trpc.recipes.updateUser.useMutation({
     onSuccess: () => {
       utils.recipes.listUser.invalidate();
+      utils.recipes.search.invalidate();
       utils.recipes.getById.invalidate({ id: String(editingId) });
+      utils.recipes.getById.invalidate({ id: `user_${editingId}` });
       router.back();
     },
     onError: (e) => { setIsSaving(false); Alert.alert("更新失敗", e.message); },
@@ -154,6 +161,7 @@ export default function RecipeEditorScreen() {
       base64: false,
     });
     if (!result.canceled && result.assets[0]) {
+      setImageError(false);
       try {
         const compressed = await compressImage(result.assets[0].uri);
         setImageUri(compressed.uri);
@@ -250,6 +258,7 @@ export default function RecipeEditorScreen() {
         description: description.trim(),
         image: imageUrl,
         thumbnailUrl: imageUrl,
+        sourceUrl: sourceUrl.trim(),
         servings: parseInt(servings) || 4,
         cookTime: parseInt(cookTime) || 30,
         difficulty,
@@ -333,8 +342,8 @@ export default function RecipeEditorScreen() {
             </View>
             <Text style={st.cardTitle}>食譜相片</Text>
           </View>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={st.recipeImage} />
+          {imageUri && !imageError ? (
+            <Image source={{ uri: imageUri }} style={st.recipeImage} onError={() => setImageError(true)} />
           ) : (
             <View style={st.imagePH}>
               <Ionicons name="image-outline" size={48} color="#B0BAC9" />
@@ -421,6 +430,16 @@ export default function RecipeEditorScreen() {
               );
             })}
           </View>
+
+          <Text style={[st.label, { marginTop: 16 }]}>來源連結（選填）</Text>
+          <TextInput style={st.input} value={sourceUrl} onChangeText={setSourceUrl}
+            placeholder="例：https://www.instagram.com/reel/xxx 或 YouTube 連結"
+            placeholderTextColor={HINT}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <Text style={st.hint}>新增來源連結後，食譜詳情頁將顯示「教學影片 by 作者」</Text>
         </View>
 
         {/* Ingredients */}
@@ -599,6 +618,7 @@ const st = StyleSheet.create({
 
   // Form
   label: { fontSize: 13, fontWeight: "700", color: "#5A4A3A", marginBottom: 6 },
+  hint: { fontSize: 12, color: HINT, marginBottom: 14, marginTop: -8 },
   input: {
     backgroundColor: BG, borderWidth: 1.5, borderColor: BORDER,
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,

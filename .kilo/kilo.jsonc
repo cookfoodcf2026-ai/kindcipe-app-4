@@ -1,0 +1,14 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "snapshot": false,
+  "permission": {
+    "external_directory": {
+      // 專案根目錄（kindcipe-app-4）：順暢存取
+      ".": "allow",
+      // Backend 資料夾：順暢存取
+      "/Users/mavisng/Desktop/Kindcipe/manus/kindcipe-backend/**": "allow",
+      // 電腦其他無關路徑：保護，每次詢問
+      "*": "ask",
+    },
+  },
+}

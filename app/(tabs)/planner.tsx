@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
+import { mergeIngredients } from "@/constants/ingredients";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -442,24 +443,19 @@ export default function PlannerTab() {
             text: "去購物清單加食材",
             onPress: () => {
               if (allPickerRecipes.length > 0) {
-                // 合併所有食材，按排餐日期分組
-                const mergedIngredients: any[] = [];
-                const seenNames = new Set<string>();
-                allPickerRecipes.forEach(pr => {
-                  pr.ingredients.forEach((ing: any) => {
-                    const normalized = ing.name.trim();
-                    if (!seenNames.has(normalized)) {
-                      seenNames.add(normalized);
-                      mergedIngredients.push({
-                        ...ing,
-                        recipeName: "本週 AI 晚餐推薦",
-                        recipeId: pr.id,
-                        plannedDate: pr.date,
-                      });
-                    }
-                  });
-                });
-                
+                // 合併同名食材：同單位會相加份量
+                const flat = allPickerRecipes.flatMap(pr =>
+                  pr.ingredients.map((ing: any) => ({
+                    ...ing,
+                    recipeName: "本週 AI 晚餐推薦",
+                    recipeId: pr.id,
+                  }))
+                );
+                const mergedIngredients = mergeIngredients(flat).map((ing) => ({
+                  ...ing,
+                  plannedDate: ing.date ?? getDayBefore(getDateForDow(startDate, 1)),
+                }));
+
                 if (mergedIngredients.length > 0) {
                   setPickerRecipe({
                     id: "batch_ai_weekly",
@@ -479,7 +475,6 @@ export default function PlannerTab() {
       );
     } catch (e: any) {
       console.error("[handleApplyEntireWeek] Error:", e);
-      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
       setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
     }
   };
@@ -546,17 +541,18 @@ export default function PlannerTab() {
             text: "去購物清單加食材",
             onPress: () => {
               if (pickerRecipes.length > 0) {
-                const mergedIngredients: any[] = [];
-                pickerRecipes.forEach(pr => {
-                  pr.ingredients.forEach((ing: any) => {
-                    mergedIngredients.push({
-                      ...ing,
-                      recipeName: pr.name,
-                      recipeId: pr.id,
-                      plannedDate: pr.date,
-                    });
-                  });
-                });
+                // 本日 4 個餸：同名食材合併（同單位相加）
+                const flat = pickerRecipes.flatMap(pr =>
+                  pr.ingredients.map((ing: any) => ({
+                    ...ing,
+                    recipeName: pr.name,
+                    recipeId: pr.id,
+                  }))
+                );
+                const mergedIngredients = mergeIngredients(flat).map((ing) => ({
+                  ...ing,
+                  plannedDate: ing.date ?? getDayBefore(itemDateStr),
+                }));
 
                 setPickerRecipe({
                   id: `day_${item.dayOfWeek}_ai`,
@@ -572,8 +568,7 @@ export default function PlannerTab() {
         ]
       );
     } catch (e: any) {
-      console.error("[handleApplyEntireWeek] Error:", e);
-      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
+      console.error("[handleApplyToday] Error:", e);
       setToast({ visible: true, message: `套用失敗：${e.message}`, type: "error" });
     }
   };

@@ -8,6 +8,7 @@ interface UseRecipeSearchOptions {
   cookTimeMax?: number;
   popularChips?: string[];
   ingredientCategory?: string;
+  source?: "all" | "official" | "user";
   limit?: number;
 }
 
@@ -19,6 +20,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     cookTimeMax,
     popularChips,
     ingredientCategory,
+    source,
     limit = 20,
   } = options;
 
@@ -30,6 +32,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
       cookTimeMax: cookTimeMax || undefined,
       popularChips: popularChips || undefined,
       ingredientCategory: ingredientCategory || undefined,
+      source: source || undefined,
       limit,
     },
     {

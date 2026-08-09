@@ -17,6 +17,7 @@ import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
+import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -299,13 +300,16 @@ export default function AIChefScreen() {
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2000);
   };
 
-  // ─── Batch shopping selection popup ────────────────────
-  const [showShopModal, setShowShopModal] = useState(false);
-  const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]);
-  const [shopSelected, setShopSelected] = useState<Set<string>>(new Set());
+  // ─── Shopping lists after AI plan ─────────────────────
+  const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]); // 保留食譜名稱供 fromRecipeName
   const [shopPlannedDate, setShopPlannedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   // Ingredient picker after addPlanM success (single recipe)
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  // 批量排餐完成後用嚟開啟 IngredientPickerModal（多個食譜）
+  const [batchPickerRecipes, setBatchPickerRecipesState] = useState<PickerRecipe[] | null>(null);
+  const setBatchPickerRecipes = (recipes: PickerRecipe[] | null) => {
+    setBatchPickerRecipesState(recipes);
+  };
 
   // ── Pantry / Ingredient asking flow ───────────────────
   const { data: pantryData } = trpc.pantry.list.useQuery(undefined, { enabled: !!user });
@@ -735,15 +739,17 @@ export default function AIChefScreen() {
   const addPlanM = trpc.mealPlan.add.useMutation({
     onError: (e) => Alert.alert("加入排餐失敗", e.message),
   });
+  const addPlanBatchM = trpc.mealPlan.addBatch.useMutation({
+    onError: (e) => Alert.alert("批量加入排餐失敗", e.message),
+  });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: (data, variables) => {
       utils.shopping.list.invalidate();
       utils.mealPlan.listByDateRange.invalidate();
       setShowPlan(false);
-      setShowShopModal(false);
       setShopRecipes([]);
-      setShopSelected(new Set());
       setPlanPickerRecipe(null);
+      setBatchPickerRecipes(null);
       const count = variables.items.length;
       showToast(`✅ ${count} 件食材已加入購物清單`);
     },
@@ -1061,66 +1067,23 @@ export default function AIChefScreen() {
     });
   };
 
-const COMMON_PANTRY = [
-  "油", "鹽", "糖", "生抽", "老抽", "蠔油", "麻油",
-  "胡椒粉", "黑椒粉", "醋", "料酒", "紹酒",
-  "生粉", "粟粉", "太白粉",
-  "薑", "薑絲", "薑片", "蒜", "蒜蓉", "蒜頭", "蔥", "蔥花",
-  "清水", "水", "八角", "花椒", "五香粉", "雞粉", "味醂",
-];
-
-// Helper to categorize ingredients based on keywords
-const categorizeIngredient = (name: string): string => {
-  const n = name.toLowerCase();
-  if (/蔬菜|菜|青菜|白菜|生菜|菠菜|芥蘭|菜心|西蘭花|椰菜|蘿蔔|薯仔|番茄|青瓜|茄子|南瓜|冬瓜|絲瓜|洋蔥|洋蔥/.test(n)) return "蔬菜";
-  if (/肉|豬|牛|雞|羊|排骨|雞翼|雞腿|牛肉|豬肉|雞胸/.test(n)) return "肉類";
-  if (/魚|蝦|蟹|貝|魷魚|章魚|蠔|蜆|蛤|鮑魚|海參/.test(n)) return "海鮮";
-  if (/蛋|奶|芝士|牛奶|奶油|牛油/.test(n)) return "蛋奶";
-  if (/米|飯|麵|粉|粉絲|烏冬|意粉|通粉|餃子|雲吞/.test(n)) return "主食";
-  if (/醬|油|鹽|糖|醋|酒|味精|雞粉|胡椒粉|五香|八角|花椒|桂皮/.test(n)) return "調味料";
-  if (/乾|冬菇|木耳|金針|蝦米|瑤柱|蓮子|百合|紅棗|枸杞/.test(n)) return "乾貨";
-  if (/水|果汁|汽水|啤酒|紅酒|白酒|湯/.test(n)) return "飲品";
-  return "其他";
-};
-
-const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
-    setShopRecipes(recipes);
-    setShopPlannedDate(plannedDate || new Date().toISOString().split("T")[0]);
-    const selected = new Set<string>();
-    recipes.forEach(r => {
-      r.ingredients.forEach((ing, i) => {
-        const isPantry = COMMON_PANTRY.some(p => ing.name.includes(p));
-        if (!isPantry) selected.add(`${r.name}::${i}`);
-      });
-    });
-    setShopSelected(selected);
-    setShowShopModal(true);
-  };
-
-  const toggleShopIngredient = (key: string) => {
-    setShopSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-
-  const confirmShopBatch = () => {
-    const items: { name: string; quantity: string; unit: string; category: string }[] = [];
-    shopRecipes.forEach(r => {
-      r.ingredients.forEach((ing, i) => {
-        if (shopSelected.has(`${r.name}::${i}`)) {
-          items.push({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) });
-        }
-      });
-    });
-    addShoppingM.mutate({
-      items,
-      fromRecipeName: shopRecipes.map(r => r.name).join(", "),
-      plannedDate: shopPlannedDate,
-    });
-    setShopRecipes([]);
-    setShopSelected(new Set());
+  const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
+    // 改用 IngredientPickerModal：統一 UI、預設唔勾調味料、支援日期驗證
+    const defaultDate = plannedDate || new Date().toISOString().split("T")[0];
+    const pickers: PickerRecipe[] = recipes.map((r, ri) => ({
+      id: `ai_${ri}`,
+      name: r.name,
+      ingredients: r.ingredients.map((ing) => ({
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        category: categorizeIngredient(ing.name),
+      })),
+      date: defaultDate,
+    }));
+    setShopPlannedDate(defaultDate);
+    setShopRecipes(recipes); // 保留 source 名稱等 onConfirm 用
+    setBatchPickerRecipes(pickers);
   };
 
   // ─── Backend message builder ───────────────────────────
@@ -1218,27 +1181,18 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     // Batch mode: add all recipes to meal plan with selected date/mealType
     if (batchRecipes && batchRecipes.length > 0) {
       if (planAction === "meal") {
-        Promise.all(batchRecipes.map((r: any) => addPlanM.mutateAsync({
+        const items = batchRecipes.map((r: any) => ({
           date: planDate, mealType: planMeal as any,
           recipeId: `user_${r._savedId}`, recipeName: r.name,
-          autoAddIngredients: false,
-          ingredients: [],
-        }))).then(() => {
+        }));
+        addPlanBatchM.mutateAsync({ items }).then(() => {
           setShowPlan(false);
+          const recipesToShop = batchRecipes;
           setBatchRecipes(null);
-          showToast(`✅ ${batchRecipes.length} 個排餐已加入`);
+          showToast(`✅ ${recipesToShop.length} 個排餐已加入`);
           utils.mealPlan.listByDateRange.invalidate();
-          // Open shopping selection for all batch recipes
-          const allIngredients = batchRecipes.flatMap((r: any) =>
-            (r.ingredients || []).map((ing: any, idx: number) => ({
-              ...ing,
-              _recipeId: `user_${r._savedId}`,
-              _recipeName: r.name,
-              _idx: idx,
-            }))
-          );
-          if (allIngredients.length > 0) {
-            openShoppingSelection(batchRecipes, planDate);
+          if (recipesToShop.some((r: any) => (r.ingredients || []).length > 0)) {
+            openShoppingSelection(recipesToShop, planDate);
           }
         }).catch((e: any) => {
           Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
@@ -1257,6 +1211,16 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
       ? mealPrefs.people
       : null;
+    // 如果人數有變，按比例縮放食材份量（調味料唔縮）
+    const servingRatio = overrideServings && planRecipe.servings > 0
+      ? overrideServings / planRecipe.servings
+      : 1;
+    const scaledIngredients = servingRatio === 1
+      ? planRecipe.ingredients
+      : planRecipe.ingredients.map((ing) => ({
+          ...ing,
+          quantity: calcAdjustedQty(String(ing.quantity ?? ""), ing.unit ?? "", categorizeIngredient(ing.name), servingRatio),
+        }));
     if (planAction === "meal") {
       saveRecipeM.mutate({
         name: planRecipe.name, description: planRecipe.description,
@@ -1265,7 +1229,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
         image: "", thumbnailUrl: "",
         recipeCategory: planRecipe.recipeCategory || "其他",
         tags: [...(planRecipe.tags ?? []), "AI生成"],
-        ingredients: planRecipe.ingredients.map(ing => ({
+        ingredients: scaledIngredients.map(ing => ({
           name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
         })),
         steps: (planRecipe.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
@@ -1275,24 +1239,17 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             date: planDate, mealType: planMeal as any,
             recipeId: `user_${saved.id}`, recipeName: planRecipe.name,
             autoAddIngredients: false,
-            ingredients: planRecipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit })),
+            ingredients: scaledIngredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit })),
           }, {
             onSuccess: (result) => {
               setShowPlan(false);
               showToast("已加入排餐");
               utils.mealPlan.listByDateRange.invalidate();
-              if (planRecipe!.ingredients.length > 0) {
-                const COMMON_PANTRY_SET = new Set(COMMON_PANTRY);
-                const initialSel = new Set<string>();
-                planRecipe!.ingredients.forEach((ing, idx) => {
-                  if (!COMMON_PANTRY_SET.has(ing.name)) {
-                    initialSel.add(`user_${saved.id}::${idx}`);
-                  }
-                });
+              if (scaledIngredients.length > 0) {
                 setPlanPickerRecipe({
                   id: `user_${saved.id}`,
                   name: planRecipe!.name,
-                  ingredients: planRecipe!.ingredients.map(ing => ({
+                  ingredients: scaledIngredients.map(ing => ({
                     name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
                   })),
                   date: planDate,
@@ -1759,60 +1716,11 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             )}
           </ScrollView>
           <TouchableOpacity
-            style={[m.btn, (saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))) && { opacity: 0.6 }]}
+            style={[m.btn, (saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))) && { opacity: 0.6 }]}
             onPress={confirmAction}
-            disabled={saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))}
+            disabled={saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))}
           >
-            {(saveRecipeM.isPending || addPlanM.isPending || addShoppingM.isPending) ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.btnTxt}>確認</Text>}
-          </TouchableOpacity>
-        </View></View>
-      </Modal>
-
-      <Modal visible={showShopModal} transparent animationType="slide">
-        <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
-          <View style={m.handle} />
-          <View style={m.head}>
-            <Text style={m.title}>加入購物清單</Text>
-            <TouchableOpacity onPress={() => setShowShopModal(false)}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
-          </View>
-          <Text style={m.rname}>{shopRecipes.length} 個食譜 · {shopSelected.size} 項食材已選</Text>
-
-          <View style={m.shopActions}>
-            <TouchableOpacity style={m.shopActionChip} onPress={() => {
-              const all = new Set<string>();
-              shopRecipes.forEach(r => r.ingredients.forEach((_, i) => all.add(`${r.name}::${i}`)));
-              setShopSelected(all);
-            }}>
-              <Text style={m.shopActionTxt}>全部</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={m.shopActionChip} onPress={() => setShopSelected(new Set())}>
-              <Text style={m.shopActionTxt}>全部取消</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[m.shopActionChip, m.shopActionCancel]} onPress={() => setShowShopModal(false)}>
-              <Text style={m.shopActionCancelTxt}>唔加</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={{ maxHeight: Dimensions.get("window").height * 0.45 }}>
-            {shopRecipes.map((r, ri) => (
-              <View key={ri} style={m.shopGroup}>
-                <Text style={m.shopGroupTitle}>{r.name}</Text>
-                {r.ingredients.map((ing, ii) => {
-                  const key = `${r.name}::${ii}`;
-                  const selected = shopSelected.has(key);
-                  return (
-                    <TouchableOpacity key={ii} style={[m.shopItem, selected && m.shopItemOn]} onPress={() => toggleShopIngredient(key)}>
-                      <Ionicons name={selected ? "checkbox-outline" : "square-outline"} size={18} color={selected ? BRAND : SUB} />
-                      <Text style={[m.shopItemTxt, selected && { color: TEXT }]}>{ing.name} {ing.quantity}{ing.unit}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </ScrollView>
-
-          <TouchableOpacity style={[m.btn, (addShoppingM.isPending || shopSelected.size === 0) && { opacity: 0.6 }]} onPress={confirmShopBatch} disabled={addShoppingM.isPending || shopSelected.size === 0}>
-            {addShoppingM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.btnTxt}>確認加入 {shopSelected.size} 項</Text>}
+            {(saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending) ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.btnTxt}>確認</Text>}
           </TouchableOpacity>
         </View></View>
       </Modal>
@@ -1821,6 +1729,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
         defaultDate={planPickerRecipe?.date}
+        maxDate={planPickerRecipe?.date}
         showDateSelector={true}
         loading={addShoppingM.isPending}
         onConfirm={(items) => {
@@ -1844,6 +1753,36 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);
+          showToast("已跳過食材");
+        }}
+      />
+
+      {/* 批量「加入採購」/ 批量排餐後加食材 */}
+      <IngredientPickerModal
+        visible={!!batchPickerRecipes}
+        recipes={batchPickerRecipes ?? []}
+        defaultDate={shopPlannedDate}
+        showDateSelector={true}
+        loading={addShoppingM.isPending}
+        onConfirm={(items) => {
+          if (items.length > 0) {
+            addShoppingM.mutate({
+              items: items.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                unit: i.unit,
+                category: i.category,
+              })),
+              fromRecipeName: shopRecipes.map((r) => r.name).join(", "),
+              plannedDate: items[0].plannedDate,
+            });
+          } else {
+            setBatchPickerRecipes(null);
+            showToast("已跳過食材");
+          }
+        }}
+        onSkip={() => {
+          setBatchPickerRecipes(null);
           showToast("已跳過食材");
         }}
       />

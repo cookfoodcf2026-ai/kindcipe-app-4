@@ -63,6 +63,7 @@ export default function ImportScreen() {
   const [editTags, setEditTags] = useState("");
   const [recipeImageUri, setRecipeImageUri] = useState<string | null>(null);
   const [recipeImageBase64, setRecipeImageBase64] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStepIdx, setSaveStepIdx] = useState(0);
   const saveStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -141,6 +142,7 @@ export default function ImportScreen() {
         imageBase64: undefined,
       }))
     );
+    setImageError(false);
     if (recipe.image || recipe.thumbnailUrl) {
       setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
     }
@@ -154,6 +156,7 @@ export default function ImportScreen() {
       base64: false,
     });
     if (!result.canceled && result.assets[0]) {
+      setImageError(false);
       const asset = result.assets[0];
       try {
         const compressed = await compressImage(asset.uri);
@@ -439,9 +442,35 @@ export default function ImportScreen() {
     } catch { return false; }
   }
 
-  // Extract Instagram thumbnail from client-side (mobile IP won't be blocked)
+  // Extract Instagram thumbnail from client-side using oEmbed API (most reliable)
   async function extractInstagramThumbnail(url: string): Promise<string | undefined> {
     try {
+      // Clean URL: remove query parameters for oEmbed
+      const cleanUrl = url.split("?")[0];
+      
+      // Strategy 1: Instagram oEmbed API (official, free, no auth required)
+      try {
+        console.log("[Instagram Thumbnail] Trying oEmbed API:", cleanUrl);
+        const oembedResp = await fetch(
+          `https://api.instagram.com/oembed?url=${encodeURIComponent(cleanUrl)}`,
+          {
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (oembedResp.ok) {
+          const oembedData = await oembedResp.json() as { thumbnail_url?: string };
+          if (oembedData.thumbnail_url) {
+            console.log("[Instagram Thumbnail] Found via oEmbed:", oembedData.thumbnail_url.substring(0, 80));
+            return oembedData.thumbnail_url;
+          }
+        }
+      } catch (oembedErr) {
+        console.log("[Instagram Thumbnail] oEmbed failed:", oembedErr);
+        // Continue to fallback
+      }
+      
+      // Strategy 2: Direct HTML fetch with mobile User-Agent
+      console.log("[Instagram Thumbnail] Fallback: fetching HTML");
       const resp = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -449,12 +478,43 @@ export default function ImportScreen() {
         },
         signal: AbortSignal.timeout(8000),
       });
-      if (!resp.ok) return undefined;
+      if (!resp.ok) {
+        console.log("[Instagram Thumbnail] HTTP error:", resp.status);
+        return undefined;
+      }
       const html = await resp.text();
-      const match = html.match(/property="og:image"\s+content="([^"]+)"/) ||
-                    html.match(/content="([^"]+)"\s+property="og:image"/);
-      return match ? match[1] : undefined;
-    } catch {
+      
+      // Strategy 2a: og:image meta tag (multiple patterns)
+      const ogImageMatch = html.match(/property="og:image"\s+content="([^"]+)"/) ||
+                          html.match(/content="([^"]+)"\s+property="og:image"/) ||
+                          html.match(/property="og:image"\s+content='([^']+)'/) ||
+                          html.match(/content='([^']+)'\s+property="og:image"/);
+      if (ogImageMatch && ogImageMatch[1]) {
+        console.log("[Instagram Thumbnail] Found via og:image:", ogImageMatch[1].substring(0, 80));
+        return ogImageMatch[1];
+      }
+      
+      // Strategy 2b: Instagram CDN URL pattern (display_url from GraphQL)
+      const cdnMatch = html.match(/"display_url":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/) ||
+                      html.match(/"displayUrl":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/);
+      if (cdnMatch && cdnMatch[1]) {
+        const decoded = cdnMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+        console.log("[Instagram Thumbnail] Found via CDN:", decoded.substring(0, 80));
+        return decoded;
+      }
+      
+      // Strategy 2c: Generic image URL from meta tags
+      const metaImageMatch = html.match(/<meta[^>]+image="([^"]+)"/) ||
+                            html.match(/<meta[^>]+content="([^"]+\.jpg[^"]+)"[^>]+property="og:image"/);
+      if (metaImageMatch && metaImageMatch[1]) {
+        console.log("[Instagram Thumbnail] Found via meta image:", metaImageMatch[1].substring(0, 80));
+        return metaImageMatch[1];
+      }
+      
+      console.log("[Instagram Thumbnail] No thumbnail found in HTML");
+      return undefined;
+    } catch (e: any) {
+      console.log("[Instagram Thumbnail] Extraction error:", e?.message || e);
       return undefined;
     }
   }
@@ -472,10 +532,14 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      // For Instagram URLs, try client-side thumbnail extraction first (100% reliable on mobile)
+      // For Instagram URLs, try client-side thumbnail extraction first
       let clientThumbnail: string | undefined;
       if (trimmed.includes("instagram.com")) {
         clientThumbnail = await extractInstagramThumbnail(trimmed);
+        if (!clientThumbnail) {
+          // Silent fallback: backend will use category-based fallback cover
+          console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
+        }
       }
       parseUrlMutation.mutate({ url: trimmed, language: i18n.language, clientThumbnail });
     } else {
@@ -514,6 +578,9 @@ export default function ImportScreen() {
         base64: compressed.base64,
         mimeType: compressed.mimeType,
       });
+      setUniversalInput("");
+      setClipboardUrl(null);
+      setDetectedPlatform(null);
       setStep("input"); // ✅ 成功拿到新圖後，立刻切換回輸入主畫面，這樣才能顯示預覽 UI！
     } catch {
       const fallbackBase64 = asset.base64 || "";
@@ -526,6 +593,9 @@ export default function ImportScreen() {
         base64: fallbackBase64,
         mimeType: asset.mimeType || "image/jpeg",
       });
+      setUniversalInput("");
+      setClipboardUrl(null);
+      setDetectedPlatform(null);
       setStep("input"); // ✅ Fallback 成功同樣切換回主畫面
     }
   };
@@ -551,6 +621,9 @@ export default function ImportScreen() {
     } catch (e: any) {
       console.error("[handleConfirmScreenshot] Error:", e);
       stopParseProgress();
+      isParsingRef.current = false;
+      parseImageMutation.reset();
+      uploadImageMutation.reset();
       // Check if error is from backend AI analysis
       const isNoContent = e.message?.includes("沒有足夠") || e.message?.includes("無法識別") || e.message?.includes("no recipe") || e.message?.includes("需要手動輸入");
       setErrorMsg(
@@ -738,10 +811,10 @@ export default function ImportScreen() {
 
           {/* Image section */}
           <TouchableOpacity style={es.card} onPress={handlePickRecipeImage}>
-            {recipeImageUri ? (
-              <Image source={{ uri: recipeImageUri }} style={es.recipeImage} />
-            ) : parsedRecipe.thumbnailUrl ? (
-              <Image source={{ uri: parsedRecipe.thumbnailUrl }} style={es.recipeImage} />
+            {recipeImageUri && !imageError ? (
+              <Image source={{ uri: recipeImageUri }} style={es.recipeImage} onError={() => setImageError(true)} />
+            ) : parsedRecipe.thumbnailUrl && !imageError ? (
+              <Image source={{ uri: parsedRecipe.thumbnailUrl }} style={es.recipeImage} onError={() => setImageError(true)} />
             ) : (
               <View style={es.imagePlaceholder}>
                 <Ionicons name="image-outline" size={40} color="#013E77" />

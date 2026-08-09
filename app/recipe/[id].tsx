@@ -31,6 +31,7 @@ import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERMS, COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
+import { isSeasoning, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -48,32 +49,6 @@ const PURPLE = "#9C27B0";
 // ── Cooking terms glossary ──────────────────────────────────────────
 const PACKAGED_CATS = new Set(["調味料", "乾貨", "醬料", "罐頭", "飲品"]);
 const SEASONING_CATS = new Set(["調味料", "醬料"]);
-const SPOON_UNITS = new Set(["湯匙", "茶匙", "tbsp", "tsp"]);
-const COUNTABLE_UNITS = new Set(["個", "隻", "條", "塊", "片", "支", "根", "包", "罐", "盤", "顆", "粒"]);
-
-function calcAdjustedQty(rawQty: string, unit: string, category: string, ratio: number): string {
-  const num = parseFloat(rawQty);
-  if (isNaN(num)) return rawQty;
-  if (SEASONING_CATS.has(category)) return rawQty; // seasonings don't scale
-  const adj = num * ratio;
-  if (SPOON_UNITS.has(unit)) {
-    const r = Math.round(adj * 2) / 2;
-    return r % 1 === 0 ? String(r) : r.toFixed(1);
-  }
-  if (COUNTABLE_UNITS.has(unit)) return String(Math.round(adj));
-  return String(Math.round(adj));
-}
-
-// ── Seasoning keywords (from IngredientPickerModal) ──────────────────
-const SEASONING_KEYWORDS = [
-  "鹽", "糖", "油", "醬油", "生抽", "老抽", "豉油", "蠔油",
-  "胡椒粉", "醋", "料酒", "米酒", "紹興酒", "雞粉", "味精",
-  "生粉", "粟粉", "蒜蓉", "薑蓉", "蔥花",
-];
-
-function isSeasoning(name: string): boolean {
-  return SEASONING_KEYWORDS.some((kw) => name.includes(kw));
-}
 
 const toISODate = (d: Date): string => {
   const y = d.getFullYear();
@@ -320,6 +295,8 @@ export default function RecipeDetailScreen() {
   const autoAddCartRef = useRef(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
+  // Track hero image load error to fall back to placeholder
+  const [heroImgError, setHeroImgError] = useState(false);
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: () => {
       utils.mealPlan.listByDateRange.invalidate();
@@ -1057,7 +1034,7 @@ export default function RecipeDetailScreen() {
 
           {/* ─ Hero Image ── */}
           <View style={s.hero}>
-            {imgUrl ? (
+            {imgUrl && !heroImgError ? (
               sourceUrl ? (
                 // User imported recipe: make image clickable to open source URL
                 <TouchableOpacity
@@ -1067,7 +1044,7 @@ export default function RecipeDetailScreen() {
                 >
                   {localImage
                     ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />}
+                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroImgError(true)} />}
                   {/* Source link overlay indicator */}
                   <View style={s.sourceLinkOverlay}>
                     <Ionicons name="play-circle" size={32} color="#fff" />
@@ -1077,7 +1054,7 @@ export default function RecipeDetailScreen() {
               ) : (
                 localImage
                   ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" />
+                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroImgError(true)} />
               )
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder]}>
@@ -1176,16 +1153,16 @@ export default function RecipeDetailScreen() {
           </View>
 
           {/* ── Source author bar ── */}
-          {sourceAuthor && (
+          {sourceUrl && sourceAuthor && (
             <TouchableOpacity
               style={s.sourceBar}
-              onPress={() => sourceUrl && Linking.openURL(sourceUrl)}
+              onPress={() => Linking.openURL(sourceUrl)}
             >
               <View style={s.sourceIcon}>
                 <Ionicons name="logo-instagram" size={14} color="#fff" />
               </View>
               <Text style={s.sourceText}>教學影片 by {sourceAuthor}</Text>
-              {sourceUrl && <Text style={s.sourceLink}>查看 →</Text>}
+              <Text style={s.sourceLink}>查看 →</Text>
             </TouchableOpacity>
           )}
 
@@ -1419,7 +1396,7 @@ export default function RecipeDetailScreen() {
                   <View style={s.divider} />
                   {adjustedIngredients.map((ing: any, i: number) => {
                     const isPackaged = PACKAGED_CATS.has(ing.category ?? "");
-                    const isScaled = ratio !== 1 && !SEASONING_CATS.has(ing.category ?? "");
+                    const isScaled = ratio !== 1 && !NON_SCALABLE_CATS.has(ing.category ?? "");
                     const recordedPrice = getIngRecordedPrice(ing.name);
                     return (
                       <View key={i} style={[s.ingRow, i < adjustedIngredients.length - 1 && s.ingBorder]}>
@@ -1624,6 +1601,26 @@ export default function RecipeDetailScreen() {
                 <Text style={s.igBtnTxt}>在 Instagram 觀看完整影片</Text>
                 {sourceAuthor && <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>by {sourceAuthor}</Text>}
               </TouchableOpacity>
+            )}
+
+            {/* ── User Recipe Actions ── */}
+            {isUserRecipe && (
+              <View style={s.userActionsRow}>
+                <TouchableOpacity
+                  style={s.editBtn}
+                  onPress={() => router.push({ pathname: "/recipe-editor", params: { id: recipeNumericId } })}
+                >
+                  <Ionicons name="create-outline" size={18} color="#fff" />
+                  <Text style={s.editBtnTxt}>編輯食譜</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.deleteBtn}
+                  onPress={handleDelete}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text style={s.deleteBtnTxt}>刪除食譜</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {/* ── Disclaimer ── */}
@@ -2484,6 +2481,13 @@ const s = StyleSheet.create({
   // Instagram button
   igBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 16, paddingVertical: 14, borderRadius: 16, backgroundColor: "#E1306C", shadowColor: "#E1306C", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   igBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  // User recipe actions
+  userActionsRow: { flexDirection: "row", gap: 12, marginTop: 16 },
+  editBtn: { flex: 1.5, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: BRAND, paddingVertical: 14, borderRadius: 16, shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
+  editBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  deleteBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FEE2E2", borderWidth: 1.5, borderColor: "#FCA5A5", paddingVertical: 14, borderRadius: 16 },
+  deleteBtnTxt: { fontSize: 14, fontWeight: "700", color: "#EF4444" },
 
   // Modal / Sheet
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

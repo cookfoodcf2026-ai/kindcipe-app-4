@@ -5,28 +5,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
+import { categorizeIngredient, isSeasoning } from "@/constants/ingredients";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
 const BORDER = "#E5E7EB";
-
-// 調味料/基本食材 - 預設唔勾選
-const SEASONING_KEYWORDS = [
-  "鹽", "糖", "油", "醬油", "生抽", "老抽", "豉油", "蠔油",
-  "胡椒粉", "醋", "料酒", "米酒", "紹興酒", "雞粉", "味精",
-  "生粉", "粟粉", "蒜蓉", "薑蓉", "蔥花",
-];
-
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  "蔬菜": ["菜", "蔥", "薑", "蒜", "洋蔥", "蕃茄", "番茄", "薯仔", "紅蘿蔔", "蘿蔔", "青瓜", "南瓜", "冬瓜", "茄子", "椰菜", "生菜", "菠菜", "白菜", "豆", "芽", "菇", "木耳", "筍"],
-  "肉類": ["雞", "豬", "牛", "羊", "肉", "排骨", "翼", "腿", "腩", "扒"],
-  "海鮮": ["魚", "蝦", "蟹", "貝", "魷魚", "章魚", "帶子", "蠔", "蜆", "蛤"],
-  "蛋奶": ["蛋", "奶", "芝士", "牛油"],
-  "主食": ["米", "麵", "粉", "飯", "麵包", "餃子", "雲吞"],
-  "調味料": SEASONING_KEYWORDS,
-  "乾貨": ["乾", "臘", "鹹蛋", "皮蛋", "腐乳"],
-};
 
 const CATEGORY_EMOJI: Record<string, string> = {
   "蔬菜": "🥬",
@@ -42,22 +26,8 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 const CATEGORY_ORDER = ["蔬菜", "肉類", "海鮮", "蛋奶", "主食", "乾貨", "飲品", "調味料", "其他"];
 
-function detectCategory(name: string): string {
-  for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (cat === "調味料") continue;
-    for (const kw of keywords) {
-      if (name.includes(kw)) return cat;
-    }
-  }
-  for (const kw of SEASONING_KEYWORDS) {
-    if (name.includes(kw)) return "調味料";
-  }
-  return "其他";
-}
-
-function isSeasoning(name: string): boolean {
-  return SEASONING_KEYWORDS.some((kw) => name.includes(kw));
-}
+// 向舊名兼容；實際邏輯搬咗去 @/constants/ingredients
+const detectCategory = categorizeIngredient;
 
 export type PickerIngredient = {
   name: string;

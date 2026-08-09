@@ -18,6 +18,8 @@ interface RecipeCardProps {
   setActiveTagFilters: (tags: string[] | ((prev: string[]) => string[])) => void;
   setQuickPlanRecipe: (recipe: { id: string; name: string; image?: string; ingredients?: any[] } | null) => void;
   navigateToRecipe: (item: any) => void;
+  /** 是否顯示快速排餐按鈕（日曆 icon）。設為 true 可重新啟用此功能。 */
+  showQuickPlan?: boolean;
 }
 
 export default function RecipeCard({
@@ -30,6 +32,7 @@ export default function RecipeCard({
   setActiveTagFilters,
   setQuickPlanRecipe,
   navigateToRecipe,
+  showQuickPlan = false, // 預設隱藏快速排餐按鈕
 }: RecipeCardProps) {
   const catColor = category ? getCategoryColor(category.key) : getCategoryColor("其他");
 
@@ -366,14 +369,17 @@ export default function RecipeCard({
   const imageUrl = item.thumbnailUrl || item.image;
   const hasImage = localImage || imageUrl;
 
+  // Track image load error to fall back to placeholder
+  const [hasImageError, setHasImageError] = React.useState(false);
+
   return (
     <View style={s.card}>
       <TouchableOpacity onPress={() => navigateToRecipe(item)} activeOpacity={0.85}>
         {/* ── Image / Placeholder ── */}
-        {hasImage
+        {hasImage && !hasImageError
           ? localImage
             ? <Image source={localImage} style={s.cardImg} resizeMode="cover" />
-            : <Image source={{ uri: imageUrl }} style={s.cardImg} resizeMode="cover" />
+            : <Image source={{ uri: imageUrl }} style={s.cardImg} resizeMode="cover" onError={() => setHasImageError(true)} />
           : (
             <View style={[s.cardImg, s.cardImgPH, { backgroundColor: catColor.bg }]}>
               <View style={s.placeholderContent}>
@@ -402,17 +408,19 @@ export default function RecipeCard({
           )}
         </View>
         
-        {/* ── Quick Plan Button ── */}
-        <TouchableOpacity
-          style={s.cardPlanBtn}
-          onPress={(e) => {
-            e.stopPropagation();
-            setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
-          }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="calendar-outline" size={16} color="#fff" />
-        </TouchableOpacity>
+        {/* ── Quick Plan Button ── 暫時隱藏（2026-08-09）：保留代碼方便將來重新啟用 */}
+        {showQuickPlan && (
+          <TouchableOpacity
+            style={s.cardPlanBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={16} color="#fff" />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
 
       {/* ── Card Info ── */}
