@@ -143,18 +143,19 @@ export default function ImportScreen() {
       }))
     );
     setImageError(false);
-    // Only replace with R2 URL (permanent), keep CDN URL temporarily
-    const isR2Url = recipe.thumbnailUrl?.includes('r2.cloudflarestorage.com') || 
-                    recipe.thumbnailUrl?.includes('pub-') ||
-                    recipe.image?.includes('r2.cloudflarestorage.com');
-    if (isR2Url) {
-      console.log("[initEditFromParsed] Setting R2 URL:", recipe.thumbnailUrl?.substring(0, 80));
+    // Use backend URL if available (R2 or Unsplash fallback are both permanent)
+    // Only keep CDN URL temporarily if backend returned nothing
+    const hasBackendUrl = recipe.thumbnailUrl || recipe.image;
+    const isCDNUrl = recipe.thumbnailUrl?.includes('cdninstagram.com') || recipe.thumbnailUrl?.includes('scontent.');
+    
+    if (hasBackendUrl && !isCDNUrl) {
+      console.log("[initEditFromParsed] Using backend URL:", (recipe.thumbnailUrl || recipe.image).substring(0, 80));
       setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
     } else if (recipe.image && !recipe.thumbnailUrl) {
       console.log("[initEditFromParsed] Setting image:", recipe.image.substring(0, 80));
       setRecipeImageUri(recipe.image);
     } else {
-      console.log("[initEditFromParsed] Keeping CDN URL or no image from backend");
+      console.log("[initEditFromParsed] Keeping CDN URL (temporary)");
     }
   };
 
@@ -540,8 +541,9 @@ export default function ImportScreen() {
       const ogImageMatch = html.match(/property="og:image"\s+content="([^"]+)"/) ||
                           html.match(/content="([^"]+)"\s+property="og:image"/);
       if (ogImageMatch && ogImageMatch[1]) {
-        console.log("[Instagram Thumbnail] Found via og:image:", ogImageMatch[1].substring(0, 80));
-        return ogImageMatch[1];
+        const decodedUrl = ogImageMatch[1].replace(/&amp;/g, "&");
+        console.log("[Instagram Thumbnail] Found via og:image:", decodedUrl.substring(0, 80));
+        return decodedUrl;
       }
       
       console.log("[Instagram Thumbnail] No thumbnail found");
