@@ -143,11 +143,11 @@ export default function ImportScreen() {
       }))
     );
     setImageError(false);
-    // ONLY set image from backend if we don't already have a base64 image
-    // This prevents overwriting our client-side extracted base64 with expired backend URLs
-    const hasBase64Image = recipeImageUri?.startsWith('data:image');
-    if (!hasBase64Image && (recipe.image || recipe.thumbnailUrl)) {
-      setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
+    // Set image from parsedRecipe (clientThumbnail or backend rehosted URL)
+    if (recipe.thumbnailUrl) {
+      setRecipeImageUri(recipe.thumbnailUrl);
+    } else if (recipe.image) {
+      setRecipeImageUri(recipe.image);
     }
   };
 
@@ -301,7 +301,6 @@ export default function ImportScreen() {
       stopParseProgress();
       if (data.parseReason === "ok") {
         setParsedRecipe(data);
-        // initEditFromParsed will preserve our base64 image (won't overwrite with backend URL)
         initEditFromParsed(data);
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
@@ -446,8 +445,8 @@ export default function ImportScreen() {
     } catch { return false; }
   }
 
-  // Extract Instagram thumbnail and convert to base64 immediately (prevents URL expiration)
-  async function extractInstagramThumbnailAsBase64(url: string): Promise<{ url?: string; base64?: string } | undefined> {
+  // Extract Instagram thumbnail URL (don't download as base64 - CDN blocks with 403)
+  async function extractInstagramThumbnail(url: string): Promise<string | undefined> {
     try {
       // Clean URL: remove query parameters for oEmbed
       const cleanUrl = url.split("?")[0];
@@ -469,7 +468,7 @@ export default function ImportScreen() {
           const oembedData = await oembedResp.json() as { thumbnail_url?: string };
           if (oembedData.thumbnail_url) {
             console.log("[Instagram Thumbnail] Found via oEmbed:", oembedData.thumbnail_url.substring(0, 80));
-            imageUrl = oembedData.thumbnail_url;
+            return oembedData.thumbnail_url;
           }
         }
       } catch (oembedErr) {
@@ -478,80 +477,44 @@ export default function ImportScreen() {
       }
       
       // Strategy 2: Direct HTML fetch with mobile User-Agent
-      if (!imageUrl) {
-        console.log("[Instagram Thumbnail] Fallback: fetching HTML");
-        const htmlController = new AbortController();
-        const htmlTimeout = setTimeout(() => htmlController.abort(), 8000);
-        const resp = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
-          signal: htmlController.signal,
-        });
-        clearTimeout(htmlTimeout);
-        if (!resp.ok) {
-          console.log("[Instagram Thumbnail] HTTP error:", resp.status);
-          return undefined;
-        }
-        const html = await resp.text();
-        
-        // Strategy 2a: og:image meta tag (multiple patterns)
-        const ogImageMatch = html.match(/property="og:image"\s+content="([^"]+)"/) ||
-                            html.match(/content="([^"]+)"\s+property="og:image"/) ||
-                            html.match(/property="og:image"\s+content='([^']+)'/) ||
-                            html.match(/content='([^']+)'\s+property="og:image"/);
-        if (ogImageMatch && ogImageMatch[1]) {
-          console.log("[Instagram Thumbnail] Found via og:image:", ogImageMatch[1].substring(0, 80));
-          imageUrl = ogImageMatch[1];
-        }
-        
-        // Strategy 2b: Instagram CDN URL pattern (display_url from GraphQL)
-        if (!imageUrl) {
-          const cdnMatch = html.match(/"display_url":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/) ||
-                          html.match(/"displayUrl":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/);
-          if (cdnMatch && cdnMatch[1]) {
-            const decoded = cdnMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
-            console.log("[Instagram Thumbnail] Found via CDN:", decoded.substring(0, 80));
-            imageUrl = decoded;
-          }
-        }
-      }
-      
-      if (!imageUrl) {
-        console.log("[Instagram Thumbnail] No thumbnail found");
-        return undefined;
-      }
-      
-      // Strategy 3: Download image and convert to base64 (prevents expiration)
-      console.log("[Instagram Thumbnail] Downloading image as base64...");
-      const imgController = new AbortController();
-      const imgTimeout = setTimeout(() => imgController.abort(), 10000);
-      const imgResp = await fetch(imageUrl, {
+      console.log("[Instagram Thumbnail] Fallback: fetching HTML");
+      const htmlController = new AbortController();
+      const htmlTimeout = setTimeout(() => htmlController.abort(), 8000);
+      const resp = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
-        signal: imgController.signal,
+        signal: htmlController.signal,
       });
-      clearTimeout(imgTimeout);
+      clearTimeout(htmlTimeout);
+      if (!resp.ok) {
+        console.log("[Instagram Thumbnail] HTTP error:", resp.status);
+        return undefined;
+      }
+      const html = await resp.text();
       
-      if (!imgResp.ok) {
-        console.log("[Instagram Thumbnail] Image download failed:", imgResp.status);
-        // Return URL as fallback
-        return { url: imageUrl };
+      // Strategy 2a: og:image meta tag (multiple patterns)
+      const ogImageMatch = html.match(/property="og:image"\s+content="([^"]+)"/) ||
+                          html.match(/content="([^"]+)"\s+property="og:image"/) ||
+                          html.match(/property="og:image"\s+content='([^']+)'/) ||
+                          html.match(/content='([^']+)'\s+property="og:image"/);
+      if (ogImageMatch && ogImageMatch[1]) {
+        console.log("[Instagram Thumbnail] Found via og:image:", ogImageMatch[1].substring(0, 80));
+        return ogImageMatch[1];
       }
       
-      const blob = await imgResp.blob();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      // Strategy 2b: Instagram CDN URL pattern (display_url from GraphQL)
+      const cdnMatch = html.match(/"display_url":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/) ||
+                      html.match(/"displayUrl":"(https:\/\/[^"]+instagram\.com[^"]+\.jpg[^"]*)"/);
+      if (cdnMatch && cdnMatch[1]) {
+        const decoded = cdnMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+        console.log("[Instagram Thumbnail] Found via CDN:", decoded.substring(0, 80));
+        return decoded;
+      }
       
-      console.log("[Instagram Thumbnail] Converted to base64:", base64.substring(0, 50) + "...");
-      return { url: imageUrl, base64 };
+      console.log("[Instagram Thumbnail] No thumbnail found");
+      return undefined;
     } catch (e: any) {
       console.log("[Instagram Thumbnail] Extraction error:", e?.message || e);
       return undefined;
@@ -571,20 +534,12 @@ export default function ImportScreen() {
     startParseProgress();
     
     if (isValidUrl(trimmed)) {
-      // For Instagram URLs, extract thumbnail as base64 immediately (prevents URL expiration)
+      // For Instagram URLs, extract thumbnail URL (backend will rehost to R2)
       let clientThumbnail: string | undefined;
-      let clientThumbnailBase64: string | undefined;
       if (trimmed.includes("instagram.com")) {
-        const result = await extractInstagramThumbnailAsBase64(trimmed);
-        if (result?.base64) {
-          // Set base64 directly - this ensures image displays immediately without waiting for backend
-          setImageError(false);
-          setRecipeImageUri(result.base64);
-          clientThumbnailBase64 = result.base64;
-          console.log("[Instagram Thumbnail] Set base64 directly for preview");
-        } else if (result?.url) {
-          clientThumbnail = result.url;
-          console.log("[Instagram Thumbnail] Using URL fallback");
+        clientThumbnail = await extractInstagramThumbnail(trimmed);
+        if (clientThumbnail) {
+          console.log("[Instagram Thumbnail] Got URL, will display in preview");
         } else {
           console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
         }
@@ -608,8 +563,8 @@ export default function ImportScreen() {
     let result;
     try {
       result = source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8, base64: false })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, base64: false });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: false })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: false });
     } catch (e: any) {
       Alert.alert("開啟失敗", e?.message || "請重試");
       return;
@@ -1160,10 +1115,10 @@ export default function ImportScreen() {
                   setStep("input");
                   setErrorMsg("");
                   setFailedInput(null);
-                  setUniversalInput("");
-                  setClipboardUrl(null);
-                  setClipboardContent(null);
-                  setDetectedPlatform(null);
+                  // Preserve clipboardUrl and repost to input field
+                  if (clipboardUrl) {
+                    setUniversalInput(clipboardUrl);
+                  }
                 }}
               >
                 <Ionicons name="link-outline" size={18} color="#013E77" />
