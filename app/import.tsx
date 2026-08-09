@@ -456,12 +456,15 @@ export default function ImportScreen() {
       // Strategy 1: Instagram oEmbed API (official, free, no auth required)
       try {
         console.log("[Instagram Thumbnail] Trying oEmbed API:", cleanUrl);
+        const oembedController = new AbortController();
+        const oembedTimeout = setTimeout(() => oembedController.abort(), 5000);
         const oembedResp = await fetch(
           `https://api.instagram.com/oembed?url=${encodeURIComponent(cleanUrl)}`,
           {
-            signal: AbortSignal.timeout(5000),
+            signal: oembedController.signal,
           }
         );
+        clearTimeout(oembedTimeout);
         if (oembedResp.ok) {
           const oembedData = await oembedResp.json() as { thumbnail_url?: string };
           if (oembedData.thumbnail_url) {
@@ -477,13 +480,16 @@ export default function ImportScreen() {
       // Strategy 2: Direct HTML fetch with mobile User-Agent
       if (!imageUrl) {
         console.log("[Instagram Thumbnail] Fallback: fetching HTML");
+        const htmlController = new AbortController();
+        const htmlTimeout = setTimeout(() => htmlController.abort(), 8000);
         const resp = await fetch(url, {
           headers: {
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           },
-          signal: AbortSignal.timeout(8000),
+          signal: htmlController.signal,
         });
+        clearTimeout(htmlTimeout);
         if (!resp.ok) {
           console.log("[Instagram Thumbnail] HTTP error:", resp.status);
           return undefined;
@@ -519,13 +525,16 @@ export default function ImportScreen() {
       
       // Strategy 3: Download image and convert to base64 (prevents expiration)
       console.log("[Instagram Thumbnail] Downloading image as base64...");
+      const imgController = new AbortController();
+      const imgTimeout = setTimeout(() => imgController.abort(), 10000);
       const imgResp = await fetch(imageUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         },
-        signal: AbortSignal.timeout(10000),
+        signal: imgController.signal,
       });
+      clearTimeout(imgTimeout);
       
       if (!imgResp.ok) {
         console.log("[Instagram Thumbnail] Image download failed:", imgResp.status);
