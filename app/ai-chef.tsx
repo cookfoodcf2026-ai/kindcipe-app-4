@@ -63,18 +63,19 @@ const QUICK_ACTIONS = [
   { id: "pantry", icon: "basket-outline", label: "用雪櫃食材" },
 ];
 
-const PEOPLE_OPTIONS = ["1", "2", "3", "4", "5", "6+"];
+const PEOPLE_OPTIONS = ["1", "2", "3", "4", "5", "6"];
 const AUDIENCE_OPTIONS = [
   { key: "none", label: "普通大人" },
   { key: "kids", label: "有小朋友" },
   { key: "elderly", label: "有老人家" },
   { key: "both", label: "小朋友+老人家" },
-];
+] as const;
+type AudienceKey = typeof AUDIENCE_OPTIONS[number]["key"];
 const TIME_OPTIONS = [
   { key: "quick", label: "快手（30分鐘內）" },
   { key: "normal", label: "普通（約1小時）" },
   { key: "leisure", label: "慢煮/想慢慢煮" },
-];
+] as const;
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -125,12 +126,15 @@ function parseAssistantResponse(content: string) {
   const text = content.replace(/^\s+|\s+$/g, "");
   const idx = text.indexOf("---next-steps---");
   if (idx === -1) return { mainText: text, nextSteps: [] as string[] };
-  const mainText = text.slice(0, idx).trim();
   const stepsBlock = text.slice(idx + "---next-steps---".length).trim();
   const nextSteps = stepsBlock
     .split("\n")
-    .map(line => line.replace(/^[-\d\.\)\s]+/, "").trim())
+    .map(line => line.replace(/^[-–—*•·\d\.\)\s、，,]+/, "").trim())
     .filter(line => line.length > 0 && !/^[-\d\.\)\s]*$/.test(line));
+  // If the parsed steps are junk (e.g. the marker appeared inside normal prose),
+  // treat the whole content as plain main text instead of truncating it.
+  if (nextSteps.length === 0) return { mainText: text, nextSteps: [] as string[] };
+  const mainText = text.slice(0, idx).trim();
   return { mainText, nextSteps };
 }
 
@@ -141,9 +145,22 @@ function makeSessionTitle(msgs: Message[]): string {
   return t.length > 30 ? t.slice(0, 30) + "..." : t;
 }
 
+let idCounter = 0;
 function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  idCounter += 1;
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10) + idCounter.toString(36);
 }
+
+// Local calendar date (YYYY-MM-DD). Never use new Date().toISOString() for "today" —
+// toISOString() is UTC and gives the wrong date before 08:00 HKT.
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Cap context sent to backend and messages persisted to AsyncStorage
+const MAX_HISTORY_MESSAGES = 20;
+const MAX_STORED_MESSAGES = 100;
 
 // ─── Lightweight Markdown Renderer ─────────────────────
 // Renders the specific format used by AI Chef:
@@ -154,10 +171,32 @@ function generateId(): string {
 // - Bold: **text**
 // - Horizontal rules: ---
 
+/** Render inline **bold** segments within a text line. */
+function renderInlineBold(text: string, baseStyle?: any): React.ReactNode {
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g).filter(p => p.length > 0);
+  if (parts.length === 1) return text;
+  return parts.map((p, i) =>
+    p.startsWith("**") && p.endsWith("**") && p.length > 4
+      ? <Text key={i} style={{ fontWeight: "800" }}>{p.slice(2, -2)}</Text>
+      : <Text key={i}>{p}</Text>
+  );
+}
+
+/** Strict recipe-header detector shared by renderMarkdown. */
+const RECIPE_HEADER_RE = /^(?:食譜[一二三四五六七八九十\d]+[：:]\s*|[\d]+[.、．]\s*)([^\n]{1,30}?)[——\-—|｜]\s*(.{2,50}?)(?:（約?(\d+)\s*分鐘）)\s*$/;
+
 function renderMarkdown(text: string, styles: any): React.ReactNode[] {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let key = 0;
+  const standaloneRecipeLines = new Set<number>();
+  for (let i = 1; i < lines.length; i++) {
+    // A "---" directly below a non-empty line is a setext heading underline,
+    // not a horizontal rule — dropping it would leave a stray divider.
+    if (lines[i].trim() === "---" && lines[i - 1].trim() !== "" && !RECIPE_HEADER_RE.test(lines[i - 1].trim())) {
+      standaloneRecipeLines.add(i - 1);
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -169,25 +208,34 @@ function renderMarkdown(text: string, styles: any): React.ReactNode[] {
       continue;
     }
 
-    // Horizontal rule
+    // Horizontal rule (only when it is truly standalone)
     if (trimmed === "---") {
+      if (standaloneRecipeLines.has(i - 1)) continue; // consumed as heading underline
       elements.push(<View key={key++} style={{ height: 1, backgroundColor: BORDER, marginVertical: 12 }} />);
       continue;
     }
 
-    // Recipe header: 食譜一：類別 —— 名稱（約XX分鐘）
-    const recipeHeaderMatch = trimmed.match(/^(?:食譜[一二三四五六七八九十\d]+[：:]\s*)?(.+?)[——\-]\s*(.+?)(?:（約?(\d+)分鐘）)?$/);
+    if (standaloneRecipeLines.has(i)) {
+      elements.push(
+        <Text key={key++} style={[styles.mdRecipeTitle, { color: BRAND, fontWeight: "700", fontSize: 16, marginTop: 12, marginBottom: 4 }]}>
+          {renderInlineBold(trimmed)}
+        </Text>
+      );
+      continue;
+    }
+
+    // Recipe header: 食譜一：類別 —— 名稱（約XX分鐘） — minutes annotation required
+    // so plain prose containing "-" or "—" is never mis-rendered as a title (#6).
+    const recipeHeaderMatch = trimmed.match(RECIPE_HEADER_RE);
     if (recipeHeaderMatch) {
       elements.push(
         <View key={key++} style={{ marginTop: 12, marginBottom: 4 }}>
           <Text style={[styles.mdRecipeTitle, { color: BRAND, fontWeight: "700", fontSize: 16 }]}>
             {recipeHeaderMatch[2]?.trim() || trimmed}
           </Text>
-          {recipeHeaderMatch[3] && (
-            <Text style={[styles.mdRecipeTime, { color: SUB, fontSize: 12, marginTop: 2 }]}>
-              約 {recipeHeaderMatch[3]} 分鐘
-            </Text>
-          )}
+          <Text style={[styles.mdRecipeTime, { color: SUB, fontSize: 12, marginTop: 2 }]}>
+            約 {recipeHeaderMatch[3]} 分鐘
+          </Text>
         </View>
       );
       continue;
@@ -210,7 +258,7 @@ function renderMarkdown(text: string, styles: any): React.ReactNode[] {
       elements.push(
         <View key={key++} style={{ flexDirection: "row", marginBottom: 4, paddingLeft: 8 }}>
           <Text style={{ color: BRAND, fontSize: 14, marginRight: 6 }}>•</Text>
-          <Text style={[styles.mdBullet, { fontSize: 14, color: TEXT, flex: 1 }]}>{bulletMatch[1]}</Text>
+          <Text style={[styles.mdBullet, { fontSize: 14, color: TEXT, flex: 1 }]}>{renderInlineBold(bulletMatch[1])}</Text>
         </View>
       );
       continue;
@@ -224,16 +272,27 @@ function renderMarkdown(text: string, styles: any): React.ReactNode[] {
           <Text style={[styles.mdStepNumber, { color: BRAND, fontWeight: "700", fontSize: 14, marginRight: 8, minWidth: 20 }]}>
             {numberedMatch[1]}.
           </Text>
-          <Text style={[styles.mdStepText, { fontSize: 14, color: TEXT, flex: 1 }]}>{numberedMatch[2]}</Text>
+          <Text style={[styles.mdStepText, { fontSize: 14, color: TEXT, flex: 1 }]}>{renderInlineBold(numberedMatch[2])}</Text>
         </View>
       );
       continue;
     }
 
-    // Regular text paragraph
+    // Bold-only line: **標題** → section-style header
+    const boldOnlyMatch = trimmed.match(/^\*\*([^*\n]{1,60})\*\*$/);
+    if (boldOnlyMatch) {
+      elements.push(
+        <Text key={key++} style={[styles.mdSectionHeader, { fontWeight: "700", fontSize: 14, marginTop: 10, marginBottom: 4, color: TEXT }]}>
+          {boldOnlyMatch[1]}
+        </Text>
+      );
+      continue;
+    }
+
+    // Regular text paragraph (with inline **bold** support)
     elements.push(
       <Text key={key++} style={[styles.mdParagraph, { fontSize: 14, color: TEXT, lineHeight: 20, marginBottom: 4 }]}>
-        {trimmed}
+        {renderInlineBold(trimmed)}
       </Text>
     );
   }
@@ -303,7 +362,7 @@ export default function AIChefScreen() {
   const [showShopModal, setShowShopModal] = useState(false);
   const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]);
   const [shopSelected, setShopSelected] = useState<Set<string>>(new Set());
-  const [shopPlannedDate, setShopPlannedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [shopPlannedDate, setShopPlannedDate] = useState<string>(localToday());
   // Ingredient picker after addPlanM success (single recipe)
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
 
@@ -364,6 +423,13 @@ export default function AIChefScreen() {
     return recipes;
   };
 
+  // qty word/number + optional unit, used for both "name qty unit" and "qty unit" shapes.
+  const QTY_NUM = String.raw`[\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許`;
+  const UNITS = String.raw`克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb`;
+  const QTY_ONLY_RE = new RegExp(`^(${QTY_NUM})\\s*(${UNITS})?\\s*$`);
+  const NAME_QTY_RE = new RegExp(`^(.+?)\\s+(${QTY_NUM})\\s*(${UNITS})?\\s*$`);
+  const NAME_QTY_COMPACT_RE = new RegExp(`^(.+?)(${QTY_NUM})(${UNITS})$`);
+
   const parseSingleRecipe = (text: string): AIRecipe | null => {
     const newFormatMatch = text.match(/^(?:食譜[一二三四五六七八九十\d]+[：:]\s*|[\d]+[.、．]\s*)?(.+?)[——\-—|｜]\s*(.+?)(?:（約?(\d+)分鐘）)?(?:\n|$)/);
 
@@ -395,8 +461,8 @@ export default function AIChefScreen() {
     if (!name) return null;
     if (name.length < 2 || name.length > 50) return null;
 
-    // Extract description (paragraph before 🛒 or 食材)
-    const descMatch = text.match(/(?:（約\d+分鐘）|^\s*$)\s*\n\s*(.+?)(?=\n\s*(?:🛒|食材|材料|原料|Ingredients))/s);
+    // Extract description (paragraph after header, before 🛒 or 食材)
+    const descMatch = text.match(/(?:（約?\d+\s*分鐘）|^\s*$)\s*\n\s*(.+?)(?=\n\s*(?:🛒|食材|材料|原料|Ingredients))/s);
     let description = descMatch?.[1]?.trim() || "";
     // Clean up description - take first paragraph only
     description = description.split("\n\n")[0]?.trim() || "";
@@ -432,14 +498,12 @@ export default function AIChefScreen() {
             for (const part of parts) {
               const p = part.trim();
               if (p) {
-                // First try to match just quantity+unit (like "1湯匙" or "半湯匙")
-                const qtyOnlyMatch = p.match(/^([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵||杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
+                // Shapes: quantity-only "1湯匙"｜"生抽 1湯匙" (with space)｜compact "生抽1湯匙"
+                const qtyOnlyMatch = p.match(QTY_ONLY_RE);
                 if (qtyOnlyMatch) {
-                  // This is just a quantity, use the parent ingredient name
                   ingredients.push({ name: ingName, quantity: qtyOnlyMatch[1] || "適量", unit: qtyOnlyMatch[2] || "" });
                 } else {
-                  // Try name + quantity + unit format (like "生抽 1湯匙")
-                  const qMatch = p.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
+                  const qMatch = p.match(NAME_QTY_RE) || p.match(NAME_QTY_COMPACT_RE);
                   if (qMatch) {
                     ingredients.push({ name: qMatch[1].trim(), quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
                   } else {
@@ -449,18 +513,23 @@ export default function AIChefScreen() {
               }
             }
           } else {
-            // Handle ranges like "200-300克" and text after unit
-            const qMatch = cleanDetail.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
-            if (qMatch) {
-              ingredients.push({ name: ingName, quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
+            // Single detail: "200克"｜"約 200克"｜"200 克"
+            const qOnlyMatch = cleanDetail.match(QTY_ONLY_RE);
+            if (qOnlyMatch) {
+              ingredients.push({ name: ingName, quantity: qOnlyMatch[1] || "適量", unit: qOnlyMatch[2] || "" });
             } else {
-              ingredients.push({ name: ingName, quantity: cleanDetail || "適量", unit: "" });
+              const qMatch = cleanDetail.match(NAME_QTY_RE) || cleanDetail.match(NAME_QTY_COMPACT_RE);
+              if (qMatch) {
+                ingredients.push({ name: ingName, quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
+              } else {
+                ingredients.push({ name: ingName, quantity: cleanDetail || "適量", unit: "" });
+              }
             }
           }
         } else {
           // Old format: "食材名 數量 單位"
           const cleanIl = il.replace(/（[^）]*）/g, "").trim();
-          const qMatch = cleanIl.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
+          const qMatch = cleanIl.match(NAME_QTY_RE);
           if (qMatch) {
             ingredients.push({ name: qMatch[1].trim(), quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
           } else {
@@ -604,11 +673,13 @@ export default function AIChefScreen() {
     })();
   }, [user?.id]);
 
+  const persistFailToastShown = useRef(false);
   const persistSessions = useCallback((next: ChatSession[], nextActive: string) => {
     if (!user?.id) return;
     const compact = next.map(s => ({
       ...s,
-      messages: s.messages.map(m => {
+      // Cap stored history so AsyncStorage never grows without bound (#3)
+      messages: s.messages.slice(-MAX_STORED_MESSAGES).map(m => {
         if (typeof m.content === "string") return { role: m.role, content: m.content };
         // Preserve content structure but strip large base64 image data
         const compactContent = m.content.map(block => {
@@ -621,29 +692,60 @@ export default function AIChefScreen() {
         return { role: m.role, content: compactContent };
       }),
     }));
-    AsyncStorage.setItem(SESSIONS_KEY(user.id), JSON.stringify(compact)).catch(() => {});
+    let payload: string;
+    try {
+      payload = JSON.stringify(compact);
+    } catch {
+      return;
+    }
+    // AsyncStorage on Android caps ~6MB; warn instead of silently dropping history
+    if (payload.length > 3_000_000 && !persistFailToastShown.current) {
+      persistFailToastShown.current = true;
+      showToast("對話記錄較長，舊訊息可能不會全部保存");
+    }
+    AsyncStorage.setItem(SESSIONS_KEY(user.id), payload).catch(() => {
+      if (!persistFailToastShown.current) {
+        persistFailToastShown.current = true;
+        showToast("對話記錄保存失敗（儲存空間不足）");
+      }
+    });
     AsyncStorage.setItem(ACTIVE_KEY(user.id), nextActive).catch(() => {});
   }, [user?.id]);
 
   // ─── Update a session's messages ───────────────────────
+  // IMPORTANT: always address the current active session via ref so in-flight
+  // mutation callbacks can never write an AI reply into the wrong chat (#1).
+  const activeChatIdRef = useRef(activeChatId);
+  const sessionsRef = useRef(sessions);
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+    sessionsRef.current = sessions;
+  }, [activeChatId, sessions]);
+
+  const getCurrentMessages = useCallback((): Message[] => {
+    return sessionsRef.current.find(s => s.id === activeChatIdRef.current)?.messages ?? [];
+  }, []);
 
   const updateMessages = useCallback((fn: (prev: Message[]) => Message[]) => {
+    const targetId = activeChatIdRef.current;
     setSessions(prev => {
-      const idx = prev.findIndex(s => s.id === activeChatId);
+      const idx = prev.findIndex(s => s.id === targetId);
       if (idx === -1) return prev;
       const updated = { ...prev[idx], messages: fn(prev[idx].messages) };
       const next = [...prev]; next[idx] = updated;
       return next;
     });
-  }, [activeChatId]);
+  }, []);
 
-  // Persist when sessions change (after loaded)
+  // Persist when sessions change (after loaded), with size guard + user feedback (#3 storage)
   useEffect(() => {
     if (!loaded || !user?.id || !activeChatId) return;
     persistSessions(sessions, activeChatId);
   }, [sessions, loaded, user?.id, activeChatId, persistSessions]);
 
-  // Auto-title: when first user message is sent, update the title
+  // Auto-title: when first user message is sent, update the title.
+  // Runs whenever messages change for the active session (not only length changes)
+  // so the migrated "新對話" title also gets renamed once its first user message exists.
   useEffect(() => {
     if (!activeSession || !loaded) return;
     if (activeSession.title !== "新對話") return;
@@ -652,16 +754,25 @@ export default function AIChefScreen() {
     const title = makeSessionTitle(activeSession.messages);
     if (title === "新對話") return;
     setSessions(prev => {
-      const idx = prev.findIndex(s => s.id === activeChatId);
+      const idx = prev.findIndex(s => s.id === activeChatIdRef.current);
       if (idx === -1) return prev;
       const next = [...prev]; next[idx] = { ...next[idx], title };
       return next;
     });
-  }, [activeSession?.messages.length]);
+  }, [activeSession?.messages, loaded]);
+
+  // Reset scroll when switching chats so the new conversation starts at the bottom
+  useEffect(() => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+  }, [activeChatId]);
 
   // ─── Chat actions ──────────────────────────────────────
 
   const handleNewChat = () => {
+    if (chatMutation.isPending) {
+      Alert.alert("AI 正在回覆", "請等 AI 完成回覆後再開新對話。");
+      return;
+    }
     setRecommendedRecipes([]);
     setMealResult(null);
     setMealStep("idle");
@@ -678,6 +789,10 @@ export default function AIChefScreen() {
 
   const handleSwitchChat = (id: string) => {
     if (id === activeChatId) { setShowSessions(false); return; }
+    if (chatMutation.isPending) {
+      Alert.alert("AI 正在回覆", "請等 AI 完成回覆後再切換對話。");
+      return;
+    }
     setRecommendedRecipes([]);
     setMealResult(null);
     setMealStep("idle");
@@ -689,25 +804,30 @@ export default function AIChefScreen() {
   };
 
   const handleDeleteChat = (id: string) => {
-    Alert.alert("刪除對話", "確定要刪除這個對話嗎？", [
-      { text: "取消", style: "cancel" },
-      {
-        text: "刪除", style: "destructive",
-        onPress: () => {
-          setSessions(prev => {
-            const next = prev.filter(s => s.id !== id);
-            if (next.length === 0) {
-              const newId = generateId();
-              const fallback: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
-              setActiveChatId(newId);
-              return [fallback];
-            }
-            if (id === activeChatId) setActiveChatId(next[0].id);
-            return next;
-          });
+    const isDeletingPendingChat = chatMutation.isPending && id === activeChatId;
+    Alert.alert(
+      "刪除對話",
+      isDeletingPendingChat ? "AI 正在回覆此對話，刪除後該回覆會消失。確定要刪除嗎？" : "確定要刪除這個對話嗎？",
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "刪除", style: "destructive",
+          onPress: () => {
+            setSessions(prev => {
+              const next = prev.filter(s => s.id !== id);
+              if (next.length === 0) {
+                const newId = generateId();
+                const fallback: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
+                setActiveChatId(newId);
+                return [fallback];
+              }
+              if (id === activeChatId) setActiveChatId(next[0].id);
+              return next;
+            });
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   // ─── Keyboard ──────────────────────────────────────────
@@ -725,7 +845,7 @@ export default function AIChefScreen() {
   const [planAction, setPlanAction] = useState<"meal" | "shopping">("meal");
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
-  const [planDate, setPlanDate] = useState<string | null>(() => new Date().toISOString().split("T")[0]);
+  const [planDate, setPlanDate] = useState<string | null>(() => localToday());
   const [planMeal, setPlanMeal] = useState("dinner");
 
   const utils = trpc.useUtils();
@@ -756,9 +876,9 @@ export default function AIChefScreen() {
 
   const scrollToLatestMessage = () => {
     setTimeout(() => {
-      if (!flatListRef.current || messages.length === 0) return;
-      const lastIndex = messages.length - 1;
-      flatListRef.current.scrollToIndex({ index: Math.max(0, lastIndex - 1), animated: true, viewPosition: 0 });
+      const len = getCurrentMessages().length;
+      if (!flatListRef.current || len === 0) return;
+      flatListRef.current.scrollToIndex({ index: Math.max(0, len - 1), animated: true, viewPosition: 0 });
     }, 150);
   };
 
@@ -794,11 +914,9 @@ export default function AIChefScreen() {
         const imageMsg: Message = { role: "user", content: [{ type: "text", text: "我雪櫃有呢啲食材，可以煮咩？" }, { type: "image_url", image_url: { url: dataUri } }] };
 
         resetAiNextSteps();
-        updateMessages(prev => {
-          const msgs: Message[] = [...prev, imageMsg];
-          return msgs;
-        });
-        chatMutation.mutate({ messages: buildBackendMessages([...messages, imageMsg]) });
+        const msgs: Message[] = [...getCurrentMessages(), imageMsg];
+        updateMessages(() => msgs);
+        sendChatMutation(msgs);
         scrollToEnd();
       } catch {
         Alert.alert("讀取圖片失敗");
@@ -824,13 +942,17 @@ export default function AIChefScreen() {
   };
 
   const addUserMessage = (text: string) => {
-    const msgs: Message[] = [...messages, { role: "user", content: text }];
+    const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: text }];
     updateMessages(() => msgs);
     scrollToEnd();
     return msgs;
   };
 
   const startMealFlow = () => {
+    if (chatMutation.isPending) return;
+    // Don't re-enter while the meal flow is already active — prevents duplicated
+    // "今晚幾多人食？" pings when the chip is tapped repeatedly (#2).
+    if (mealStep !== "idle") return;
     setMealPrefs(EMPTY_PREFS);
     setMealResult(null);
     setRecommendedRecipes([]);
@@ -873,11 +995,14 @@ export default function AIChefScreen() {
     switch (mealStep) {
       case "people": {
         const n = parseInt(t.replace(/\D/g, ""), 10);
-        return { people: isNaN(n) || n < 1 ? 4 : n };
+        return { people: isNaN(n) ? 4 : Math.min(Math.max(n, 1), 20) };
       }
       case "audience": {
-        const hasKids = /仔|女|小朋友|細路|童|孩|kids|child/.test(lower);
-        const hasElderly = /老人家|長者|老人|爸|媽|爺|嫲|公公|婆婆|elderly|old/.test(lower);
+        // "爸媽" means parents (normal adults), NOT elderly — don't treat elders' /old/
+        // as one giant regex (#5). Look for explicit senior-related words and explicit
+        // young-children words instead.
+        const hasKids = /仔|女|小朋友|細路|學童|兒童|孩童|kids|child|children|bb|嬰幼/.test(lower);
+        const hasElderly = /老人家|長者|老人|公公|婆婆|奶奶|爺爺|嫲嫲|外婆|外公|阿嫲|阿爺|祖母|祖父|senior|elderly/.test(lower);
         return { hasKids, hasElderly };
       }
       case "time": {
@@ -886,14 +1011,19 @@ export default function AIChefScreen() {
         return { time: "normal" as const };
       }
       case "dislike":
-        return { dislikes: /冇|没有|無|none|沒有/.test(t) ? "" : t };
+        return { dislikes: /^(冇|没有|無|none|沒有|no|冇忌口|無所謂|都ok|都可以|乜都食)\s*[。.!！]?$/i.test(t) ? "" : t };
     }
     return {};
   };
 
-  const handleMealAnswer = (text: string) => {
+  const handleMealAnswer = (text: string, audienceOverride?: AudienceKey) => {
+    if (chatMutation.isPending) return;
+    if (!isMealAnswering) return;
     resetAiNextSteps();
-    const update = parseMealAnswer(text);
+    const update = audienceOverride !== undefined
+      ? { hasKids: audienceOverride === "kids" || audienceOverride === "both",
+          hasElderly: audienceOverride === "elderly" || audienceOverride === "both" }
+      : parseMealAnswer(text);
     const nextPrefs = { ...mealPrefs, ...update };
     setMealPrefs(nextPrefs);
     const msgs = addUserMessage(text);
@@ -922,11 +1052,16 @@ export default function AIChefScreen() {
 
   const generateMealPlan = (prefs: MealPlanPreferences, msgs: Message[]) => {
     const prompt = buildMealPrompt(prefs);
-    const fullMsgs: Message[] = [...msgs, { role: "user", content: prompt }];
+    // Store the assistant question + user's preference answers, but NOT the raw
+    // internal prompt — keeps the chat readable instead of showing a wall of text.
+    const fullMsgs: Message[] = [...msgs, { role: "user", content: "（已按以上條件生成 3 餸 1 湯餐單）" }];
     updateMessages(() => fullMsgs);
     resetAiNextSteps();
-    chatMutation.mutate({ messages: buildBackendMessages(fullMsgs) }, {
-      onSuccess: (data) => {
+    // Send full history + the actual generation prompt to the backend
+    sendChatMutation([...msgs, { role: "user", content: prompt }], {
+      onSuccess: (data: any, vars: any) => {
+        // Ignore a stale send if the user switched chats while AI was thinking (#1)
+        if (vars?._sentFromChatId && vars._sentFromChatId !== activeChatIdRef.current) return;
         setMealStep("result");
         setAiNextSteps([]);
         if (data.recipes?.length > 0) {
@@ -935,7 +1070,10 @@ export default function AIChefScreen() {
           setRecommendedRecipes(safeRecipes);
         }
       },
-      onError: () => setMealStep("idle"),
+      onError: (_e: any, vars: any) => {
+        if (vars?._sentFromChatId && vars._sentFromChatId !== activeChatIdRef.current) return;
+        setMealStep("idle");
+      },
     });
     scrollToLatestMessage();
   };
@@ -954,9 +1092,9 @@ export default function AIChefScreen() {
     if (inStockItems.length > 0) {
       const ingredientList = inStockItems.map((item: any) => `${item.name}${item.quantity ? ` ${item.quantity}${item.unit || ""}` : ""}`).join("、");
       const prompt = `我雪櫃有：${ingredientList}，可以煮咩？`;
-      const msgs: Message[] = [...messages, { role: "user", content: prompt }];
+      const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChatMutation(msgs);
       scrollToEnd();
     } else {
       setAskingIngredients(true);
@@ -1007,10 +1145,8 @@ export default function AIChefScreen() {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
     }
-    // Override servings with user's preference if from meal plan flow
-    const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
-      ? mealPrefs.people
-      : null;
+    // Override servings only when these recipes came from THIS meal-plan flow (#11)
+    const overrideServings = recipes === mealResult && mealPrefs.people > 0 ? mealPrefs.people : null;
     // Save recipes to user library first, then open date picker modal
     try {
       const saved = await Promise.all(validRecipes.map(r => saveRecipeM.mutateAsync({
@@ -1030,7 +1166,7 @@ export default function AIChefScreen() {
       }));
       setBatchRecipes(recipesWithIds);
       setPlanAction("meal");
-      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+      setPlanDate(localToday()); // Reset to today
       setShowPlan(true);
     } catch (e: any) {
       Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
@@ -1069,23 +1205,27 @@ const COMMON_PANTRY = [
   "清水", "水", "八角", "花椒", "五香粉", "雞粉", "味醂",
 ];
 
-// Helper to categorize ingredients based on keywords
+// Helper to categorize shopping ingredients based on keywords (#13).
+// Checked most-specific first; broad single-char keywords ("菜"/"肉"/"水"/"魚"/"蛋")
+// are deliberately NOT matched alone to avoid miscategorizing 菜乾→蔬菜,
+// 魚香茄子→海鮮, 水餃→飲品, etc.
 const categorizeIngredient = (name: string): string => {
-  const n = name.toLowerCase();
-  if (/蔬菜|菜|青菜|白菜|生菜|菠菜|芥蘭|菜心|西蘭花|椰菜|蘿蔔|薯仔|番茄|青瓜|茄子|南瓜|冬瓜|絲瓜|洋蔥|洋蔥/.test(n)) return "蔬菜";
-  if (/肉|豬|牛|雞|羊|排骨|雞翼|雞腿|牛肉|豬肉|雞胸/.test(n)) return "肉類";
-  if (/魚|蝦|蟹|貝|魷魚|章魚|蠔|蜆|蛤|鮑魚|海參/.test(n)) return "海鮮";
-  if (/蛋|奶|芝士|牛奶|奶油|牛油/.test(n)) return "蛋奶";
-  if (/米|飯|麵|粉|粉絲|烏冬|意粉|通粉|餃子|雲吞/.test(n)) return "主食";
-  if (/醬|油|鹽|糖|醋|酒|味精|雞粉|胡椒粉|五香|八角|花椒|桂皮/.test(n)) return "調味料";
-  if (/乾|冬菇|木耳|金針|蝦米|瑤柱|蓮子|百合|紅棗|枸杞/.test(n)) return "乾貨";
-  if (/水|果汁|汽水|啤酒|紅酒|白酒|湯/.test(n)) return "飲品";
+  const n = name.toLowerCase().trim();
+  if (!n) return "其他";
+  if (/醬油|生抽|老抽|蠔油|調味|食鹽|粗鹽|細鹽|砂糖|冰糖|片糖|米醋|陳醋|白醋|料酒|紹酒|黃酒|味精|雞粉|雞精|胡椒|花椒|八角|桂皮|五香|麻油|香油|花生油|粟米油|橄欖油|菜油|魚露|豆辦醬|豆瓣醬|甜麵醬|柱侯醬|南乳|腐乳|咖喱|茄汁|喼汁|蚝油/.test(n)) return "調味料";
+  if (/冬菇|香菇|木耳|銀耳|雪耳|金針|蝦米|乾蝦|瑤柱|干貝|蓮子|百合|紅棗|黑棗|枸杞|淮山|黨參|蜜棗|腐竹|粉絲|花膠|海味|菜乾|梅菜|鹹菜|酸菜|醬菜/.test(n)) return "乾貨";
+  if (/水餃|雲吞|餃子|白米|糙米|糯米|香米|絲苗|意粉|通粉|烏冬|拉麵|伊麵|河粉|米粉|麵|方包|多士|燕麥|麥皮|小米|粉絲|腸粉|米餅|^飯$|^米$/.test(n)) return "主食";
+  if (/白飯魚|魚柳|魚片|魚頭|魚尾|鯇魚|鯽魚|鱸魚|桂花魚|石斑|東星斑|龍躉|鯧魚|秋刀魚|三文魚|鱈魚|吞拿魚|帶魚|黃花魚|紅衫魚|鮟鱇|魷魚|八爪魚|章魚|墨魚|鮮蝦|大蝦|蝦仁|蝦球|蟹|膏蟹|肉蟹|花蟹|扇貝|帶子|青口|蜆|花甲|鮑魚|海參|海螺|螺|蚬|蛤蜊|象拔蚌|瀨尿蝦|龍蝦/.test(n) || /^魚$/.test(n) || /鮮魚$/.test(n)) return "海鮮";
+  if (/豬肉|豬扒|豬頸|排骨|五花腩|豬腩|豬手|豬腳|牛肉|牛腩|牛柳|牛展|牛筋|羊肉|雞|雞翼|雞髀|雞腿|雞胸|雞腳|雞肝|雞腎|雞扒|鴨|鴨胸|鵝|鵪鶉|肉片|肉碎|免治豬|肉排|臘肉|腊味|午餐肉|火腿/.test(n) || /^肉$/.test(n)) return "肉類";
+  if (/雞蛋|鴨蛋|鵪鶉蛋|皮蛋|鹹蛋|鮮奶|牛奶|奶粉|淡奶|芝士|起司|奶油|牛油|忌廉|酸奶|乳酪/.test(n)) return "蛋奶";
+  if (/白菜|菜心|芥蘭|芥菜|生菜|菠菜|通菜|莧菜|油麥菜|娃娃菜|椰菜|西蘭花|椰菜花|小白菜|上海青|韭菜|韭黃|蒜芯|蒜苔|蘆筍|西芹|芹菜|青瓜|黃瓜|節瓜|絲瓜|冬瓜|南瓜|茄子|番茄|薯仔|土豆|馬鈴薯|紅蘿蔔|白蘿蔔|蘿蔔|沙葛|蓮藕|芋頭|大薯|番薯|菜苗|韭菜花|洋蔥|紅蔥|蔥|豆苗|豌豆|荷蘭豆|四季豆|豆角|蜜豆|粟米|玉米|甜椒|燈籠椒|青椒|尖椒|蘑菇|鮮菇|金針菇|鴻喜菇|秀珍菇|大啡菇|平菇|杏鮑菇|草菇|芽菜|佛手瓜|水蓮|秋葵|芥財|枸杞葉/.test(n)) return "蔬菜";
+  if (/果汁|鮮榨|可樂|汽水|梳打|雪碧|芬達|檸檬茶|奶茶|咖啡|啤酒|紅酒|白酒|威士忌|清酒|氣水|椰子水|椰汁|湯包|高湯|上湯|雞湯|豬骨湯/.test(n)) return "飲品";
   return "其他";
 };
 
 const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     setShopRecipes(recipes);
-    setShopPlannedDate(plannedDate || new Date().toISOString().split("T")[0]);
+    setShopPlannedDate(plannedDate || localToday());
     const selected = new Set<string>();
     recipes.forEach(r => {
       r.ingredients.forEach((ing, i) => {
@@ -1124,9 +1264,31 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
   };
 
   // ─── Backend message builder ───────────────────────────
-
+  // - Trim history so payloads never grow without bound (#3)
+  // - Replace persisted empty image blocks (base64 stripped for storage) with a
+  //   short text note so the AI keeps context and never receives an empty image (#4)
   const buildBackendMessages = (msgs: Message[]): BackendMessage[] => {
-    return msgs.map(m => ({ role: m.role, content: m.content }) as BackendMessage);
+    const trimmedMsgs = msgs.slice(-MAX_HISTORY_MESSAGES);
+    return trimmedMsgs.map(m => {
+      if (typeof m.content === "string") return { role: m.role, content: m.content };
+      const hasEmptyImage = m.content.some(
+        b => b.type === "image_url" && !b.image_url.url
+      );
+      if (!hasEmptyImage) return { role: m.role, content: m.content };
+      return {
+        role: m.role,
+        content: contentToText(m.content) + "\n[用戶之前上傳了一張雪櫃食材相]",
+      };
+    }) as BackendMessage[];
+  };
+
+  // Wrapper: run the mutation while stamping the id of the chat this send was
+  // started from, so per-send callbacks can detect stale sends (#1).
+  const sendChatMutation = (fullMsgs: Message[], options?: any) => {
+    chatMutation.mutate(
+      { messages: buildBackendMessages(fullMsgs), _sentFromChatId: activeChatIdRef.current } as any,
+      options
+    );
   };
 
   const resetAiNextSteps = () => setAiNextSteps([]);
@@ -1145,14 +1307,14 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     } else if (askingIngredients) {
       setAskingIngredients(false);
       const prompt = `我想用以下食材煮餸：${trimmed}。請推薦可以用到呢啲食材嘅食譜。`;
-      const msgs: Message[] = [...messages, { role: "user", content: prompt }];
+      const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChatMutation(msgs);
       scrollToEnd();
     } else {
-      const msgs: Message[] = [...messages, { role: "user", content: trimmed }];
+      const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: trimmed }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChatMutation(msgs);
       scrollToEnd();
     }
   };
@@ -1165,14 +1327,14 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     } else if (askingIngredients) {
       setAskingIngredients(false);
       const prompt = `我想用以下食材煮餸：${p}。請推薦可以用到呢啲食材嘅食譜。`;
-      const msgs: Message[] = [...messages, { role: "user", content: prompt }];
+      const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChatMutation(msgs);
       scrollToEnd();
     } else {
-      const msgs: Message[] = [...messages, { role: "user", content: p }];
+      const msgs: Message[] = [...getCurrentMessages(), { role: "user", content: p }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChatMutation(msgs);
       scrollToEnd();
     }
   };
@@ -1185,7 +1347,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     if (validRecipe) {
       setPlanRecipe(validRecipe);
       setPlanAction("meal");
-      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+      setPlanDate(localToday()); // Reset to today
       setShowPlan(true);
     } else {
       Alert.alert("未能識別食譜", "AI 回覆中未找到有效食譜，請直接點擊 AI 推薦食譜卡片上的「加排餐」。");
@@ -1224,21 +1386,15 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           autoAddIngredients: false,
           ingredients: [],
         }))).then(() => {
+          // Capture recipes before clearing state — otherwise openShoppingSelection
+          // receives a stale `batchRecipes` that has already been reset to null.
+          const recipesToShop = batchRecipes;
           setShowPlan(false);
           setBatchRecipes(null);
           showToast(`✅ ${batchRecipes.length} 個排餐已加入`);
           utils.mealPlan.listByDateRange.invalidate();
-          // Open shopping selection for all batch recipes
-          const allIngredients = batchRecipes.flatMap((r: any) =>
-            (r.ingredients || []).map((ing: any, idx: number) => ({
-              ...ing,
-              _recipeId: `user_${r._savedId}`,
-              _recipeName: r.name,
-              _idx: idx,
-            }))
-          );
-          if (allIngredients.length > 0) {
-            openShoppingSelection(batchRecipes, planDate);
+          if (recipesToShop.length > 0) {
+            openShoppingSelection(recipesToShop, planDate);
           }
         }).catch((e: any) => {
           Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
@@ -1253,10 +1409,12 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
       Alert.alert("無法加入", "此食譜資料不完整（缺少食材或步驟），無法加入排餐。");
       return;
     }
-    // Override servings with user's preference if from meal plan flow
-    const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
-      ? mealPrefs.people
-      : null;
+    // Override servings only when this recipe actually came from the current
+    // meal-plan flow (#11) — plain chat recommendations keep their own servings.
+    const overrideServings =
+      mealResult && mealResult.some(r => r.name === planRecipe.name) && mealPrefs.people > 0
+        ? mealPrefs.people
+        : null;
     if (planAction === "meal") {
       saveRecipeM.mutate({
         name: planRecipe.name, description: planRecipe.description,
@@ -1328,7 +1486,16 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             <>
               {typeof item.content !== "string" && item.content.map((block, idx) =>
                 block.type === "image_url" ? (
-                  <Image key={idx} source={{ uri: block.image_url.url }} style={s.msgImage} resizeMode="cover" />
+                  block.image_url.url ? (
+                    <Image key={idx} source={{ uri: block.image_url.url }} style={s.msgImage} resizeMode="cover" />
+                  ) : (
+                    // Persisted history strips base64 for storage; show a placeholder instead
+                    // of a broken empty <Image> (#9).
+                    <View key={idx} style={[s.msgImage, { backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER }]}>
+                      <Ionicons name="image-outline" size={30} color={HINT} />
+                      <Text style={{ fontSize: 11, color: SUB, marginTop: 6 }}>相片已移除（重開 app 後不再顯示）</Text>
+                    </View>
+                  )
                 ) : (
                   <Text key={idx} style={[s.bubbleTxt, isUser && { color: "#fff" }]} selectable>{block.text}</Text>
                 )
@@ -1368,9 +1535,23 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
 
   const renderMealHotKeys = () => {
     if (!isMealAnswering) return null;
+    if (mealStep === "audience") {
+      // Audience needs BOTH children/elderly flags — sending the label text would
+      // feed raw chip text through the fuzzy regex and risk misfiring (#5).
+      return (
+        <View style={s.hotKeyBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
+            {AUDIENCE_OPTIONS.map((o) => (
+              <TouchableOpacity key={o.key} style={s.hotKeyChip} onPress={() => handleMealAnswer(o.label, o.key)} disabled={chatMutation.isPending}>
+                <Text style={s.hotKeyChipTxt}>{o.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      );
+    }
     let options: { label: string; value: string }[] = [];
-    if (mealStep === "people") options = PEOPLE_OPTIONS.map(n => ({ label: n + "人", value: n }));
-    else if (mealStep === "audience") options = AUDIENCE_OPTIONS.map(o => ({ label: o.label, value: o.label }));
+    if (mealStep === "people") options = PEOPLE_OPTIONS.map(n => ({ label: n + (n === "6" ? "+人" : "人"), value: n }));
     else if (mealStep === "time") options = TIME_OPTIONS.map(o => ({ label: o.label, value: o.label }));
     else if (mealStep === "dislike") options = [
       { label: "冇", value: "冇" },
@@ -1508,7 +1689,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         <View style={[s.root, { paddingTop: insets.top }]}>
@@ -1519,7 +1700,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           keyExtractor={(_, i) => String(i)}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={messages.length === 0 ? s.emptyList : s.list}
-          onContentSizeChange={() => messages.length > 0 && scrollToLatestMessage()}
+          onContentSizeChange={() => { if (getCurrentMessages().length > 0) scrollToLatestMessage(); }}
           onScrollToIndexFailed={(info) =>
             setTimeout(() =>
               flatListRef.current?.scrollToOffset({
@@ -1619,7 +1800,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
                           if (isValidRecipe(r)) {
                             setPlanRecipe(r);
                             setPlanAction("meal");
-                            setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+                            setPlanDate(localToday()); // Reset to today
                             setShowPlan(true);
                           } else {
                             Alert.alert("無法加入", "此食譜資料不完整。");
@@ -1661,7 +1842,7 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
           </View>
         )}
 
-        <View style={[s.inputBar, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
+        <View style={[s.inputBar, { paddingBottom: Platform.OS === "ios" ? 8 : Math.max(insets.bottom, 8) }]}>
           <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
             <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
           </TouchableOpacity>
@@ -1674,7 +1855,8 @@ const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
             {chatMutation.isPending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
           </TouchableOpacity>
         </View>
-        {keyboardH === 0 && (
+        {/* disclaimer hidden while soft keyboard is open so the input stays within view */}
+        {!keyboardH && (
           <Text style={s.disclaimer}>AI Chef 由 AI 生成內容，可能會出錯，請仔細檢查食材及步驟。</Text>
         )}
       </View>
