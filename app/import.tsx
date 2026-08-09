@@ -5,7 +5,7 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Image, Modal,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
@@ -1086,56 +1086,67 @@ export default function ImportScreen() {
   if (step === "failed") {
     return (
       <>
-        <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={styles.centerContainer}>
-            <Ionicons name="alert-circle" size={64} color="#EF4444" />
-            <Text style={styles.failedTitle}>解析失敗</Text>
-            <Text style={styles.failedMsg}>{errorMsg}</Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
+        >
+          <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+            <View style={styles.centerContainer}>
+              <Ionicons name="alert-circle" size={64} color="#EF4444" />
+              <Text style={styles.failedTitle}>解析失敗</Text>
+              <Text style={styles.failedMsg}>{errorMsg}</Text>
 
-            <View style={styles.failedActions}>
-              {/* 按鈕 1：換一張照片（主按鈕） */}
-              <TouchableOpacity
-                style={styles.tryScreenshotButton}
-                onPress={() => {
-                  setShowPhotoSourceModal(true);
-                  setErrorMsg("");
-                  setFailedInput(null);
-                }}
-              >
-                <Ionicons name="image" size={18} color="#fff" />
-                <Text style={styles.tryScreenshotText}>
-                  換一張照片（拍清晰食物本體）
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.failedActions}>
+                {/* 按鈕 1：換一張照片（主按鈕） */}
+                <TouchableOpacity
+                  style={styles.tryScreenshotButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setShowPhotoSourceModal(true);
+                    setErrorMsg("");
+                    setFailedInput(null);
+                  }}
+                >
+                  <Ionicons name="image" size={18} color="#fff" />
+                  <Text style={styles.tryScreenshotText}>
+                    換一張照片（拍清晰食物本體）
+                  </Text>
+                </TouchableOpacity>
 
-              {/* 按鈕 2：貼上連結（次要） */}
-              <TouchableOpacity
-                style={styles.tryTextButton}
-                onPress={() => {
-                  setStep("input");
-                  setErrorMsg("");
-                  setFailedInput(null);
-                  // Preserve clipboardUrl and repost to input field
-                  if (clipboardUrl) {
-                    setUniversalInput(clipboardUrl);
-                  }
-                }}
-              >
-                <Ionicons name="link-outline" size={18} color="#013E77" />
-                <Text style={styles.tryTextButtonText}>試另一條連結</Text>
-              </TouchableOpacity>
+                {/* 按鈕 2：貼上連結（次要） */}
+                <TouchableOpacity
+                  style={styles.tryTextButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setStep("input");
+                    setErrorMsg("");
+                    setFailedInput(null);
+                    // Preserve clipboardUrl and repost to input field
+                    if (clipboardUrl) {
+                      setUniversalInput(clipboardUrl);
+                    }
+                  }}
+                >
+                  <Ionicons name="link-outline" size={18} color="#013E77" />
+                  <Text style={styles.tryTextButtonText}>試另一條連結</Text>
+                </TouchableOpacity>
 
-              {/* 按鈕 3：自訂食譜（最後手段） */}
-              <TouchableOpacity
-                style={styles.tryTextButton}
-                onPress={() => router.push("/recipe-editor")}
-              >
-                <Ionicons name="create-outline" size={18} color="#013E77" />
-                <Text style={styles.tryTextButtonText}>自訂食譜</Text>
-              </TouchableOpacity>
+                {/* 按鈕 3：自訂食譜（最後手段） */}
+                <TouchableOpacity
+                  style={styles.tryTextButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    router.push("/recipe-editor");
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color="#013E77" />
+                  <Text style={styles.tryTextButtonText}>自訂食譜</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
         {renderPhotoSourceModal()}
       </>
     );
