@@ -378,7 +378,7 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else {
-        setErrorMsg("圖片中沒有足夠的食譜資訊。\n\n建議截取包含食材和步驟的完整截圖，避免只截取封面圖片。");
+        setErrorMsg("圖片中沒有足夠的食譜資訊。\n\n請重新上傳更清晰的圖片，確保包含完整的食材和步驟");
         setFailedInput({ type: "url", value: "" });
         setStep("failed");
       }
@@ -393,6 +393,7 @@ export default function ImportScreen() {
   });
 
   const uploadImageMutation = trpc.recipes.uploadRecipeImage.useMutation();
+  const deleteRecipeImageMutation = trpc.recipes.deleteRecipeImage.useMutation();
 
   const importMutation = trpc.recipes.importUser.useMutation({
     onSuccess: async (data) => {
@@ -418,7 +419,15 @@ export default function ImportScreen() {
     },
     onError: (err) => {
       isImportingRef.current = false;
-      Alert.alert("儲存失敗", err.message);
+      if ((err as any).data?.code === "CONFLICT") {
+        Alert.alert(
+          "重複食譜",
+          err.message || "此食譜已在你的食譜庫中",
+          [{ text: "知道了", style: "cancel" }]
+        );
+      } else {
+        Alert.alert("儲存失敗", err.message);
+      }
     },
   });
 
@@ -652,8 +661,17 @@ export default function ImportScreen() {
         mimeType: pendingScreenshot.mimeType,
       });
       console.log("[handleConfirmScreenshot] Upload result:", uploadResult);
-      await parseImageMutation.mutateAsync({ storageKey: uploadResult.key });
-      // parseImageMutation.onSuccess will handle the result
+      try {
+        await parseImageMutation.mutateAsync({ storageKey: uploadResult.key });
+        // parseImageMutation.onSuccess will handle the result
+      } catch (parseErr) {
+        // 解析失敗時清理已上傳的截圖，避免 R2 孤兒檔案
+        deleteRecipeImageMutation.mutate(
+          { key: uploadResult.key },
+          { onError: (cleanupErr) => console.warn("[handleConfirmScreenshot] 清理失敗截圖失敗:", cleanupErr) }
+        );
+        throw parseErr;
+      }
     } catch (e: any) {
       console.error("[handleConfirmScreenshot] Error:", e);
       stopParseProgress();
@@ -1305,7 +1323,7 @@ export default function ImportScreen() {
         {/* Xiaohongshu Tip */}
         <View style={styles.xiaohongshuTip}>
           <Ionicons name="information-circle" size={16} color="#6B7280" />
-          <Text style={styles.xiaohongshuTipText}>小紅書用戶請用：截圖上傳 或 貼上文字</Text>
+          <Text style={styles.xiaohongshuTipText}>小紅書用戶請用：拍照/截圖上傳 或 貼上文字</Text>
         </View>
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
