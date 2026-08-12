@@ -18,6 +18,7 @@ import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
+import { todayISO, formatDateLabel } from "@/src/lib/date";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -302,7 +303,7 @@ export default function AIChefScreen() {
 
   // ─── Shopping lists after AI plan ─────────────────────
   const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]); // 保留食譜名稱供 fromRecipeName
-  const [shopPlannedDate, setShopPlannedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [shopPlannedDate, setShopPlannedDate] = useState<string>(todayISO());
   // Ingredient picker after addPlanM success (single recipe)
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   // 批量排餐完成後用嚟開啟 IngredientPickerModal（多個食譜）
@@ -729,7 +730,7 @@ export default function AIChefScreen() {
   const [planAction, setPlanAction] = useState<"meal" | "shopping">("meal");
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
-  const [planDate, setPlanDate] = useState<string | null>(() => new Date().toISOString().split("T")[0]);
+  const [planDate, setPlanDate] = useState<string | null>(todayISO());
   const [planMeal, setPlanMeal] = useState("dinner");
 
   const utils = trpc.useUtils();
@@ -737,15 +738,36 @@ export default function AIChefScreen() {
     onSuccess: () => utils.recipes.listUser.invalidate(),
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
+    onSuccess: async (result, variables) => {
+      try {
+        await utils.mealPlan.listByDateRange.invalidate();
+        console.log("[AI Chef] Meal plan invalidate successful");
+        const mealTypeLabel = variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食";
+        showToast(`✅ 已加入排餐 (${formatDateLabel(variables.date)} ${mealTypeLabel})`);
+      } catch (e) {
+        console.error("[AI Chef] Meal plan invalidate failed:", e);
+        showToast("⚠️ 已加入排餐，但列表可能需要手動刷新");
+      }
+    },
     onError: (e) => Alert.alert("加入排餐失敗", e.message),
   });
   const addPlanBatchM = trpc.mealPlan.addBatch.useMutation({
+    onSuccess: async () => {
+      try {
+        await utils.mealPlan.listByDateRange.invalidate();
+        console.log("[AI Chef] Batch meal plan invalidate successful");
+        showToast("✅ 已批量加入排餐");
+      } catch (e) {
+        console.error("[AI Chef] Batch meal plan invalidate failed:", e);
+        showToast("⚠️ 已批量加入排餐，但列表可能需要手動刷新");
+      }
+    },
     onError: (e) => Alert.alert("批量加入排餐失敗", e.message),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: (data, variables) => {
       utils.shopping.list.invalidate();
-      utils.mealPlan.listByDateRange.invalidate();
+      utils.mealPlan.listByDateRange.refetch();
       setShowPlan(false);
       setShopRecipes([]);
       setPlanPickerRecipe(null);
@@ -1036,7 +1058,7 @@ export default function AIChefScreen() {
       }));
       setBatchRecipes(recipesWithIds);
       setPlanAction("meal");
-      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+      setPlanDate(todayISO()); // Reset to today
       setShowPlan(true);
     } catch (e: any) {
       Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
@@ -1069,7 +1091,7 @@ export default function AIChefScreen() {
 
   const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string) => {
     // 改用 IngredientPickerModal：統一 UI、預設唔勾調味料、支援日期驗證
-    const defaultDate = plannedDate || new Date().toISOString().split("T")[0];
+    const defaultDate = plannedDate || todayISO();
     const pickers: PickerRecipe[] = recipes.map((r, ri) => ({
       id: `ai_${ri}`,
       name: r.name,
@@ -1148,7 +1170,7 @@ export default function AIChefScreen() {
     if (validRecipe) {
       setPlanRecipe(validRecipe);
       setPlanAction("meal");
-      setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+      setPlanDate(todayISO()); // Reset to today
       setShowPlan(true);
     } else {
       Alert.alert("未能識別食譜", "AI 回覆中未找到有效食譜，請直接點擊 AI 推薦食譜卡片上的「加排餐」。");
@@ -1189,8 +1211,6 @@ export default function AIChefScreen() {
           setShowPlan(false);
           const recipesToShop = batchRecipes;
           setBatchRecipes(null);
-          showToast(`✅ ${recipesToShop.length} 個排餐已加入`);
-          utils.mealPlan.listByDateRange.invalidate();
           if (recipesToShop.some((r: any) => (r.ingredients || []).length > 0)) {
             openShoppingSelection(recipesToShop, planDate);
           }
@@ -1243,8 +1263,6 @@ export default function AIChefScreen() {
           }, {
             onSuccess: (result) => {
               setShowPlan(false);
-              showToast("已加入排餐");
-              utils.mealPlan.listByDateRange.invalidate();
               if (scaledIngredients.length > 0) {
                 setPlanPickerRecipe({
                   id: `user_${saved.id}`,
@@ -1450,9 +1468,23 @@ export default function AIChefScreen() {
         headerStyle: { backgroundColor: BG }, headerTintColor: BRAND,
         headerTitleStyle: { fontWeight: "800" },
         headerLeft: () => (
-          <TouchableOpacity onPress={() => setShowSessions(true)} style={s.headerBtn}>
-            <Ionicons name="chatbubbles-outline" size={20} color={BRAND} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/(tabs)/planner");
+                }
+              }}
+              style={s.headerBtn}
+            >
+              <Ionicons name="arrow-back" size={20} color={BRAND} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSessions(true)} style={s.headerBtn}>
+              <Ionicons name="chatbubbles-outline" size={20} color={BRAND} />
+            </TouchableOpacity>
+          </View>
         ),
         headerRight: () => (
           <TouchableOpacity onPress={handleNewChat} style={s.headerBtn}>
@@ -1576,7 +1608,7 @@ export default function AIChefScreen() {
                           if (isValidRecipe(r)) {
                             setPlanRecipe(r);
                             setPlanAction("meal");
-                            setPlanDate(new Date().toISOString().split("T")[0]); // Reset to today
+      setPlanDate(todayISO()); // Reset to today
                             setShowPlan(true);
                           } else {
                             Alert.alert("無法加入", "此食譜資料不完整。");
@@ -1663,7 +1695,7 @@ export default function AIChefScreen() {
           ) : planRecipe ? (
             <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
           ) : null}
-          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.30 }} contentContainerStyle={{ paddingBottom: 16 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.55 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {planAction === "meal" && <>
               <Text style={m.label}>餐次</Text>
               <View style={m.mealRow}>
@@ -1865,7 +1897,7 @@ const s = StyleSheet.create({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: { width: '100%', backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingVertical: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, height: Dimensions.get("window").height * 0.45 },
+  sheet: { width: '100%', backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingVertical: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24, height: Dimensions.get("window").height * 0.80 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 16 },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   title: { fontSize: 18, fontWeight: "800", color: TEXT },
