@@ -24,6 +24,23 @@ import KitchenSwitcher from "@/app/components/KitchenSwitcher";
 import { authenticateBiometric, isBiometricAvailable, isBiometricEnabled, clearAuthToken } from "@/lib/auth";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import * as Sentry from "@sentry/react-native";
+import * as SplashScreen from "expo-splash-screen";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
+import { CrashScreen } from "@/src/components/CrashScreen";
+import { initGlobalErrorHandler } from "@/lib/global-error-handler";
+import { initIAP } from "@/lib/purchase";
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
+
+Sentry.init({
+  dsn: SENTRY_DSN,
+  enabled: !__DEV__ && SENTRY_DSN.length > 0,
+  debug: __DEV__,
+  tracesSampleRate: __DEV__ ? 0 : 0.1,
+});
+
+initGlobalErrorHandler();
+void SplashScreen.preventAutoHideAsync();
 
 // 以用戶 ID 為 key，確保不同帳戶都有獨立的 onboarding 狀態
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
@@ -59,6 +76,10 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 1000 * 60 * 5, // 5 分鐘
+      gcTime: 1000 * 60 * 10, // 10 分鐘，避免 cache 無限累積
+      refetchOnWindowFocus: false, // RN 由 useAppStateRefetch hook 手動觸發
+      refetchOnReconnect: true, // 斷網重連自動 refetch
+      refetchIntervalInBackground: false, // 背景不輪詢
     },
   },
 });
@@ -91,24 +112,33 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // 檢查 Biometric 並提示解鎖（在 trpc 查詢之前）
   useEffect(() => {
     (async () => {
-      const available = await isBiometricAvailable();
-      const enabled = await isBiometricEnabled();
-      if (available && enabled) {
-        setBiometricPrompt(true);
-        const ok = await authenticateBiometric();
-        if (ok) {
-          setBiometricPrompt(false);
-          setBiometricChecked(true);
+      try {
+        const available = await isBiometricAvailable();
+        const enabled = await isBiometricEnabled();
+        if (available && enabled) {
+          setBiometricPrompt(true);
+          const ok = await authenticateBiometric();
+          if (ok) {
+            setBiometricPrompt(false);
+            setBiometricChecked(true);
+          } else {
+            await clearAuthToken();
+            setBiometricFailed(true);
+            setBiometricPrompt(false);
+            setBiometricChecked(true);
+          }
         } else {
-          await clearAuthToken();
-          setBiometricFailed(true);
-          setBiometricPrompt(false);
           setBiometricChecked(true);
         }
-      } else {
+      } finally {
+        // 確保 bootstrap 不會永久卡在 loading（即使 biometric 檢查中途 throw）
         setBiometricChecked(true);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    void initIAP();
   }, []);
 
   // 用 auth.me 確認登入狀態
@@ -130,13 +160,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const val = await AsyncStorage.getItem(key);
       if (val === "true") {
         setOnboardingDone(true);
-      } else {
-        router.replace("/onboarding");
+        return;
       }
+      // 若用戶已擁有 kitchen（activeFamilyId 已設定），視為已完成 onboarding。
+      // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
+      if (meQuery.data?.activeFamilyId) {
+        await AsyncStorage.setItem(key, "true");
+        setOnboardingDone(true);
+        router.replace("/(tabs)");
+        return;
+      }
+      router.replace("/onboarding");
     } catch {
       router.replace("/onboarding");
     }
-  }, [meQuery.data?.id, router]);
+  }, [meQuery.data?.id, meQuery.data?.activeFamilyId, router]);
 
   // 檢查是否已完成 Onboarding（以用戶 ID 為 key）
   useEffect(() => {
@@ -246,9 +284,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // 已登入
     if (isLoggedIn) {
       if (!onboardingDone) {
-        // 未完成 onboarding → 只在 login/tabs 頁面時跳轉到 onboarding
-        // 不干擾其他 stack screens（如 recipe/[id]、ai-chef 等）
-        if (!inOnboarding && (inLoginPage || inTabsGroup)) {
+        // 若用戶已擁有 kitchen，直接視為完成 onboarding 並返回 tabs，
+        // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
+        if (meQuery.data?.activeFamilyId) {
+          const key = getOnboardingKey(meQuery.data.id);
+          AsyncStorage.setItem(key, "true");
+          setOnboardingDone(true);
+          router.replace("/(tabs)");
+        } else if (!inOnboarding && (inLoginPage || inTabsGroup)) {
           if (inTabsGroup) {
             ensureOnboardingCheck();
           } else {
@@ -266,6 +309,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [meQuery.isLoading, meQuery.data, segments, onboardingChecked, onboardingDone]);
 
   const showLoading = !biometricFailed && (biometricPrompt || meQuery.isLoading || !onboardingChecked);
+
+  useEffect(() => {
+    if (!showLoading) {
+      void SplashScreen.hideAsync();
+    }
+  }, [showLoading]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -300,7 +349,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   useEffect(() => { initLanguage(); }, []);
 
-  return (
+  return (    <ErrorBoundary fallback={<CrashScreen />}>
     <I18nextProvider i18n={i18n}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
@@ -313,7 +362,6 @@ export default function RootLayout() {
               headerTitleStyle: { fontWeight: "bold" },
             }}
           >
-        
             <Stack.Screen
               name="(tabs)"
               options={{ 
@@ -342,7 +390,7 @@ export default function RootLayout() {
               options={{ 
                 headerShown: false,
                 title: "",
-                gestureEnabled: false,
+                gestureEnabled: true,
               }}
             />
             <Stack.Screen
@@ -358,5 +406,6 @@ export default function RootLayout() {
         </QueryClientProvider>
       </trpc.Provider>
     </I18nextProvider>
+    </ErrorBoundary>
   );
 }

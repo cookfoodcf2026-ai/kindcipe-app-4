@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -84,41 +85,41 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
     { staleTime: 1000 * 60 * 5 }
   );
   
-  // Find next confirmed dinner
-  const nextDinner = futureMeals.find(
-    (m: any) => m.mealType === "dinner" && m.status === "confirmed"
-  );
-  
-  // Check if today has eat-out
-  const isTodayEatOut = todayEatOut && todayMeals.some(
-    (m: any) => m.mealType === "dinner" && m.status === "confirmed"
-  );
-  
-  // Check if today has BOTH eat-out AND dinner plan (conflict)
   const todayDinnerPlan = todayMeals.find(
     (m: any) => m.mealType === "dinner" && m.status === "confirmed"
   );
+  const confirmedDinners = futureMeals.filter((m: any) => {
+    if (m.mealType !== "dinner" || m.status !== "confirmed") return false;
+    return !todayDinnerPlan || m.id !== todayDinnerPlan.id;
+  });
+
+  // Check if today has eat-out
+  const isTodayEatOut = todayEatOut && !!todayDinnerPlan;
+
+  // Check if today has BOTH eat-out AND dinner plan (conflict)
   const hasConflict = todayEatOut && todayDinnerPlan;
   
-  // Calculate date label for next dinner
-  const getNextDinnerLabel = () => {
-    if (!nextDinner) return null;
-    
-    const dinnerDate = nextDinner.date;
-    const diffDays = Math.floor(
-      (new Date(dinnerDate).getTime() - new Date(todayStr).getTime()) / 86400000
-    );
-    
-    if (diffDays === 0) return "今天";
-    if (diffDays === 1) return "明天";
-    if (diffDays === 2) return "後天";
-    
-    // Show full date (e.g., 8 月 10 日)
-    const date = new Date(dinnerDate);
-    return `${date.getMonth() + 1}月${date.getDate()}日`;
-  };
-  
-  const dateLabel = getNextDinnerLabel();
+  const dinnerRows: Array<{ icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }> = [];
+
+  if (hasConflict) {
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
+    dinnerRows.push({ icon: "alert-circle-outline", iconColor: "#DC2626", text: mealName(todayDinnerPlan), badge: "需確認", badgeKind: "conflict" });
+  } else if (isTodayEatOut) {
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
+  }
+
+  confirmedDinners.forEach((m: any) => {
+    const date = new Date(m.date);
+    const diffDays = Math.floor((date.getTime() - new Date(todayStr).getTime()) / 86400000);
+    let label = `${date.getMonth() + 1}月${date.getDate()}日`;
+    if (diffDays === 0) label = "今天";
+    else if (diffDays === 1) label = "明天";
+    else if (diffDays === 2) label = "後天";
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(m), badge: label });
+  });
+
+  const visibleDinnerRows = dinnerRows.slice(0, 3);
+  const moreCount = Math.max(0, dinnerRows.length - visibleDinnerRows.length);
 
   return (
     <TouchableOpacity
@@ -134,47 +135,24 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
         <Ionicons name="chevron-forward" size={16} color={BRAND} />
       </View>
 
-      {hasConflict ? (
-        // Show both eat-out and dinner plan with conflict warning
+      {visibleDinnerRows.length > 0 ? (
         <View style={s.dualCardContent}>
-          <View style={s.dualCardRow}>
-            <Ionicons name="restaurant-outline" size={12} color="#D97706" />
-            <Text style={s.dualCardRowText}>外出用餐</Text>
-            <View style={s.dateBadge}>
-              <Text style={s.dateBadgeText}>今天</Text>
+          {visibleDinnerRows.map((row, idx) => (
+            <View key={idx} style={s.dualCardRow}>
+              <Ionicons name={row.icon as any} size={12} color={row.iconColor} />
+              <Text style={s.dualCardRowText} numberOfLines={1}>{row.text}</Text>
+              {row.badge && (
+                <View style={row.badgeKind === "conflict" ? s.conflictBadge : s.dateBadge}>
+                  <Text style={row.badgeKind === "conflict" ? s.conflictBadgeText : s.dateBadgeText}>{row.badge}</Text>
+                </View>
+              )}
             </View>
-          </View>
-          <View style={s.dualCardRow}>
-            <Ionicons name="alert-circle-outline" size={12} color="#DC2626" />
-            <Text style={s.dualCardRowText} numberOfLines={1}>{mealName(todayDinnerPlan)}</Text>
-            <View style={s.conflictBadge}>
-              <Text style={s.conflictBadgeText}>需確認</Text>
+          ))}
+          {moreCount > 0 && (
+            <View style={s.dualCardMoreRow}>
+              <Text style={s.dualCardMoreText}>更多 {moreCount} 項</Text>
             </View>
-          </View>
-        </View>
-      ) : isTodayEatOut ? (
-        // Show eat-out status for today (orange text + restaurant icon)
-        <View style={s.dualCardContent}>
-          <View style={s.dualCardRow}>
-            <Ionicons name="restaurant-outline" size={12} color="#D97706" />
-            <Text style={s.dualCardRowText}>外出用餐</Text>
-            <View style={s.dateBadge}>
-              <Text style={s.dateBadgeText}>今天</Text>
-            </View>
-          </View>
-        </View>
-      ) : nextDinner ? (
-        // Show next dinner with date label
-        <View style={s.dualCardContent}>
-          <View style={s.dualCardRow}>
-            <Ionicons name="restaurant-outline" size={12} color="#F59E0B" />
-            <Text style={s.dualCardRowText} numberOfLines={1}>{mealName(nextDinner)}</Text>
-            {dateLabel && (
-              <View style={s.dateBadge}>
-                <Text style={s.dateBadgeText}>{dateLabel}</Text>
-              </View>
-            )}
-          </View>
+          )}
         </View>
       ) : (
         // No dinner arranged in 14 days
@@ -198,8 +176,9 @@ function ShoppingListPreview({ router }: {
   const endDateStr = endDate.toISOString().split("T")[0];
   
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 5000,
+    staleTime: 1000 * 30,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   // Filter: only active items within 14 days
@@ -211,10 +190,12 @@ function ShoppingListPreview({ router }: {
     });
   }, [shoppingItems, todayStr, endDateStr]);
 
-  // Limit to max 4 items
+  // Limit to max 3 items
   const itemsToShow = useMemo(() => {
-    return itemsIn14Days.slice(0, 4);
+    return itemsIn14Days.slice(0, 3);
   }, [itemsIn14Days]);
+
+  const moreCount = Math.max(0, itemsIn14Days.length - itemsToShow.length);
 
   // Calculate date label (今天/明天/後天/日期)
   const dateLabel = useMemo(() => {
@@ -264,6 +245,11 @@ function ShoppingListPreview({ router }: {
               )}
             </View>
           ))}
+          {moreCount > 0 && (
+            <View style={s.dualCardMoreRow}>
+              <Text style={s.dualCardMoreText}>更多 {moreCount} 項</Text>
+            </View>
+          )}
         </View>
       ) : (
         <View style={s.dualCardEmpty}>
@@ -329,12 +315,14 @@ function PendingActionsCard({ router, isAdmin }: {
   isAdmin: boolean;
 }) {
   const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 5000,
+    staleTime: 1000 * 30,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 5000,
+    staleTime: 1000 * 30,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   const pendingMealPlans = mealPlans.filter((m: any) => m.status === "pending").length;
@@ -418,24 +406,16 @@ function RecipeCardSkeleton({ anim }: { anim: Animated.Value }) {
   );
 }
 
-// ── Premium Promo Banner (for free/trial users) ─────────────────────────
-function PremiumPromoBanner({ onPress }: { onPress: () => void }) {
+// ── Premium Upgrade Button (for free/trial users) ─────────────────────
+function PremiumUpgradeButton({ onPress, style }: { onPress: () => void; style?: any }) {
   return (
-    <View style={s.quickActions}>
+    <View style={[s.upgradeBarWrap, style]}>
       <TouchableOpacity
-        style={[s.quickActionBtn, { borderColor: "#FED7AA", backgroundColor: "#FFFBEB" }]}
+        style={s.upgradeBarBtn}
         onPress={onPress}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        <View style={[s.quickActionIcon, { backgroundColor: "#FEF3C7" }]}>
-          <Ionicons name="sparkles-outline" size={22} color="#D97706" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.quickActionTitle, { color: "#92400E" }]}>✨ 將和諧食譜升級至家庭 Pro 版（免費試用 7 天）</Text>
-          <Text style={[s.quickActionSub, { color: "#B45309" }]}>
-            邀請屋企人共同排餐、共享買餸清單，解鎖 AI 智能晚餐推薦！
-          </Text>
-        </View>
+        <Text style={s.upgradeBarText}>升級至 Pro 版（免費試用 7 天）{`\n`}與家人連繫，連結 AI</Text>
       </TouchableOpacity>
     </View>
   );
@@ -446,7 +426,20 @@ export default function RecipesTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const utils = trpc.useUtils();
+  const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
   const { user, familyRole } = useAuth();
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "早晨";
+    if (hour < 18) return "午安";
+    return "晚安";
+  }, []);
+
+  // Scroll-to-top floating button
+  const listRef = useRef<FlatList>(null);
+  const showTopBtn = useRef(new Animated.Value(0)).current;
+  const [fabVisible, setFabVisible] = useState(false);
 
   const [showPaywall, setShowPaywall] = useState(false);
   
@@ -538,10 +531,12 @@ export default function RecipesTab() {
     { staleTime: 1000 * 60 * 5 }
   );
 
-  // Get today's eat-out status
-  const todayEatOut = weekMenu.items.find(
-    item => item.dayOfWeek === todayDow
-  )?.eatOut ?? false;
+  // Get today's eat-out status from the dedicated family_eat_out table
+  const { data: todayEatOutDates = [] } = trpc.eatOut.listByDateRange.useQuery(
+    { startDate: todayStr, endDate: todayStr },
+    { staleTime: 30000 }
+  );
+  const todayEatOut = todayEatOutDates.includes(todayStr);
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
@@ -576,27 +571,32 @@ export default function RecipesTab() {
   const isLoading = searchLoading || loadingUser;
 
   const addMealM = trpc.mealPlan.add.useMutation({
-    onSuccess: (result, variables) => {
+    onSuccess: async (result, variables) => {
+      setQuickPlanRecipe(null);
       // Check if there's a conflict (eatOut or duplicate recipe)
       if (result.warning && result.hasConflict) {
-        const isEatOutConflict = result.warning.includes("外出");
-        Alert.alert(
-          isEatOutConflict ? "衝突提示" : "重複食譜提示",
-          result.warning,
-          [
-            { text: "取消", style: "cancel", onPress: () => {
-              if (result.newPlanId) {
-                deleteMealM.mutate({ id: result.newPlanId });
-              }
-            }},
-            { text: "確定", onPress: () => {} },
-          ]
-        );
+        const shouldKeep = await new Promise<boolean>((resolve) => {
+          const isEatOutConflict = result.warning?.includes("外出");
+          Alert.alert(
+            isEatOutConflict ? "衝突提示" : "重複食譜提示",
+            result.warning,
+            [
+              { text: "取消", style: "cancel", onPress: () => resolve(false) },
+              { text: "確定", onPress: () => resolve(true) },
+            ],
+            { cancelable: false },
+          );
+        });
+
+        if (!shouldKeep) {
+          if (result.newPlanId) {
+            deleteMealM.mutate({ id: result.newPlanId, keepRelatedItems: false });
+          }
+          return;
+        }
       }
       
-      utils.mealPlan.listByDateRange.invalidate();
-      utils.shopping.list.invalidate();
-      setQuickPlanRecipe(null);
+      await invalidateMealPlanAndCart();
 
       // Find recipe from search results
       const found = searchRecipes.find((r: any) => r.id === variables.recipeId) as any;
@@ -616,16 +616,14 @@ export default function RecipesTab() {
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
-    onSuccess: () => {
-      utils.mealPlan.listByDateRange.invalidate();
-      utils.shopping.list.invalidate();
+    onSuccess: async () => {
+      await invalidateMealPlanAndCart();
     },
   });
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: (_, variables) => {
-      utils.shopping.list.invalidate();
-      utils.mealPlan.listByDateRange.invalidate();
+    onSuccess: async (_, variables) => {
+      await invalidateMealPlanAndCart();
       utils.shopping.list.refetch();
       const count = variables.items.length;
       setPlanPickerRecipe(null);
@@ -670,8 +668,8 @@ export default function RecipesTab() {
     setRefreshing(true);
     await Promise.all([
       refetchSearch(),
+      invalidateMealPlanAndCart(),
       utils.recipes.listUser.invalidate(),
-      utils.mealPlan.listByDateRange.invalidate(),
       utils.weeklyMenu.getWeek.invalidate(),
     ]);
     setRefreshing(false);
@@ -704,11 +702,16 @@ export default function RecipesTab() {
     );
   };
 
-  const hasFilters = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
+  // 含 viewMode —— 用於顯示「清除篩選」bar（揀「我的食譜」都算篩選）
+  const hasFilters = viewMode !== "all" || searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
+  // 唔含 viewMode —— 用於 empty state 分支，避免 viewMode 狹窄化令「我的食譜」空狀態不可達
+  const hasFilterTokens = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
   const hasActiveTokens = activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined || filterCookTimeMax !== undefined;
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
+    if (viewMode === "user") parts.push("我的食譜");
+    else if (viewMode === "official") parts.push("官方食譜");
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label || activeCategory);
@@ -728,10 +731,10 @@ export default function RecipesTab() {
     }
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
-  }, [activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories]);
+  }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories]);
 
   const ListHeader = (
-    <>
+    <View style={s.listHeaderOuter}>
       {/* Dual-card layout: Tonight's Menu + Shopping List Preview */}
       <View style={s.dualCardContainer}>
         <TonightMenuCardCompact todayMeals={todayMeals} todayEatOut={todayEatOut} router={router} />
@@ -739,7 +742,6 @@ export default function RecipesTab() {
       </View>
       
       <PendingActionsCard router={router} isAdmin={isAdmin} />
-      {!isPaid && <PremiumPromoBanner onPress={() => setShowPaywall(true)} />}
 
       <View style={[s.searchWrap, { marginRight: Math.max(14, insets.right) }]}>
         <Ionicons name="search" size={17} color="#9CA3AF" />
@@ -777,10 +779,10 @@ export default function RecipesTab() {
         {/* Filter Button */}
         <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
           <Ionicons name="filter-outline" size={18} color={BRAND} />
-          {(activeTagFilters.length > 0 || activePopularChips.length > 0 || activeCategory !== "all" || filterCookTimeMax !== undefined || activeIngredientCategory !== undefined) && (
+          {(viewMode !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeCategory !== "all" || filterCookTimeMax !== undefined || activeIngredientCategory !== undefined) && (
             <View style={s.filterBadge}>
               <Text style={s.filterBadgeTxt}>
-                {activeTagFilters.length + activePopularChips.length + (activeCategory !== "all" ? 1 : 0) + (filterCookTimeMax !== undefined ? 1 : 0) + (activeIngredientCategory !== undefined ? 1 : 0)}
+                {(viewMode !== "all" ? 1 : 0) + activeTagFilters.length + activePopularChips.length + (activeCategory !== "all" ? 1 : 0) + (filterCookTimeMax !== undefined ? 1 : 0) + (activeIngredientCategory !== undefined ? 1 : 0)}
               </Text>
             </View>
           )}
@@ -953,28 +955,31 @@ export default function RecipesTab() {
               <Text style={s.resultSummaryTxt}>找到 {searchTotal} 個食譜</Text>
             )}
           </View>
-          <TouchableOpacity onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); }}>
+          <TouchableOpacity onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); }}>
             <Text style={s.resultSummaryClear}>清除篩選</Text>
           </TouchableOpacity>
         </View>
       )}
-    </>
+    </View>
   );
 
   return (
     <View style={s.root}>
-      <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}>
-        <View>
-          <Text style={s.headerTitle}>食譜庫</Text>
-          <Text style={s.headerSub}>{user?.name ? `嗨，${user.name.split(" ")[0]}` : "發現美味，規劃每週菜單"}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/import")}>
-            <Ionicons name="add" size={22} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/ai-chef")}>
-            <Ionicons name="chatbubble-ellipses" size={19} color="#fff" />
-          </TouchableOpacity>
+      <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}> 
+        <View style={s.headerTopRow}>
+          <View>
+            <Text style={s.headerTitle}>和諧食譜</Text>
+            <Text style={s.headerSub}>{user?.name ? `${greeting}，${user.name.split(" ")[0]}` : "發現美味，規劃每週菜單"}</Text>
+          </View>
+          <View style={s.headerActions}>
+            {!isPaid && <PremiumUpgradeButton onPress={() => setShowPaywall(true)} />}
+            <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/import")}> 
+              <Ionicons name="add" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/ai-chef")}> 
+              <Ionicons name="chatbubble-ellipses" size={19} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -990,6 +995,7 @@ export default function RecipesTab() {
         keyboardVerticalOffset={0}
       >
         <FlatList
+          ref={listRef}
           data={filteredRecipes}
           keyExtractor={(item: any) => item.id}
           numColumns={2}
@@ -999,6 +1005,20 @@ export default function RecipesTab() {
           renderItem={renderCard}
           onEndReached={() => fetchNextPage()}
           onEndReachedThreshold={0.3}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            setFabVisible(y > 600);
+            Animated.timing(showTopBtn, {
+              toValue: y > 600 ? 1 : 0,
+              duration: 150,
+              useNativeDriver: true,
+            }).start();
+          }}
+          onScrollToTop={() => {
+            setFabVisible(false);
+            showTopBtn.setValue(0);
+          }}
+          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             isFetchingNextPage ? (
@@ -1035,13 +1055,13 @@ export default function RecipesTab() {
                   <Text style={s.emptyBtnTxt}>重試</Text>
                 </TouchableOpacity>
               </>
-            ) : hasFilters ? (
+            ) : hasFilterTokens ? (
               <>
                 <Ionicons name="search-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>找不到符合嘅食譜</Text>
                 <Text style={s.emptySub}>試下清除篩選或者揀其他分類</Text>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
-                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); }}>
+                  <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); }}>
                     <Text style={s.emptySuggestChipTxt}>清除篩選</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["quick30"]); }}>
@@ -1072,6 +1092,33 @@ export default function RecipesTab() {
         }
       />
       </KeyboardAvoidingView>
+
+      <Animated.View
+        pointerEvents={fabVisible ? "auto" : "none"}
+        style={[
+          s.scrollTopFab,
+          {
+            bottom: insets.bottom + 72,
+            opacity: showTopBtn,
+            transform: [
+              {
+                translateY: showTopBtn.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
+          style={s.scrollTopFabBtn}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-up" size={22} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
 
       <FilterModal
         visible={showFilterSheet}
@@ -1203,9 +1250,20 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
 
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12,
+    paddingHorizontal: 16, paddingBottom: 12,
     backgroundColor: BRAND,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginLeft: "auto",
   },
   headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
   headerSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
@@ -1236,6 +1294,7 @@ const s = StyleSheet.create({
   dualCardContainer: {
     flexDirection: "row",
     marginHorizontal: 14,
+    marginTop: 10,
     marginBottom: 8,
     gap: 8,
   },
@@ -1243,7 +1302,7 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
     borderRadius: 14,
-    padding: 10,
+    padding: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -1251,16 +1310,16 @@ const s = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: "#EBEBEB",
-    minHeight: 120,
+    minHeight: 108,
   },
   dualCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   dualCardTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     color: "#1A1A1A",
   },
@@ -1274,17 +1333,17 @@ const s = StyleSheet.create({
     color: BRAND,
   },
   dualCardContent: {
-    gap: 6,
+    gap: 4,
   },
   dualCardRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 3,
-    minHeight: 24,
+    gap: 5,
+    paddingVertical: 2,
+    minHeight: 22,
   },
   dualCardRowText: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#1A1A1A",
     flex: 1,
   },
@@ -1298,6 +1357,16 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "#D97706",
+  },
+  dualCardMoreRow: {
+    marginTop: 0,
+    paddingTop: 2,
+  },
+  dualCardMoreText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: BRAND,
+    textAlign: "right",
   },
   dateBadge: {
     backgroundColor: "#FEF3C7",
@@ -1352,6 +1421,33 @@ const s = StyleSheet.create({
   quickActionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   quickActionTitle: { fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
   quickActionSub: { fontSize: 10, color: "#9CA3AF", marginTop: 1 },
+  upgradeBarWrap: {
+    marginLeft: 0,
+    alignItems: "center",
+  },
+  upgradeBarBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#EAB308",
+    backgroundColor: "#FFF0B8",
+    shadowColor: "#B45309",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  upgradeBarText: {
+    fontSize: 10,
+    lineHeight: 13,
+    textAlign: "center",
+    fontWeight: "800",
+    color: "#92400E",
+    letterSpacing: 0.1,
+  },
 
   // Weekly bar
   weekDot: { width: 58, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", padding: 6, alignItems: "center" },
@@ -1364,14 +1460,14 @@ const s = StyleSheet.create({
   searchWrap: {
     flexDirection: "row", 
     alignItems: "center", 
-    gap: 8,
+    gap: 6,
     marginHorizontal: 14, 
-    marginTop: 8, 
-    marginBottom: 4,
+    marginTop: 6, 
+    marginBottom: 10,
     backgroundColor: "#fff", 
     borderRadius: 16,
-    paddingHorizontal: 14, 
-    paddingVertical: 11,
+    paddingHorizontal: 12, 
+    paddingVertical: 8,
     shadowColor: "#000", 
     shadowOffset: { width: 0, height: 2 }, 
     shadowOpacity: 0.08, 
@@ -1382,13 +1478,13 @@ const s = StyleSheet.create({
   },
   searchInput: { 
     flex: 1, 
-    fontSize: 15, 
+    fontSize: 14, 
     color: "#1A1A1A",
-    paddingVertical: 2,
+    paddingVertical: 0,
   },
   sortBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     backgroundColor: "#EEF4FB",
     alignItems: "center",
@@ -1396,8 +1492,8 @@ const s = StyleSheet.create({
     marginRight: 4,
   },
   filterBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     backgroundColor: "#EEF4FB",
     alignItems: "center",
@@ -1784,6 +1880,8 @@ const s = StyleSheet.create({
   // Grid
   gridContent: { paddingHorizontal: 14, paddingBottom: 100 },
   gridRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
+  // 抵消 gridContent 嘅水平 padding，令 ListHeader 內元素同食譜卡一樣只縮 14
+  listHeaderOuter: { marginHorizontal: -14 },
 
   // Recipe card skeleton (loading)
   skeletonGrid: {
@@ -2179,6 +2277,26 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#fff",
+  },
+
+  // Scroll-to-top floating button
+  scrollTopFab: {
+    position: "absolute",
+    right: 16,
+    zIndex: 20,
+  },
+  scrollTopFabBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: BRAND,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 5,
   },
 
   // Quick-plan modal
