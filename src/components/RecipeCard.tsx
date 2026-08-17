@@ -387,6 +387,9 @@ export default function RecipeCard({
             <View style={[s.cardImg, { height: CARD_WIDTH * imageRatio }, s.cardImgPH, { backgroundColor: catColor.bg }]}>
               <View style={s.placeholderContent}>
                 <Text style={s.placeholderEmoji}>{category?.emoji || "🍽️"}</Text>
+                <View style={s.placeholderTitleBox}>
+                  <Text style={s.placeholderTitle} numberOfLines={2}>{item.name}</Text>
+                </View>
               </View>
             </View>
           )
@@ -521,6 +524,21 @@ const s = StyleSheet.create({
   placeholderEmoji: {
     fontSize: 42,
     opacity: 0.8,
+  },
+  placeholderTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    paddingHorizontal: 2,
+  },
+  placeholderTitleBox: {
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 8,
+    maxWidth: "92%",
   },
   cardBadges: {
     position: "absolute",

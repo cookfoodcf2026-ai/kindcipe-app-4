@@ -293,11 +293,13 @@ export default function RecipeDetailScreen() {
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
+  const [showAllShopping, setShowAllShopping] = useState(false);
   // Track hero image load error to fall back to placeholder
   const [heroImgError, setHeroImgError] = useState(false);
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: () => {
       utils.mealPlan.listByDateRange.invalidate();
+      utils.shopping.list.invalidate();
       setToast({ visible: true, message: "已移除排餐", type: "success" });
     },
     onError: (e: any) => setToast({ visible: true, message: `移除失敗：${e.message}`, type: "error" }),
@@ -364,6 +366,27 @@ export default function RecipeDetailScreen() {
     });
     return map;
   }, [shoppingListQ.data]);
+
+  // 呢個食譜喺購物清單入面嘅項目（by plannedDate 分組）
+  const recipeShopping = useMemo(() => {
+    const items = (shoppingListQ.data ?? []).filter(
+      (i: any) =>
+        (i.fromRecipeId === recipeStringId || (recipe?.name && i.fromRecipeName === recipe.name)) &&
+        i.status !== "bought"
+    );
+    const groups: Array<{ date: string; items: any[] }> = [];
+    const map = new Map<string, any[]>();
+    items.forEach((i: any) => {
+      const d = i.plannedDate || "";
+      if (!map.has(d)) map.set(d, []);
+      map.get(d)!.push(i);
+    });
+    map.forEach((arr, d) => groups.push({ date: d, items: arr.sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh")) }));
+    groups.sort((a, b) => a.date.localeCompare(b.date));
+    return groups;
+  }, [shoppingListQ.data, recipeStringId, recipe?.name]);
+
+  const visibleShopGroups = showAllShopping ? recipeShopping : recipeShopping.slice(0, 3);
 
   const savePriceM = (trpc as any).shopping.savePrice.useMutation({
     onSuccess: (_data: any, variables: any) => {
@@ -1291,28 +1314,6 @@ export default function RecipeDetailScreen() {
                           <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
                         </View>
                         <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
-                        <TouchableOpacity
-                          style={s.mealPlanRemove}
-                          onPress={() => {
-                            Alert.alert(
-                              "移除排餐",
-                              `確定要移除${planDate.getMonth() + 1}/${planDate.getDate()}(${dayOfWeek})${mealTypeLabel}嗎？`,
-                              [
-                                { text: "取消", style: "cancel" },
-                                {
-                                  text: "移除",
-                                  style: "destructive",
-                                  onPress: () => {
-                                    deleteMealM.mutate({ id: plan.id });
-                                    utils.mealPlan.listByDateRange.invalidate();
-                                  }
-                                }
-                              ]
-                            );
-                          }}
-                        >
-                          <Ionicons name="close-circle" size={14} color="#DC2626" />
-                        </TouchableOpacity>
                       </TouchableOpacity>
                     );
                   })}
@@ -1351,31 +1352,46 @@ export default function RecipeDetailScreen() {
                           <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
                         </View>
                         <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
-                        <TouchableOpacity
-                          style={s.mealPlanRemove}
-                          onPress={() => {
-                            Alert.alert(
-                              "移除排餐",
-                              `確定要移除${planDate.getMonth() + 1}/${planDate.getDate()}(${dayOfWeek})${mealTypeLabel}嗎？`,
-                              [
-                                { text: "取消", style: "cancel" },
-                                {
-                                  text: "移除",
-                                  style: "destructive",
-                                  onPress: () => {
-                                    deleteMealM.mutate({ id: plan.id });
-                                    utils.mealPlan.listByDateRange.invalidate();
-                                  }
-                                }
-                              ]
-                            );
-                          }}
-                        >
-                          <Ionicons name="close-circle" size={14} color="#DC2626" />
-                        </TouchableOpacity>
                       </TouchableOpacity>
                     );
                   })}
+                </View>
+              </View>
+            )}
+
+            {/* ── 已加入購物清單 ── */}
+            {recipeShopping.length > 0 && (
+              <View style={s.mealPlanCard}>
+                <View style={s.mealPlanHeader}>
+                  <Ionicons name="cart-outline" size={16} color={BRAND} />
+                  <Text style={s.mealPlanTitle}>🛒 已加入購物清單 ({recipeShopping.reduce((n, g) => n + g.items.length, 0)} 項)</Text>
+                  <TouchableOpacity onPress={() => router.push("/(tabs)/shopping")}>
+                    <Text style={[s.btnAITxt, { color: BRAND }]}>去購物車</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={s.mealPlanList}>
+                  {visibleShopGroups.map((g) => (
+                    <View key={g.date || "none"} style={s.shopDateGroup}>
+                      <View style={s.shopDateRow}>
+                        <Ionicons name="calendar-outline" size={12} color="#013E77" />
+                        <Text style={s.shopDateText}>{g.date ? formatMealDate(g.date) : "未設定日期"}</Text>
+                        <Text style={s.shopDateCount}>{g.items.length} 項</Text>
+                      </View>
+                      {g.items.map((it) => (
+                        <View key={it.id} style={s.shopItemRow}>
+                          <Text style={s.shopItemName} numberOfLines={1}>{it.name}</Text>
+                          {(it.quantity || it.unit) && (
+                            <Text style={s.shopItemQty}>{it.quantity || ""}{it.unit ? ` ${it.unit}` : ""}</Text>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                  {recipeShopping.length > 3 && (
+                    <TouchableOpacity style={s.mealPlanExpand} onPress={() => setShowAllShopping(!showAllShopping)}>
+                      <Text style={s.mealPlanExpandText}>{showAllShopping ? "收起" : `展開更多 (${recipeShopping.length - 3} 組日期)`}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             )}
@@ -1974,11 +1990,11 @@ export default function RecipeDetailScreen() {
                 <PlanDatePicker
                   value={shoppingDate}
                   onChange={setShoppingDate}
-                  maxDate={planDate || undefined}
+                  maxDate={latestMealPlan?.date ?? undefined}
                   showShortcuts={true}
                 />
                 <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-                  ⚠️ 採購日期唔可以遲過排餐日（{planDate ? formatMealDate(planDate) : ""}）
+                  ⚠️ 採購日期唔可以遲過排餐日（{latestMealPlan ? formatMealDate(latestMealPlan.date) : ""}）
                 </Text>
               </View>
               {shoppingDate && (
@@ -2317,6 +2333,13 @@ const s = StyleSheet.create({
   mealPlanRemove: { padding: 4 },
   mealPlanExpand: { paddingVertical: 8, alignItems: "center" },
   mealPlanExpandText: { fontSize: 12, fontWeight: "700", color: BRAND },
+  shopDateGroup: { backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E2E8F0", gap: 6 },
+  shopDateRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  shopDateText: { fontSize: 12, fontWeight: "700", color: "#013E77", flex: 1 },
+  shopDateCount: { fontSize: 11, color: SUB },
+  shopItemRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  shopItemName: { flex: 1, fontSize: 13, color: TEXT },
+  shopItemQty: { fontSize: 12, color: SUB },
 
   // Tips
   tipsCard: { backgroundColor: "#FFFBEB", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },

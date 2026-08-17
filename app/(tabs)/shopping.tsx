@@ -628,10 +628,10 @@ export default function ShoppingTab() {
             <Text style={[styles.itemName, isBought && styles.itemNameBought, isPending && styles.itemNamePending]}>
               {item.name}
             </Text>
-            {item.fromRecipeName && item.fromRecipeId && (
+            {item.fromRecipeName && (
               <TouchableOpacity
                 style={styles.recipeTag}
-                onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any)}
+                onPress={item.fromRecipeId ? () => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any) : undefined}
                 activeOpacity={0.7}
               >
                 <Text style={styles.recipeTagText}>{item.fromRecipeName}</Text>
