@@ -2,45 +2,147 @@
  * IAP (In-App Purchase) Helper
  * 處理 App Store / Google Play 訂閱購買 + Receipt 驗證
  */
-import * as IAP from 'expo-in-app-purchases';
-import { trpc } from './trpc';
+import * as IAP from "expo-in-app-purchases";
+import { Linking, Platform } from "react-native";
+import { apiClient } from "./trpc";
 
 // Product IDs (需要喺 App Store Connect / Google Play Console 開)
 export const PRODUCT_IDS = {
-  MONTHLY: 'kindcipe_monthly_30',      // HK$30 / 月
-  YEARLY: 'kindcipe_yearly_288',       // HK$288 / 年
+  MONTHLY: "kindcipe_monthly_30", // HK$30 / 月
+  YEARLY: "kindcipe_yearly_288", // HK$288 / 年
 } as const;
 
-export type ProductId = keyof typeof PRODUCT_IDS;
+export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS];
 
 // 訂閱類型映射
-export const SUBSCRIPTION_TYPE: Record<ProductId, 'monthly' | 'yearly'> = {
-  kindcipe_monthly_30: 'monthly',
-  kindcipe_yearly_288: 'yearly',
+export const SUBSCRIPTION_TYPE: Record<ProductId, "monthly" | "yearly"> = {
+  [PRODUCT_IDS.MONTHLY]: "monthly",
+  [PRODUCT_IDS.YEARLY]: "yearly",
 };
+
+type PurchaseResult =
+  | { success: true; purchase: IAP.InAppPurchase }
+  | { success: false; error: string };
+
+type PendingPurchase = {
+  productId: ProductId;
+  resolve: (result: PurchaseResult) => void;
+};
+
+let isConnected = false;
+let connectPromise: Promise<void> | null = null;
+let listenerInstalled = false;
+let pendingPurchase: PendingPurchase | null = null;
+
+function formatError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "購買失敗，請重試";
+}
+
+async function verifyReceipt(purchase: IAP.InAppPurchase) {
+  const receipt = purchase.transactionReceipt ?? purchase.purchaseToken ?? "";
+  if (!receipt) {
+    throw new Error("找不到購買憑證");
+  }
+
+  const result = await apiClient.subscription.verifyIap.mutate({
+    receipt,
+    productId: purchase.productId,
+    transactionDate: new Date(purchase.purchaseTime).toISOString(),
+    purchaseToken: purchase.purchaseToken ?? null,
+  });
+
+  if (!purchase.acknowledged) {
+    await IAP.finishTransactionAsync(purchase, false);
+  }
+
+  return result;
+}
+
+async function processPurchaseResponse(response: IAP.IAPQueryResponse<IAP.InAppPurchase>) {
+  const purchases = response.results ?? [];
+
+  if (response.responseCode === IAP.IAPResponseCode.USER_CANCELED) {
+    pendingPurchase?.resolve({ success: false, error: "cancelled" });
+    pendingPurchase = null;
+    return;
+  }
+
+  if (response.responseCode === IAP.IAPResponseCode.DEFERRED) {
+    pendingPurchase?.resolve({ success: false, error: "deferred" });
+    pendingPurchase = null;
+    return;
+  }
+
+  if (response.responseCode === IAP.IAPResponseCode.ERROR) {
+    pendingPurchase?.resolve({ success: false, error: "購買失敗，請重試" });
+    pendingPurchase = null;
+    return;
+  }
+
+  if (response.responseCode !== IAP.IAPResponseCode.OK) return;
+
+  const currentPending = pendingPurchase;
+  let matchedPurchase: IAP.InAppPurchase | null = null;
+
+  for (const purchase of purchases) {
+    if (purchase.purchaseState !== IAP.InAppPurchaseState.PURCHASED && purchase.purchaseState !== IAP.InAppPurchaseState.RESTORED) {
+      continue;
+    }
+
+    if (currentPending && purchase.productId === currentPending.productId && !matchedPurchase) {
+      matchedPurchase = purchase;
+    }
+
+    try {
+      await verifyReceipt(purchase);
+    } catch (error) {
+      console.error("[IAP] verifyReceipt failed:", error);
+      if (currentPending && purchase.productId === currentPending.productId) {
+        pendingPurchase?.resolve({ success: false, error: formatError(error) });
+        pendingPurchase = null;
+        return;
+      }
+    }
+  }
+
+  if (currentPending && matchedPurchase) {
+    currentPending.resolve({ success: true, purchase: matchedPurchase });
+    pendingPurchase = null;
+  }
+}
+
+function installPurchaseListener() {
+  if (listenerInstalled) return;
+  listenerInstalled = true;
+  IAP.setPurchaseListener((response) => {
+    void processPurchaseResponse(response);
+  });
+}
+
+async function ensureConnected() {
+  if (isConnected) return;
+  if (!connectPromise) {
+    connectPromise = (async () => {
+      installPurchaseListener();
+      await IAP.connectAsync();
+      isConnected = true;
+    })().finally(() => {
+      connectPromise = null;
+    });
+  }
+  await connectPromise;
+}
 
 /**
  * 初始化 IAP（App 啟動時調用）
  */
 export async function initIAP() {
   try {
-    await IAP.setPurchaseListener(async ({ purchase }) => {
-      console.log('[IAP] Purchase event:', purchase);
-      
-      // 驗證 Receipt
-      await verifyReceipt(purchase);
-    });
-
-    // 查詢未完成的購買（例如 App 崩潰後重啟）
-    const purchases = await IAP.getAvailablePurchasesAsync();
-    if (purchases?.length) {
-      console.log('[IAP] Found pending purchases:', purchases.length);
-      for (const purchase of purchases) {
-        await verifyReceipt(purchase);
-      }
-    }
+    await ensureConnected();
   } catch (error) {
-    console.error('[IAP] Init failed:', error);
+    console.error("[IAP] Init failed:", error);
   }
 }
 
@@ -49,10 +151,11 @@ export async function initIAP() {
  */
 export async function getProducts() {
   try {
-    const products = await IAP.getProductsAsync(Object.values(PRODUCT_IDS));
-    return products;
+    await ensureConnected();
+    const { responseCode, results } = await IAP.getProductsAsync(Object.values(PRODUCT_IDS));
+    return responseCode === IAP.IAPResponseCode.OK ? results ?? [] : [];
   } catch (error) {
-    console.error('[IAP] getProducts failed:', error);
+    console.error("[IAP] getProducts failed:", error);
     return [];
   }
 }
@@ -60,50 +163,29 @@ export async function getProducts() {
 /**
  * 購買訂閱
  */
-export async function purchaseSubscription(productId: ProductId) {
+export async function purchaseSubscription(productId: ProductId): Promise<PurchaseResult> {
   try {
-    console.log('[IAP] Purchasing:', productId);
-    const purchase = await IAP.requestPurchaseAsync(productId);
-    console.log('[IAP] Purchase successful:', purchase);
-    await verifyReceipt(purchase);
-    return { success: true, purchase };
-  } catch (error: any) {
-    if (error.code === 'E_USER_CANCELLED') {
-      console.log('[IAP] User cancelled');
-      return { success: false, error: 'cancelled' };
-    }
-    console.error('[IAP] Purchase failed:', error);
-    return { success: false, error: error.message };
-  }
-}
+    await ensureConnected();
 
-/**
- * 驗證 Receipt（傳去後端檢查）
- */
-async function verifyReceipt(purchase: IAP.Purchase) {
-  try {
-    const receipt = purchase.transactionReceipt;
-    if (!receipt) {
-      console.error('[IAP] No receipt found');
-      return;
+    if (pendingPurchase) {
+      return { success: false, error: "已有進行中的購買，請稍後再試" };
     }
 
-    // 傳去後端驗證
-    const result = await trpc.subscription.verifyIap.mutate({
-      receipt,
-      productId: purchase.productId,
-      transactionDate: purchase.transactionDate?.toISOString(),
+    return await new Promise<PurchaseResult>(async (resolve) => {
+      pendingPurchase = { productId, resolve };
+
+      try {
+        await IAP.purchaseItemAsync(productId);
+      } catch (error) {
+        if (pendingPurchase?.productId === productId) {
+          pendingPurchase = null;
+        }
+        resolve({ success: false, error: formatError(error) });
+      }
     });
-
-    console.log('[IAP] Receipt verified:', result);
-    
-    // 完成購買流程（只限 iOS）
-    if (purchase.acknowledged !== true) {
-      await IAP.finishTransactionAsync({ purchase, isConsumed: false });
-    }
   } catch (error) {
-    console.error('[IAP] verifyReceipt failed:', error);
-    throw error;
+    console.error("[IAP] Purchase failed:", error);
+    return { success: false, error: formatError(error) };
   }
 }
 
@@ -111,12 +193,14 @@ async function verifyReceipt(purchase: IAP.Purchase) {
  * 管理訂閱（跳去 App Store / Play Store 訂閱頁面）
  */
 export async function manageSubscription() {
-  try {
-    await IAP.showManageSubscriptionsAsync();
-  } catch (error) {
-    console.error('[IAP] manageSubscription failed:', error);
-    throw error;
-  }
+  const url = Platform.select({
+    ios: "itms-apps://apps.apple.com/account/subscriptions",
+    android: "https://play.google.com/store/account/subscriptions",
+    default: "https://play.google.com/store/account/subscriptions",
+  });
+
+  if (!url) return;
+  await Linking.openURL(url);
 }
 
 /**
@@ -124,11 +208,27 @@ export async function manageSubscription() {
  */
 export async function restorePurchases() {
   try {
-    await IAP.restorePurchasesAsync();
-    console.log('[IAP] Restore completed');
+    await ensureConnected();
+    const response = await IAP.getPurchaseHistoryAsync({ useGooglePlayCache: false });
+    if (response.responseCode !== IAP.IAPResponseCode.OK) {
+      return { success: false, error: "恢復購買失敗，請重試" };
+    }
+
+    for (const purchase of response.results ?? []) {
+      if (purchase.purchaseState !== IAP.InAppPurchaseState.PURCHASED && purchase.purchaseState !== IAP.InAppPurchaseState.RESTORED) {
+        continue;
+      }
+
+      try {
+        await verifyReceipt(purchase);
+      } catch (error) {
+        console.error("[IAP] restorePurchases verify failed:", error);
+      }
+    }
+
     return { success: true };
   } catch (error) {
-    console.error('[IAP] restorePurchases failed:', error);
-    return { success: false, error: error };
+    console.error("[IAP] restorePurchases failed:", error);
+    return { success: false, error: formatError(error) };
   }
 }

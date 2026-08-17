@@ -20,6 +20,7 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -262,7 +263,6 @@ export default function RecipeDetailScreen() {
   const [showPlan, setShowPlan] = useState(false);
   const [planDate, setPlanDate] = useState<string | null>(() => toISODate(new Date()));
   const [planMeal, setPlanMeal] = useState("dinner");
-  const [autoAddCart, setAutoAddCart] = useState(true);
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
@@ -289,10 +289,8 @@ export default function RecipeDetailScreen() {
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
   const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
-  const [showShoppingDatePicker, setShowShoppingDatePicker] = useState(false);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
-  const autoAddCartRef = useRef(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
   // Track hero image load error to fall back to placeholder
@@ -859,14 +857,7 @@ export default function RecipeDetailScreen() {
       const continueFlow = () => {
         setShowPlan(false);
         utils.mealPlan.listByDateRange.invalidate();
-        if (autoAddCartRef.current) {
-          utils.shopping.list.invalidate();
-          setToast({
-            visible: true,
-            message: `✅ 已加入排餐及購物車（${adjustedIngredients.length} 項食材）`,
-            type: "success",
-          });
-        } else if (ings.length > 0) {
+        if (ings.length > 0) {
           setPlanPickerRecipe({
             id: recipeStringId,
             name: recipe?.name ?? "",
@@ -947,6 +938,25 @@ export default function RecipeDetailScreen() {
     onSuccess: (data) => setAIEditResult(data.content),
     onError: (e) => Alert.alert("AI Edit 失敗", e.message),
   });
+
+  const saveEditedRecipeM = trpc.aiRecipe.saveEditedRecipe.useMutation({
+    onSuccess: (data) => {
+      setShowAIEdit(false);
+      setAIEditPrompt("");
+      setAIEditResult(null);
+      utils.recipes.listUser.invalidate();
+      utils.recipes.search.invalidate();
+      router.push({ pathname: "/recipe/[id]", params: { id: `user_${data.id}` } });
+    },
+    onError: (e) => Alert.alert("儲存失敗", e.message),
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      void mealPlansQ.refetch();
+      void shoppingListQ.refetch();
+    }, [mealPlansQ.refetch, shoppingListQ.refetch]),
+  );
 
   // 修改購物車項目（同步食譜的購物項目）
   const handleModifyShopping = useCallback(() => {
@@ -1662,64 +1672,6 @@ export default function RecipeDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, marginBottom: 16 }}>
-                <TouchableOpacity
-                  onPress={() => {
-                    const newAutoAdd = !autoAddCart;
-                    setAutoAddCart(newAutoAdd);
-                    if (newAutoAdd && planDate) {
-                      const d = new Date(planDate + "T00:00:00");
-                      d.setDate(d.getDate() - 1);
-                      setShoppingDate(d.toISOString().split("T")[0]);
-                    }
-                  }}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
-                    borderWidth: 2,
-                    borderColor: autoAddCart ? BRAND : "#D1D5DB",
-                    backgroundColor: autoAddCart ? BRAND : "transparent",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {autoAddCart && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setAutoAddCart(!autoAddCart)} style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, color: TEXT, fontWeight: "500" }}>同時加入購物車（{adjustedIngredients.length} 項食材）</Text>
-                </TouchableOpacity>
-              </View>
-              {autoAddCart && planDate && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={s.sheetLabel}>採購日期</Text>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      backgroundColor: "#F9FAFB",
-                      borderRadius: 10,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      borderWidth: 1,
-                      borderColor: "#E5E7EB",
-                    }}
-                    onPress={() => setShowShoppingDatePicker(true)}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-                      <Text style={{ fontSize: 14, color: TEXT }}>
-                        {shoppingDate ? formatMealDate(shoppingDate) : "請選擇"}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-                  </TouchableOpacity>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-                    ⚠️ 採購日期唔可以遲過排餐日（{formatMealDate(planDate)}）
-                  </Text>
-                </View>
-              )}
               <TouchableOpacity
                 style={[s.confirmBtn, addPlanM.isPending && { opacity: 0.6 }]}
                 onPress={() => {
@@ -1727,56 +1679,19 @@ export default function RecipeDetailScreen() {
                     Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
                     return;
                   }
-                  autoAddCartRef.current = autoAddCart;
-                  const shoppingDateForBackend = autoAddCart ? (shoppingDate || (() => {
-                    const d = new Date(planDate + "T00:00:00");
-                    d.setDate(d.getDate() - 1);
-                    return d.toISOString().split("T")[0];
-                  })()) : undefined;
                   addPlanM.mutate({
                     date: planDate,
                     mealType: planMeal as any,
                     recipeId: recipeStringId,
                     recipeName: recipe.name,
                     recipeImage: remoteImageUrl,
-                    autoAddIngredients: autoAddCart,
-                    shoppingDate: shoppingDateForBackend,
-                    ingredients: autoAddCart ? adjustedIngredients.map((ing: any) => ({
-                      name: ing.name,
-                      quantity: ing.adjustedQty ?? ing.quantity ?? "",
-                      unit: ing.unit ?? "",
-                    })) : undefined,
+                    autoAddIngredients: false,
                   });
                 }}
                 disabled={addPlanM.isPending}
               >
                 {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>確認加入</Text>}
               </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ── Shopping date picker modal ── */}
-        <Modal visible={showShoppingDatePicker} transparent animationType="slide">
-          <View style={s.overlay}>
-            <View style={s.sheet}>
-              <View style={s.sheetHandle} />
-              <View style={s.sheetHeader}>
-                <Text style={s.sheetTitle}>選擇採購日期</Text>
-                <TouchableOpacity onPress={() => setShowShoppingDatePicker(false)}>
-                  <Ionicons name="close" size={22} color={TEXT} />
-                </TouchableOpacity>
-              </View>
-              <Text style={s.sheetLabel}>採購日期（唔可以遲過排餐日）</Text>
-              <PlanDatePicker
-                value={shoppingDate}
-                onChange={(date) => {
-                  setShoppingDate(date);
-                  setShowShoppingDatePicker(false);
-                }}
-                maxDate={planDate || undefined}
-                showShortcuts={true}
-              />
             </View>
           </View>
         </Modal>
@@ -1985,7 +1900,7 @@ export default function RecipeDetailScreen() {
                 style={{ backgroundColor: "#7C3AED", paddingVertical: 13, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 16, opacity: aiEditM.isPending || !aiEditPrompt.trim() ? 0.6 : 1 }}
                 onPress={() => {
                   if (!aiEditPrompt.trim()) return;
-                  const ctx = `食譜：${recipe.name}\n食材：${ingredients.map((i: any) => `${i.name} ${i.quantity}${i.unit}`).join("、")}\n\n要求：${aiEditPrompt}`;
+                  const ctx = `食譜：${recipe.name}\n描述：${(recipe as any).description ?? ""}\n食材：${ingredients.map((i: any) => `${i.name} ${i.quantity}${i.unit}`).join("、")}\n步驟：${steps.map((s: any) => typeof s === "string" ? s : (s.instruction ?? "")).join("；")}\n\n要求：${aiEditPrompt}`;
                   setAIEditResult(null);
                   aiEditM.mutate({ messages: [{ role: "user", content: ctx }] });
                 }}
@@ -1995,9 +1910,46 @@ export default function RecipeDetailScreen() {
                 <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{aiEditM.isPending ? "處理中..." : "開始 AI Edit"}</Text>
               </TouchableOpacity>
               {aiEditResult && (
-                <ScrollView style={{ backgroundColor: "#FAFAFA", borderRadius: 12, padding: 12, maxHeight: 180, borderWidth: 1, borderColor: "#E5E7EB" }}>
-                  <Text style={{ fontSize: 13, color: TEXT, lineHeight: 21 }}>{aiEditResult}</Text>
-                </ScrollView>
+                <View style={{ gap: 10 }}>
+                  <ScrollView style={{ backgroundColor: "#FAFAFA", borderRadius: 12, padding: 12, maxHeight: 180, borderWidth: 1, borderColor: "#E5E7EB" }}>
+                    <Text style={{ fontSize: 13, color: TEXT, lineHeight: 21 }}>{aiEditResult}</Text>
+                  </ScrollView>
+                  <TouchableOpacity
+                    style={{ backgroundColor: BRAND, paddingVertical: 13, borderRadius: 12, alignItems: "center", opacity: saveEditedRecipeM.isPending ? 0.6 : 1 }}
+                    onPress={() => {
+                      if (!recipe || saveEditedRecipeM.isPending) return;
+                      saveEditedRecipeM.mutate({
+                        editPrompt: aiEditPrompt,
+                        recipe: {
+                          name: recipe.name,
+                          description: (recipe as any).description ?? "",
+                          image: (recipe as any).image ?? "",
+                          thumbnailUrl: (recipe as any).thumbnailUrl ?? (recipe as any).image ?? "",
+                          cookTime: recipe.cookTime ?? undefined,
+                          servings: recipe.servings ?? undefined,
+                          difficulty: (recipe as any).difficulty ?? "",
+                          recipeCategory: (recipe as any).recipeCategory ?? "",
+                          ingredients: ingredients.map((i: any) => ({
+                            name: i.name,
+                            quantity: i.quantity ?? "",
+                            unit: i.unit ?? "",
+                            category: i.category ?? "",
+                          })),
+                          steps: steps.map((s: any) => ({
+                            instruction: typeof s === "string" ? s : (s.instruction ?? ""),
+                            duration: typeof s === "string" ? 0 : (s.duration ?? 0),
+                            tip: typeof s === "string" ? "" : (s.tip ?? ""),
+                          })),
+                          tags: Array.isArray((recipe as any).tags) ? (recipe as any).tags : [],
+                          sourceAuthor: (recipe as any).sourceAuthor ?? "",
+                        },
+                      });
+                    }}
+                    disabled={saveEditedRecipeM.isPending}
+                  >
+                    {saveEditedRecipeM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>儲存為我的食譜</Text>}
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           </View>

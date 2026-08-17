@@ -5,13 +5,15 @@ export function usePendingCounts() {
   const utils = trpc.useUtils();
 
   const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 5000,
+    staleTime: 1000 * 30,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 5000,
+    staleTime: 1000 * 30,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 
   const pendingMealPlans = useMemo(

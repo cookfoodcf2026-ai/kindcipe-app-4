@@ -74,6 +74,7 @@ export default function PlanDatePicker({
   const [visibleMonth, setVisibleMonth] = useState("");
   const [scrollStarted, setScrollStarted] = useState(false);
   const [currentScrollX, setCurrentScrollX] = useState(0);
+  const currentScrollXRef = useRef(0);
   const touchStartTimeRef = useRef<number>(0);
   const isTouchingRef = useRef(false);
 
@@ -100,6 +101,7 @@ export default function PlanDatePicker({
     (event: any) => {
       const offsetX = event.nativeEvent.contentOffset.x;
       setCurrentScrollX(offsetX);
+      currentScrollXRef.current = offsetX;
       const cardWidth = 82;
       const index = Math.min(
         Math.max(Math.floor(offsetX / cardWidth), 0),
@@ -175,22 +177,64 @@ export default function PlanDatePicker({
   }, [min]);
 
   const scrollRef = useRef<ScrollView>(null);
+  const lastTargetRef = useRef<string | null>(null);
+  const pendingScrollTargetRef = useRef<string | null>(null);
 
-  // Scroll to selected date only when it's not visible
+  // Ensure the generated window includes value/maxDate, then scroll it into view.
+  // Only reacts when the target actually changes — NOT on manual scroll / arrow taps,
+  // otherwise the picker keeps snapping back to the selected date while the user scrolls.
   useEffect(() => {
-    if (value && scrollRef.current && !isTouchingRef.current) {
-      const idx = dateCardsData.findIndex((dc) => dc.date === value);
-      if (idx >= 0) {
-        // Only scroll if date is not already in visible range (roughly)
-        const visibleStart = Math.floor(currentScrollX / 82);
-        const visibleEnd = visibleStart + 5; // ~5 cards visible
-        if (idx < visibleStart || idx > visibleEnd) {
-          const x = Math.max(0, idx * 82 - 60);
-          scrollRef.current.scrollTo({ x, animated: true });
-        }
+    const target = value || maxDate;
+    if (!target) return;
+    if (lastTargetRef.current === target) return;
+    lastTargetRef.current = target;
+    if (!scrollRef.current || isTouchingRef.current) return;
+    const firstDate = dateCardsData[0]?.date;
+    const lastDate = dateCardsData[dateCardsData.length - 1]?.date;
+    if (!firstDate || !lastDate) return;
+    if (target < firstDate) {
+      const msDiff = new Date(firstDate).getTime() - new Date(target).getTime();
+      const daysDiff = Math.ceil(msDiff / 86400000);
+      const next = new Date(dateWindowStart);
+      next.setDate(next.getDate() - daysDiff);
+      setDateWindowStart(next);
+      setVisibleMonth("");
+      pendingScrollTargetRef.current = target;
+      return;
+    }
+    if (target > lastDate) {
+      const msDiff = new Date(target).getTime() - new Date(lastDate).getTime();
+      const daysDiff = Math.ceil(msDiff / 86400000);
+      const next = new Date(dateWindowStart);
+      next.setDate(next.getDate() + daysDiff);
+      setDateWindowStart(next);
+      setVisibleMonth("");
+      pendingScrollTargetRef.current = target;
+      return;
+    }
+    const idx = dateCardsData.findIndex((dc) => dc.date === target);
+    if (idx >= 0) {
+      // Only scroll if date is not already in visible range (roughly)
+      const visibleStart = Math.floor(currentScrollXRef.current / 82);
+      const visibleEnd = visibleStart + 5; // ~5 cards visible
+      if (idx < visibleStart || idx > visibleEnd) {
+        const x = Math.max(0, idx * 82 - 60);
+        scrollRef.current.scrollTo({ x, animated: true });
       }
     }
-  }, [value, dateCardsData, currentScrollX]);
+  }, [value, maxDate, dateCardsData, dateWindowStart]);
+
+  // After the window was extended to include an out-of-range target, scroll to it once the new cards render.
+  useEffect(() => {
+    const target = pendingScrollTargetRef.current;
+    if (!target) return;
+    pendingScrollTargetRef.current = null;
+    if (!scrollRef.current) return;
+    const idx = dateCardsData.findIndex((dc) => dc.date === target);
+    if (idx >= 0) {
+      scrollRef.current.scrollTo({ x: Math.max(0, idx * 82 - 60), animated: true });
+    }
+  }, [dateCardsData]);
 
   return (
     <View style={s.container}>
@@ -239,7 +283,7 @@ export default function PlanDatePicker({
             style={s.dateArrowBtn}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              shiftDateWindow(-7);
+              shiftDateWindow(-30);
             }}
             activeOpacity={0.7}
             delayPressIn={100}
@@ -317,7 +361,7 @@ export default function PlanDatePicker({
             style={s.dateArrowBtn}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              shiftDateWindow(7);
+              shiftDateWindow(30);
             }}
             activeOpacity={0.7}
             delayPressIn={100}

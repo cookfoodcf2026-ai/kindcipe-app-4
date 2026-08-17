@@ -19,7 +19,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
-import { purchaseSubscription, PRODUCT_IDS, manageSubscription } from "../lib/purchase";
+import { purchaseSubscription, PRODUCT_IDS, manageSubscription, type ProductId } from "../lib/purchase";
 import { trpc } from "../lib/trpc";
 
 type PaywallFeature =
@@ -83,11 +83,11 @@ export default function PaywallModal({
   trialDaysLeft,
 }: PaywallModalProps) {
   const msg = FEATURE_MESSAGES[feature];
-  const [isPurchasing, setIsPurchasing] = useState<'monthly' | 'yearly' | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState<"monthly" | "yearly" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handlePurchase = async (productId: 'kindcipe_monthly_30' | 'kindcipe_yearly_288') => {
-    setIsPurchasing(productId === 'kindcipe_monthly_30' ? 'monthly' : 'yearly');
+  const handlePurchase = async (productId: ProductId) => {
+    setIsPurchasing(productId === PRODUCT_IDS.MONTHLY ? "monthly" : "yearly");
     setError(null);
 
     try {

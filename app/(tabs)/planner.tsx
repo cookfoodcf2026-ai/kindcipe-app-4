@@ -21,11 +21,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/hooks/useAuth";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import PlanDatePicker from "@/src/components/PlanDatePicker";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore } from "@/src/lib/date";
 import { keepPreviousData } from "@tanstack/react-query";
+import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -109,6 +111,10 @@ function getDateForDow(weekStart: string, dow: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function getDateForDowShort(weekStart: string, dow: number): string {
+  return formatDateShort(new Date(getDateForDow(weekStart, dow) + "T00:00:00"));
+}
+
 // Normalize a dishSlot object; empty/invalid slots become real null so backend zod passes
 function toDishSlot(slot: any): { id: string; name: string; image?: string | null; cookTime?: number | null } | null {
   if (!slot || !slot.id || !slot.name) return null;
@@ -180,6 +186,16 @@ export default function PlannerTab() {
   const [previewRecipe, setPreviewRecipe] = useState<any | null>(null);
   const [pendingPlanInfo, setPendingPlanInfo] = useState<{ date: string; mealType: string; slot?: SlotType; dayOfWeek?: number } | null>(null);
   const [pendingMealPlanId, setPendingMealPlanId] = useState<number | null>(null);
+  const [showMoveDateModal, setShowMoveDateModal] = useState(false);
+  const [moveMealPlanTarget, setMoveMealPlanTarget] = useState<any | null>(null);
+  const [moveMealPlanDate, setMoveMealPlanDate] = useState<string>("");
+  const [syncShoppingItems, setSyncShoppingItems] = useState(false);
+  const [syncShoppingDateMode, setSyncShoppingDateMode] = useState<"previous" | "same" | "custom">("previous");
+  const [syncShoppingDate, setSyncShoppingDate] = useState<string>("");
+  const [showSyncDateModal, setShowSyncDateModal] = useState(false);
+  const [draftSyncShoppingDateMode, setDraftSyncShoppingDateMode] = useState<"previous" | "same" | "custom">("previous");
+  const [draftSyncShoppingDate, setDraftSyncShoppingDate] = useState<string>("");
+  const [pendingMoveDateSave, setPendingMoveDateSave] = useState<{ id: number; newDate: string } | null>(null);
 
 
   // Automatically open the weekly recommendation modal if requested via parameters
@@ -190,19 +206,20 @@ export default function PlannerTab() {
     }
   }, [openRecommend]);
 
-  const { startDate, endDate, monday, sunday } = getWeekRange(weekOffset);
+  const { startDate, endDate, monday, sunday } = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
 
   const utils = trpc.useUtils();
+  const invalidateAll = useInvalidateMealPlanAndCart();
   const { activeFamilyId } = useAuth();
 
   // 當切換廚房時，主動刷新相關查詢
   useEffect(() => {
     if (activeFamilyId) {
-      utils.mealPlan.listByDateRange.invalidate();
+      void invalidateAll();
       utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
       utils.recipes.listUser.invalidate();
     }
-  }, [activeFamilyId]);
+  }, [activeFamilyId, startDate, invalidateAll, utils]);
 
   const { data: mealPlans = [], isLoading } =
     trpc.mealPlan.listByDateRange.useQuery(
@@ -256,6 +273,13 @@ export default function PlannerTab() {
     return map;
   }, [recommendWeekData]);
 
+  // Get this week's eat-out dates from the dedicated family_eat_out table
+  const { data: eatOutDates = [] } = trpc.eatOut.listByDateRange.useQuery(
+    { startDate, endDate },
+    { staleTime: 30000 }
+  );
+  const eatOutDateSet = useMemo(() => new Set(eatOutDates), [eatOutDates]);
+
   const setDayM = trpc.weeklyMenu.setDay.useMutation({
     onSuccess: () => {
       utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
@@ -272,66 +296,30 @@ export default function PlannerTab() {
     onError: (e) => Alert.alert("失敗", e.message),
   });
 
-  const setEatOutM = trpc.weeklyMenu.setEatOut.useMutation({
+  const eatOutM = trpc.eatOut.set.useMutation({
     onSuccess: () => {
-      // Complete success
       setToast({ visible: true, message: "已設定外出", type: "success" });
     },
-    onMutate: async (variables) => {
-      // Cancel any outgoing refetches
-      await utils.weeklyMenu.getWeek.cancel();
-      
-      // Snapshot the previous data
-      const previousData = utils.weeklyMenu.getWeek.getData({ weekStart: startDate });
-      
-      // Optimistically update the data
-      if (previousData) {
-        utils.weeklyMenu.getWeek.setData({ weekStart: startDate }, (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            items: old.items.map(item => 
-              item.dayOfWeek === variables.dayOfWeek 
-                ? { ...item, eatOut: variables.eatOut }
-                : item
-            ),
-          };
-        });
-      }
-      
-      return { previousData };
-    },
-    onError: (err, variables, context) => {
-      // Rollback to previous data on error
-      if (context?.previousData) {
-        utils.weeklyMenu.getWeek.setData({ weekStart: startDate }, context.previousData);
-      }
-      
-      // Show user-friendly error message
+    onError: (e) => {
       let message = "設定外出失敗";
-      if (err.message?.includes("請先加入家庭廚房")) {
+      if (e.message?.includes("請先加入家庭廚房")) {
         message = "請先加入家庭廚房才能設定外出";
-      } else if (err.message?.includes("稍後再試")) {
-        message = "設定外出失敗，請稍後再試";
-      } else if (err.data?.code === "FORBIDDEN") {
+      } else if (e.data?.code === "FORBIDDEN") {
         message = "權限不足，請聯繫管理員";
       }
-      
       setToast({ visible: true, message, type: "error" });
     },
     onSettled: () => {
-      // Always refetch after error or success to ensure sync
-      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
-      // setEatOut may delete the day's dinner meal plans → refresh them too
-      utils.mealPlan.listByDateRange.invalidate({ startDate, endDate });
+      utils.eatOut.listByDateRange.invalidate({ startDate, endDate });
+      // eatOut may delete the day's dinner meal plans → refresh them too
+      void invalidateAll();
     },
   });
 
   const addBatchM = trpc.mealPlan.addBatch.useMutation({
-    onSuccess: (result, variables) => {
+    onSuccess: async (result, variables) => {
       // Only invalidate affected queries
-      utils.mealPlan.listByDateRange.invalidate({ startDate, endDate });
-      utils.shopping.list.invalidate();
+      await invalidateAll();
       
       const days = new Set(variables.items.map(i => i.date));
       const recipes = new Set(variables.items.map(i => i.recipeName));
@@ -357,129 +345,6 @@ export default function PlannerTab() {
     officialRecipes.forEach((r: any) => map.set(r.id, r));
     return map;
   }, [officialRecipes]);
-
-  const handleApplyEntireWeek = async () => {
-    if (!recommendWeekData || !recommendWeekData.items || recommendWeekData.items.length === 0) {
-      Alert.alert("沒有可導入的整週推薦", "請先使用 AI 生成推薦餐單");
-      return;
-    }
-    const daysWithSlots = recommendWeekData.items.filter((item: any) => {
-      return item.meatId || item.seafoodId || item.vegId || item.soupId;
-    });
-    if (daysWithSlots.length === 0) {
-      Alert.alert("沒有已設定的推薦", "請先使用 AI 生成推薦餐單");
-      return;
-    }
-
-    // 確認對話框（關鍵：讓用戶知道這是批量操作）
-    const confirmed = await new Promise<boolean>((resolve) => {
-      Alert.alert(
-        "📦 一鍵套用整週推薦",
-        `將 ${daysWithSlots.length} 天的晚餐推薦全部套用到排餐計劃？\n\n注意：此操作只會寫入排餐，不會自動加入購物清單。`,
-        [
-          { text: "取消", style: "cancel", onPress: () => resolve(false) },
-          { text: "確認套用", onPress: () => resolve(true) }
-        ]
-      );
-    });
-
-    if (!confirmed) return;
-
-    try {
-      setToast({ visible: true, message: "正在將整週推薦導入排餐中...", type: "info" });
-      const allMeals: Array<{ date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }> = [];
-      const allPickerRecipes: PickerRecipe[] = [];
-      
-      // 收集所有要寫入的 meals
-      for (const item of daysWithSlots) {
-        const itemDateStr = getDateForDow(startDate, item.dayOfWeek);
-        const daySlots: SlotType[] = ["meat", "seafood", "veg", "soup"];
-        
-        for (const slot of daySlots) {
-          const dishId = item[`${slot}Id`] ?? null;
-          const dishName = item[`${slot}Name`] ?? null;
-          const dishImage = item[`${slot}Image`] ?? null;
-          
-          if (dishId && dishName) {
-            allMeals.push({
-              date: itemDateStr,
-              mealType: "dinner" as const,
-              recipeId: dishId.startsWith("official:") ? `official_${dishId.slice(9)}` : `user_${dishId}`,
-              recipeName: dishName,
-              recipeImage: dishImage,
-            });
-            
-            // 收集食材資訊
-            const cleanId = dishId.startsWith("official:") ? dishId.slice(9) : dishId;
-            const numId = parseInt(cleanId, 10);
-            const official = officialRecipes.find((r: any) => r.id === numId);
-            if (official && Array.isArray(official.ingredients) && official.ingredients.length > 0) {
-              allPickerRecipes.push({
-                id: dishId,
-                name: dishName,
-                ingredients: official.ingredients,
-                date: getDayBefore(itemDateStr),
-              });
-            }
-          }
-        }
-      }
-      
-      // 批量寫入（一次過 call）
-      await addBatchM.mutateAsync({ items: allMeals });
-      
-      setShowSmartRecommend(false);
-      utils.mealPlan.listByDateRange.invalidate();
-      
-      // 詢問用戶下一步操作
-      Alert.alert(
-        "🎉 整週晚餐推薦已成功排入！",
-        `已套用 ${daysWithSlots.length} 天的晚餐推薦\n\n排餐已記錄！下一步要做什麼？`,
-        [
-          {
-            text: "繼續審視排餐",
-            style: "cancel",
-            onPress: () => {} // 留在排餐頁
-          },
-          {
-            text: "去購物清單加食材",
-            onPress: () => {
-              if (allPickerRecipes.length > 0) {
-                // 合併同名食材：同單位會相加份量
-                const flat = allPickerRecipes.flatMap(pr =>
-                  pr.ingredients.map((ing: any) => ({
-                    ...ing,
-                    recipeName: "本週 AI 晚餐推薦",
-                    recipeId: pr.id,
-                  }))
-                );
-                const mergedIngredients = mergeIngredients(flat).map((ing) => ({
-                  ...ing,
-                  plannedDate: ing.date ?? getDayBefore(getDateForDow(startDate, 1)),
-                }));
-
-                if (mergedIngredients.length > 0) {
-                  setPickerRecipe({
-                    id: "batch_ai_weekly",
-                    name: "本週 AI 推薦晚餐所有食材",
-                    ingredients: mergedIngredients,
-                    date: getDayBefore(getDateForDow(startDate, 1)),
-                  });
-                } else {
-                  router.push("/(tabs)/shopping");
-                }
-              } else {
-                router.push("/(tabs)/shopping");
-              }
-            }
-          }
-        ]
-      );
-    } catch (e: any) {
-      console.error("[handleApplyEntireWeek] Error:", e);
-      setToast({ visible: true, message: `導入失敗：${e.message}`, type: "error" });
-    }
-  };
 
   const handleApplyToday = async (item: any) => {
     if (!item) return;
@@ -527,7 +392,7 @@ export default function PlannerTab() {
       await addBatchM.mutateAsync({ items: allMeals });
 
       setShowSmartRecommend(false);
-      utils.mealPlan.listByDateRange.invalidate();
+      await invalidateAll();
 
       // 詢問用戶下一步操作（關鍵：分離排餐和購物清單）
       Alert.alert(
@@ -577,9 +442,7 @@ export default function PlannerTab() {
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: (_, variables) => {
-      utils.shopping.list.invalidate();
-      utils.mealPlan.listByDateRange.invalidate();
-      utils.shopping.list.refetch();
+      invalidateAll();
       const count = variables.items.length;
       setPickerRecipe(null);
       setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
@@ -590,7 +453,7 @@ export default function PlannerTab() {
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
-    onSuccess: () => utils.mealPlan.listByDateRange.invalidate(),
+    onSuccess: async () => { await invalidateAll(); },
     onError: (e) => Alert.alert("刪除失敗", e.message),
   });
 
@@ -619,7 +482,7 @@ export default function PlannerTab() {
       
       console.log("[Planner] addMealM onSuccess, refetching...");
       await utils.mealPlan.listByDateRange.refetch({ startDate, endDate });
-      utils.shopping.list.invalidate();
+      await invalidateAll();
       setShowAddModal(false);
 
       requestNotificationPermission().then((ok) => {
@@ -664,10 +527,22 @@ export default function PlannerTab() {
   const deleteShoppingItemM = trpc.shopping.delete.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
   });
+  const updateMealDateM = trpc.mealPlan.updateDate.useMutation({
+    onSuccess: () => {
+      void invalidateAll();
+      setShowMoveDateModal(false);
+      setShowSyncDateModal(false);
+      setMoveMealPlanTarget(null);
+      setMoveMealPlanDate("");
+      setSyncShoppingItems(false);
+      setSyncShoppingDate("");
+    },
+    onError: (e: any) => Alert.alert("改日期失敗", e.message),
+  });
 
   const confirmMealM = trpc.mealPlan.confirm.useMutation({
-    onSuccess: () => {
-      utils.mealPlan.listByDateRange.invalidate();
+    onSuccess: async () => {
+      await invalidateAll();
       const conf = pendingConfirmRecipe;
       setPendingConfirmRecipe(null);
       if (conf && Array.isArray(conf.ingredients) && conf.ingredients.length > 0) {
@@ -678,7 +553,7 @@ export default function PlannerTab() {
   });
 
   const rejectMealM = trpc.mealPlan.reject.useMutation({
-    onSuccess: () => utils.mealPlan.listByDateRange.invalidate(),
+    onSuccess: async () => { await invalidateAll(); },
     onError: (e) => Alert.alert("拒絕失敗", e.message),
   });
 
@@ -703,13 +578,14 @@ export default function PlannerTab() {
 
   const weekDays = useMemo(() => {
     const days: { dateStr: string; date: Date; dayIndex: number; dayOfWeek: number }[] = [];
+    const base = new Date(`${startDate}T00:00:00`);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
       days.push({ dateStr: toISODate(d), date: d, dayIndex: i, dayOfWeek: i + 1 });
     }
     return days;
-  }, [monday]);
+  }, [startDate]);
 
   const officialRecipeMap = useMemo(() => {
     const map = new Map<number, any>();
@@ -774,8 +650,7 @@ export default function PlannerTab() {
             deleteMealM.mutate({ id: mp.id });
             const recipeItems = (shoppingItems as any[]).filter(
               (si: any) =>
-                si.fromRecipeName === mp.recipeName &&
-                si.plannedDate === mp.date &&
+                (si.fromMealPlanId === mp.id || (si.fromRecipeName === mp.recipeName && si.plannedDate === mp.date)) &&
                 si.status !== "bought",
             );
             if (recipeItems.length > 0) {
@@ -804,6 +679,119 @@ export default function PlannerTab() {
     },
     [deleteMealM, shoppingItems, deleteShoppingItemM],
   );
+
+  const openMoveDateModal = useCallback((mp: any) => {
+    setMoveMealPlanTarget(mp);
+    setMoveMealPlanDate(mp.date);
+    setSyncShoppingItems(false);
+    setSyncShoppingDateMode(getDayBefore(mp.date) < toISODate(new Date()) ? "same" : "previous");
+    setSyncShoppingDate(getDayBefore(mp.date));
+    setShowSyncDateModal(false);
+    setPendingMoveDateSave(null);
+    setShowMoveDateModal(true);
+  }, [shoppingItems]);
+
+  const openSyncDateModal = useCallback(() => {
+    setDraftSyncShoppingDateMode(syncShoppingDateMode);
+    setDraftSyncShoppingDate(syncShoppingDate);
+    setShowSyncDateModal(true);
+  }, [syncShoppingDate, syncShoppingDateMode]);
+
+  const promptSyncShoppingDate = useCallback(() => {
+    Alert.alert(
+      "同步購物日期？",
+      "呢個排餐已經有相關購物清單，要唔要一齊改購物日期？",
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "保持原有日期",
+          onPress: () => {
+            if (!moveMealPlanTarget || !moveMealPlanDate) return;
+            updateMealDateM.mutate({
+              id: moveMealPlanTarget.id,
+              newDate: moveMealPlanDate,
+              moveShoppingItems: false,
+              shoppingDate: undefined,
+            });
+          },
+        },
+        {
+          text: "需要更改",
+          onPress: () => {
+            if (!moveMealPlanTarget || !moveMealPlanDate) return;
+            setPendingMoveDateSave({ id: moveMealPlanTarget.id, newDate: moveMealPlanDate });
+            openSyncDateModal();
+          },
+        },
+      ],
+    );
+  }, [moveMealPlanDate, moveMealPlanTarget, openSyncDateModal, updateMealDateM]);
+
+  const clampShoppingDate = useCallback((date: string | undefined) => {
+    if (!date) return date;
+    const today = toISODate(new Date());
+    let out = date < today ? today : date;
+    if (moveMealPlanDate && out > moveMealPlanDate) out = moveMealPlanDate;
+    return out;
+  }, [moveMealPlanDate]);
+
+  const confirmSyncDateModal = useCallback(() => {
+    setSyncShoppingDateMode(draftSyncShoppingDateMode);
+    setSyncShoppingDate(
+      draftSyncShoppingDateMode === "custom"
+        ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
+        : draftSyncShoppingDateMode === "same"
+          ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
+          : getDayBefore(moveMealPlanDate || toISODate(new Date())),
+    );
+    setSyncShoppingItems(true);
+    setShowSyncDateModal(false);
+    if (pendingMoveDateSave) {
+      const nextShoppingDate =
+        draftSyncShoppingDateMode === "custom"
+          ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
+          : draftSyncShoppingDateMode === "same"
+            ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
+            : getDayBefore(moveMealPlanDate || toISODate(new Date()));
+      updateMealDateM.mutate({
+        id: pendingMoveDateSave.id,
+        newDate: pendingMoveDateSave.newDate,
+        moveShoppingItems: true,
+        shoppingDate: nextShoppingDate,
+      });
+      setPendingMoveDateSave(null);
+    }
+  }, [clampShoppingDate, draftSyncShoppingDate, draftSyncShoppingDateMode, moveMealPlanDate, pendingMoveDateSave, updateMealDateM]);
+
+  const cancelSyncDateModal = useCallback(() => {
+    setShowSyncDateModal(false);
+    setPendingMoveDateSave(null);
+  }, []);
+
+  const linkedShoppingItems = useMemo(
+    () => (moveMealPlanTarget ? (shoppingItems as any[]).filter((si: any) => si.fromMealPlanId === moveMealPlanTarget.id) : []),
+    [shoppingItems, moveMealPlanTarget],
+  );
+
+  const mealShoppingLookup = useMemo(() => {
+    const byMealPlanId = new Set<number>();
+    const byRecipeAndDate = new Set<string>();
+    for (const si of shoppingItems as any[]) {
+      if (si.fromMealPlanId) {
+        byMealPlanId.add(si.fromMealPlanId);
+      } else if (si.fromRecipeName && si.plannedDate) {
+        byRecipeAndDate.add(`${si.fromRecipeName}__${si.plannedDate}`);
+      }
+    }
+    return { byMealPlanId, byRecipeAndDate };
+  }, [shoppingItems]);
+
+  const selectedMoveShoppingDate =
+    syncShoppingDateMode === "same"
+      ? moveMealPlanDate || getDayBefore(toISODate(new Date()))
+      : syncShoppingDateMode === "custom"
+        ? clampShoppingDate(syncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date())
+        : clampShoppingDate(getDayBefore(moveMealPlanDate || new Date().toISOString().split("T")[0])) || toISODate(new Date());
 
   const handleAddToCartFromMeal = useCallback(
     (mp: any) => {
@@ -866,6 +854,9 @@ export default function PlannerTab() {
     const mConfig = MEAL_TYPE_CONFIG[mp.mealType] || MEAL_TYPE_CONFIG.dinner;
     const isPending = mp.status === "pending";
     const isTemplate = mp.recipeId && mp.recipeId.startsWith("template_");
+    const hasShoppingItem = Boolean(mp.hasShoppingItem)
+      || mealShoppingLookup.byMealPlanId.has(mp.id)
+      || mealShoppingLookup.byRecipeAndDate.has(`${mp.recipeName}__${mp.date}`);
     const templateIcon = mp.recipeId === "template_hotpot" ? "flame-outline" : mp.recipeId === "template_bbq" ? "restaurant-outline" : "rose-outline";
     const templateColor = mp.recipeId === "template_hotpot" ? "#EF4444" : mp.recipeId === "template_bbq" ? "#FF8C00" : "#F59E0B";
     const templateBg = mp.recipeId === "template_hotpot" ? "#FEE2E2" : mp.recipeId === "template_bbq" ? "#FFF7ED" : "#FEF3C7";
@@ -936,7 +927,7 @@ export default function PlannerTab() {
             {/* Show shopping cart status indicator */}
             {!isTemplate && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                {mp.hasShoppingItem ? (
+                {hasShoppingItem ? (
                   <>
                     <Ionicons name="checkmark-circle" size={12} color="#10B981" />
                     <Text style={{ fontSize: 9, color: "#10B981", fontWeight: "600" }}>已加入購物車</Text>
@@ -962,6 +953,13 @@ export default function PlannerTab() {
               <Text style={styles.mealProposer}>由 {mp.proposedByName} 提案</Text>
             ) : null}
           </View>
+          <TouchableOpacity
+            style={styles.mealEditBtn}
+            onPress={() => openMoveDateModal(mp)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="calendar-outline" size={16} color="#2563EB" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.mealDeleteBtn}
             onPress={() => handleDeleteMeal(mp)}
@@ -1041,19 +1039,18 @@ export default function PlannerTab() {
           </View>
           <View style={styles.dayHeaderRight}>
             <TouchableOpacity
-              style={[styles.eatOutBtn, recommendItemsByDay[day.dayOfWeek]?.eatOut && styles.eatOutBtnActive]}
+              style={[styles.eatOutBtn, eatOutDateSet.has(day.dateStr) && styles.eatOutBtnActive]}
               onPress={(e) => {
                 e.stopPropagation?.();
-                const currentEatOut = recommendItemsByDay[day.dayOfWeek]?.eatOut ?? false;
-                setEatOutM.mutate({
-                  weekStart: startDate,
-                  dayOfWeek: day.dayOfWeek,
+                const currentEatOut = eatOutDateSet.has(day.dateStr);
+                eatOutM.mutate({
+                  date: day.dateStr,
                   eatOut: !currentEatOut,
                 });
               }}
             >
-              <Ionicons name="restaurant-outline" size={11} color={recommendItemsByDay[day.dayOfWeek]?.eatOut ? "#D97706" : "#9CA3AF"} />
-              <Text style={[styles.eatOutTxt, recommendItemsByDay[day.dayOfWeek]?.eatOut && styles.eatOutTxtActive]}>
+              <Ionicons name="restaurant-outline" size={11} color={eatOutDateSet.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
+              <Text style={[styles.eatOutTxt, eatOutDateSet.has(day.dateStr) && styles.eatOutTxtActive]}>
                 外出
               </Text>
             </TouchableOpacity>
@@ -1063,7 +1060,7 @@ export default function PlannerTab() {
                   {dayMeals.length} 餐
                 </Text>
               </View>
-            ) : recommendItemsByDay[day.dayOfWeek]?.eatOut ? (
+            ) : eatOutDateSet.has(day.dateStr) ? (
               <View style={styles.eatOutBadge}>
                 <Text style={styles.eatOutBadgeTxt}>外出用餐</Text>
               </View>
@@ -1297,9 +1294,168 @@ export default function PlannerTab() {
         }}
       />
 
+      <Modal visible={showMoveDateModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, maxHeight: "90%" }}>
+            <View style={{ alignItems: "center", marginBottom: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 999, backgroundColor: "#E5E7EB" }} />
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>改排餐日期</Text>
+                <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                  {moveMealPlanTarget ? moveMealPlanTarget.recipeName : ""}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => {
+                setShowMoveDateModal(false);
+                setShowSyncDateModal(false);
+                setPendingMoveDateSave(null);
+              }}>
+                <Ionicons name="close-outline" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>新排餐日期</Text>
+              <PlanDatePicker
+                value={moveMealPlanDate || (moveMealPlanTarget?.date ?? toISODate(new Date()))}
+                onChange={setMoveMealPlanDate}
+                showShortcuts={true}
+                monthsAhead={12}
+              />
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                  onPress={() => {
+                    setShowMoveDateModal(false);
+                    setShowSyncDateModal(false);
+                    setPendingMoveDateSave(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
+                  onPress={() => {
+                    if (!moveMealPlanTarget || !moveMealPlanDate) return;
+                    if (syncShoppingItems && syncShoppingDateMode === "custom" && !syncShoppingDate) {
+                      Alert.alert("請選擇購物日期", "請先選擇自訂購物日期");
+                      return;
+                    }
+                    if (syncShoppingItems && selectedMoveShoppingDate > moveMealPlanDate) {
+                      Alert.alert("日期超出範圍", "購物日期不能遲過排餐日");
+                      return;
+                    }
+                    if (linkedShoppingItems.length > 0 && moveMealPlanTarget && moveMealPlanDate !== moveMealPlanTarget.date) {
+                      promptSyncShoppingDate();
+                      return;
+                    }
+                    updateMealDateM.mutate({
+                      id: moveMealPlanTarget.id,
+                      newDate: moveMealPlanDate,
+                      moveShoppingItems: syncShoppingItems,
+                      shoppingDate: syncShoppingItems ? selectedMoveShoppingDate : undefined,
+                    });
+                  }}
+                  disabled={updateMealDateM.isPending}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{updateMealDateM.isPending ? "儲存中..." : "儲存"}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showSyncDateModal} transparent animationType="fade" onRequestClose={cancelSyncDateModal}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", paddingHorizontal: 16 }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 24, padding: 16, maxWidth: 520, width: "100%", alignSelf: "center" }}>
+            <View style={{ alignItems: "center", marginBottom: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 999, backgroundColor: "#E5E7EB" }} />
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>設定購物日期</Text>
+            <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+              共 {linkedShoppingItems.length} 項，購物日期唔可以遲過排餐日
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+              {[
+                { key: "previous", label: "前一天" },
+                { key: "same", label: "同日" },
+                { key: "custom", label: "自訂" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => {
+                    const key = opt.key as "previous" | "same" | "custom";
+                    setDraftSyncShoppingDateMode(key);
+                    if (key === "custom") {
+                      const prev = getDayBefore(moveMealPlanDate || toISODate(new Date()));
+                      setDraftSyncShoppingDate(prev < toISODate(new Date()) ? toISODate(new Date()) : prev);
+                    }
+                  }}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: draftSyncShoppingDateMode === opt.key ? "#013E77" : "#D1D5DB",
+                    backgroundColor: draftSyncShoppingDateMode === opt.key ? "#E8F0FE" : "#fff",
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: draftSyncShoppingDateMode === opt.key ? "#013E77" : "#374151" }}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {draftSyncShoppingDateMode === "custom" && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 8 }}>
+                  自訂購物日期（唔可以遲過排餐日）
+                </Text>
+                <PlanDatePicker
+                  value={clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) ?? toISODate(new Date())}
+                  onChange={setDraftSyncShoppingDate}
+                  maxDate={moveMealPlanDate || undefined}
+                  showShortcuts={true}
+                />
+              </View>
+            )}
+
+            <Text style={{ fontSize: 11, color: "#6B7280", marginTop: 10 }}>
+              目前：{draftSyncShoppingDateMode === "same"
+                ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
+                : draftSyncShoppingDateMode === "custom"
+                  ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
+                  : (clampShoppingDate(getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))}
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center" }}
+                onPress={cancelSyncDateModal}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
+                onPress={confirmSyncDateModal}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>確定</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ─── Smart Weekly Recommendation Modal ─── */}
-      <Modal visible={showSmartRecommend} animationType="slide" transparent>
+      <Modal visible={showSmartRecommend} animationType="slide" transparent onRequestClose={() => setShowSmartRecommend(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowSmartRecommend(false)} />
           <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "90%" }}>
             {/* Header */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC", backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
@@ -1309,13 +1465,13 @@ export default function PlannerTab() {
                 </View>
                 <View>
                   <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A" }}>本週 AI 晚餐推薦搭配</Text>
-                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>均衡膳食結構（三菜一湯）</Text>
+                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{formatDateShort(monday)} - {formatDateShort(sunday)} · 均衡膳食結構（三菜一湯）</Text>
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#7C3AED", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
-                  onPress={() => setShowAISuggest(true)}
+                  onPress={() => { setShowSmartRecommend(false); setShowAISuggest(true); }}
                 >
                   <Ionicons name="sparkles" size={11} color="#fff" />
                   <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>AI 生成</Text>
@@ -1341,6 +1497,7 @@ export default function PlannerTab() {
                       onPress={() => setRecommendCurrentDay(d)}
                     >
                       <Text style={{ fontSize: 11, fontWeight: "700", color: isCurrent ? "#fff" : "#4B5563" }}>{DAY_SHORT[d]}</Text>
+                      <Text style={{ fontSize: 9, color: isCurrent ? "#FFF3E0" : "#9CA3AF", marginTop: 2 }}>{getDateForDowShort(startDate, d)}</Text>
                       <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: has ? (isCurrent ? "#fff" : "#FF8C00") : "transparent", marginTop: 4 }} />
                     </TouchableOpacity>
                   );
@@ -1453,7 +1610,7 @@ export default function PlannerTab() {
                           )}
                           <TouchableOpacity
                             style={{ backgroundColor: "#F3F4F6", borderRadius: 6, padding: 6 }}
-                            onPress={() => setEditingSlot({ day: recommendCurrentDay, slot })}
+                            onPress={() => { setShowSmartRecommend(false); setEditingSlot({ day: recommendCurrentDay, slot }); }}
                           >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
                               <Ionicons name={hasDish ? "swap-horizontal" : "add"} size={13} color="#6B7280" />
@@ -1470,20 +1627,12 @@ export default function PlannerTab() {
 
             {/* Bottom Actions */}
             <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: "#F0E8DC", backgroundColor: "#fff", flexDirection: "row", gap: 8 }}>
-              {/* 按鈕 A: 套用本日推薦 */}
+              {/* 套用本日推薦 */}
               <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E8F0FE", alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
                 onPress={() => handleApplyToday(recommendItemsByDay[recommendCurrentDay])}
               >
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>✅ 套用本日 ({DAY_SHORT[recommendCurrentDay]})</Text>
-              </TouchableOpacity>
-              {/* 按鈕 B: 一鍵套用整週推薦 */}
-              <TouchableOpacity
-                style={{ flex: 1.2, paddingVertical: 11, borderRadius: 12, backgroundColor: "#FF8C00", alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 }}
-                onPress={handleApplyEntireWeek}
-              >
-                <Ionicons name="calendar-outline" size={13} color="#fff" />
-                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>📦 一鍵套用整週</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1503,7 +1652,7 @@ export default function PlannerTab() {
             setPendingPlanInfo({ date, mealType: "dinner", slot: editingSlot.slot, dayOfWeek: editingSlot.day });
             setEditingSlot(null);
           }}
-          onClose={() => setEditingSlot(null)}
+          onClose={() => { setEditingSlot(null); setShowSmartRecommend(true); }}
         />
       )}
 
@@ -1513,9 +1662,10 @@ export default function PlannerTab() {
           visible={showAISuggest}
           weekStart={startDate}
           officialRecipes={officialRecipes}
-          onClose={() => setShowAISuggest(false)}
+          onClose={() => { setShowAISuggest(false); setShowSmartRecommend(true); }}
           onPublished={() => {
             setShowAISuggest(false);
+            setShowSmartRecommend(true);
             utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
             refetchRecommendWeek();
           }}
@@ -1924,7 +2074,7 @@ function AISuggestModalRN({
     onSuccess: () => {
       Alert.alert(
         "🎉 一星期晚餐推薦設定成功！",
-        "已為您生成本週的晚餐靈感。\n\n您可以點擊下方「套用整週推薦」，一鍵將整週美味晚餐排入日程並預備買餸清單！",
+        "已為您生成本週的晚餐靈感。\n\n回到推薦頁面，您可以點擊「套用本日」逐日將推薦排入日程，並預備買餸清單！",
         [{ text: "確定", onPress: onPublished }]
       );
     },
@@ -2480,6 +2630,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   mealDeleteBtn: {
+    padding: 3,
+  },
+  mealEditBtn: {
     padding: 3,
   },
   emptyMealContainer: {

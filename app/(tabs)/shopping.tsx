@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { trpc } from "@/lib/trpc";
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
+import { isSavePriceMissingRoute, savePriceViaToggleBoughtFallback } from "@/lib/savePriceCompat";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -165,7 +167,6 @@ export default function ShoppingTab() {
   const [editPlannedDate, setEditPlannedDate] = useState<string | null>(null);
 
   const [showPriceSummary, setShowPriceSummary] = useState(false);
-  const [showBoughtListModal, setShowBoughtListModal] = useState(false);
 
   const [newName, setNewName] = useState("");
   const [newQty, setNewQty] = useState("");
@@ -260,7 +261,23 @@ export default function ShoppingTab() {
       setSavePriceVal("");
       Alert.alert("已記錄", "價格已儲存");
     },
-    onError: (e: Error) => Alert.alert("儲存失敗", e.message),
+    onError: async (e: Error, variables: any) => {
+      if (isSavePriceMissingRoute(e) && variables?.itemId && typeof variables.price === "number") {
+        console.warn("[shopping.savePrice] 舊後端無此 route，改用 toggleBought fallback 記錄價格:", e.message);
+        try {
+          await savePriceViaToggleBoughtFallback(variables.itemId, variables.price);
+          utils.shopping.list.invalidate();
+          setShowSavePrice(false);
+          setSavePriceItem(null);
+          setSavePriceVal("");
+          Alert.alert("已記錄", "價格已儲存（舊版後端兼容）");
+        } catch (e2: any) {
+          Alert.alert("儲存失敗", `兼容儲存都失敗：${e2?.message ?? "未知錯誤"}`);
+        }
+      } else {
+        Alert.alert("儲存失敗", e.message);
+      }
+    },
   });
 
   const addItemM = trpc.shopping.add.useMutation({
@@ -293,11 +310,6 @@ export default function ShoppingTab() {
   const deleteItemM = trpc.shopping.delete.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
     onError: (e) => Alert.alert("刪除失敗", e.message),
-  });
-
-  const clearBoughtM = trpc.shopping.clearBought.useMutation({
-    onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("清除失敗", e.message),
   });
 
   const approveItemM = trpc.shopping.approve.useMutation({
@@ -340,8 +352,33 @@ export default function ShoppingTab() {
     onError: (e) => Alert.alert("編輯失敗", e.message),
   });
 
-  const { familyRole } = useAuth();
+  const { activeFamilyId, familyRole } = useAuth();
   const isAdmin = familyRole === "owner" || familyRole === "admin";
+
+  const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
+    enabled: !!activeFamilyId,
+    staleTime: 1000 * 30,
+  });
+
+  const mealPlanDateById = useMemo(() => {
+    const map: Record<number, string> = {};
+    mealPlans.forEach((mp: any) => {
+      map[mp.id] = mp.date;
+    });
+    return map;
+  }, [mealPlans]);
+
+  const getLinkedMealPlanDate = useCallback(
+    (item: any) => (item?.fromMealPlanId ? mealPlanDateById[item.fromMealPlanId] || null : null),
+    [mealPlanDateById],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void utils.mealPlan.list.invalidate();
+      void utils.shopping.list.invalidate();
+    }, [utils]),
+  );
 
   const unboughtCount = items.filter(i => i.status !== "bought").length;
   const boughtCount = items.filter(i => i.status === "bought").length;
@@ -372,16 +409,12 @@ export default function ShoppingTab() {
   }, [items, searchQuery, activeTypeFilter, activeDateFilter, selectedDate]);
 
   const activeItems = useMemo(
-    () => filteredItems.filter((i) => i.status !== "bought"),
-    [filteredItems],
-  );
-  const boughtItems = useMemo(
-    () => filteredItems.filter((i) => i.status === "bought"),
+    () => filteredItems,
     [filteredItems],
   );
 
-  const filteredUnboughtCount = activeItems.length;
-  const filteredBoughtCount = boughtItems.length;
+  const filteredUnboughtCount = activeItems.filter((i) => i.status !== "bought").length;
+  const filteredBoughtCount = activeItems.filter((i) => i.status === "bought").length;
 
   const pendingItems = useMemo(
     () => filteredItems.filter((i) => i.status === "pending"),
@@ -524,15 +557,6 @@ export default function ShoppingTab() {
     [deleteItemM],
   );
 
-  const handleClearBought = useCallback(() => {
-    const count = boughtItems.length;
-    if (count === 0) return;
-    Alert.alert("清除已購買", `確定要清除 ${count} 項已購買的食材？`, [
-      { text: "取消", style: "cancel" },
-      { text: "清除", style: "destructive", onPress: () => clearBoughtM.mutate() },
-    ]);
-  }, [boughtItems, clearBoughtM]);
-
   const handleEdit = useCallback((item: any) => {
     setEditItem(item);
     setEditName(item.name);
@@ -546,6 +570,11 @@ export default function ShoppingTab() {
     if (!editItem) return;
     const name = editName.trim();
     if (!name) return;
+    const linkedMealDate = getLinkedMealPlanDate(editItem);
+    if (linkedMealDate && editPlannedDate && editPlannedDate > linkedMealDate) {
+      Alert.alert("日期超出範圍", `採購日期不能遲過排餐日（${linkedMealDate}）`);
+      return;
+    }
     (updateItemM.mutate as any)({
       id: editItem.id,
       name,
@@ -553,7 +582,7 @@ export default function ShoppingTab() {
       unit: editUnit.trim() || undefined,
       plannedDate: editPlannedDate || undefined,
     });
-  }, [editItem, editName, editQty, editUnit, editPlannedDate, updateItemM]);
+  }, [editItem, editName, editQty, editUnit, editPlannedDate, updateItemM, getLinkedMealPlanDate]);
 
   const toggleCategoryExpand = useCallback((cat: string) => {
     setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
@@ -746,10 +775,6 @@ export default function ShoppingTab() {
           <Text style={styles.headerSubtitle}>{filteredUnboughtCount} 項待買 · {filteredBoughtCount} 項已買</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={() => setShowBoughtListModal(true)}>
-            <Ionicons name="list-outline" size={15} color="#6B7280" />
-            <Text style={styles.headerActionBtnTextGray}>已買清單 ({boughtCount})</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerAddBtn} onPress={() => handleOpenAddModal()}>
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
@@ -889,7 +914,7 @@ export default function ShoppingTab() {
           <Text style={styles.emptyTitle}>購物清單是空的</Text>
           <Text style={styles.emptySubtitle}>點擊右上角新增食材</Text>
         </View>
-      ) : categoryListData.length === 0 && boughtItems.length === 0 ? (
+      ) : categoryListData.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="filter-outline" size={48} color="#D1D5DB" style={{ marginBottom: 12 }} />
           <Text style={styles.emptyTitle}>沒有符合條件的項目</Text>
@@ -936,22 +961,7 @@ export default function ShoppingTab() {
               </View>
             ) : null
           }
-          ListFooterComponent={
-            boughtItems.length > 0 ? (
-              <View style={styles.boughtSection}>
-                <View style={styles.boughtHeader}>
-                  <View style={styles.boughtHeaderLeft}>
-                    <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
-                    <Text style={styles.boughtHeaderText}>已買 {boughtItems.length} 項</Text>
-                  </View>
-                  <TouchableOpacity style={styles.boughtClearBtn} onPress={handleClearBought}>
-                    <Text style={styles.boughtClearBtnText}>清除已買</Text>
-                  </TouchableOpacity>
-                </View>
-                {boughtItems.map((item: any) => renderItem(item))}
-              </View>
-            ) : null
-          }
+          ListFooterComponent={null}
           contentContainerStyle={{ paddingBottom: 40 }}
         />
       )}
@@ -1131,9 +1141,15 @@ export default function ShoppingTab() {
                     </View>
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
+                  {editItem?.fromMealPlanId && getLinkedMealPlanDate(editItem) && (
+                    <Text style={{ fontSize: 11, color: "#92400E", marginBottom: 6 }}>
+                      ⚠️ 呢件食材來自排餐，最遲可選購物日：{getLinkedMealPlanDate(editItem)}
+                    </Text>
+                  )}
                   <PlanDatePicker
                     value={editPlannedDate || new Date().toISOString().split("T")[0]}
                     onChange={(iso) => setEditPlannedDate(iso)}
+                    maxDate={getLinkedMealPlanDate(editItem) || undefined}
                   />
                   {editPlannedDate && (
                     <TouchableOpacity onPress={() => setEditPlannedDate(null)} style={{ alignSelf: "flex-end", marginTop: -8 }}>
@@ -1178,68 +1194,6 @@ export default function ShoppingTab() {
                   ${items.filter(i => i.status !== "bought").reduce((sum: number, i: any) => sum + (i.estimatedPrice || 0), 0)}
                 </Text>
               </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showBoughtListModal} animationType="slide" transparent presentationStyle="overFullScreen" statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
-                <Text style={styles.modalTitle}>已買清單</Text>
-                <Text style={{ fontSize: 13, color: "#9CA3AF" }}>({items.filter(i => i.status === "bought").length})</Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                {items.filter(i => i.status === "bought").length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const count = items.filter(i => i.status === "bought").length;
-                      Alert.alert("清除已購買", `確定要清除 ${count} 項已購買的食材？`, [
-                        { text: "取消", style: "cancel" },
-                        { text: "清除", style: "destructive", onPress: () => clearBoughtM.mutate() },
-                      ]);
-                    }}
-                    disabled={clearBoughtM.isPending}
-                  >
-                    <Text style={{ fontSize: 13, color: "#DC2626", fontWeight: "600" }}>清除全部</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => setShowBoughtListModal(false)}>
-                  <Ionicons name="close-outline" size={20} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 20 }}>
-              {items.filter(i => i.status === "bought").length === 0 ? (
-                <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                  <Ionicons name="checkmark-circle-outline" size={48} color="#D1D5DB" />
-                  <Text style={{ fontSize: 14, color: "#9CA3AF", marginTop: 12 }}>暫無已買項目</Text>
-                </View>
-              ) : (
-                items.filter(i => i.status === "bought").map((item: any) => (
-                  <View key={item.id} style={styles.boughtListItem}>
-                    <View style={styles.boughtListItemLeft}>
-                      <Text style={styles.boughtListItemName}>{item.name}</Text>
-                      <View style={styles.boughtListItemMeta}>
-                        {(item.quantity || item.unit) && (
-                          <Text style={styles.boughtListItemQty}>{item.quantity || ""}{item.unit ? ` ${item.unit}` : ""}</Text>
-                        )}
-                        {item.boughtByName && (
-                          <Text style={styles.boughtListItemBy}>
-                            {item.boughtByName} · {item.boughtAt ? formatTimeAgo(item.boughtAt) : "剛剛"}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <Text style={styles.boughtListItemPrice}>
-                      {item.actualPrice ? `$${item.actualPrice}` : item.estimatedPrice ? `$${item.estimatedPrice}` : ""}
-                    </Text>
-                  </View>
-                ))
-              )}
             </ScrollView>
           </View>
         </View>

@@ -1,3 +1,7 @@
+/**
+ * @deprecated Legacy recipe detail screen.
+ * Main entry now uses `app/recipe/[id].tsx`.
+ */
 import React, { useState } from 'react';
 import {
   View,

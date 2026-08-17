@@ -2,9 +2,11 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   FlatList, Dimensions, ScrollView, ActivityIndicator,
   Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,10 +24,12 @@ import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import FilterModal from "@/src/components/FilterModal";
 import RecipeCard from "@/src/components/RecipeCard";
 import PaywallModal from "@/components/PaywallModal";
+import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
 const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
+const CARD_IMAGE_RATIO = getRecipeCardImageRatio(Dimensions.get("window").height);
 const BRAND = "#013E77";
 const BG = "#F5F5F5";
 
@@ -106,6 +110,8 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
     dinnerRows.push({ icon: "alert-circle-outline", iconColor: "#DC2626", text: mealName(todayDinnerPlan), badge: "需確認", badgeKind: "conflict" });
   } else if (isTodayEatOut) {
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
+  } else if (todayDinnerPlan) {
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(todayDinnerPlan), badge: "今天" });
   }
 
   confirmedDinners.forEach((m: any) => {
@@ -149,9 +155,9 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
             </View>
           ))}
           {moreCount > 0 && (
-            <View style={s.dualCardMoreRow}>
-              <Text style={s.dualCardMoreText}>更多 {moreCount} 項</Text>
-            </View>
+            <TouchableOpacity style={s.dualCardMoreRow} onPress={() => router.push("/(tabs)/planner" as any)}>
+              <Text style={s.dualCardMoreText}>更多 {moreCount} 項 ›</Text>
+            </TouchableOpacity>
           )}
         </View>
       ) : (
@@ -383,7 +389,7 @@ function PendingActionsCard({ router, isAdmin }: {
 // ── Weekly Menu Bar ──────────────────────────────────────────────────
 
 // ── Recipe Card Skeleton (loading placeholder) ─────────────────────────
-function RecipeCardSkeleton({ anim }: { anim: Animated.Value }) {
+function RecipeCardSkeleton({ anim, imageHeight }: { anim: Animated.Value; imageHeight: number }) {
   const animatedStyle = {
     opacity: anim.interpolate({
       inputRange: [0, 1],
@@ -393,7 +399,7 @@ function RecipeCardSkeleton({ anim }: { anim: Animated.Value }) {
 
   return (
     <View style={s.skeletonCard}>
-      <Animated.View style={[s.skeletonImg, animatedStyle]} />
+      <Animated.View style={[s.skeletonImg, { height: imageHeight }, animatedStyle]} />
       <View style={s.skeletonInfo}>
         <Animated.View style={[s.skeletonNameLine, animatedStyle]} />
         <Animated.View style={[s.skeletonNameLineShort, animatedStyle]} />
@@ -424,6 +430,8 @@ function PremiumUpgradeButton({ onPress, style }: { onPress: () => void; style?:
 // ── Main component ───────────────────────────────────────────────────
 export default function RecipesTab() {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+  const cardImageRatio = getRecipeCardImageRatio(screenHeight);
   const router = useRouter();
   const utils = trpc.useUtils();
   const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
@@ -537,6 +545,15 @@ export default function RecipesTab() {
     { staleTime: 30000 }
   );
   const todayEatOut = todayEatOutDates.includes(todayStr);
+
+  useFocusEffect(
+    useCallback(() => {
+      void invalidateMealPlanAndCart();
+      void utils.weeklyMenu.getWeek.invalidate({ weekStart: weekStartStr });
+      void utils.eatOut.listByDateRange.invalidate({ startDate: todayStr, endDate: todayStr });
+      void subscriptionQuery.refetch();
+    }, [invalidateMealPlanAndCart, utils, weekStartStr, todayStr, subscriptionQuery.refetch]),
+  );
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
 
@@ -1031,12 +1048,12 @@ export default function RecipesTab() {
         ListEmptyComponent={
           isLoading ? (
             <View style={s.skeletonGrid}>
-              <RecipeCardSkeleton anim={skeletonAnim} />
-              <RecipeCardSkeleton anim={skeletonAnim} />
-              <RecipeCardSkeleton anim={skeletonAnim} />
-              <RecipeCardSkeleton anim={skeletonAnim} />
-              <RecipeCardSkeleton anim={skeletonAnim} />
-              <RecipeCardSkeleton anim={skeletonAnim} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
             </View>
           ) : (
           <View style={s.empty}>
@@ -1202,6 +1219,7 @@ export default function RecipesTab() {
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
         defaultDate={planPickerRecipe?.date}
+        maxDate={planPickerRecipe?.date}
         showDateSelector={true}
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
@@ -1901,7 +1919,7 @@ const s = StyleSheet.create({
   },
   skeletonImg: {
     width: "100%",
-    height: CARD_WIDTH * 0.8,
+    height: CARD_WIDTH * CARD_IMAGE_RATIO,
     backgroundColor: "#F3F4F6",
   },
   skeletonInfo: {
@@ -1946,7 +1964,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F0F0F0",
   },
-  cardImg: { width: CARD_WIDTH, height: CARD_WIDTH * 0.8 },
+  cardImg: { width: CARD_WIDTH, height: CARD_WIDTH * CARD_IMAGE_RATIO },
   cardImgPH: { 
     backgroundColor: "#F0F0F0", 
     alignItems: "center", 

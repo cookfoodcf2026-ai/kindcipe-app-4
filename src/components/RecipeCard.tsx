@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { CategoryDef } from "@/lib/category-storage";
+import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 
 const BRAND = "#013E77";
 const { width: SW } = Dimensions.get("window");
@@ -34,6 +35,8 @@ export default function RecipeCard({
   navigateToRecipe,
   showQuickPlan = false, // 預設隱藏快速排餐按鈕
 }: RecipeCardProps) {
+  const { height: screenHeight } = useWindowDimensions();
+  const imageRatio = getRecipeCardImageRatio(screenHeight);
   const catColor = category ? getCategoryColor(category.key) : getCategoryColor("其他");
 
   // Check if image is a local asset
@@ -377,11 +380,11 @@ export default function RecipeCard({
       <TouchableOpacity onPress={() => navigateToRecipe(item)} activeOpacity={0.85}>
         {/* ── Image / Placeholder ── */}
         {hasImage && !hasImageError
-          ? localImage
-            ? <Image source={localImage} style={s.cardImg} resizeMode="cover" />
-            : <Image source={{ uri: imageUrl }} style={s.cardImg} resizeMode="cover" onError={() => setHasImageError(true)} />
+            ? localImage
+              ? <Image source={localImage} style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]} resizeMode="cover" />
+            : <Image source={{ uri: imageUrl }} style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]} resizeMode="cover" onError={() => setHasImageError(true)} />
           : (
-            <View style={[s.cardImg, s.cardImgPH, { backgroundColor: catColor.bg }]}>
+            <View style={[s.cardImg, { height: CARD_WIDTH * imageRatio }, s.cardImgPH, { backgroundColor: catColor.bg }]}>
               <View style={s.placeholderContent}>
                 <Text style={s.placeholderEmoji}>{category?.emoji || "🍽️"}</Text>
               </View>
@@ -505,7 +508,6 @@ const s = StyleSheet.create({
   },
   cardImg: {
     width: "100%",
-    height: CARD_WIDTH * 0.8,
     backgroundColor: "#F5F5F5",
   },
   cardImgPH: {

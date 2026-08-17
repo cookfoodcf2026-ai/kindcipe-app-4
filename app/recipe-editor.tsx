@@ -7,7 +7,7 @@ import {
   StyleSheet, ActivityIndicator, Alert, Image, Modal, BackHandler,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from "react-native";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter, useNavigation, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -42,6 +42,7 @@ type Step = { id: number; instruction: string; duration: number; imageUri?: stri
 
 export default function RecipeEditorScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; name?: string }>();
   const editingId = params.id ? parseInt(params.id) : null;
@@ -288,14 +289,58 @@ export default function RecipeEditorScreen() {
     }
   };
 
-  const handleDiscard = () => {
+  // 有未儲存內容？（供 iOS 滑動返回／header ✕／Android back 統一攔截判斷）
+  const hasUnsavedInput = useCallback(() => {
+    if (
+      name.trim() || description.trim() || sourceUrl.trim() || tags.trim() ||
+      servings !== "4" || prepTime !== "15" || cookTime !== "30" ||
+      difficulty !== "中等" || category !== "中菜"
+    ) return true;
+    if (ingredients.some(i => i.name.trim())) return true;
+    if (steps.some(s => s.instruction.trim())) return true;
+    if (imageUri || imageBase64) return true;
+    if (steps.some(s => s.imageUri || s.imageBase64)) return true;
+    return false;
+  }, [name, description, sourceUrl, tags, servings, prepTime, cookTime, difficulty, category, ingredients, steps, imageUri, imageBase64]);
+
+  // 已確認離開／已儲存成功：放行，唔再彈「放棄編輯？」
+  const allowLeaveRef = useRef(false);
+
+  const handleDiscard = useCallback(() => {
+    if (isSaving) return;
+    if (!hasUnsavedInput()) {
+      allowLeaveRef.current = true;
+      router.back();
+      return;
+    }
     Alert.alert("放棄編輯？", "已輸入的內容將不會保存", [
       { text: "繼續編輯", style: "cancel" },
-      { text: "放棄", style: "destructive", onPress: () => router.back() },
+      { text: "放棄", style: "destructive", onPress: () => {
+        allowLeaveRef.current = true;
+        router.back();
+      } },
     ]);
-  };
+  }, [hasUnsavedInput, isSaving, router]);
 
-  // Android 硬體返回：與 header 返回一樣，先確認「放棄編輯」
+  // iOS 滑動返回 / header 返回 / 程式導航：統一經 beforeRemove 攔截確認
+  useEffect(() => {
+    const sub = navigation.addListener("beforeRemove", (e: any) => {
+      if (allowLeaveRef.current || isSaving || !hasUnsavedInput()) return;
+      e.preventDefault();
+      Alert.alert("放棄編輯？", "已輸入的內容將不會保存", [
+        { text: "繼續編輯", style: "cancel" },
+        {
+          text: "放棄", style: "destructive", onPress: () => {
+            allowLeaveRef.current = true;
+            navigation.dispatch(e.data.action);
+          },
+        },
+      ]);
+    });
+    return sub;
+  }, [navigation, isSaving, hasUnsavedInput]);
+
+  // Android 硬件返回：同 header ✕ 一致，先確認「放棄編輯」
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       handleDiscard();
@@ -318,7 +363,7 @@ export default function RecipeEditorScreen() {
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },
-          gestureEnabled: false,
+          gestureEnabled: true,
           headerLeft: () => (
             <TouchableOpacity onPress={handleDiscard} style={{ marginLeft: 4 }}>
               <Ionicons name="close" size={24} color={TEXT} />
