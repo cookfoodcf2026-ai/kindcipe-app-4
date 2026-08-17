@@ -35,7 +35,7 @@ const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 Sentry.init({
   dsn: SENTRY_DSN,
   enabled: !__DEV__ && SENTRY_DSN.length > 0,
-  debug: __DEV__,
+  debug: __DEV__ && SENTRY_DSN.length > 0,
   tracesSampleRate: __DEV__ ? 0 : 0.1,
 });
 
