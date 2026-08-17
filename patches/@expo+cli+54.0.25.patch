@@ -1,0 +1,16 @@
+diff --git a/node_modules/@expo/cli/build/src/start/server/metro/instantiateMetro.js b/node_modules/@expo/cli/build/src/start/server/metro/instantiateMetro.js
+index afa5269..a3869ad 100644
+--- a/node_modules/@expo/cli/build/src/start/server/metro/instantiateMetro.js
++++ b/node_modules/@expo/cli/build/src/start/server/metro/instantiateMetro.js
+@@ -177,7 +177,10 @@ async function loadMetroConfigAsync(projectRoot, options, { exp, isExporting, ge
+         config.transformer.publicPath = `/assets?export_path=${(((_exp_experiments8 = exp.experiments) == null ? void 0 : _exp_experiments8.baseUrl) ?? '') + '/assets'}`;
+     } else {
+         // @ts-expect-error: typed as readonly
+-        config.transformer.publicPath = '/assets/?unstable_path=.';
++        // PATCH (2026-08-15): Use classic `/assets` publicPath instead of `/assets/?unstable_path=.`.
++        // unstable_path bakes literal `%2F` into asset URLs, which RN 0.81 native loader
++        // re-encodes to `%252F` for non-ASCII (Chinese) filenames -> double-encoding -> 404/ENOENT.
++        config.transformer.publicPath = '/assets';
+     }
+     const platformBundlers = (0, _platformBundlers.getPlatformBundlers)(projectRoot, exp);
+     if ((_exp_experiments5 = exp.experiments) == null ? void 0 : _exp_experiments5.reactCompiler) {

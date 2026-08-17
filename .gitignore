@@ -12,6 +12,9 @@ node_modules
 # Expo
 .expo/
 expo.log
+metro.log
+metro-debug.log
+node_modules/.package-lock.json
 
 # Backups
 *.bak
