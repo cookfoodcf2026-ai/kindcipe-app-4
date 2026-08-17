@@ -10,15 +10,16 @@ import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import { trpc } from "@/lib/trpc";
+import { trpc, apiClient } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { compressImage } from "@/lib/image-utils";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
-import { todayISO, formatDateLabel } from "@/src/lib/date";
+import { todayISO, formatDateLabel, getDayBefore } from "@/src/lib/date";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -31,6 +32,9 @@ type AIRecipe = {
   difficulty: string; recipeCategory?: string;
   ingredients: { name: string; quantity: string; unit: string }[];
   steps: string[]; tags: string[];
+  source?: "official" | "custom" | "ai";
+  officialId?: number;
+  customId?: number;
 };
 
 type MealPlanStep = "idle" | "people" | "audience" | "time" | "dislike" | "generating" | "result";
@@ -91,10 +95,12 @@ const SESSIONS_KEY = (uid: string | number) => `kindcipe_ai_sessions_${uid}`;
 const ACTIVE_KEY = (uid: string | number) => `kindcipe_ai_active_${uid}`;
 const OLD_CHAT_KEY = (uid: string | number) => `kindcipe_ai_chat_${uid}`;
 
+const MAX_IMAGES_PER_SESSION = 3;
+
 const LOADING_STEPS = [
   "AI 正在分析你的需求...",
-  "正在搜尋合適食譜...",
-  "為你生成個人化建議...",
+  "從食譜庫尋找合適建議...",
+  "為你整理個人化結果...",
 ];
 
 const BRAND = "#013E77";
@@ -285,6 +291,7 @@ export default function AIChefScreen() {
   const [input, setInput] = useState("");
   const [recommendedRecipes, setRecommendedRecipes] = useState<AIRecipe[]>([]);
   const flatListRef = useRef<FlatList>(null);
+  const uploadingRef = useRef(false);
 
   // ─── Daily 3-dish-1-soup flow ──────────────────────────
   const [mealStep, setMealStep] = useState<MealPlanStep>("idle");
@@ -304,8 +311,6 @@ export default function AIChefScreen() {
   // ─── Shopping lists after AI plan ─────────────────────
   const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]); // 保留食譜名稱供 fromRecipeName
   const [shopPlannedDate, setShopPlannedDate] = useState<string>(todayISO());
-  // Ingredient picker after addPlanM success (single recipe)
-  const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   // 批量排餐完成後用嚟開啟 IngredientPickerModal（多個食譜）
   const [batchPickerRecipes, setBatchPickerRecipesState] = useState<PickerRecipe[] | null>(null);
   const setBatchPickerRecipes = (recipes: PickerRecipe[] | null) => {
@@ -520,6 +525,9 @@ export default function AIChefScreen() {
             steps: Array.isArray(r.steps) ? r.steps : [],
             ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
             tags: Array.isArray(r.tags) ? r.tags : [],
+            source: r.source ?? "ai",
+            officialId: r.officialId ?? undefined,
+            customId: r.customId ?? undefined,
           }))
         : [];
 
@@ -609,17 +617,20 @@ export default function AIChefScreen() {
     })();
   }, [user?.id]);
 
+  // 持久化 session：現在 images 用 storage URL（僅 ~200 字元），因此保留 url 即可。
+  // 僅為防舊資料或極端大 URL，超過 5000 字元時才清空。
+  const MAX_PERSISTED_URL_LEN = 5000;
   const persistSessions = useCallback((next: ChatSession[], nextActive: string) => {
     if (!user?.id) return;
     const compact = next.map(s => ({
       ...s,
       messages: s.messages.map(m => {
         if (typeof m.content === "string") return { role: m.role, content: m.content };
-        // Preserve content structure but strip large base64 image data
         const compactContent = m.content.map(block => {
           if (block.type === "image_url") {
-            // Keep the block type but strip base64 to save AsyncStorage space
-            return { type: "image_url" as const, image_url: { url: "" } };
+            const blockUrl = block.image_url?.url;
+            const safeUrl = blockUrl && blockUrl.length <= MAX_PERSISTED_URL_LEN ? blockUrl : "";
+            return { type: "image_url" as const, image_url: { url: safeUrl } };
           }
           return block;
         });
@@ -727,34 +738,71 @@ export default function AIChefScreen() {
   // ─── Plan modal ────────────────────────────────────────
 
   const [showPlan, setShowPlan] = useState(false);
-  const [planAction, setPlanAction] = useState<"meal" | "shopping">("meal");
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
   const [planDate, setPlanDate] = useState<string | null>(todayISO());
   const [planMeal, setPlanMeal] = useState("dinner");
 
   const utils = trpc.useUtils();
+  const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
   const saveRecipeM = trpc.recipes.importUser.useMutation({
-    onSuccess: () => utils.recipes.listUser.invalidate(),
+    onSuccess: () => {
+      utils.recipes.listUser.invalidate();
+      utils.recipes.search.invalidate();
+    },
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
+      const mealTypeLabel = variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食";
+      const hasConflict = !!(result.warning && result.hasConflict);
+      const continueAfterMealPlan = () => {
+        const currentRecipe = planRecipe;
+        setShowPlan(false);
+        if (currentRecipe && Array.isArray(currentRecipe.ingredients) && currentRecipe.ingredients.length > 0) {
+          openShoppingSelection([currentRecipe], getDayBefore(variables.date));
+        } else {
+          showToast(`✅ 已加入排餐 (${formatDateLabel(variables.date)} ${mealTypeLabel})`);
+        }
+      };
+      if (hasConflict) {
+        const warningText = result.warning ?? "";
+        const isEatOutConflict = warningText.includes("外出");
+        Alert.alert(
+          isEatOutConflict ? "衝突提示" : "重複食譜提示",
+          warningText,
+          [
+            { text: "取消", style: "cancel", onPress: () => {
+              if (result.newPlanId) deleteMealM.mutate({ id: result.newPlanId, keepRelatedItems: false });
+              showToast("已取消衝突排餐");
+            }},
+            { text: "確定", onPress: () => {
+              continueAfterMealPlan();
+            }},
+          ]
+        );
+      }
       try {
-        await utils.mealPlan.listByDateRange.invalidate();
+        await invalidateMealPlanAndCart();
         console.log("[AI Chef] Meal plan invalidate successful");
-        const mealTypeLabel = variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食";
-        showToast(`✅ 已加入排餐 (${formatDateLabel(variables.date)} ${mealTypeLabel})`);
+        if (!hasConflict) {
+          continueAfterMealPlan();
+        }
       } catch (e) {
         console.error("[AI Chef] Meal plan invalidate failed:", e);
-        showToast("⚠️ 已加入排餐，但列表可能需要手動刷新");
+        if (!hasConflict) {
+          showToast("⚠️ 已加入排餐，但列表可能需要手動刷新");
+        }
       }
     },
     onError: (e) => Alert.alert("加入排餐失敗", e.message),
   });
+  const deleteMealM = trpc.mealPlan.delete.useMutation({
+    onSuccess: async () => { await invalidateMealPlanAndCart(); },
+  });
   const addPlanBatchM = trpc.mealPlan.addBatch.useMutation({
     onSuccess: async () => {
       try {
-        await utils.mealPlan.listByDateRange.invalidate();
+        await invalidateMealPlanAndCart();
         console.log("[AI Chef] Batch meal plan invalidate successful");
         showToast("✅ 已批量加入排餐");
       } catch (e) {
@@ -765,12 +813,10 @@ export default function AIChefScreen() {
     onError: (e) => Alert.alert("批量加入排餐失敗", e.message),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: (data, variables) => {
-      utils.shopping.list.invalidate();
-      utils.mealPlan.listByDateRange.refetch();
+    onSuccess: async (data, variables) => {
+      await invalidateMealPlanAndCart();
       setShowPlan(false);
       setShopRecipes([]);
-      setPlanPickerRecipe(null);
       setBatchPickerRecipes(null);
       const count = variables.items.length;
       showToast(`✅ ${count} 件食材已加入購物清單`);
@@ -817,19 +863,53 @@ export default function AIChefScreen() {
       if (result.canceled || !result.assets?.[0]) return;
 
       try {
+        const imageCount = messages.filter(
+          (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
+        ).length;
+        if (imageCount >= MAX_IMAGES_PER_SESSION) {
+          showToast(`本次對話已達 ${MAX_IMAGES_PER_SESSION} 張圖上限，請開始新對話`);
+          return;
+        }
+
         const compressed = await compressImage(result.assets[0].uri);
-        const dataUri = `data:${compressed.mimeType};base64,${compressed.base64}`;
-        const imageMsg: Message = { role: "user", content: [{ type: "text", text: "我雪櫃有呢啲食材，可以煮咩？" }, { type: "image_url", image_url: { url: dataUri } }] };
+
+        if (uploadingRef.current) return;
+        uploadingRef.current = true;
+        let imageUrl: string;
+        try {
+          showToast("正在上傳圖片...");
+          const up = await apiClient.recipes.uploadRecipeImage.mutate({
+            base64: compressed.base64,
+            mimeType: compressed.mimeType,
+          });
+          imageUrl = up?.url ?? "";
+          if (!imageUrl) throw new Error("upload returned no url");
+        } catch (e: any) {
+          Alert.alert("上傳失敗", e?.message ?? "請重試");
+          uploadingRef.current = false;
+          return;
+        } finally {
+          uploadingRef.current = false;
+        }
+
+        const imageMsg: Message = {
+          role: "user",
+          content: [
+            { type: "text", text: "我雪櫃有呢啲食材，可以煮咩？" },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        };
 
         resetAiNextSteps();
-        updateMessages(prev => {
+        updateMessages((prev) => {
           const msgs: Message[] = [...prev, imageMsg];
           return msgs;
         });
-        chatMutation.mutate({ messages: buildBackendMessages([...messages, imageMsg]) });
+        sendChat(buildBackendMessages([...messages, imageMsg]));
         scrollToEnd();
-      } catch {
-        Alert.alert("讀取圖片失敗");
+      } catch (e: any) {
+        console.error("[AI Chef] image upload/send failed:", e);
+        Alert.alert("上傳失敗", e?.message ?? "請重試");
       }
     };
 
@@ -842,6 +922,29 @@ export default function AIChefScreen() {
         { text: "取消", style: "cancel" },
       ]);
     }
+  };
+
+  // ─── Chat send helper ───────────────────────────────────
+
+  const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai") => {
+    chatMutation.mutate({ messages: msgs, mode: sourceMode });
+  };
+
+  const resolveRecipeRef = (r: AIRecipe): { recipeId: string; isLibraryRef: boolean } => {
+    if (r.source === "official" && r.officialId) return { recipeId: `official_${r.officialId}`, isLibraryRef: true };
+    if (r.source === "custom" && r.customId) return { recipeId: `user_${r.customId}`, isLibraryRef: true };
+    return { recipeId: "", isLibraryRef: false };
+  };
+
+  const regenerateWithMode = (mode: "library" | "ai") => {
+    if (chatMutation.isPending) return;
+    resetAiNextSteps();
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+    if (!lastUser) return;
+    const newMsgs: Message[] = [...messages, { role: "user", content: "請再提供一組新的建議。" }];
+    updateMessages(() => newMsgs);
+    chatMutation.mutate({ messages: buildBackendMessages(newMsgs), mode });
+    scrollToEnd();
   };
 
   // ─── Daily 3-dish-1-soup flow helpers ──────────────────
@@ -863,22 +966,25 @@ export default function AIChefScreen() {
     setMealResult(null);
     setRecommendedRecipes([]);
     setMealStep("people");
-    addBotMessage("今晚幾多人食？（可直接輸入數字，例如 4）");
+    addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
 
   const askMealQuestion = (step: MealPlanStep) => {
+    const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
+    const stepNum = stepMap[step];
+    const label = stepNum ? `（步驟 ${stepNum}/4）` : "";
     switch (step) {
       case "people":
-        addBotMessage("今晚幾多人食？（可直接輸入數字，例如 4）");
+        addBotMessage(`${label}今晚幾多人食？（可直接輸入數字，例如 4）`);
         break;
       case "audience":
-        addBotMessage("有冇小朋友或老人家？（可揀快速選項或自由輸入）");
+        addBotMessage(`${label}有冇小朋友或老人家？（可揀快速選項或自由輸入）`);
         break;
       case "time":
-        addBotMessage("想幾耐煮好？（可揀快速選項或自由輸入）");
+        addBotMessage(`${label}想幾耐煮好？（可揀快速選項或自由輸入）`);
         break;
       case "dislike":
-        addBotMessage("有咩唔食？（可輸入食材或口味，冇就寫「冇」）");
+        addBotMessage(`${label}有咩唔食？（可輸入食材或口味，冇就寫「冇」）`);
         break;
     }
   };
@@ -958,7 +1064,15 @@ export default function AIChefScreen() {
         setMealStep("result");
         setAiNextSteps([]);
         if (data.recipes?.length > 0) {
-          const safeRecipes = data.recipes.map((r: any) => ({ ...r, steps: r.steps ?? [], ingredients: r.ingredients ?? [] }));
+          const safeRecipes = data.recipes.map((r: any) => ({
+            ...r,
+            steps: r.steps ?? [],
+            ingredients: r.ingredients ?? [],
+            tags: Array.isArray(r.tags) ? r.tags : [],
+            source: r.source ?? "ai",
+            officialId: r.officialId ?? undefined,
+            customId: r.customId ?? undefined,
+          }));
           setMealResult(safeRecipes);
           setRecommendedRecipes(safeRecipes);
         }
@@ -984,7 +1098,7 @@ export default function AIChefScreen() {
       const prompt = `我雪櫃有：${ingredientList}，可以煮咩？`;
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChat(buildBackendMessages(msgs));
       scrollToEnd();
     } else {
       setAskingIngredients(true);
@@ -1035,30 +1149,53 @@ export default function AIChefScreen() {
       Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
       return;
     }
-    // Override servings with user's preference if from meal plan flow
     const overrideServings = mealResult && mealResult.length > 0 && mealPrefs.people > 0
       ? mealPrefs.people
       : null;
-    // Save recipes to user library first, then open date picker modal
     try {
-      const saved = await Promise.all(validRecipes.map(r => saveRecipeM.mutateAsync({
-        name: r.name, description: r.description,
-        cookTime: r.cookTime, servings: overrideServings ?? r.servings,
-        difficulty: r.difficulty,
-        image: "", thumbnailUrl: "",
-        recipeCategory: r.recipeCategory || "其他",
-        tags: [...(r.tags ?? []), "AI生成"],
-        ingredients: r.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
-        steps: (r.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
-      })));
-      // Store saved recipe IDs with the valid recipes for later use
-      const recipesWithIds = validRecipes.map((r, i) => ({
-        ...r,
-        _savedId: saved[i]?.id,
-      }));
+      const items: Array<{ date: string; mealType: string; recipeId: string; recipeName: string; recipe?: AIRecipe }> = [];
+      const toSave: AIRecipe[] = [];
+      for (const r of validRecipes) {
+        const ref = resolveRecipeRef(r);
+        if (ref.isLibraryRef) {
+          items.push({
+            date: todayISO(),
+            mealType: "dinner",
+            recipeId: ref.recipeId,
+            recipeName: r.name,
+            recipe: r,
+          });
+        } else {
+          toSave.push(r);
+        }
+      }
+      if (toSave.length > 0) {
+        const saved = await Promise.all(toSave.map(r => saveRecipeM.mutateAsync({
+          name: r.name, description: r.description,
+          cookTime: r.cookTime, servings: overrideServings ?? r.servings,
+          difficulty: r.difficulty,
+          image: "", thumbnailUrl: "",
+          recipeCategory: r.recipeCategory || "其他",
+          tags: [...(r.tags ?? []), "AI 生成"],
+          ingredients: r.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
+          steps: (r.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
+        })));
+        for (let i = 0; i < saved.length; i++) {
+          items.push({
+            date: todayISO(),
+            mealType: "dinner",
+            recipeId: `user_${saved[i]?.id}`,
+            recipeName: toSave[i].name,
+            recipe: toSave[i],
+          });
+        }
+      }
+      const recipesWithIds = validRecipes.map((r) => {
+        const found = items.find(it => it.recipeName === r.name);
+        return found ? { ...r, _savedId: found.recipeId.startsWith("user_") ? Number(found.recipeId.replace("user_", "")) : undefined, _libraryRecipeId: found.recipeId } : { ...r };
+      });
       setBatchRecipes(recipesWithIds);
-      setPlanAction("meal");
-      setPlanDate(todayISO()); // Reset to today
+      setPlanDate(todayISO());
       setShowPlan(true);
     } catch (e: any) {
       Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
@@ -1076,7 +1213,7 @@ export default function AIChefScreen() {
       difficulty: recipe.difficulty,
       image: "", thumbnailUrl: "",
       recipeCategory: recipe.recipeCategory || "其他",
-      tags: [...(recipe.tags ?? []), "AI生成"],
+      tags: [...(recipe.tags ?? []), "AI 生成"],
       ingredients: recipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
       steps: (recipe.steps ?? []).map(s => ({ instruction: s, duration: 0 })),
     }, {
@@ -1132,12 +1269,12 @@ export default function AIChefScreen() {
       const prompt = `我想用以下食材煮餸：${trimmed}。請推薦可以用到呢啲食材嘅食譜。`;
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChat(buildBackendMessages(msgs));
       scrollToEnd();
     } else {
       const msgs: Message[] = [...messages, { role: "user", content: trimmed }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChat(buildBackendMessages(msgs));
       scrollToEnd();
     }
   };
@@ -1152,12 +1289,12 @@ export default function AIChefScreen() {
       const prompt = `我想用以下食材煮餸：${p}。請推薦可以用到呢啲食材嘅食譜。`;
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChat(buildBackendMessages(msgs));
       scrollToEnd();
     } else {
       const msgs: Message[] = [...messages, { role: "user", content: p }];
       updateMessages(() => msgs);
-      chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+      sendChat(buildBackendMessages(msgs));
       scrollToEnd();
     }
   };
@@ -1169,7 +1306,6 @@ export default function AIChefScreen() {
     const validRecipe = parsedRecipes.find(isValidRecipe);
     if (validRecipe) {
       setPlanRecipe(validRecipe);
-      setPlanAction("meal");
       setPlanDate(todayISO()); // Reset to today
       setShowPlan(true);
     } else {
@@ -1202,22 +1338,26 @@ export default function AIChefScreen() {
     }
     // Batch mode: add all recipes to meal plan with selected date/mealType
     if (batchRecipes && batchRecipes.length > 0) {
-      if (planAction === "meal") {
-        const items = batchRecipes.map((r: any) => ({
-          date: planDate, mealType: planMeal as any,
-          recipeId: `user_${r._savedId}`, recipeName: r.name,
-        }));
-        addPlanBatchM.mutateAsync({ items }).then(() => {
-          setShowPlan(false);
-          const recipesToShop = batchRecipes;
-          setBatchRecipes(null);
-          if (recipesToShop.some((r: any) => (r.ingredients || []).length > 0)) {
-            openShoppingSelection(recipesToShop, planDate);
-          }
-        }).catch((e: any) => {
-          Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
-        });
-      }
+      const items = batchRecipes.map((r: any) => {
+        const libId = r._libraryRecipeId;
+        return {
+          date: planDate,
+          mealType: planMeal as any,
+          recipeId: libId || `user_${r._savedId}`,
+          recipeName: r.name,
+          ingredients: (r.ingredients ?? []).map((ing: any) => ({
+            name: ing.name,
+            quantity: ing.quantity,
+            unit: ing.unit,
+          })),
+        };
+      });
+      addPlanBatchM.mutateAsync({ items }).then(() => {
+        setShowPlan(false);
+        setBatchRecipes(null);
+      }).catch((e: any) => {
+        Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+      });
       return;
     }
 
@@ -1241,14 +1381,25 @@ export default function AIChefScreen() {
           ...ing,
           quantity: calcAdjustedQty(String(ing.quantity ?? ""), ing.unit ?? "", categorizeIngredient(ing.name), servingRatio),
         }));
-    if (planAction === "meal") {
+    const ref = resolveRecipeRef(planRecipe);
+    if (ref.isLibraryRef) {
+      addPlanM.mutate({
+        date: planDate, mealType: planMeal as any,
+        recipeId: ref.recipeId, recipeName: planRecipe.name,
+        autoAddIngredients: false,
+      }, {
+        onSuccess: () => {
+          setShowPlan(false);
+        },
+      });
+    } else {
       saveRecipeM.mutate({
         name: planRecipe.name, description: planRecipe.description,
         cookTime: planRecipe.cookTime, servings: overrideServings ?? planRecipe.servings,
         difficulty: planRecipe.difficulty,
         image: "", thumbnailUrl: "",
         recipeCategory: planRecipe.recipeCategory || "其他",
-        tags: [...(planRecipe.tags ?? []), "AI生成"],
+        tags: [...(planRecipe.tags ?? []), "AI 生成"],
         ingredients: scaledIngredients.map(ing => ({
           name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
         })),
@@ -1259,31 +1410,12 @@ export default function AIChefScreen() {
             date: planDate, mealType: planMeal as any,
             recipeId: `user_${saved.id}`, recipeName: planRecipe.name,
             autoAddIngredients: false,
-            ingredients: scaledIngredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit })),
           }, {
-            onSuccess: (result) => {
+            onSuccess: () => {
               setShowPlan(false);
-              if (scaledIngredients.length > 0) {
-                setPlanPickerRecipe({
-                  id: `user_${saved.id}`,
-                  name: planRecipe!.name,
-                  ingredients: scaledIngredients.map(ing => ({
-                    name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name),
-                  })),
-                  date: planDate,
-                  fromMealPlanId: result.newPlanId,
-                });
-              } else {
-                Alert.alert("已加入排餐");
-              }
             },
           });
         },
-      });
-    } else {
-      addShoppingM.mutate({
-        items: planRecipe.ingredients.map(ing => ({ name: ing.name, quantity: ing.quantity, unit: ing.unit, category: categorizeIngredient(ing.name) })),
-        fromRecipeName: planRecipe.name, plannedDate: planDate,
       });
     }
   };
@@ -1538,7 +1670,7 @@ export default function AIChefScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
               {aiNextSteps.length > 0 ? (
                 <>
-                  {aiNextSteps.map((chip, i) => (
+                  {aiNextSteps.filter(c => c.trim() !== "加入排餐").map((chip, i) => (
                     <TouchableOpacity key={i} style={s.followUpChip} onPress={() => handleNextStep(chip)} disabled={chatMutation.isPending}>
                       <Text style={s.followUpTxt}>{chip}</Text>
                     </TouchableOpacity>
@@ -1569,6 +1701,17 @@ export default function AIChefScreen() {
 
         {recommendedRecipes.length > 0 && !chatMutation.isPending && (
           <View style={s.recBar}>
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 10, alignItems: "center" }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>選擇來源：</Text>
+              <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
+                <TouchableOpacity style={[s.sourceBtnLib, { flex: 1 }]} onPress={() => regenerateWithMode("library")} disabled={chatMutation.isPending}>
+                  <Text style={s.sourceBtnTxt}>📚 食譜庫</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }]} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
+                  <Text style={s.sourceBtnTxt}>✨ AI 生成</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={s.recHead}>
               <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? "今晚 3餸1湯" : "AI 推薦食譜"}</Text>
               {mealResult && mealResult.length === 4 && (
@@ -1607,8 +1750,7 @@ export default function AIChefScreen() {
                         onPress={() => {
                           if (isValidRecipe(r)) {
                             setPlanRecipe(r);
-                            setPlanAction("meal");
-      setPlanDate(todayISO()); // Reset to today
+                            setPlanDate(todayISO()); // Reset to today
                             setShowPlan(true);
                           } else {
                             Alert.alert("無法加入", "此食譜資料不完整。");
@@ -1621,7 +1763,7 @@ export default function AIChefScreen() {
                       <TouchableOpacity
                         style={[s.btnFavorite, !isValidRecipe(r) && { opacity: 0.4 }]}
                         onPress={() => handleFavoriteRecipe(r)}
-                        disabled={!isValidRecipe(r) || saveRecipeM.isPending}
+                        disabled={!isValidRecipe(r) || saveRecipeM.isPending || r.source === "official" || r.source === "custom"}
                       >
                         <Ionicons name="bookmark-outline" size={14} color={BRAND} />
                         <Text style={s.btnFavoriteTxt}>收藏</Text>
@@ -1631,6 +1773,14 @@ export default function AIChefScreen() {
                 </View>
               ))}
             </ScrollView>
+          </View>
+        )}
+
+        {!chatMutation.isPending && recommendedRecipes.length === 0 && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
+            <TouchableOpacity style={{ backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
+              <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ 試 AI 生成</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1682,7 +1832,7 @@ export default function AIChefScreen() {
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
           <View style={m.handle} />
           <View style={m.head}>
-            <Text style={m.title}>{planAction === "meal" ? "加入排餐" : "加入採購"}</Text>
+            <Text style={m.title}>加入排餐</Text>
             <TouchableOpacity onPress={() => { setShowPlan(false); setBatchRecipes(null); }}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
           </View>
           {batchRecipes ? (
@@ -1696,16 +1846,14 @@ export default function AIChefScreen() {
             <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
           ) : null}
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.55 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            {planAction === "meal" && <>
-              <Text style={m.label}>餐次</Text>
-              <View style={m.mealRow}>
-                {MEAL_TYPES.map(mt => (
-                  <TouchableOpacity key={mt.id} style={[m.mealChip, planMeal === mt.id && m.mealChipOn]} onPress={() => setPlanMeal(mt.id)}>
-                    <Text style={[m.mealChipTxt, planMeal === mt.id && { color: "#fff" }]}>{mt.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>}
+            <Text style={m.label}>餐次</Text>
+            <View style={m.mealRow}>
+              {MEAL_TYPES.map(mt => (
+                <TouchableOpacity key={mt.id} style={[m.mealChip, planMeal === mt.id && m.mealChipOn]} onPress={() => setPlanMeal(mt.id)}>
+                  <Text style={[m.mealChipTxt, planMeal === mt.id && { color: "#fff" }]}>{mt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <Text style={m.label}>日期</Text>
             <View style={{ width: Dimensions.get("window").width - 32 }}>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
@@ -1757,43 +1905,12 @@ export default function AIChefScreen() {
         </View></View>
       </Modal>
 
-      <IngredientPickerModal
-        visible={!!planPickerRecipe}
-        recipes={planPickerRecipe ? [planPickerRecipe] : []}
-        defaultDate={planPickerRecipe?.date}
-        maxDate={planPickerRecipe?.date}
-        showDateSelector={true}
-        loading={addShoppingM.isPending}
-        onConfirm={(items) => {
-          if (items.length > 0) {
-            addShoppingM.mutate({
-              items: items.map((i) => ({
-                name: i.name,
-                quantity: i.quantity,
-                unit: i.unit,
-                category: i.category,
-              })),
-              fromRecipeId: items[0].recipeId,
-              fromRecipeName: items[0].recipeName,
-              fromMealPlanId: items[0].fromMealPlanId,
-              plannedDate: items[0].plannedDate,
-            });
-          } else {
-            setPlanPickerRecipe(null);
-            showToast("排餐已記錄");
-          }
-        }}
-        onSkip={() => {
-          setPlanPickerRecipe(null);
-          showToast("已跳過食材");
-        }}
-      />
-
-      {/* 批量「加入採購」/ 批量排餐後加食材 */}
+      {/* 排餐後 / 批量加入食材 */}
       <IngredientPickerModal
         visible={!!batchPickerRecipes}
         recipes={batchPickerRecipes ?? []}
         defaultDate={shopPlannedDate}
+        maxDate={shopPlannedDate}
         showDateSelector={true}
         loading={addShoppingM.isPending}
         onConfirm={(items) => {
@@ -1853,6 +1970,10 @@ const s = StyleSheet.create({
   followUpChip: { backgroundColor: "#EEF4FB", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER },
   followUpChipAction: { backgroundColor: BRAND, borderColor: BRAND },
   followUpTxt: { fontSize: 13, color: BRAND, fontWeight: "700" },
+  sourceBtnRow: { flexDirection: "row", gap: 10, paddingHorizontal: 12, marginBottom: 8 },
+  sourceBtnLib: { backgroundColor: "#3B82F6", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, flex: 1, alignItems: "center" },
+  sourceBtnAI: { backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, flex: 1, alignItems: "center" },
+  sourceBtnTxt: { fontSize: 14, color: "#fff", fontWeight: "800" },
   recBar: { borderTopWidth: 1, borderTopColor: BORDER, padding: 12 },
   recHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   recTitle: { fontSize: 12, fontWeight: "700", color: BRAND },
