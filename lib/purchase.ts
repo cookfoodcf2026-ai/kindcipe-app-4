@@ -121,12 +121,23 @@ function installPurchaseListener() {
   });
 }
 
+function isAlreadyConnectedError(error: unknown) {
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  // iOS reload/Fast Refresh 時 native 仲連緊，connectAsync 會報「Already connected」
+  return msg.includes("already connected") || msg.includes("already connected to app store");
+}
+
 async function ensureConnected() {
   if (isConnected) return;
   if (!connectPromise) {
     connectPromise = (async () => {
-      installPurchaseListener();
-      await IAP.connectAsync();
+      if (!listenerInstalled) installPurchaseListener();
+      try {
+        await IAP.connectAsync();
+      } catch (error) {
+        // reload 後 native 已連線 — 當作已連線成功，唔好當成 fatal error
+        if (!isAlreadyConnectedError(error)) throw error;
+      }
       isConnected = true;
     })().finally(() => {
       connectPromise = null;

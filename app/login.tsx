@@ -57,6 +57,7 @@ export default function LoginScreen() {
   // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
   const onLoginSuccess = async () => {
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
+    await utils.invalidate();
     await utils.auth.me.invalidate();
     const [avail, enabled] = await Promise.all([
       isBiometricAvailable(),
@@ -206,11 +207,12 @@ export default function LoginScreen() {
           </View>
 
           {/* Mode Toggle */}
-          <View style={styles.modeToggle}>
-            <TouchableOpacity
-              style={[styles.modeBtn, mode === "login" && styles.modeBtnActive]}
-              onPress={() => setMode("login")}
-            >
+            <View style={styles.modeToggle}>
+              <TouchableOpacity
+                testID="login-mode-login"
+                style={[styles.modeBtn, mode === "login" && styles.modeBtnActive]}
+                onPress={() => setMode("login")}
+              >
               <Text style={[styles.modeBtnText, mode === "login" && styles.modeBtnTextActive]}>
                 登入
               </Text>
@@ -231,6 +233,7 @@ export default function LoginScreen() {
               <View style={styles.inputWrapper}>
                 <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
                 <TextInput
+                  testID="login-name"
                   style={styles.input}
                   placeholder="你的名字"
                   placeholderTextColor="#9CA3AF"
@@ -245,6 +248,7 @@ export default function LoginScreen() {
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
+                testID="login-email"
                 style={styles.input}
                 placeholder="電郵地址"
                 placeholderTextColor="#9CA3AF"
@@ -260,6 +264,7 @@ export default function LoginScreen() {
             <View style={styles.inputWrapper}>
               <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
+                testID="login-password"
                 style={[styles.input, { flex: 1 }]}
                 placeholder={mode === "register" ? "密碼（至少 8 個字元）" : "密碼"}
                 placeholderTextColor="#9CA3AF"
@@ -286,6 +291,7 @@ export default function LoginScreen() {
             )}
 
             <TouchableOpacity
+              testID="login-submit"
               style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
               onPress={handleEmailSubmit}
               disabled={isLoading}

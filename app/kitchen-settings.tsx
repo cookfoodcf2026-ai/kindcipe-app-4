@@ -26,7 +26,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function KitchenSettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
+  const { user, activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
   const utils = trpc.useUtils();
 
   const [editingName, setEditingName] = useState(false);
@@ -119,6 +119,21 @@ export default function KitchenSettingsScreen() {
     onError: (e) => Alert.alert("修改角色失敗", e.message),
   });
 
+  const transferOwnershipM = trpc.family.transferOwnership.useMutation({
+    onSuccess: () => utils.family.get.invalidate(),
+    onError: (e) => Alert.alert("轉讓失敗", e.message),
+  });
+
+  const leaveM = trpc.family.leave.useMutation({
+    onSuccess: async () => {
+      await switchFamily("");
+      await utils.family.list.refetch();
+      await utils.family.get.invalidate();
+      router.replace("/(tabs)");
+    },
+    onError: (e) => Alert.alert("離開失敗", e.message),
+  });
+
   const removeMemberM = trpc.family.removeMember.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
     onError: (e) => Alert.alert("移除失敗", e.message),
@@ -156,9 +171,27 @@ export default function KitchenSettingsScreen() {
     if (!activeFamilyId) return;
     const familyIdNum = Number(activeFamilyId);
     if (isNaN(familyIdNum)) return;
-    updateRoleM.mutate({ familyId: familyIdNum, userId, role: newRole as any });
+    if (newRole === "owner") {
+      transferOwnershipM.mutate({ userId });
+    } else {
+      updateRoleM.mutate({ familyId: familyIdNum, userId, role: newRole as any });
+    }
     setShowRolePicker(false);
     setChangingRole(null);
+  };
+
+  const handleLeaveKitchen = () => {
+    if (!activeFamilyId) return;
+    const familyIdNum = Number(activeFamilyId);
+    if (isNaN(familyIdNum)) return;
+    Alert.alert(
+      "離開廚房",
+      "離開後，你將唔再睇到呢個廚房共享嘅食譜、排餐同購物清單。你之後仍然可以用同一個帳號加入另一個廚房。",
+      [
+        { text: "取消", style: "cancel" },
+        { text: "離開", style: "destructive", onPress: () => leaveM.mutate({ familyId: familyIdNum }) },
+      ],
+    );
   };
 
   const handleRemoveMember = (userId: string, name: string) => {
@@ -210,6 +243,7 @@ export default function KitchenSettingsScreen() {
   const roleOptions = isOwner
     ? ["owner", "admin", "helper", "member"]
     : ["admin", "helper", "member"];
+  const hasKitchen = families.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -236,9 +270,9 @@ export default function KitchenSettingsScreen() {
       ) : (
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={s.section}>
-          <Text style={s.sectionTitle}>轉換廚房</Text>
+          <Text style={s.sectionTitle}>{hasKitchen ? "目前廚房" : "建立或加入廚房"}</Text>
           <View style={s.card}>
-            {families.length === 0 ? (
+            {!hasKitchen ? (
               <View style={s.empty}>
                 <Ionicons name="home-outline" size={48} color="#ccc" />
                 <Text style={s.emptyTitle}>尚未加入任何廚房</Text>
@@ -281,7 +315,7 @@ export default function KitchenSettingsScreen() {
                 }}
               />
             )}
-            {families.length > 0 && (
+            {!hasKitchen && (
               <View style={s.switchActions}>
                 <TouchableOpacity
                   style={s.switchActionBtn}
@@ -361,7 +395,7 @@ export default function KitchenSettingsScreen() {
             <Text style={{ color: SUB, textAlign: "center", padding: 20 }}>暫無成員</Text>
           ) : (
             members.map((m: any) => {
-              const isSelf = String(m.userId) === String(activeFamily?.ownerId);
+              const isSelf = String(m.userId) === String(user?.id);
               return (
                 <View key={m.id} style={s.memberCard}>
                   <View style={s.memberAvatar}>
@@ -400,6 +434,24 @@ export default function KitchenSettingsScreen() {
             })
           )}
         </View>
+
+        {hasKitchen && !isOwner && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>離開廚房</Text>
+            <TouchableOpacity style={s.leaveCard} onPress={handleLeaveKitchen} disabled={leaveM.isPending}>
+              <Ionicons name="exit-outline" size={22} color="#EF4444" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.dangerText}>離開此廚房</Text>
+                <Text style={s.dangerSub}>離開後，你仍然可以用同一個帳號加入其他廚房</Text>
+              </View>
+              {leaveM.isPending ? (
+                <ActivityIndicator color="#EF4444" size="small" />
+              ) : (
+                <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {showRolePicker && changingRole && (
           <View style={s.overlay}>
@@ -452,6 +504,7 @@ export default function KitchenSettingsScreen() {
         {isOwner && (
           <View style={s.section}>
             <Text style={[s.sectionTitle, { color: "#EF4444" }]}>危險區域</Text>
+            <Text style={{ color: SUB, fontSize: 12, marginBottom: 10 }}>如要離開，請先喺成員列表轉讓主人權限。</Text>
             <TouchableOpacity
               style={s.dangerCard}
               onPress={handleDissolve}
@@ -671,6 +724,11 @@ const s = StyleSheet.create({
   dangerCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: "#FECACA",
+  },
+  leaveCard: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "#FFF7F7", borderRadius: 14, padding: 16,
     borderWidth: 1, borderColor: "#FECACA",
   },
   dangerText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },

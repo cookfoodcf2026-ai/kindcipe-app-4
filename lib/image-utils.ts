@@ -1,7 +1,7 @@
 import * as ImageManipulator from "expo-image-manipulator";
 
-const MAX_DIMENSION = 1920;
-const MAX_BASE64_LENGTH = 5_000_000; // ≈ 3.75MB, under backend 5.5M char limit
+const MAX_DIMENSION = 1440;
+const MAX_BASE64_LENGTH = 1_500_000; // ≈ 1.1MB, keeps cover/step images small for public scale
 const INITIAL_QUALITY = 0.9; // Increased from 0.8 to preserve more detail for AI analysis
 const MIN_QUALITY = 0.6; // Increased from 0.4 to maintain minimum quality
 const MIN_DIMENSION = 800;

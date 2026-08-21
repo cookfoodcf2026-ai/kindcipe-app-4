@@ -86,6 +86,7 @@ export function useAuth() {
       await clearAuthToken();
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
       setActiveFamilyId(null);
+      await utils.invalidate();
       await utils.auth.me.invalidate();
       router.replace("/login");
     },
@@ -104,6 +105,10 @@ export function useAuth() {
     isLoading,
     isAuthenticated,
     logout,
+    logoutAsync: logoutMutation.mutateAsync,
+    logoutPending: logoutMutation.isPending,
+    logoutError: logoutMutation.error,
+    resetLogout: logoutMutation.reset,
     refreshAuth,
     activeFamily,
     activeFamilyId,
