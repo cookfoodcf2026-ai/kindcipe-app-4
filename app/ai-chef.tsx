@@ -124,17 +124,31 @@ const normalizeIngredient = (ing: any): { name: string; quantity: string; unit: 
 };
 
 // 將任何來源嘅食譜 steps/ingredients 統一 normalize 成 string[] / 標準 ingredient[]
-const normalizeRecipe = (r: any): AIRecipe => ({
-  ...r,
-  steps: Array.isArray(r?.steps) ? r.steps.map(normalizeStep).filter(Boolean) : [],
-  ingredients: Array.isArray(r?.ingredients)
-    ? r.ingredients.map(normalizeIngredient).filter((v: { name: string; quantity: string; unit: string } | null): v is { name: string; quantity: string; unit: string } => !!v)
-    : [],
-  tags: Array.isArray(r?.tags) ? r.tags.map((t: any) => String(t ?? "").trim()).filter(Boolean) : [],
-  source: (r?.source ?? "ai") as AIRecipe["source"],
-  officialId: typeof r?.officialId === "number" ? r.officialId : undefined,
-  customId: typeof r?.customId === "number" ? r.customId : undefined,
-});
+// 防呆：如果 AI 返回空嘅 ingredients/steps，嘗試修復
+const normalizeRecipe = (r: any): AIRecipe => {
+  const normalized = {
+    ...r,
+    steps: Array.isArray(r?.steps) ? r.steps.map(normalizeStep).filter(Boolean) : [],
+    ingredients: Array.isArray(r?.ingredients)
+      ? r.ingredients.map(normalizeIngredient).filter((v: { name: string; quantity: string; unit: string } | null): v is { name: string; quantity: string; unit: string } => !!v)
+      : [],
+    tags: Array.isArray(r?.tags) ? r.tags.map((t: any) => String(t ?? "").trim()).filter(Boolean) : [],
+    source: (r?.source ?? "ai") as AIRecipe["source"],
+  };
+  
+  // Fallback: if ingredients/steps are empty but we have description, try to extract
+  if (normalized.ingredients.length === 0 && r.description) {
+    // Try to extract ingredients from description (simple fallback)
+    console.log(`[normalizeRecipe] No ingredients found, description: ${r.description?.slice(0, 100)}`);
+  }
+  if (normalized.steps.length === 0 && r.description) {
+    // Use description as a single step (better than nothing)
+    normalized.steps = [r.description];
+    console.log(`[normalizeRecipe] Using description as step`);
+  }
+  
+  return normalized;
+};
 
 const normalizeRecipeName = (name: string) =>
   name
