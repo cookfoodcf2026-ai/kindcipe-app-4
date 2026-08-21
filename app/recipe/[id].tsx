@@ -537,6 +537,14 @@ export default function RecipeDetailScreen() {
     }
     return { icon: "play-circle-outline" as const, label: "觀看教學影片", bg: "#6B7280" };
   }, [sourceUrl]);
+
+  // Image cache props for aggressive offline caching
+  const imageCacheProps = {
+    contentFit: "cover" as const,
+    cachePolicy: "memory-disk" as const,
+    transition: 300,
+    placeholder: { backgroundColor: "#F5F5F5" },
+  };
   const recipeNumericId = id ? (parseInt(id.replace("user_", "").replace("official_", ""), 10) || 0) : 0;
   const displayTags: string[] = (localTags ?? ((recipe as any)?.tags ?? [])).map((t: string) => t.trim()).filter(Boolean);
 
@@ -850,13 +858,13 @@ export default function RecipeDetailScreen() {
                   activeOpacity={0.85}
                 >
                   {localImage
-                    ? <ExpoImage source={localImage} style={s.heroImg} contentFit="cover" cachePolicy="disk" />
-                    : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} contentFit="cover" cachePolicy="disk" onError={() => setHeroImgError(true)} />}
+                    ? <ExpoImage source={localImage} style={s.heroImg} {...imageCacheProps} />
+                    : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} {...imageCacheProps} onError={() => setHeroImgError(true)} />}
                 </TouchableOpacity>
               ) : (
                 localImage
-                  ? <ExpoImage source={localImage} style={s.heroImg} contentFit="cover" cachePolicy="disk" />
-                  : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} contentFit="cover" cachePolicy="disk" onError={() => setHeroImgError(true)} />
+                  ? <ExpoImage source={localImage} style={s.heroImg} {...imageCacheProps} />
+                  : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} {...imageCacheProps} onError={() => setHeroImgError(true)} />
               )
             ) : (
               <View style={[s.heroImg, s.heroPlaceholder, { paddingHorizontal: 24 }]}>

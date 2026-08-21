@@ -53,13 +53,36 @@ export default function RecipeCard({
   // Track image load error to fall back to placeholder
   const [hasImageError, setHasImageError] = React.useState(false);
 
+  // Use memory-disk cache for aggressive offline caching
+  const imageProps = {
+    contentFit: "cover" as const,
+    cachePolicy: "memory-disk" as const,
+    transition: 200,
+    recyclingKey: item.id || item.name,
+  };
+
   return (
     <TouchableOpacity style={s.card} onPress={onPress ?? (() => navigateToRecipe(item))} activeOpacity={0.85}>
       {/* ── Image / Placeholder ── */}
       {hasImage && !hasImageError
         ? imageUrl
-          ? <ExpoImage source={{ uri: imageUrl }} style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]} contentFit="cover" cachePolicy="disk" onError={() => setHasImageError(true)} />
-          : <ExpoImage source={localImage} style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]} contentFit="cover" cachePolicy="disk" onError={() => setHasImageError(true)} />
+          ? (
+            <ExpoImage
+              source={{ uri: imageUrl }}
+              style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]}
+              {...imageProps}
+              placeholder={{ backgroundColor: catColor.bg }}
+              onError={() => setHasImageError(true)}
+            />
+          ) : (
+            <ExpoImage
+              source={localImage}
+              style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]}
+              {...imageProps}
+              placeholder={{ backgroundColor: catColor.bg }}
+              onError={() => setHasImageError(true)}
+            />
+          )
         : (
           <View style={[s.cardImg, { height: CARD_WIDTH * imageRatio }, s.cardImgPH, { backgroundColor: catColor.bg }]}> 
             <View style={s.textCoverContent}>

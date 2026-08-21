@@ -1141,7 +1141,7 @@ export default function PlannerTab() {
               <Ionicons name={templateIcon as any} size={20} color={templateColor} />
             </View>
           ) : resolvedImage ? (
-            <ExpoImage source={{ uri: resolvedImage }} style={styles.mealImage} contentFit="cover" cachePolicy="disk" onError={() => console.warn("[Planner] meal image failed to load")} />
+            <ExpoImage source={{ uri: resolvedImage }} style={styles.mealImage} contentFit="cover" cachePolicy="memory-disk" onError={() => console.warn("[Planner] meal image failed to load")} />
           ) : (
             <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
               <Ionicons name="restaurant-outline" size={16} color="#9CA3AF" />
@@ -1856,7 +1856,7 @@ export default function PlannerTab() {
                             </View>
                             {/* Image preview */}
                             {hasDish && resolvedImage && (
-                              <ExpoImage source={{ uri: resolvedImage }} style={{ width: 34, height: 34, borderRadius: 6 }} contentFit="cover" cachePolicy="disk" onError={() => console.warn("[Planner] slot thumb failed to load")} />
+                              <ExpoImage source={{ uri: resolvedImage }} style={{ width: 34, height: 34, borderRadius: 6 }} contentFit="cover" cachePolicy="memory-disk" onError={() => console.warn("[Planner] slot thumb failed to load")} />
                             )}
                           </View>
                         </TouchableOpacity>
@@ -2086,7 +2086,7 @@ function RecipeDetailModal({
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {/* Image */}
             {imageSource ? (
-              <ExpoImage source={imageSource} style={{ width: "100%", height: 180 }} contentFit="cover" cachePolicy="disk" />
+              <ExpoImage source={imageSource} style={{ width: "100%", height: 180 }} contentFit="cover" cachePolicy="memory-disk" />
             ) : (
               <View style={{ width: "100%", height: 120, backgroundColor: "#EAEAEA", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="restaurant-outline" size={48} color="#C0C0C0" />
@@ -2312,7 +2312,7 @@ function SlotPickerModal({
                   const imgUrl = recipe.thumbnailUrl || recipe.image;
                   const hasImage = imgUrl && imgUrl.trim() !== "";
                   return hasImage ? (
-                    <ExpoImage source={{ uri: imgUrl }} style={{ width: 44, height: 44, borderRadius: 10 }} contentFit="cover" cachePolicy="disk" />
+                    <ExpoImage source={{ uri: imgUrl }} style={{ width: 44, height: 44, borderRadius: 10 }} contentFit="cover" cachePolicy="memory-disk" />
                   ) : (
                     <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: meta.color, alignItems: "center", justifyContent: "center" }}>
                       <Ionicons name={meta.icon as any} size={20} color={SLOT_COLORS[slotType]} />
@@ -2814,7 +2814,7 @@ function SwapPickerRN({
                   const imgUrl = recipe.thumbnailUrl || recipe.image;
                   const hasImage = imgUrl && imgUrl.trim() !== "";
                   return hasImage ? (
-                    <ExpoImage source={{ uri: imgUrl }} style={{ width: 40, height: 40, borderRadius: 8 }} contentFit="cover" cachePolicy="disk" onError={() => console.warn("[Planner] recommend image failed to load")} />
+                    <ExpoImage source={{ uri: imgUrl }} style={{ width: 40, height: 40, borderRadius: 8 }} contentFit="cover" cachePolicy="memory-disk" onError={() => console.warn("[Planner] recommend image failed to load")} />
                   ) : (
                     <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}>
                       <Ionicons name={meta.icon as any} size={18} color="#9CA3AF" />
