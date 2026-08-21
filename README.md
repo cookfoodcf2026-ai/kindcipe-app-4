@@ -148,10 +148,10 @@ export type { AppRouter } from "../../cookfood/server/routers";
 
 ## 技術棧
 
-- **框架**：Expo ~51 + React Native 0.74.5
+- **框架**：Expo SDK 54 + React Native 0.81.5（New Architecture）
 - **路由**：expo-router（文件路由）
 - **API**：tRPC 11 + React Query 5
-- **後端**：https://cookfoodapp-fcqnrmih.manus.space
+- **後端**：https://kindcipe-backend-production.up.railway.app
 - **認證**：expo-secure-store + Manus OAuth
 - **相機**：expo-image-picker
 - **剪貼板**：expo-clipboard

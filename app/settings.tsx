@@ -19,10 +19,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import KitchenSwitcher from "@/app/components/KitchenSwitcher";
 import i18n from "@/lib/i18n";
 import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
 import PaywallModal from "@/components/PaywallModal";
+import { ChatBubbleIcon } from "@/src/components/icons";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -36,7 +36,7 @@ const LANG_STORAGE_KEY = "kindcipe_language";
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isAuthenticated, logout, familyRole } = useAuth();
+  const { user, isAuthenticated, logout, familyRole, activeFamily, families } = useAuth();
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
 
@@ -83,6 +83,7 @@ export default function SettingsScreen() {
     staleTime: 1000 * 60 * 5,
   });
   const sub = subscriptionQuery.data;
+  const hasFamily = families.length > 0;
 
   const getSubscriptionLabel = () => {
     if (!sub) return null;
@@ -144,6 +145,33 @@ export default function SettingsScreen() {
             <Text style={styles.loginCardTitle}>未登入</Text>
             <Text style={styles.loginCardSubtitle}>點擊登入以使用完整功能</Text>
           </TouchableOpacity>
+        )}
+
+        {/* 廚房狀態 */}
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>廚房</Text>
+            <View style={styles.kitchenCard}>
+              <View style={styles.kitchenCardHeader}>
+                <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}> 
+                  <Ionicons name="home-outline" size={20} color="#013E77" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kitchenName}>{activeFamily?.name || "未加入廚房"}</Text>
+                  <Text style={styles.kitchenSub}>
+                    {hasFamily
+                      ? `你而家只屬於一個廚房 · ${familyRole === "owner" ? "廚房主人" : familyRole === "admin" ? "廚房管理員" : familyRole === "helper" ? "幫手" : "家庭成員"}`
+                      : "建立或加入廚房後可同步排餐與購物清單"}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.kitchenActions}>
+                <TouchableOpacity style={styles.kitchenPrimaryBtn} onPress={() => router.push("/kitchen-settings")}>
+                  <Text style={styles.kitchenPrimaryBtnText}>{hasFamily ? "管理廚房" : "建立或加入廚房"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         )}
 
         {/* 訂閱狀態卡片 */}
@@ -265,41 +293,15 @@ export default function SettingsScreen() {
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => router.push("/kitchen-settings")}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
-                <Ionicons name="home-outline" size={20} color="#013E77" />
-              </View>
-              <Text style={styles.settingLabel}>管理廚房</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
+            <TouchableOpacity
             style={styles.settingRow}
             onPress={() => router.push("/ai-chef")}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F5F3FF" }]}>
-                <Ionicons name="sparkles-outline" size={20} color="#8B5CF6" />
+              <View style={[styles.settingIcon, { backgroundColor: "#F5F3FF" }]}> 
+                <ChatBubbleIcon size={20} color="#013E77" />
               </View>
-              <Text style={styles.settingLabel}>AI 食譜助手</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => router.push("/pantry")}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#ECFDF5" }]}>
-                <Ionicons name="cube-outline" size={20} color="#10B981" />
-              </View>
-              <Text style={styles.settingLabel}>家中儲備</Text>
+              <Text style={styles.settingLabel}>AI 助手</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -376,7 +378,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => WebBrowser.openBrowserAsync('https://cookfoodapp-fcqnrmih.manus.space/privacy', {
+            onPress={() => WebBrowser.openBrowserAsync('https://kindcipe.com/privacy', {
               toolbarColor: '#013E77',
               controlsColor: '#ffffff',
               presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
@@ -509,6 +511,46 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 16,
   },
   upgradeSmallBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+
+  // 廚房狀態
+  kitchenCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E0EAF4",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  kitchenCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  kitchenName: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  kitchenSub: { fontSize: 12, color: "#9CA3AF", marginTop: 4, lineHeight: 17 },
+  kitchenActions: { flexDirection: "row", gap: 10, marginTop: 14 },
+  kitchenPrimaryBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#013E77",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  kitchenPrimaryBtnText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  kitchenSecondaryBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#F3F6FA",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  kitchenSecondaryBtnText: { color: "#013E77", fontSize: 13, fontWeight: "800" },
 
   // 登出
   logoutBtn: {
