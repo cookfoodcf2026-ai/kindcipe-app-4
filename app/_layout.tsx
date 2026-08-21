@@ -30,6 +30,7 @@ import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 import { CrashScreen } from "@/src/components/CrashScreen";
 import { initGlobalErrorHandler } from "@/lib/global-error-handler";
 import { initIAP } from "@/lib/purchase";
+import { onOfflineChange } from "@/lib/trpc";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
 Sentry.init({
@@ -59,7 +60,7 @@ function detectPlatform(url: string): string | null {
   const u = url.toLowerCase();
   if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
   if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
-  if (u.includes("xiaohongshu.com") || u.includes("xhslink.com")) return "小紅書";
+  if (u.includes("xiaohongshu.com") || u.includes("xhslink.com") || u.includes("xhslink.cn")) return "小紅書";
   if (u.includes("threads.net")) return "Threads";
   if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
   if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
@@ -85,6 +86,32 @@ const queryClient = new QueryClient({
 });
 
 const trpcClient = createTrpcClient();
+
+/** Floating banner shown when the network is detected as offline. */
+function OfflineBanner() {
+  const [offline, setOffline] = useState(false);
+  useEffect(() => onOfflineChange(setOffline), []);
+  if (!offline) return null;
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: "#B91C1C",
+        paddingVertical: 6,
+        alignItems: "center",
+        zIndex: 9999,
+      }}
+    >
+      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>
+        離線模式 — 部分功能可能需要網絡
+      </Text>
+    </View>
+  );
+}
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -319,6 +346,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
       {children}
+      <OfflineBanner />
       {showLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
           {biometricPrompt ? (
@@ -394,11 +422,27 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="recipe-editor"
+              options={{
+                headerShown: false,
+                title: "",
+                gestureEnabled: true,
+              }}
+            />
+            <Stack.Screen
               name="settings"
               options={{ 
                 headerShown: false,
                 title: '',
                 headerBackTitle: '',
+              }}
+            />
+            <Stack.Screen
+              name="coming-soon"
+              options={{
+                headerShown: false,
+                title: '',
+                gestureEnabled: true,
               }}
             />
           </Stack>

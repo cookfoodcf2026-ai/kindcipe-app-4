@@ -9,40 +9,25 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { DateUtil } from "@/src/lib/DateUtil";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
 
-const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-
-const toISODate = (d: Date) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
-
-const todayISO = () => toISODate(new Date());
-
 const formatDateCard = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const day = date.getDate();
-  const weekday = WEEKDAYS[date.getDay()];
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  const isToday = DateUtil.isToday(dateStr);
+  const isTomorrow = DateUtil.isTomorrow(dateStr);
+  const day = new Date(dateStr + 'T00:00:00').getDate();
+  const weekday = DateUtil.getWeekday(dateStr, true);
   let suffix = "";
   if (isToday) suffix = "·今";
   else if (isTomorrow) suffix = "·明";
-  return { day: String(day), weekday: `${weekday}${suffix}`, isToday };
+  return { day: String(day), weekday, isToday };
 };
 
 const formatMonthLabel = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}月`;
+  return DateUtil.formatMonthLabel(dateStr);
 };
 
 interface PlanDatePickerProps {
@@ -62,8 +47,8 @@ export default function PlanDatePicker({
   minDate,
   maxDate,
 }: PlanDatePickerProps) {
-  const min = minDate || todayISO();
-  const today = todayISO();
+  const min = minDate || DateUtil.todayISO();
+  const today = DateUtil.todayISO();
   const days = monthsAhead * 30;
 
   const [dateWindowStart, setDateWindowStart] = useState(() => {
@@ -83,7 +68,7 @@ export default function PlanDatePicker({
     for (let i = 0; i < days; i++) {
       const d = new Date(dateWindowStart);
       d.setDate(dateWindowStart.getDate() + i);
-      dates.push(d.toISOString().split("T")[0]);
+      dates.push(DateUtil.toISODate(d));
     }
     return dates.map((date) => ({
       date,
@@ -92,10 +77,11 @@ export default function PlanDatePicker({
   }, [dateWindowStart, days]);
 
   const currentMonth = useMemo(() => {
+    if (value) return formatMonthLabel(value);
     if (visibleMonth) return visibleMonth;
     if (dateCardsData.length === 0) return "";
     return formatMonthLabel(dateCardsData[0].date);
-  }, [dateCardsData, visibleMonth]);
+  }, [value, dateCardsData, visibleMonth]);
 
   const handleScroll = useCallback(
     (event: any) => {
@@ -142,6 +128,8 @@ export default function PlanDatePicker({
     }
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // 撳一個日期時即時更新月份標題（避免揀咗 1/9 但 header 仍顯示 8月）
+    setVisibleMonth(formatMonthLabel(date));
     onChange(date);
   }, [scrollStarted, onChange]);
 
@@ -160,8 +148,8 @@ export default function PlanDatePicker({
   const shortcuts = useMemo(() => {
     const items: { label: string; iso: string }[] = [];
     const seen = new Set<string>();
-    const todayVal = todayISO();
-    const tomorrowVal = toISODate(new Date(Date.now() + 86400000));
+    const todayVal = DateUtil.todayISO();
+    const tomorrowVal = DateUtil.tomorrowISO();
 
     const add = (label: string, iso: string) => {
       if (iso >= min && !seen.has(iso)) {
@@ -283,7 +271,7 @@ export default function PlanDatePicker({
             style={s.dateArrowBtn}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              shiftDateWindow(-30);
+              shiftDateWindow(-7);
             }}
             activeOpacity={0.7}
             delayPressIn={100}
@@ -301,12 +289,12 @@ export default function PlanDatePicker({
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
-            {dateCardsData.map((dc) => {
+            {dateCardsData.map((dc, index) => {
               const isSelected = value === dc.date;
               const isPast = dc.date < min;
               return (
                 <TouchableOpacity
-                  key={dc.date}
+                  key={`${dc.date}-${index}`}
                   style={[
                     s.dateCard,
                     isSelected && s.dateCardSelected,
@@ -361,7 +349,7 @@ export default function PlanDatePicker({
             style={s.dateArrowBtn}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              shiftDateWindow(30);
+              shiftDateWindow(7);
             }}
             activeOpacity={0.7}
             delayPressIn={100}

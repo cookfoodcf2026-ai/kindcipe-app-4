@@ -7,6 +7,7 @@ const BRAND = "#013E77";
 
 interface FilterModalProps {
   visible: boolean;
+  inline?: boolean;
   onClose: () => void;
   activeCategory: string;
   setActiveCategory: (cat: string) => void;
@@ -31,6 +32,7 @@ const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
 
 export default function FilterModal({
   visible,
+  inline = false,
   onClose,
   activeCategory,
   setActiveCategory,
@@ -50,217 +52,234 @@ export default function FilterModal({
   officialCount,
   userCount,
 }: FilterModalProps) {
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={s.filterOverlay}>
-        <View style={[s.filterSheet, { paddingBottom: Platform.OS === "ios" ? 44 : 24 }]}>
-          <View style={s.filterHandle} />
-          <View style={s.filterHeader}>
-            <Text style={s.filterTitle}>篩選食譜</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#1A1A1A" />
+  const content = (
+    <View style={[s.filterSheet, { paddingBottom: Platform.OS === "ios" ? 44 : 24 }]}>
+      <View style={s.filterHandle} />
+      <View style={s.filterHeader}>
+        <Text style={s.filterTitle}>篩選食譜</Text>
+        <TouchableOpacity onPress={onClose}>
+          <Ionicons name="close" size={24} color="#1A1A1A" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={{ maxHeight: "75%" }} showsVerticalScrollIndicator={false}>
+        {/* Recipe Source Filter */}
+        <Text style={s.filterLabel}>食譜來源</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterSourceRow}>
+          {[
+            { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount : undefined },
+            { key: "official", label: "官方食譜", count: officialCount },
+            { key: "user", label: "我的食譜", count: userCount },
+          ].map(opt => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[
+                s.filterSourceChip,
+                viewMode === opt.key && s.filterSourceChipActive
+              ]}
+              onPress={() => setViewMode(opt.key as "all" | "official" | "user")}
+            >
+              <Text style={[
+                s.filterSourceChipTxt,
+                viewMode === opt.key && s.filterSourceChipTxtActive
+              ]}>{opt.label}</Text>
+              {opt.count !== undefined && (
+                <View style={[s.filterSourceCount, viewMode === opt.key && s.filterSourceCountActive]}>
+                  <Text style={[s.filterSourceCountTxt, viewMode === opt.key && s.filterSourceCountTxtActive]}>{opt.count}</Text>
+                </View>
+              )}
             </TouchableOpacity>
-          </View>
+          ))}
+        </ScrollView>
 
-          <ScrollView style={{ maxHeight: "75%" }} showsVerticalScrollIndicator={false}>
-            {/* Recipe Source Filter */}
-            <Text style={s.filterLabel}>食譜來源</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterSourceRow}>
-              {[
-                { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount : undefined },
-                { key: "official", label: "官方食譜", count: officialCount },
-                { key: "user", label: "我的食譜", count: userCount },
-              ].map(opt => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[
-                    s.filterSourceChip,
-                    viewMode === opt.key && s.filterSourceChipActive
-                  ]}
-                  onPress={() => setViewMode(opt.key as "all" | "official" | "user")}
-                >
-                  <Text style={[
-                    s.filterSourceChipTxt,
-                    viewMode === opt.key && s.filterSourceChipTxtActive
-                  ]}>{opt.label}</Text>
-                  {opt.count !== undefined && (
-                    <View style={[s.filterSourceCount, viewMode === opt.key && s.filterSourceCountActive]}>
-                      <Text style={[s.filterSourceCountTxt, viewMode === opt.key && s.filterSourceCountTxtActive]}>{opt.count}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        {/* Category Filter */}
+        <Text style={s.filterLabel}>菜式分類</Text>
+        <View style={s.filterCategoryRow}>
+          {[ALL_ENTRY, ...categories].map(cat => (
+            <TouchableOpacity
+              key={cat.key}
+              style={[
+                s.filterCategoryChip,
+                activeCategory === cat.key && s.filterCategoryChipActive
+              ]}
+              onPress={() => setActiveCategory(cat.key)}
+            >
+              {cat.key === "all" ? (
+                <Ionicons name="apps-outline" size={16} color={activeCategory === cat.key ? "#fff" : "#666"} />
+              ) : (
+                <Text style={s.filterCategoryChipEmoji}>{cat.emoji}</Text>
+              )}
+              <Text style={[
+                s.filterCategoryChipTxt,
+                activeCategory === cat.key && s.filterCategoryChipTxtActive
+              ]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-            {/* Category Filter */}
-            <Text style={s.filterLabel}>菜式分類</Text>
-            <View style={s.filterCategoryRow}>
-              {[ALL_ENTRY, ...categories].map(cat => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    s.filterCategoryChip,
-                    activeCategory === cat.key && s.filterCategoryChipActive
-                  ]}
-                  onPress={() => setActiveCategory(cat.key)}
-                >
-                  {cat.key === "all" ? (
-                    <Ionicons name="apps-outline" size={16} color={activeCategory === cat.key ? "#fff" : "#666"} />
-                  ) : (
-                    <Text style={s.filterCategoryChipEmoji}>{cat.emoji}</Text>
-                  )}
-                  <Text style={[
-                    s.filterCategoryChipTxt,
-                    activeCategory === cat.key && s.filterCategoryChipTxtActive
-                  ]}>{cat.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {/* Ingredient Category Filter */}
+        <Text style={s.filterLabel}>食材分類</Text>
+        <View style={s.filterIngCatRow}>
+          {[
+            { key: undefined, label: "全部" },
+            { key: "meat", label: "🥩 肉類" },
+            { key: "seafood", label: "🐟 海鮮" },
+            { key: "vegetable", label: "🥬 蔬菜" },
+            { key: "tofu", label: "🍲 豆製品" },
+            { key: "egg", label: "🥚 蛋類" },
+            { key: "mushroom", label: "🍄 菌菇" },
+            { key: "carb", label: "🍚 主食" },
+          ].map(cat => (
+            <TouchableOpacity
+              key={cat.key ?? "all"}
+              style={[
+                s.filterIngCatChip,
+                activeIngredientCategory === cat.key && s.filterIngCatChipActive
+              ]}
+              onPress={() => setActiveIngredientCategory(cat.key)}
+            >
+              <Text style={[
+                s.filterIngCatChipTxt,
+                activeIngredientCategory === cat.key && s.filterIngCatChipTxtActive
+              ]}>{cat.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-            {/* Ingredient Category Filter */}
-            <Text style={s.filterLabel}>食材分類</Text>
-            <View style={s.filterIngCatRow}>
-              {[
-                { key: undefined, label: "全部" },
-                { key: "meat", label: "🥩 肉類" },
-                { key: "seafood", label: "🐟 海鮮" },
-                { key: "vegetable", label: "🥬 蔬菜" },
-                { key: "tofu", label: "🍲 豆製品" },
-                { key: "egg", label: "🥚 蛋類" },
-                { key: "mushroom", label: "🍄 菌菇" },
-                { key: "carb", label: "🍚 主食" },
-              ].map(cat => (
-                <TouchableOpacity
-                  key={cat.key ?? "all"}
-                  style={[
-                    s.filterIngCatChip,
-                    activeIngredientCategory === cat.key && s.filterIngCatChipActive
-                  ]}
-                  onPress={() => setActiveIngredientCategory(cat.key)}
-                >
-                  <Text style={[
-                    s.filterIngCatChipTxt,
-                    activeIngredientCategory === cat.key && s.filterIngCatChipTxtActive
-                  ]}>{cat.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {/* Quick Filters (Popular Chips) */}
+        <Text style={s.filterLabel}>快捷篩選</Text>
+        <View style={s.filterQuickRow}>
+          {[
+            { key: "quick15", label: "⚡ 15 分鐘內" },
+            { key: "quick30", label: "⏱ 30 分鐘內" },
+            { key: "tonight", label: " 今晚食" },
+            { key: "hk-style", label: "🇭🇰 港式家常" },
+            { key: "kids", label: "👶 小朋友啱食" },
+            { key: "vegetarian", label: " 素食主義" },
+            { key: "light", label: "🥗 清淡少油" },
+            { key: "one-person", label: "👤 一人食" },
+            { key: "high-protein", label: "💪 高蛋白" },
+            { key: "soup", label: "🍲 湯水" },
+            { key: "low-calorie", label: "🥗 低卡減肥" },
+            { key: "steamed", label: " 蒸餸" },
+            { key: "stir-fry", label: " 小炒" },
+          ].map(chip => {
+            const isActive = activePopularChips.includes(chip.key);
+            return (
+              <TouchableOpacity
+                key={chip.key}
+                style={[s.filterQuickChip, isActive && s.filterQuickChipActive]}
+                onPress={() => {
+                  setActivePopularChips(prev =>
+                    prev.includes(chip.key) ? prev.filter(k => k !== chip.key) : [...prev, chip.key]
+                  );
+                }}
+              >
+                <Text style={[s.filterQuickChipTxt, isActive && s.filterQuickChipTxtActive]}>{chip.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-            {/* Quick Filters (Popular Chips) */}
-            <Text style={s.filterLabel}>快捷篩選</Text>
-            <View style={s.filterQuickRow}>
-              {[
-                { key: "quick15", label: "⚡ 15 分鐘內" },
-                { key: "quick30", label: "⏱ 30 分鐘內" },
-                { key: "tonight", label: " 今晚食" },
-                { key: "hk-style", label: "🇭🇰 港式家常" },
-                { key: "kids", label: "👶 小朋友啱食" },
-                { key: "vegetarian", label: " 素食主義" },
-                { key: "light", label: "🥗 清淡少油" },
-                { key: "one-person", label: "👤 一人食" },
-                { key: "high-protein", label: "💪 高蛋白" },
-                { key: "soup", label: "🍲 湯水" },
-                { key: "low-calorie", label: "🥗 低卡減肥" },
-                { key: "steamed", label: " 蒸餸" },
-                { key: "stir-fry", label: " 小炒" },
-              ].map(chip => {
-                const isActive = activePopularChips.includes(chip.key);
+        {/* Cook Time Filter */}
+        <Text style={s.filterLabel}>烹調時間</Text>
+        <View style={s.filterTimeRow}>
+          {[
+            { label: "不限", value: undefined },
+            { label: " 30 分鐘內", value: 30 },
+            { label: "⏱ 45 分鐘內", value: 45 },
+            { label: "⏱ 60 分鐘內", value: 60 },
+          ].map(opt => (
+            <TouchableOpacity
+              key={opt.label}
+              style={[
+                s.filterTimeChip,
+                filterCookTimeMax === opt.value && s.filterTimeChipActive
+              ]}
+              onPress={() => setFilterCookTimeMax(opt.value)}
+            >
+              <Text style={[
+                s.filterTimeChipTxt,
+                filterCookTimeMax === opt.value && s.filterTimeChipTxtActive
+              ]}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Tags Filter */}
+        {allUserTags.length > 0 && (
+          <>
+            <Text style={s.filterLabel}>標籤</Text>
+            <View style={s.filterTagsRow}>
+              <TouchableOpacity
+                style={[s.filterTagChip, activeTagFilters.length === 0 && s.filterTagChipActive]}
+                onPress={() => setActiveTagFilters([])}
+              >
+                <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>不限</Text>
+              </TouchableOpacity>
+              {allUserTags.slice(0, 30).map(tag => {
+                const isActive = activeTagFilters.includes(tag);
                 return (
                   <TouchableOpacity
-                    key={chip.key}
-                    style={[s.filterQuickChip, isActive && s.filterQuickChipActive]}
+                    key={tag}
+                    style={[s.filterTagChip, isActive && s.filterTagChipActive]}
                     onPress={() => {
-                      setActivePopularChips(prev =>
-                        prev.includes(chip.key) ? prev.filter(k => k !== chip.key) : [...prev, chip.key]
+                      setActiveTagFilters(prev =>
+                        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                       );
                     }}
                   >
-                    <Text style={[s.filterQuickChipTxt, isActive && s.filterQuickChipTxtActive]}>{chip.label}</Text>
+                    <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{tag}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+          </>
+        )}
+      </ScrollView>
 
-            {/* Cook Time Filter */}
-            <Text style={s.filterLabel}>烹調時間</Text>
-            <View style={s.filterTimeRow}>
-              {[
-                { label: "不限", value: undefined },
-                { label: " 30 分鐘內", value: 30 },
-                { label: "⏱ 45 分鐘內", value: 45 },
-                { label: "⏱ 60 分鐘內", value: 60 },
-              ].map(opt => (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={[
-                    s.filterTimeChip,
-                    filterCookTimeMax === opt.value && s.filterTimeChipActive
-                  ]}
-                  onPress={() => setFilterCookTimeMax(opt.value)}
-                >
-                  <Text style={[
-                    s.filterTimeChipTxt,
-                    filterCookTimeMax === opt.value && s.filterTimeChipTxtActive
-                  ]}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+      {/* Action Buttons */}
+      <View style={s.filterActions}>
+        <TouchableOpacity
+          style={s.filterResetBtn}
+          onPress={() => {
+            setActiveCategory("all");
+            setActiveIngredientCategory(undefined);
+            setFilterCookTimeMax(undefined);
+            setActiveTagFilters([]);
+            setActivePopularChips([]);
+            setSortBy("popular");
+            setViewMode("all");
+          }}
+        >
+          <Ionicons name="refresh-outline" size={18} color="#666" />
+          <Text style={s.filterResetBtnTxt}>重置</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.filterConfirmBtn}
+          onPress={onClose}
+        >
+          <Text style={s.filterConfirmBtnTxt}>完成</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
-            {/* Tags Filter */}
-            {allUserTags.length > 0 && (
-              <>
-                <Text style={s.filterLabel}>標籤</Text>
-                <View style={s.filterTagsRow}>
-                  <TouchableOpacity
-                    style={[s.filterTagChip, activeTagFilters.length === 0 && s.filterTagChipActive]}
-                    onPress={() => setActiveTagFilters([])}
-                  >
-                    <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>不限</Text>
-                  </TouchableOpacity>
-                  {allUserTags.slice(0, 30).map(tag => {
-                    const isActive = activeTagFilters.includes(tag);
-                    return (
-                      <TouchableOpacity
-                        key={tag}
-                        style={[s.filterTagChip, isActive && s.filterTagChipActive]}
-                        onPress={() => {
-                          setActiveTagFilters(prev =>
-                            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-                          );
-                        }}
-                      >
-                        <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{tag}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-          </ScrollView>
+  if (!visible) return null;
 
-          {/* Action Buttons */}
-          <View style={s.filterActions}>
-            <TouchableOpacity
-              style={s.filterResetBtn}
-              onPress={() => {
-                setActiveCategory("all");
-                setFilterCookTimeMax(undefined);
-                setActiveTagFilters([]);
-                setActivePopularChips([]);
-                setSortBy("popular");
-              }}
-            >
-              <Ionicons name="refresh-outline" size={18} color="#666" />
-              <Text style={s.filterResetBtnTxt}>重置</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.filterConfirmBtn}
-              onPress={onClose}
-            >
-              <Text style={s.filterConfirmBtnTxt}>完成</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+  if (inline) {
+    return (
+      <View style={s.inlineRoot} pointerEvents="box-none">
+        <TouchableOpacity style={s.inlineBackdrop} activeOpacity={1} onPress={onClose} />
+        <View style={s.inlineSheetWrap}>{content}</View>
+      </View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={s.filterOverlay}>
+        {content}
       </View>
     </Modal>
   );
@@ -270,6 +289,19 @@ const s = StyleSheet.create({
   filterOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  inlineRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    elevation: 50,
+  },
+  inlineBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  inlineSheetWrap: {
+    flex: 1,
     justifyContent: "flex-end",
   },
   filterSheet: {

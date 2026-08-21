@@ -17,12 +17,15 @@ import {
   Image, ActivityIndicator, Alert, Modal, Linking, Platform, BackHandler,
   Dimensions, TextInput, Share, KeyboardAvoidingView,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { trpc } from "@/lib/trpc";
+import { trpc, resolveImageUrl } from "@/lib/trpc";
+import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
+import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -33,6 +36,29 @@ import { COOKING_TERMS, COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { isSeasoning, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
+
+export const isValidHttpUrl = (value: unknown): value is string =>
+  typeof value === "string" &&
+  (() => {
+    try {
+      const u = new URL(value.trim());
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch {
+      return false;
+    }
+  })();
+
+const openSourceUrl = async (url: string | undefined) => {
+  if (!url || !isValidHttpUrl(url)) {
+    Alert.alert("無法開啟連結", "此食譜的來源連結格式無效。");
+    return;
+  }
+  try {
+    await Linking.openURL(url.trim());
+  } catch {
+    Alert.alert("無法開啟連結", "請在系統聲明中允許開啟外部連結。");
+  }
+};
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -46,6 +72,11 @@ const HINT = "#C7C7CC";
 const BORDER = "#F0EDE8";
 const GREEN = "#4CAF50";
 const PURPLE = "#9C27B0";
+
+const PLACEHOLDER_INGREDIENT_NAMES = new Set([
+  "適量", "少許", "些許", "若干", "適宜", "適當", "隨意", "視乎口味", "依個人喜好",
+]);
+const isPlaceholderIngredientName = (name: string) => PLACEHOLDER_INGREDIENT_NAMES.has(String(name ?? "").trim());
 
 // ── Cooking terms glossary ──────────────────────────────────────────
 const PACKAGED_CATS = new Set(["調味料", "乾貨", "醬料", "罐頭", "飲品"]);
@@ -281,6 +312,7 @@ export default function RecipeDetailScreen() {
   const [showAIEdit, setShowAIEdit] = useState(false);
   const [aiEditPrompt, setAIEditPrompt] = useState("");
   const [aiEditResult, setAIEditResult] = useState<string | null>(null);
+  const [aiEditPreview, setAIEditPreview] = useState<any>(null);
   // Added to cart feedback
   const [addedToCart, setAddedToCart] = useState(false);
   const [lastAddedShoppingDate, setLastAddedShoppingDate] = useState<string | null>(null);
@@ -291,6 +323,7 @@ export default function RecipeDetailScreen() {
   const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  const [planPickerShoppingDate, setPlanPickerShoppingDate] = useState<string | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
   const [showAllShopping, setShowAllShopping] = useState(false);
@@ -330,6 +363,7 @@ export default function RecipeDetailScreen() {
   }, [noteInput]);
 
   const utils = trpc.useUtils();
+  const invalidateRecipesAndWeekly = useInvalidateRecipesAndWeekly();
 
   const recipeQ = trpc.recipes.getById.useQuery({ id: id! }, { enabled: !!id });
   const recipe = recipeQ.data;
@@ -371,7 +405,9 @@ export default function RecipeDetailScreen() {
   const recipeShopping = useMemo(() => {
     const items = (shoppingListQ.data ?? []).filter(
       (i: any) =>
-        (i.fromRecipeId === recipeStringId || (recipe?.name && i.fromRecipeName === recipe.name)) &&
+        (i.fromRecipeId === recipeStringId ||
+          // 兜底：只有冇帶 fromRecipeId 嘅 item 先用食譜名 match（避免新食譜繼承舊食譜嘅項目）
+          (!i.fromRecipeId && recipe?.name && i.fromRecipeName === recipe.name)) &&
         i.status !== "bought"
     );
     const groups: Array<{ date: string; items: any[] }> = [];
@@ -387,6 +423,26 @@ export default function RecipeDetailScreen() {
   }, [shoppingListQ.data, recipeStringId, recipe?.name]);
 
   const visibleShopGroups = showAllShopping ? recipeShopping : recipeShopping.slice(0, 3);
+
+  // 加入排餐後跳去購物清單選食材：thick 已經喺購物清單嘅 item 標示「已加入」、唔可重勾
+  // 規則：要「呢個食譜 id + 同食材名」先算已加入，唔睇日期/排餐 instance
+  // => 同一食譜再加另一日都會顯示已加，但其他食譜同名食材唔會誤中
+  const planPickerAlreadyAdded = useMemo(() => {
+    const added = new Set<string>();
+    if (!planPickerRecipe || !shoppingListQ.data) return added;
+    const targetRecipeId = planPickerRecipe.id;
+    (shoppingListQ.data as any[]).forEach((item: any) => {
+      if (item.status === "bought") return;
+      const itemName = String(item.name ?? "").trim();
+      const itemRecipeId = String(item.fromRecipeId ?? "").trim();
+      if (!itemName || itemRecipeId !== targetRecipeId) return;
+      (planPickerRecipe.ingredients || []).forEach((ing: any, idx: number) => {
+        const nm = String(ing?.name ?? "").trim();
+        if (nm && nm === itemName) added.add(`${planPickerRecipe.id}::${idx}`);
+      });
+    });
+    return added;
+  }, [planPickerRecipe, shoppingListQ.data]);
 
   const savePriceM = (trpc as any).shopping.savePrice.useMutation({
     onSuccess: (_data: any, variables: any) => {
@@ -456,344 +512,33 @@ export default function RecipeDetailScreen() {
   );
   const lastPricesMap: Record<string, number> = lastPricesQ.data ?? {};
   
-  // Check for local image
-  const getLocalImage = (recipeName: string) => {
-    const nameMap: Record<string, any> = {
-      '番茄炒蛋': require('@/assets/recipes/scrambled-eggs-tomatoes.png'),
-      '蒜蓉炒菜心': require('@/assets/recipes/garlic-choy-sum.png'),
-      '紅燒肉': require('@/assets/recipes/braised-pork-belly.png'),
-      '宮保雞丁': require('@/assets/recipes/kung-pao-chicken.png'),
-      '麻婆豆腐': require('@/assets/recipes/mapo-tofu.png'),
-      '糖醋排骨': require('@/assets/recipes/sweet-sour-ribs.png'),
-      '清蒸鱸魚': require('@/assets/recipes/steamed-sea-bass.png'),
-      '豉油王炒麵': require('@/assets/recipes/soy-sauce-noodles.png'),
-      '臘味煲仔飯': require('@/assets/recipes/claypot-rice.png'),
-      '紅蘿蔔粟米豬骨湯': require('@/assets/recipes/carrot-corn-soup.png'),
-      '回鍋肉': require('@/assets/recipes/twice-cooked-pork.png'),
-      '干煸四季豆': require('@/assets/recipes/dry-fried-beans.png'),
-      '蝦仁炒蛋': require('@/assets/recipes/shrimp-scrambled-eggs.png'),
-      '梅菜扣肉': require('@/assets/recipes/preserved-vegetable-pork.png'),
-      '薑蔥蒸雞': require('@/assets/recipes/steamed-chicken.png'),
-      '魚香茄子': require('@/assets/recipes/fish-fragrant-eggplant.png'),
-      '腐乳通菜': require('@/assets/recipes/fermented-water-spinach.png'),
-      '鹽焗雞翼': require('@/assets/recipes/salt-baked-wings.png'),
-      '蠔油冬菇炆雞': require('@/assets/recipes/braised-chicken-mushroom.png'),
-      '榨菜肉絲湯米粉': require('@/assets/recipes/rice-noodle-soup.png'),
-      '原味蒸肉餅': require('@/assets/recipes/原味蒸肉餅.png'),
-      '咸蛋蒸肉餅': require('@/assets/recipes/咸蛋蒸肉餅.png'),
-      '梅菜蒸肉餅': require('@/assets/recipes/梅菜蒸肉餅.png'),
-      '魷魚絲蒸肉餅': require('@/assets/recipes/魷魚絲蒸肉餅.png'),
-      '馬蹄土魷蒸肉餅': require('@/assets/recipes/馬蹄土魷蒸肉餅.png'),
-      '冬菇蒸雞': require('@/assets/recipes/冬菇蒸雞.png'),
-      '雲耳勝瓜蒸雞': require('@/assets/recipes/雲耳勝瓜蒸雞.png'),
-      '蟲草花蒸雞': require('@/assets/recipes/蟲草花蒸雞.png'),
-      '豉汁蒸排骨': require('@/assets/recipes/豉汁蒸排骨.png'),
-      '南瓜蒸排骨': require('@/assets/recipes/南瓜蒸排骨.png'),
-      '榨菜蒸牛肉': require('@/assets/recipes/榨菜蒸牛肉.png'),
-      '陳皮蒸牛肉球': require('@/assets/recipes/陳皮蒸牛肉球.png'),
-      '清蒸海上鮮': require('@/assets/recipes/清蒸海上鮮.png'),
-      '豉汁蒸鯇魚': require('@/assets/recipes/豉汁蒸鯇魚.png'),
-      '薑蔥蒸魚雲': require('@/assets/recipes/薑蔥蒸魚雲.png'),
-      '豉汁蒸生蠔': require('@/assets/recipes/豉汁蒸生蠔.png'),
-      '蒜蓉粉絲蒸生蠔': require('@/assets/recipes/蒜蓉粉絲蒸生蠔.png'),
-      '蒜蓉粉絲蒸大蝦': require('@/assets/recipes/蒜蓉粉絲蒸大蝦.png'),
-      '蒜蓉粉絲蒸帶子': require('@/assets/recipes/蒜蓉粉絲蒸帶子.png'),
-      '蒸三色蛋': require('@/assets/recipes/蒸三色蛋.png'),
-      '西芹炒雞柳': require('@/assets/recipes/西芹炒雞柳.png'),
-      '西芹炒牛肉': require('@/assets/recipes/西芹炒牛肉.png'),
-      '腰果炒雞丁': require('@/assets/recipes/腰果炒雞丁.png'),
-      '中式牛柳': require('@/assets/recipes/中式牛柳.png'),
-      '黑椒牛仔骨': require('@/assets/recipes/黑椒牛仔骨.png'),
-      '豉汁炒蜆': require('@/assets/recipes/豉汁炒蜆.png'),
-      '豉椒炒牛肉': require('@/assets/recipes/豉椒炒牛肉.png'),
-      '豉椒苦瓜炒牛肉': require('@/assets/recipes/豉椒苦瓜炒牛肉.png'),
-      '菜脯炒蛋': require('@/assets/recipes/菜脯炒蛋.png'),
-      '韭黃炒蛋': require('@/assets/recipes/韭黃炒蛋.png'),
-      '韭菜花炒豬頸肉': require('@/assets/recipes/韭菜花炒豬頸肉.png'),
-      '蝦醬炒鮮魷': require('@/assets/recipes/蝦醬炒鮮魷.png'),
-      '九層塔炒蜆': require('@/assets/recipes/九層塔炒蜆.png'),
-      '炒三鮮': require('@/assets/recipes/炒三鮮.png'),
-      '生炒芥蘭': require('@/assets/recipes/生炒芥蘭.png'),
-      '椒絲腐乳炒通菜': require('@/assets/recipes/椒絲腐乳炒通菜.png'),
-      '蔥爆牛肉': require('@/assets/recipes/蔥爆牛肉.png'),
-      '金沙鹹蛋黃炒蝦仁': require('@/assets/recipes/金沙鹹蛋黃炒蝦仁.png'),
-      '薑蔥炒蟹': require('@/assets/recipes/薑蔥炒蟹.png'),
-      '避風塘炒蟹': require('@/assets/recipes/避風塘炒蟹.png'),
-      '柱侯蘿蔔牛腩煲': require('@/assets/recipes/柱侯蘿蔔牛腩煲.png'),
-      '清湯蘿蔔牛腩': require('@/assets/recipes/清湯蘿蔔牛腩.png'),
-      '港式咖喱牛腩煲': require('@/assets/recipes/港式咖喱牛腩煲.png'),
-      '港式咖喱雞煲': require('@/assets/recipes/港式咖喱雞煲.png'),
-      '啫啫滑雞煲': require('@/assets/recipes/啫啫滑雞煲.png'),
-      '三杯雞': require('@/assets/recipes/三杯雞.png'),
-      '栗子炆雞': require('@/assets/recipes/栗子炆雞.png'),
-      '鮑汁冬菇炆花膠': require('@/assets/recipes/鮑汁冬菇炆花膠.png'),
-      '北菇炆海參': require('@/assets/recipes/北菇炆海參.png'),
-      '紅燒豆腐煲': require('@/assets/recipes/紅燒豆腐煲.png'),
-      '琵琶豆腐': require('@/assets/recipes/琵琶豆腐.png'),
-      '鹹魚雞粒豆腐煲': require('@/assets/recipes/鹹魚雞粒豆腐煲.png'),
-      '海鮮豆腐煲': require('@/assets/recipes/海鮮豆腐煲.png'),
-      '南乳粗齋煲': require('@/assets/recipes/南乳粗齋煲.png'),
-      '雙冬支竹羊腩煲': require('@/assets/recipes/雙冬支竹羊腩煲.png'),
-      '支竹炆豬腩肉': require('@/assets/recipes/支竹炆豬腩肉.png'),
-      '芋頭扣肉': require('@/assets/recipes/芋頭扣肉.png'),
-      '欖菜肉碎四季豆': require('@/assets/recipes/欖菜肉碎四季豆.png'),
-      '魚香茄子煲': require('@/assets/recipes/魚香茄子煲.png'),
-      '鮑汁海參花菇大鴨': require('@/assets/recipes/鮑汁海參花菇大鴨.png'),
-      '煎釀三寶': require('@/assets/recipes/煎釀三寶.png'),
-      '香煎紅衫魚': require('@/assets/recipes/香煎紅衫魚.png'),
-      '香煎黃花魚': require('@/assets/recipes/香煎黃花魚.png'),
-      '香煎馬友魚': require('@/assets/recipes/香煎馬友魚.png'),
-      '香煎肉餅': require('@/assets/recipes/香煎肉餅.png'),
-      '香煎蓮藕餅': require('@/assets/recipes/香煎蓮藕餅.png'),
-      '煎釀蓮藕夾': require('@/assets/recipes/煎釀蓮藕夾.png'),
-      '香煎生薯仔餅': require('@/assets/recipes/香煎生薯仔餅.png'),
-      '生煎肉餅': require('@/assets/recipes/生煎肉餅.png'),
-      '香煎蛋餃': require('@/assets/recipes/香煎蛋餃.png'),
-      '韭菜煎蛋角': require('@/assets/recipes/韭菜煎蛋角.png'),
-      '椒鹽豬扒': require('@/assets/recipes/椒鹽豬扒.png'),
-      '椒鹽九吐魚': require('@/assets/recipes/椒鹽九吐魚.png'),
-      '椒鹽鮮魷': require('@/assets/recipes/椒鹽鮮魷.png'),
-      '椒鹽豆腐': require('@/assets/recipes/椒鹽豆腐.png'),
-      '脆皮炸大腸': require('@/assets/recipes/脆皮炸大腸.png'),
-      '生炸雞翼': require('@/assets/recipes/生炸雞翼.png'),
-      '南乳炸雞翼': require('@/assets/recipes/南乳炸雞翼.png'),
-      '吉列豬扒': require('@/assets/recipes/吉列豬扒.png'),
-      '咕嚕肉': require('@/assets/recipes/咕嚕肉.png'),
-      '口水雞': require('@/assets/recipes/口水雞.png'),
-      '沙薑手撕雞': require('@/assets/recipes/沙薑手撕雞.png'),
-      '沙薑浸滑雞': require('@/assets/recipes/沙薑浸滑雞.png'),
-      '白切雞': require('@/assets/recipes/白切雞.png'),
-      '豉油雞': require('@/assets/recipes/豉油雞.png'),
-      '潮州滷水拼盤': require('@/assets/recipes/潮州滷水拼盤.png'),
-      '五香牛肉': require('@/assets/recipes/五香牛肉.png'),
-      '花雕醉雞': require('@/assets/recipes/花雕醉雞.png'),
-      '涼拌皮蛋豆腐': require('@/assets/recipes/涼拌皮蛋豆腐.png'),
-      '涼拌拍青瓜': require('@/assets/recipes/涼拌拍青瓜.png'),
-      '上湯浸莧菜': require('@/assets/recipes/上湯浸莧菜.png'),
-      '金銀蛋浸絲瓜': require('@/assets/recipes/金銀蛋浸絲瓜.png'),
-      '鮮蝦蒸水蛋': require('@/assets/recipes/鮮蝦蒸水蛋.png'),
-      '魚湯勝瓜浸魚餅': require('@/assets/recipes/魚湯勝瓜浸魚餅.png'),
-      '港式辣子雞': require('@/assets/recipes/港式辣子雞.png'),
-      '酸甜咕嚕魚塊': require('@/assets/recipes/酸甜咕嚕魚塊.png'),
-      '粟米斑塊': require('@/assets/recipes/粟米斑塊.png'),
-      '賽螃蟹': require('@/assets/recipes/賽螃蟹.png'),
-      '什錦炒雜菜': require('@/assets/recipes/什錦炒雜菜.png'),
-      '日式親子丼': require('@/assets/recipes/日式親子丼.png'),
-      '日式照燒雞': require('@/assets/recipes/日式照燒雞.png'),
-      '日式咖喱豬扒飯': require('@/assets/recipes/日式咖喱豬扒飯.png'),
-      '日式味噌湯': require('@/assets/recipes/日式味噌湯.png'),
-      '日式大根燉五花肉': require('@/assets/recipes/日式大根燉五花肉.png'),
-      '豚汁': require('@/assets/recipes/豚汁.png'),
-      '日式生薑燒肉': require('@/assets/recipes/日式生薑燒肉.png'),
-      '日式壽喜燒': require('@/assets/recipes/日式壽喜燒.png'),
-      '天婦羅炸大蝦': require('@/assets/recipes/天婦羅炸大蝦.png'),
-      '日式章魚小丸子': require('@/assets/recipes/日式章魚小丸子.png'),
-      '日式玉子燒': require('@/assets/recipes/日式玉子燒.png'),
-      '日式漢堡排': require('@/assets/recipes/日式漢堡排.png'),
-      '韓式拌飯': require('@/assets/recipes/韓式拌飯.png'),
-      '韓式泡菜豆腐湯': require('@/assets/recipes/韓式泡菜豆腐湯.png'),
-      '韓式炸雞': require('@/assets/recipes/韓式炸雞.png'),
-      '韓式海鮮煎餅': require('@/assets/recipes/韓式海鮮煎餅.png'),
-      '韓式泡菜炒飯': require('@/assets/recipes/韓式泡菜炒飯.png'),
-      '韓式人參雞湯': require('@/assets/recipes/韓式人參雞湯.png'),
-      '韓式大醬湯': require('@/assets/recipes/韓式大醬湯.png'),
-      '韓式炒年糕': require('@/assets/recipes/韓式炒年糕.png'),
-      '韓式部隊鍋': require('@/assets/recipes/韓式部隊鍋.png'),
-      '韓式烤牛肉': require('@/assets/recipes/韓式烤牛肉.png'),
-      '韓式安東燉雞': require('@/assets/recipes/韓式安東燉雞.png'),
-      '韓式辣豆腐湯': require('@/assets/recipes/韓式辣豆腐湯.png'),
-      '泰式青咖喱雞': require('@/assets/recipes/泰式青咖喱雞.png'),
-      '泰式冬蔭功湯': require('@/assets/recipes/泰式冬蔭功湯.png'),
-      '越式牛肉河粉': require('@/assets/recipes/越式牛肉河粉.png'),
-      '泰式炒金邊粉': require('@/assets/recipes/泰式炒金邊粉.png'),
-      '印尼炒飯': require('@/assets/recipes/印尼炒飯.png'),
-      '新加坡海南雞飯': require('@/assets/recipes/新加坡海南雞飯.png'),
-      '泰式香葉肉碎炒飯': require('@/assets/recipes/泰式香葉肉碎炒飯.png'),
-      '肉骨茶': require('@/assets/recipes/肉骨茶.png'),
-      '越式春卷': require('@/assets/recipes/越式春卷.png'),
-      '新加坡叻沙湯麵': require('@/assets/recipes/新加坡叻沙湯麵.png'),
-      '馬來沙嗲雞肉串': require('@/assets/recipes/馬來沙嗲雞肉串.png'),
-      '泰式芒果糯米飯': require('@/assets/recipes/泰式芒果糯米飯.png'),
-      '粟米忌廉湯': require('@/assets/recipes/粟米忌廉湯.png'),
-      '粟米蛋花湯': require('@/assets/recipes/粟米蛋花湯.png'),
-      '紫菜豆腐魚蛋湯': require('@/assets/recipes/紫菜豆腐魚蛋湯.png'),
-      '番茄紅衫魚': require('@/assets/recipes/番茄紅衫魚.png'),
-      '蒜蓉粉絲蒸魷魚': require('@/assets/recipes/蒜蓉粉絲蒸魷魚.png'),
-      '雜菜炒粉絲': require('@/assets/recipes/雜菜炒粉絲.png'),
-      '揚州炒飯': require('@/assets/recipes/揚州炒飯.png'),
-      '星洲炒米': require('@/assets/recipes/星洲炒米.png'),
-      '乾炒牛河': require('@/assets/recipes/乾炒牛河.png'),
-      '鹹魚雞粒炒飯': require('@/assets/recipes/鹹魚雞粒炒飯.png'),
-      '瑤柱蛋白炒飯': require('@/assets/recipes/瑤柱蛋白炒飯.png'),
-      '肉絲炒麵': require('@/assets/recipes/肉絲炒麵.png'),
-      '廈門炒米': require('@/assets/recipes/廈門炒米.png'),
-      '餐蛋炒飯': require('@/assets/recipes/餐蛋炒飯.png'),
-      '羅漢齋炒麵': require('@/assets/recipes/羅漢齋炒麵.png'),
-      '肉片炒麵': require('@/assets/recipes/肉片炒麵.png'),
-      '炒雞絲烏冬': require('@/assets/recipes/炒雞絲烏冬.png'),
-      '日式牛肉炒烏冬': require('@/assets/recipes/日式牛肉炒烏冬.png'),
-      '意式番茄肉醬意粉': require('@/assets/recipes/意式番茄肉醬意粉.png'),
-      '凱撒沙律': require('@/assets/recipes/凱撒沙律.png'),
-      '奶油蘑菇湯': require('@/assets/recipes/奶油蘑菇湯.png'),
-      '蒜蓉炒時蔬': require('@/assets/recipes/蒜蓉炒時蔬.png'),
-      '咖哩魚蛋': require('@/assets/recipes/咖哩魚蛋.png'),
-      '碗仔翅': require('@/assets/recipes/碗仔翅.png'),
-      '生菜魚肉': require('@/assets/recipes/生菜魚肉.png'),
-      '懷舊砵仔糕': require('@/assets/recipes/懷舊砵仔糕.png'),
-      '椰汁紅豆糕': require('@/assets/recipes/椰汁紅豆糕.png'),
-      '香煎蘿蔔糕': require('@/assets/recipes/香煎蘿蔔糕.png'),
-      '豉汁蒸鳳爪': require('@/assets/recipes/豉汁蒸鳳爪.png'),
-      '青紅蘿蔔椰子豬骨湯': require('@/assets/recipes/青紅蘿蔔椰子豬骨湯.png'),
-      '粉葛赤小豆扁豆鯪魚湯': require('@/assets/recipes/粉葛赤小豆扁豆鯪魚湯.png'),
-      '海底椰無花果雪梨瘦肉湯': require('@/assets/recipes/海底椰無花果雪梨瘦肉湯.png'),
-      '花膠響螺片燉雞湯': require('@/assets/recipes/花膠響螺片燉雞湯.png'),
-      '木瓜花生排骨湯': require('@/assets/recipes/木瓜花生排骨湯.png'),
-      '五指毛桃土茯苓煲豬骨湯': require('@/assets/recipes/五指毛桃土茯苓煲豬骨湯.png'),
-      '楊枝甘露': require('@/assets/recipes/楊枝甘露.png'),
-      '腐竹白果雞蛋糖水': require('@/assets/recipes/腐竹白果雞蛋糖水.png'),
-      '番薯薑汁糖水': require('@/assets/recipes/番薯薑汁糖水.png'),
-      '生磨芝麻糊': require('@/assets/recipes/生磨芝麻糊.png'),
-      '竹蔗茅根馬蹄水': require('@/assets/recipes/竹蔗茅根馬蹄水.png'),
-      '生薑紅棗桂圓茶': require('@/assets/recipes/生薑紅棗桂圓茶.png'),
-      '港式絲襪奶茶': require('@/assets/recipes/港式絲襪奶茶.png'),
-      '日式蛋包飯': require('@/assets/recipes/日式蛋包飯.png'),
-      '番茄芝士焗肉丸': require('@/assets/recipes/番茄芝士焗肉丸.png'),
-      '南瓜薯仔雞肉泥': require('@/assets/recipes/南瓜薯仔雞肉泥.png'),
-      '肉餅蒸蛋': require('@/assets/recipes/肉餅蒸蛋.png'),
-      '芝士焗西蘭花': require('@/assets/recipes/芝士焗西蘭花.png'),
-      '香脆魚柳條': require('@/assets/recipes/香脆魚柳條.png'),
-      '霸王花煲豬骨湯': require('@/assets/recipes/霸王花煲豬骨湯.png'),
-      '極品鮑汁花菇炆扣肉': require('@/assets/recipes/極品鮑汁花菇炆扣肉.png'),
-      '當紅炸子雞': require('@/assets/recipes/當紅炸子雞.png'),
-      '富貴黃金大蝦': require('@/assets/recipes/富貴黃金大蝦.png'),
-      '發財好市炆豬手': require('@/assets/recipes/發財好市炆豬手.png'),
-      '豉汁排骨蒸陳村粉': require('@/assets/recipes/豉汁排骨蒸陳村粉.png'),
-      '蓮藕炆排骨': require('@/assets/recipes/蓮藕炆排骨.png'),
-      '港式沙爹牛肉公仔麵': require('@/assets/recipes/港式沙爹牛肉公仔麵.png'),
-      '花雕醉溏心蛋': require('@/assets/recipes/花雕醉溏心蛋.png'),
-      '朱古力心太軟': require('@/assets/recipes/朱古力心太軟.png'),
-      '日式炒烏冬': require('@/assets/recipes/日式炒烏冬.png'),
-      '台式滷肉飯': require('@/assets/recipes/台式滷肉飯.png'),
-      '意大利千層麵': require('@/assets/recipes/意大利千層麵.png'),
-      '經典芝士漢堡': require('@/assets/recipes/經典芝士漢堡.png'),
-      '意式提拉米蘇': require('@/assets/recipes/意式提拉米蘇.png'),
-      '順德雙皮奶': require('@/assets/recipes/順德雙皮奶.png'),
-      '港式街頭雞蛋仔': require('@/assets/recipes/港式街頭雞蛋仔.png'),
-      '蒜泥白肉': require('@/assets/recipes/蒜泥白肉.png'),
-      '薑蔥生蠔煲': require('@/assets/recipes/薑蔥生蠔煲.png'),
-      '電飯煲香菇滑雞飯': require('@/assets/recipes/電飯煲香菇滑雞飯.png'),
-      '電飯煲臘味糯米飯': require('@/assets/recipes/電飯煲臘味糯米飯.png'),
-      '電飯煲台式香菇油飯': require('@/assets/recipes/電飯煲台式香菇油飯.png'),
-      '電飯煲南瓜排骨燜飯': require('@/assets/recipes/電飯煲南瓜排骨燜飯.png'),
-      '電飯煲意式奶油煙肉野菌燉飯': require('@/assets/recipes/電飯煲意式奶油煙肉野菌燉飯.png'),
-      '電飯煲日式蒲燒鰻魚滑蛋飯': require('@/assets/recipes/電飯煲日式蒲燒鰻魚滑蛋飯.png'),
-      '電飯煲台式高麗菜鹹飯': require('@/assets/recipes/電飯煲台式高麗菜鹹飯.png'),
-      '電飯煲川味麻辣牛肉豆腐飯': require('@/assets/recipes/電飯煲川味麻辣牛肉豆腐飯.png'),
-      '電飯煲豉油皇肥牛煲仔飯': require('@/assets/recipes/電飯煲豉油皇肥牛煲仔飯.png'),
-      '電飯煲韓式春川辣炒雞拉麵': require('@/assets/recipes/電飯煲韓式春川辣炒雞拉麵.png'),
-      '電飯煲豉油皇雞翼飯': require('@/assets/recipes/電飯煲豉油皇雞翼飯.png'),
-      '電飯煲番茄芝士肉醬意粉': require('@/assets/recipes/電飯煲番茄芝士肉醬意粉.png'),
-      '電飯煲日式鮭魚菇菌炊飯': require('@/assets/recipes/電飯煲日式鮭魚菇菌炊飯.png'),
-      '電飯煲南洋風味椰漿雞肉飯': require('@/assets/recipes/電飯煲南洋風味椰漿雞肉飯.png'),
-      '電飯煲廣東經典滑蛋牛肉粥': require('@/assets/recipes/電飯煲廣東經典滑蛋牛肉粥.png'),
-      '電飯煲海南雞飯': require('@/assets/recipes/電飯煲海南雞飯.png'),
-      '蒜香煙肉蘑菇意粉': require('@/assets/recipes/蒜香煙肉蘑菇意粉.png'),
-      '焗芝士菠菜': require('@/assets/recipes/焗芝士菠菜.png'),
-      '韓式水冷麵': require('@/assets/recipes/韓式水冷麵.png'),
-      '經典南乳花生炆豬手': require('@/assets/recipes/經典南乳花生炆豬手.png'),
-      '忌廉南瓜湯': require('@/assets/recipes/忌廉南瓜湯.png'),
-      '忌廉周打蜆湯': require('@/assets/recipes/忌廉周打蜆湯.png'),
-      '支竹冬菇炆牛筋腩': require('@/assets/recipes/支竹冬菇炆牛筋腩.png'),
-      '勝瓜炒蝦仁': require('@/assets/recipes/勝瓜炒蝦仁.png'),
-      '八寶豆腐': require('@/assets/recipes/八寶豆腐.png'),
-      '肉碎豆腐煲': require('@/assets/recipes/肉碎豆腐煲.png'),
-      '韓式炸醬麵': require('@/assets/recipes/韓式炸醬麵.png'),
-      '泰式酸辣無骨雞爪': require('@/assets/recipes/泰式酸辣無骨雞爪.png'),
-      '俄式羅宋湯': require('@/assets/recipes/俄式羅宋湯.png'),
-      '豉油雞翼': require('@/assets/recipes/豉油雞翼.png'),
-      '經典紅豆沙': require('@/assets/recipes/經典紅豆沙.png'),
-      '忌廉蘑菇湯': require('@/assets/recipes/忌廉蘑菇湯.png'),
-      '日式叉燒豬骨拉麵': require('@/assets/recipes/日式叉燒豬骨拉麵.png'),
-      '西班牙海鮮鐵鍋飯': require('@/assets/recipes/西班牙海鮮鐵鍋飯.png'),
-      '無水雞肉椰菜煲': require('@/assets/recipes/無水雞肉椰菜煲.png'),
-      '雪菜牛肉米粉': require('@/assets/recipes/雪菜牛肉米粉.png'),
-      '洋蔥炒豬肉片': require('@/assets/recipes/洋蔥炒豬肉片.png'),
-      '日式茶碗蒸': require('@/assets/recipes/日式茶碗蒸.png'),
-      '台式紅燒牛肉麵': require('@/assets/recipes/台式紅燒牛肉麵.png'),
-      '花甲蒸水蛋': require('@/assets/recipes/花甲蒸水蛋.png'),
-      '白灼蠔油生菜': require('@/assets/recipes/白灼蠔油生菜.png'),
-      '白灼蠔油菜心': require('@/assets/recipes/白灼蠔油菜心.png'),
-      '白灼蠔油芥蘭': require('@/assets/recipes/白灼蠔油芥蘭.png'),
-      '白灼蠔油西蘭花': require('@/assets/recipes/白灼蠔油西蘭花.png'),
-      '上湯枸杞浸菜心': require('@/assets/recipes/上湯枸杞浸菜心.png'),
-      '匈牙利牛肉湯': require('@/assets/recipes/匈牙利牛肉湯.png'),
-      '大牌檔風味薑蔥炒牛肉': require('@/assets/recipes/大牌檔風味薑蔥炒牛肉.png'),
-      '海南雞飯': require('@/assets/recipes/海南雞飯.png'),
-      '清蒸白切鮮魷': require('@/assets/recipes/清蒸白切鮮魷.png'),
-      '港式洋蔥豬扒飯': require('@/assets/recipes/港式洋蔥豬扒飯.png'),
-      '港式蔥油撈麵': require('@/assets/recipes/港式蔥油撈麵.png'),
-      '焗蜜汁金沙骨': require('@/assets/recipes/焗蜜汁金沙骨.png'),
-      '焗蜜糖雞翼': require('@/assets/recipes/焗蜜糖雞翼.png'),
-      '生煎土魷肉餅': require('@/assets/recipes/生煎土魷肉餅.png'),
-      '番茄肥牛過橋米線': require('@/assets/recipes/番茄肥牛過橋米線.png'),
-      '經典榨菜肉絲米粉': require('@/assets/recipes/經典榨菜肉絲米粉.png'),
-      '經典港式生炒牛肉飯': require('@/assets/recipes/經典港式生炒牛肉飯.png'),
-      '花雕醉大蝦': require('@/assets/recipes/花雕醉大蝦.png'),
-      '花雕醉小鮑魚': require('@/assets/recipes/花雕醉小鮑魚.png'),
-      '蒜蓉豆豉蒸雞髀肉': require('@/assets/recipes/蒜蓉豆豉蒸雞髀肉.png'),
-      '蒜香焗金沙骨': require('@/assets/recipes/蒜香焗金沙骨.png'),
-      '蜜汁焗叉燒': require('@/assets/recipes/蜜汁焗叉燒.png'),
-      '蝦仁豆腐蒸水蛋': require('@/assets/recipes/蝦仁豆腐蒸水蛋.png'),
-      '避風塘炒蝦仁': require('@/assets/recipes/避風塘炒蝦仁.png'),
-      '金銀蛋浸莧菜': require('@/assets/recipes/金銀蛋浸莧菜.png'),
-      '電飯煲三色藜麥時蔬雞胸肉飯': require('@/assets/recipes/電飯煲三色藜麥時蔬雞胸肉飯.png'),
-      '電飯煲日式咖喱雞肉燉飯': require('@/assets/recipes/電飯煲日式咖喱雞肉燉飯.png'),
-      '電飯煲番茄牛肉燉飯': require('@/assets/recipes/電飯煲番茄牛肉燉飯.png'),
-      '電飯煲韓式泡菜五花肉燜飯': require('@/assets/recipes/電飯煲韓式泡菜五花肉燜飯.png'),
-      '香煎三文魚配檸檬牛油汁': require('@/assets/recipes/香煎三文魚配檸檬牛油汁.png'),
-      '希臘檸檬雞湯': require('@/assets/recipes/希臘檸檬雞湯.png'),
-      '意大利牛肝菌燉飯': require('@/assets/recipes/意大利牛肝菌燉飯.png'),
-      '意大利蔬菜湯': require('@/assets/recipes/意大利蔬菜湯.png'),
-      '日式五目炊飯': require('@/assets/recipes/日式五目炊飯.png'),
-      '正宗意式卡邦尼意粉': require('@/assets/recipes/正宗意式卡邦尼意粉.png'),
-      '法式洋蔥湯': require('@/assets/recipes/法式洋蔥湯.png'),
-      '法式焦糖燉蛋': require('@/assets/recipes/法式焦糖燉蛋.png'),
-      '法式白汁燉雞': require('@/assets/recipes/法式白汁燉雞.png'),
-      '波蘭酸黑麥湯': require('@/assets/recipes/波蘭酸黑麥湯.png'),
-      '牧羊人派': require('@/assets/recipes/牧羊人派.png'),
-      '番茄大蝦意粉': require('@/assets/recipes/番茄大蝦意粉.png'),
-      '番茄肉醬意粉': require('@/assets/recipes/番茄肉醬意粉.png'),
-      '白汁煙肉意粉': require('@/assets/recipes/白汁煙肉意粉.png'),
-      '經典瑪格麗特薄餅': require('@/assets/recipes/經典瑪格麗特薄餅.png'),
-      '經典芝士焗通心粉': require('@/assets/recipes/經典芝士焗通心粉.png'),
-      '經典西冷牛排': require('@/assets/recipes/經典西冷牛排.png'),
-      '美式BBQ烤豬肋骨': require('@/assets/recipes/美式BBQ烤豬肋骨.png'),
-      '芒果班戟': require('@/assets/recipes/芒果班戟.png'),
-      '芒果西米露': require('@/assets/recipes/芒果西米露.png'),
-      '英式下午茶鬆餅': require('@/assets/recipes/英式下午茶鬆餅.png'),
-      '蒜香橄欖油大蝦意粉': require('@/assets/recipes/蒜香橄欖油大蝦意粉.png'),
-      '薑汁撞奶': require('@/assets/recipes/薑汁撞奶.png'),
-      '西式番茄濃湯': require('@/assets/recipes/西式番茄濃湯.png'),
-      '西式香草檸檬焗雞': require('@/assets/recipes/西式香草檸檬焗雞.png'),
-    };
-    const exactMatch = nameMap[recipeName];
-    if (exactMatch) return exactMatch;
+/**
+ * Local image fallback removed — recipe covers are remote-first (R2).
+ * Kept for API compatibility: getLocalImage always returns undefined in prod.
+ */
+  const getLocalImage = (_recipeName: string) => null;
 
-    const cleanName = recipeName
-      .replace(/^(港式|日式|韓式|泰式|西式|意式|台式|電飯煲|經典|正宗|傳統|風味|大牌檔風味)/g, '')
-      .replace(/\s*\([^)]+\)\s*$/g, '');
-    return nameMap[cleanName];
-  };
   
-  const localImage = recipe ? getLocalImage(recipe.name) : null;
-  const imgUrl = localImage || (recipe as any)?.image || (recipe as any)?.thumbnailUrl;
-  // recipeImage 只接受字串 URL；require() 回傳的數字 asset id 不能送出後端
-  const remoteImageUrl = (recipe as any)?.image || (recipe as any)?.thumbnailUrl || undefined;
+  // Remote image from backend (R2) is PRIMARY; local require is only an offline fallback
+  const remoteImageUrlRaw = (recipe as any)?.image || (recipe as any)?.thumbnailUrl || undefined;
+  const remoteImageUrl = remoteImageUrlRaw ? resolveImageUrl(remoteImageUrlRaw) : "";
+  const localImage = recipe && !remoteImageUrl ? getLocalImage(recipe.name) : null;
+  const imgUrl = remoteImageUrl || "";
   const isUserRecipe = (recipe as any)?.source === "user";
-  const sourceUrl = (recipe as any)?.sourceUrl;
+  const sourceUrl = isValidHttpUrl((recipe as any)?.sourceUrl) ? (recipe as any).sourceUrl.trim() : null;
   const sourceAuthor = (recipe as any)?.sourceAuthor;
+  const sourceAction = useMemo(() => {
+    const url = (sourceUrl || "").toLowerCase();
+    if (url.includes("instagram.com")) {
+      return { icon: "logo-instagram" as const, label: "在 Instagram 觀看完整影片", bg: "#E1306C" };
+    }
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      return { icon: "logo-youtube" as const, label: "在 YouTube 觀看完整影片", bg: "#FF0000" };
+    }
+    return { icon: "play-circle-outline" as const, label: "觀看教學影片", bg: "#6B7280" };
+  }, [sourceUrl]);
   const recipeNumericId = id ? (parseInt(id.replace("user_", "").replace("official_", ""), 10) || 0) : 0;
-  const displayTags: string[] = localTags ?? ((recipe as any)?.tags ?? []);
+  const displayTags: string[] = (localTags ?? ((recipe as any)?.tags ?? [])).map((t: string) => t.trim()).filter(Boolean);
 
   // Family notes
   const recipeNoteId = recipe
@@ -813,9 +558,17 @@ export default function RecipeDetailScreen() {
   });
 
   // Delete mutations
+  const deleteRecipeImageM = trpc.recipes.deleteRecipeImage.useMutation({
+    onError: (e) => console.error("[RecipeDetail] Failed to delete image:", e.message),
+  });
   const deleteUserM = trpc.recipes.deleteUser.useMutation({
-    onSuccess: () => {
-      utils.recipes.listUser.invalidate();
+    onSuccess: async () => {
+      // Cleanup image from R2 storage
+      if (recipe?.image) {
+        const imageKey = recipe.image.split('/').pop();
+        if (imageKey) deleteRecipeImageM.mutate({ key: `recipe-thumbnails/${imageKey}` });
+      }
+      await invalidateRecipesAndWeekly();
       Alert.alert("已刪除", "食譜已從你的食譜庫刪除");
       router.back();
     },
@@ -823,6 +576,11 @@ export default function RecipeDetailScreen() {
   });
   const deleteOfficialM = trpc.recipes.deleteOfficial.useMutation({
     onSuccess: () => {
+      // Cleanup image from R2 storage
+      if (recipe?.image) {
+        const imageKey = recipe.image.split('/').pop();
+        if (imageKey) deleteRecipeImageM.mutate({ key: `recipe-thumbnails/${imageKey}` });
+      }
       utils.recipes.listOfficial.invalidate();
       Alert.alert("已刪除", "官方 AI 食譜已刪除");
       router.back();
@@ -859,7 +617,11 @@ export default function RecipeDetailScreen() {
 
   // Mutations
   const updateTagsM = trpc.recipes.updateUser.useMutation({
-    onSuccess: (data: any) => { setLocalTags(data.tags ?? []); setShowTagEditor(false); },
+    onSuccess: async (data: any) => {
+      await invalidateRecipesAndWeekly();
+      setLocalTags(data.tags ?? []);
+      setShowTagEditor(false);
+    },
     onError: (e: any) => Alert.alert("失敗", e.message),
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
@@ -870,17 +632,19 @@ export default function RecipeDetailScreen() {
         return;
       }
       
-      const ings = adjustedIngredients.map((ing: any) => ({
-        name: ing.name,
-        quantity: ing.adjustedQty ?? ing.quantity ?? "",
-        unit: ing.unit ?? "",
-        category: ing.category ?? "食材",
-      }));
+      const ings = adjustedIngredients
+        .filter((ing: any) => !isPlaceholderIngredientName(ing?.name))
+        .map((ing: any) => ({
+          name: ing.name,
+          quantity: ing.adjustedQty ?? ing.quantity ?? "",
+          unit: ing.unit ?? "",
+          category: ing.category ?? "食材",
+        }));
 
       const continueFlow = () => {
         setShowPlan(false);
-        utils.mealPlan.listByDateRange.invalidate();
         if (ings.length > 0) {
+          const shoppingDateForPlan = getDayBefore(planDate ?? toISODate(new Date()));
           setPlanPickerRecipe({
             id: recipeStringId,
             name: recipe?.name ?? "",
@@ -888,9 +652,12 @@ export default function RecipeDetailScreen() {
             date: planDate ?? undefined,
             fromMealPlanId: result.newPlanId,
           });
+          setPlanPickerShoppingDate(shoppingDateForPlan);
         } else {
           Alert.alert("已加入排餐");
         }
+
+        void utils.mealPlan.listByDateRange.invalidate();
       };
 
       // Check if there's a conflict (eatOut or duplicate recipe)
@@ -922,10 +689,9 @@ export default function RecipeDetailScreen() {
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: (_, variables) => {
-      utils.shopping.list.invalidate();
-      utils.mealPlan.listByDateRange.invalidate();
       setAddedToCart(true);
       setPlanPickerRecipe(null);
+      setPlanPickerShoppingDate(null);
       const count = variables.items.length;
       const dateLabel = variables.plannedDate ? formatMealDate(variables.plannedDate) : "";
       setToast({ 
@@ -933,6 +699,10 @@ export default function RecipeDetailScreen() {
         message: `✅ ${count} 件食材已加入購物清單${dateLabel ? `，採購日：${dateLabel}` : ""}`, 
         type: "success" 
       });
+      void Promise.all([
+        utils.shopping.list.invalidate(),
+        utils.mealPlan.listByDateRange.invalidate(),
+      ]);
     },
     onError: (e) => {
       setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
@@ -957,8 +727,11 @@ export default function RecipeDetailScreen() {
     });
   }, [ingredients, ratio]);
 
-  const aiEditM = trpc.aiRecipe.chat.useMutation({
-    onSuccess: (data) => setAIEditResult(data.content),
+  const aiEditM = trpc.aiRecipe.previewEdit.useMutation({
+    onSuccess: (data) => {
+      setAIEditPreview(data);
+      setAIEditResult(null);
+    },
     onError: (e) => Alert.alert("AI Edit 失敗", e.message),
   });
 
@@ -967,6 +740,7 @@ export default function RecipeDetailScreen() {
       setShowAIEdit(false);
       setAIEditPrompt("");
       setAIEditResult(null);
+      setAIEditPreview(null);
       utils.recipes.listUser.invalidate();
       utils.recipes.search.invalidate();
       router.push({ pathname: "/recipe/[id]", params: { id: `user_${data.id}` } });
@@ -1067,31 +841,28 @@ export default function RecipeDetailScreen() {
 
           {/* ─ Hero Image ── */}
           <View style={s.hero}>
-            {imgUrl && !heroImgError ? (
+            {(imgUrl || localImage) && !heroImgError ? (
               sourceUrl ? (
                 // User imported recipe: make image clickable to open source URL
                 <TouchableOpacity
                   style={{ width: SW, height: SW }}
-                  onPress={() => Linking.openURL(sourceUrl)}
+                  onPress={() => openSourceUrl(sourceUrl)}
                   activeOpacity={0.85}
                 >
                   {localImage
-                    ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                    : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroImgError(true)} />}
-                  {/* Source link overlay indicator */}
-                  <View style={s.sourceLinkOverlay}>
-                    <Ionicons name="play-circle" size={32} color="#fff" />
-                    <Text style={s.sourceLinkOverlayText}>觀看教學影片</Text>
-                  </View>
+                    ? <ExpoImage source={localImage} style={s.heroImg} contentFit="cover" cachePolicy="disk" />
+                    : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} contentFit="cover" cachePolicy="disk" onError={() => setHeroImgError(true)} />}
                 </TouchableOpacity>
               ) : (
                 localImage
-                  ? <Image source={localImage} style={s.heroImg} resizeMode="cover" />
-                  : <Image source={{ uri: imgUrl }} style={s.heroImg} resizeMode="cover" onError={() => setHeroImgError(true)} />
+                  ? <ExpoImage source={localImage} style={s.heroImg} contentFit="cover" cachePolicy="disk" />
+                  : <ExpoImage source={{ uri: imgUrl }} style={s.heroImg} contentFit="cover" cachePolicy="disk" onError={() => setHeroImgError(true)} />
               )
             ) : (
-              <View style={[s.heroImg, s.heroPlaceholder]}>
-                <Ionicons name="restaurant" size={56} color={HINT} />
+              <View style={[s.heroImg, s.heroPlaceholder, { paddingHorizontal: 24 }]}>
+                <Text style={{ fontSize: 28, fontWeight: "900", color: HINT, textAlign: "center", lineHeight: 34 }} numberOfLines={2}>
+                  {recipe?.name || "食譜"}
+                </Text>
               </View>
             )}
             {/* Back button */}
@@ -1132,7 +903,7 @@ export default function RecipeDetailScreen() {
                   (recipe as any).description ? `${(recipe as any).description}` : "",
                   "",
                   recipe?.cookTime ? `⏱ ${recipe.cookTime} 分鐘` : "",
-                  recipe?.servings ? `👥 ${recipe.servings} 人份` : "",
+                  `👥 ${effectiveServings} 人份`,
                   (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
                   "",
                   "📋 食材清單：",
@@ -1173,7 +944,7 @@ export default function RecipeDetailScreen() {
                 {(recipe.servings ?? 0) > 0 && (
                   <View style={s.metaChip}>
                     <Ionicons name="people-outline" size={12} color="#fff" />
-                    <Text style={s.metaChipTxt}>{recipe.servings} 人份</Text>
+                    <Text style={s.metaChipTxt}>{effectiveServings} 人份</Text>
                   </View>
                 )}
                 {(recipe as any).difficulty && (
@@ -1189,10 +960,10 @@ export default function RecipeDetailScreen() {
           {sourceUrl && sourceAuthor && (
             <TouchableOpacity
               style={s.sourceBar}
-              onPress={() => Linking.openURL(sourceUrl)}
+              onPress={() => openSourceUrl(sourceUrl)}
             >
-              <View style={s.sourceIcon}>
-                <Ionicons name="logo-instagram" size={14} color="#fff" />
+              <View style={[s.sourceIcon, { backgroundColor: sourceAction.bg }]}>
+                <Ionicons name={sourceAction.icon} size={14} color="#fff" />
               </View>
               <Text style={s.sourceText}>教學影片 by {sourceAuthor}</Text>
               <Text style={s.sourceLink}>查看 →</Text>
@@ -1203,7 +974,9 @@ export default function RecipeDetailScreen() {
 
             {/* ── Description ── */}
             {(recipe as any).description ? (
-              <Text style={s.description}>{(recipe as any).description}</Text>
+              <View style={s.descriptionCard}>
+                <Text style={s.description}>{(recipe as any).description}</Text>
+              </View>
             ) : null}
 
             {/* ── Serving size scaler ── */}
@@ -1259,7 +1032,7 @@ export default function RecipeDetailScreen() {
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
                 <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]}>{addedToCart ? "已加入" : "加入採購"}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.btnAI} onPress={() => { setAIEditPrompt(""); setAIEditResult(null); setShowAIEdit(true); }}>
+              <TouchableOpacity style={s.btnAI} onPress={() => { setAIEditPrompt(""); setAIEditResult(null); setAIEditPreview(null); setShowAIEdit(true); }}>
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
@@ -1303,10 +1076,7 @@ export default function RecipeDetailScreen() {
                         style={s.mealPlanItem}
                         onPress={() => {
                           // 點擊日期→跳轉排餐頁
-                          router.push({
-                            pathname: "/(tabs)/planner",
-                            params: { openRecommend: "true" }
-                          });
+                          router.push("/(tabs)/planner");
                         }}
                       >
                         <View style={s.mealPlanDateBox}>
@@ -1341,10 +1111,7 @@ export default function RecipeDetailScreen() {
                         key={plan.id}
                         style={s.mealPlanItem}
                         onPress={() => {
-                          router.push({
-                            pathname: "/(tabs)/planner",
-                            params: { openRecommend: "true" }
-                          });
+                          router.push("/(tabs)/planner");
                         }}
                       >
                         <View style={s.mealPlanDateBox}>
@@ -1501,7 +1268,7 @@ export default function RecipeDetailScreen() {
 
                           {/* Step image */}
                           {stepImage && (
-                            <Image source={{ uri: stepImage }} style={{ width: "100%", height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" />
+                            <Image source={{ uri: stepImage }} style={{ width: "100%", height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" onError={() => console.log('[RecipeDetail] Step image load failed, step', i + 1)} />
                           )}
 
                           {/* Tip — purple box */}
@@ -1622,9 +1389,9 @@ export default function RecipeDetailScreen() {
 
             {/* ── Instagram source link ── */}
             {sourceUrl && (
-              <TouchableOpacity style={s.igBtn} onPress={() => Linking.openURL(sourceUrl)}>
-                <Ionicons name="logo-instagram" size={18} color="#fff" />
-                <Text style={s.igBtnTxt}>在 Instagram 觀看完整影片</Text>
+              <TouchableOpacity style={[s.igBtn, { backgroundColor: sourceAction.bg }]} onPress={() => openSourceUrl(sourceUrl)}>
+                <Ionicons name={sourceAction.icon} size={18} color="#fff" />
+                <Text style={s.igBtnTxt}>{sourceAction.label}</Text>
                 {sourceAuthor && <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>by {sourceAuthor}</Text>}
               </TouchableOpacity>
             )}
@@ -1898,7 +1665,7 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                {["改成素食版", "份量加倍", "翻譯成英文", "簡化步驟", "減少用油"].map(p => (
+                {["改成素食版", "翻譯成英文", "簡化步驟", "低卡路里版", "高蛋白版", "無蛋奶過敏版", "無麩質版", "小朋友啱食版", "老人家軟腍版", "用平價食材版", "蒸焗爐版", "電飯煲版"].map(p => (
                   <TouchableOpacity key={p} style={{ backgroundColor: "#F5F3FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#DDD6FE" }} onPress={() => setAIEditPrompt(p)}>
                     <Text style={{ fontSize: 12, color: "#7C3AED", fontWeight: "600" }}>{p}</Text>
                   </TouchableOpacity>
@@ -1916,19 +1683,77 @@ export default function RecipeDetailScreen() {
                 style={{ backgroundColor: "#7C3AED", paddingVertical: 13, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 16, opacity: aiEditM.isPending || !aiEditPrompt.trim() ? 0.6 : 1 }}
                 onPress={() => {
                   if (!aiEditPrompt.trim()) return;
-                  const ctx = `食譜：${recipe.name}\n描述：${(recipe as any).description ?? ""}\n食材：${ingredients.map((i: any) => `${i.name} ${i.quantity}${i.unit}`).join("、")}\n步驟：${steps.map((s: any) => typeof s === "string" ? s : (s.instruction ?? "")).join("；")}\n\n要求：${aiEditPrompt}`;
+                  if (!recipe) return;
+                  setAIEditPreview(null);
                   setAIEditResult(null);
-                  aiEditM.mutate({ messages: [{ role: "user", content: ctx }] });
+                  aiEditM.mutate({
+                    editPrompt: aiEditPrompt,
+                    recipe: {
+                      name: recipe.name,
+                      description: (recipe as any).description ?? "",
+                      image: (recipe as any).image ?? "",
+                      thumbnailUrl: (recipe as any).thumbnailUrl ?? (recipe as any).image ?? "",
+                      cookTime: recipe.cookTime ?? undefined,
+                      servings: recipe.servings ?? undefined,
+                      difficulty: (recipe as any).difficulty ?? "",
+                      recipeCategory: (recipe as any).recipeCategory ?? "",
+                      ingredients: ingredients.map((i: any) => ({
+                        name: i.name,
+                        quantity: i.quantity ?? "",
+                        unit: i.unit ?? "",
+                        category: i.category ?? "",
+                      })),
+                      steps: steps.map((s: any) => ({
+                        instruction: typeof s === "string" ? s : (s.instruction ?? ""),
+                        duration: typeof s === "string" ? 0 : (s.duration ?? 0),
+                        tip: typeof s === "string" ? "" : (s.tip ?? ""),
+                      })),
+                      tags: Array.isArray((recipe as any).tags) ? (recipe as any).tags : [],
+                      sourceAuthor: (recipe as any).sourceAuthor ?? "",
+                    },
+                  });
                 }}
                 disabled={aiEditM.isPending || !aiEditPrompt.trim()}
               >
                 {aiEditM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="sparkles" size={16} color="#fff" />}
                 <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{aiEditM.isPending ? "處理中..." : "開始 AI Edit"}</Text>
               </TouchableOpacity>
-              {aiEditResult && (
+              {(aiEditResult || aiEditPreview) && (
                 <View style={{ gap: 10 }}>
-                  <ScrollView style={{ backgroundColor: "#FAFAFA", borderRadius: 12, padding: 12, maxHeight: 180, borderWidth: 1, borderColor: "#E5E7EB" }}>
-                    <Text style={{ fontSize: 13, color: TEXT, lineHeight: 21 }}>{aiEditResult}</Text>
+                  <ScrollView style={{ backgroundColor: "#FAFAFA", borderRadius: 12, padding: 12, maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB" }}>
+                    {aiEditPreview ? (
+                      <View style={{ gap: 6 }}>
+                        <Text style={{ fontSize: 14, color: TEXT, fontWeight: "800" }}>{aiEditPreview.name}</Text>
+                        {!!aiEditPreview.description && (
+                          <Text style={{ fontSize: 12, color: SUB, lineHeight: 18 }}>{aiEditPreview.description}</Text>
+                        )}
+                        {(aiEditPreview.ingredients || []).length > 0 && (
+                          <>
+                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>食材（{(aiEditPreview.ingredients || []).length}）</Text>
+                            {(aiEditPreview.ingredients || []).map((ing: any, ingIdx: number) => (
+                              <Text key={ingIdx} style={{ fontSize: 12, color: TEXT, lineHeight: 18 }}>
+                                • {ing.name}{ing.quantity ? ` ${ing.quantity}` : ""}{ing.unit ? ` ${ing.unit}` : ""}
+                              </Text>
+                            ))}
+                          </>
+                        )}
+                        {(aiEditPreview.steps || []).length > 0 && (
+                          <>
+                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>步驟（{(aiEditPreview.steps || []).length}）</Text>
+                            {(aiEditPreview.steps || []).map((s: any, sIdx: number) => {
+                              const instruction = typeof s === "string" ? s : (s.instruction ?? "");
+                              return (
+                                <Text key={sIdx} style={{ fontSize: 12, color: TEXT, lineHeight: 18 }}>
+                                  {sIdx + 1}. {instruction}
+                                </Text>
+                              );
+                            })}
+                          </>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={{ fontSize: 13, color: TEXT, lineHeight: 21 }}>{aiEditResult}</Text>
+                    )}
                   </ScrollView>
                   <TouchableOpacity
                     style={{ backgroundColor: BRAND, paddingVertical: 13, borderRadius: 12, alignItems: "center", opacity: saveEditedRecipeM.isPending ? 0.6 : 1 }}
@@ -1937,14 +1762,14 @@ export default function RecipeDetailScreen() {
                       saveEditedRecipeM.mutate({
                         editPrompt: aiEditPrompt,
                         recipe: {
-                          name: recipe.name,
-                          description: (recipe as any).description ?? "",
-                          image: (recipe as any).image ?? "",
-                          thumbnailUrl: (recipe as any).thumbnailUrl ?? (recipe as any).image ?? "",
-                          cookTime: recipe.cookTime ?? undefined,
-                          servings: recipe.servings ?? undefined,
-                          difficulty: (recipe as any).difficulty ?? "",
-                          recipeCategory: (recipe as any).recipeCategory ?? "",
+                          name: aiEditPreview?.name ?? recipe.name,
+                          description: (aiEditPreview as any)?.description ?? (recipe as any).description ?? "",
+                           image: "",
+                           thumbnailUrl: "",
+                          cookTime: aiEditPreview?.cookTime ?? recipe.cookTime ?? undefined,
+                          servings: aiEditPreview?.servings ?? recipe.servings ?? undefined,
+                          difficulty: (aiEditPreview as any)?.difficulty ?? (recipe as any).difficulty ?? "",
+                          recipeCategory: (aiEditPreview as any)?.recipeCategory ?? (recipe as any).recipeCategory ?? "",
                           ingredients: ingredients.map((i: any) => ({
                             name: i.name,
                             quantity: i.quantity ?? "",
@@ -2230,6 +2055,8 @@ export default function RecipeDetailScreen() {
           loading={addShoppingM.isPending}
           defaultDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
           maxDate={planPickerRecipe?.date}
+          onDateChange={setPlanPickerShoppingDate}
+          alreadyAddedKeys={planPickerAlreadyAdded}
           onConfirm={(items) => {
             if (items.length > 0) {
               setLastAddedShoppingDate(items[0].plannedDate || toISODate(new Date()));
@@ -2247,11 +2074,13 @@ export default function RecipeDetailScreen() {
               });
             } else {
               setPlanPickerRecipe(null);
+              setPlanPickerShoppingDate(null);
               setToast({ visible: true, message: "排餐已記錄", type: "info" });
             }
           }}
           onSkip={() => {
             setPlanPickerRecipe(null);
+            setPlanPickerShoppingDate(null);
             setToast({ visible: true, message: "已跳過食材", type: "info" });
           }}
         />
@@ -2296,7 +2125,8 @@ const s = StyleSheet.create({
   sourceLink: { fontSize: 12, color: BRAND, fontWeight: "700" },
 
   // Description
-  description: { fontSize: 14, color: SUB, lineHeight: 21, marginTop: 12, marginBottom: 4 },
+  descriptionCard: { backgroundColor: "#FAFAFA", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, marginTop: 12, marginBottom: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  description: { fontSize: 14, color: SUB, lineHeight: 21 },
 
   // Serving scaler
   scalerCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: CARD, borderRadius: 18, padding: 16, marginTop: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },

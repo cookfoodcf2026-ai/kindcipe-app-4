@@ -8,9 +8,9 @@ import {
   KeyboardAvoidingView, Platform, Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, usePreventRemove } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -162,7 +162,7 @@ export default function ImportScreen() {
   // Pick recipe image
   const handlePickRecipeImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.8,
       base64: false,
     });
@@ -201,7 +201,7 @@ export default function ImportScreen() {
     setEditSteps(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
   const pickStepImage = async (idx: number) => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.7,
       base64: false,
     });
@@ -436,7 +436,7 @@ export default function ImportScreen() {
     const u = url.toLowerCase();
     if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
     if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
-    if (u.includes("xiaohongshu.com") || u.includes("xhslink.com")) return "小紅書";
+    if (u.includes("xiaohongshu.com") || u.includes("xhslink.com") || u.includes("xhslink.cn")) return "小紅書";
     if (u.includes("threads.net")) return "Threads";
     if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
     if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
@@ -599,19 +599,44 @@ export default function ImportScreen() {
 
   // 貼上按鈕邏輯
   const handlePaste = async () => {
-    const content = await Clipboard.getStringAsync();
-    if (content) {
-      setUniversalInput(content);
+    try {
+      const content = await Clipboard.getStringAsync();
+      console.log("[handlePaste] Clipboard content:", content ? content.substring(0, 100) : "empty");
+      if (content) {
+        setUniversalInput(content);
+        const platform = detectPlatform(content.trim());
+        if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+          setClipboardUrl(content.trim());
+          setDetectedPlatform(platform);
+          setClipboardContent(content.trim());
+        }
+      } else {
+        Alert.alert(
+          "剪貼板是空的",
+          "請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上",
+          [{ text: "明白" }]
+        );
+      }
+    } catch (e: any) {
+      console.error("[handlePaste] Error:", e.message);
+      Alert.alert("讀取剪貼板失敗", e.message || "請檢查剪貼板權限");
     }
   };
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
   const handlePickImage = async (source: "camera" | "library") => {
+    if (source === "camera") {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("需要相機權限", "請在系統設定中允許存取相機，才能拍照。");
+        return;
+      }
+    }
     let result: ImagePicker.ImagePickerResult | undefined;
     try {
       result = source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
     } catch (e: any) {
       Alert.alert("開啟失敗", e?.message || "請重試");
       return;
@@ -773,8 +798,8 @@ export default function ImportScreen() {
     }
   }, [importMutation.isPending]);
 
-  // ── 離開確認 ──
-  const hasUnsavedImport = () => {
+  // ── 離開確認（保留 swipe 手勢，screen 唔會先被移除）──
+  const hasUnsavedImport = useMemo(() => {
     if (step === "preview" && parsedRecipe) {
       return true;
     }
@@ -785,31 +810,36 @@ export default function ImportScreen() {
       );
     }
     return false;
-  };
+  }, [step, parsedRecipe, universalInput, pendingScreenshot]);
 
-  useEffect(() => {
-    const sub = navigation.addListener("beforeRemove", (e: any) => {
-      if (!hasUnsavedImport()) return;
-      e.preventDefault();
-      const leaveAction = () => {
-        if (step === "preview" && parsedRecipe) {
-          setStep("input");
-          setParsedRecipe(null);
-        } else {
-          navigation.dispatch(e.data.action);
-        }
-      };
+  // 已確認離開：放行，唔再攔截
+  const [allowLeaveImport, setAllowLeaveImport] = useState(false);
+
+  usePreventRemove(
+    hasUnsavedImport && !allowLeaveImport,
+    ({ data }) => {
       Alert.alert(
         "確定要離開？",
         "已輸入或編輯的內容將不會儲存",
         [
           { text: "繼續編輯", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: leaveAction },
+          {
+            text: "離開",
+            style: "destructive",
+            onPress: () => {
+              if (step === "preview" && parsedRecipe) {
+                setStep("input");
+                setParsedRecipe(null);
+              } else {
+                setAllowLeaveImport(true);
+                navigation.dispatch(data.action);
+              }
+            },
+          },
         ]
       );
-    });
-    return sub;
-  }, [navigation, step, parsedRecipe, universalInput, pendingScreenshot]);
+    }
+  );
 
   // ── 解析中畫面 ──
   if (step === "parsing") {
@@ -857,6 +887,7 @@ export default function ImportScreen() {
     return (
       <>
         <ScrollView style={styles.container}>
+          <View style={{ height: insets.top + 8 }} />
           <View style={styles.previewHeader}>
             <Ionicons name="checkmark-circle" size={32} color="#22C55E" />
             <Text style={styles.previewTitle}>解析成功！</Text>
@@ -996,7 +1027,7 @@ export default function ImportScreen() {
 
                   {step.imageUri ? (
                     <View style={es.stepImageWrap}>
-                      <Image source={{ uri: step.imageUri }} style={es.stepImage} />
+                      <Image source={{ uri: step.imageUri }} style={es.stepImage} onError={() => console.warn("[Import] step image failed to load")} />
                       <TouchableOpacity style={es.stepImageDel} onPress={() => removeStepImage(idx)}>
                         <Ionicons name="close-circle" size={22} color="#EF4444" />
                       </TouchableOpacity>
@@ -1257,8 +1288,9 @@ export default function ImportScreen() {
               autoCorrect={false}
               multiline
               textAlignVertical="top"
+              contextMenuHidden={false}
             />
-            {!universalInput && clipboardContent && (
+            {!universalInput && (
               <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
                 <Ionicons name="document" size={16} color="#013E77" />
                 <Text style={styles.pasteButtonText}>貼上</Text>
@@ -1270,6 +1302,9 @@ export default function ImportScreen() {
               </TouchableOpacity>
             )}
           </View>
+          <Text style={styles.inputHint}>
+            💡 貼上方法：喺 Safari/Instagram 長按連結 → 複製，然後喺呢度長按輸入框 → 貼上，或者撳「貼上」button
+          </Text>
           
           <TouchableOpacity
             style={[styles.parseButton, !universalInput.trim() && styles.parseButtonDisabled]}
@@ -1404,6 +1439,12 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     position: "relative",
+  },
+  inputHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 6,
+    marginBottom: 12,
   },
   universalInput: {
     backgroundColor: "#FFFFFF",
@@ -1578,9 +1619,9 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 14, fontWeight: "600", color: "#9CA3AF" },
   
   // Preview
-  previewHeader: { alignItems: "center", padding: 20, paddingBottom: 12 },
-  previewTitle: { fontSize: 20, fontWeight: "800", color: "#1A1A1A", marginTop: 8 },
-  previewSubtitle: { fontSize: 13, color: "#6B7280" },
+  previewHeader: { alignItems: "center", padding: 20, paddingBottom: 12, backgroundColor: "#EEF4FB", borderRadius: 16, marginHorizontal: 16, marginTop: 16 },
+  previewTitle: { fontSize: 20, fontWeight: "800", color: "#013E77", marginTop: 8 },
+  previewSubtitle: { fontSize: 13, color: "#5A4A3A" },
   
   // Success
   successTitle: { fontSize: 22, fontWeight: "900", color: "#22C55E", marginTop: 16 },

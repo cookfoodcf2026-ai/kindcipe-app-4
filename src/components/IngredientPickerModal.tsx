@@ -65,13 +65,15 @@ interface Props {
   onDateChange?: (date: string) => void;
   showDateSelector?: boolean;
   maxDate?: string;
+  /** #3: 已經喺購物清單嘅 key（`${r.id}::${idx}`）——顯示「已加入」、唔可以再勾 */
+  alreadyAddedKeys?: Set<string>;
   onConfirm: (items: ConfirmedItem[]) => void;
   onSkip: () => void;
 }
 
 export default function IngredientPickerModal({
   visible, recipes, title, initialSelected, loading = false, 
-  defaultDate, onDateChange, showDateSelector = true, maxDate, onConfirm, onSkip,
+  defaultDate, onDateChange, showDateSelector = true, maxDate, alreadyAddedKeys, onConfirm, onSkip,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [date, setDate] = useState(defaultDate ?? (() => {
@@ -113,8 +115,10 @@ export default function IngredientPickerModal({
         const def = new Set<string>();
         recipes.forEach((r) => {
           r.ingredients.forEach((ing, idx) => {
+            const key = `${r.id}::${idx}`;
+            if (alreadyAddedKeys?.has(key)) return;
             if (!isSeasoning(ing.name)) {
-              def.add(`${r.id}::${idx}`);
+              def.add(key);
             }
           });
         });
@@ -125,7 +129,7 @@ export default function IngredientPickerModal({
     if (!visible) {
       initializedRef.current = false;
     }
-  }, [visible, initialSelected, defaultDate]);
+  }, [visible, initialSelected, defaultDate, alreadyAddedKeys]);
 
   const toggle = (key: string) => {
     setSelected((prev) => {
@@ -139,8 +143,10 @@ export default function IngredientPickerModal({
     const newSet = new Set<string>();
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
+        const key = `${r.id}::${idx}`;
+        if (alreadyAddedKeys?.has(key)) return;
         if (!isSeasoning(ing.name)) {
-          newSet.add(`${r.id}::${idx}`);
+          newSet.add(key);
         }
       });
     });
@@ -151,7 +157,9 @@ export default function IngredientPickerModal({
     const newSet = new Set<string>();
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
-        newSet.add(`${r.id}::${idx}`);
+        const key = `${r.id}::${idx}`;
+        if (alreadyAddedKeys?.has(key)) return;
+        newSet.add(key);
       });
     });
     setSelected(newSet);
@@ -165,7 +173,9 @@ export default function IngredientPickerModal({
     const items: ConfirmedItem[] = [];
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
-        if (selected.has(`${r.id}::${idx}`)) {
+        const key = `${r.id}::${idx}`;
+        if (alreadyAddedKeys?.has(key)) return;
+        if (selected.has(key)) {
           items.push({
             recipeId: r.id,
             recipeName: r.name,
@@ -180,7 +190,7 @@ export default function IngredientPickerModal({
       });
     });
     return items;
-  }, [recipes, selected, date]);
+  }, [recipes, selected, date, alreadyAddedKeys]);
 
   const totalIngredients = useMemo(
     () => recipes.reduce((sum, r) => sum + r.ingredients.length, 0),
@@ -279,19 +289,25 @@ export default function IngredientPickerModal({
                   </View>
                   {items.map(({ ing, key, recipeName }) => {
                     const isOn = selected.has(key);
+                    const isAdded = alreadyAddedKeys?.has(key) ?? false;
                     return (
                       <TouchableOpacity
                         key={key}
-                        style={s.row}
-                        onPress={() => toggle(key)}
+                        style={[s.row, isAdded && s.rowAdded]}
+                        onPress={() => { if (!isAdded) toggle(key); }}
+                        activeOpacity={isAdded ? 1 : 0.7}
                       >
                         <View style={[s.dot, isOn && s.dotActive]}>
                           {isOn && <Ionicons name="checkmark" size={12} color="#fff" />}
                         </View>
-                        <Text style={s.ingName} numberOfLines={1}>
+                        <Text style={[s.ingName, isAdded && s.ingNameAdded]} numberOfLines={1}>
                           {ing.name}
                         </Text>
-                        <Text style={s.qty}>{ing.quantity} {ing.unit}</Text>
+                        {isAdded ? (
+                          <Text style={s.addedTag}>已加入</Text>
+                        ) : (
+                          <Text style={s.qty}>{ing.quantity} {ing.unit}</Text>
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -326,6 +342,8 @@ export default function IngredientPickerModal({
                   ? "加入中..."
                   : confirmItems.length > 0
                   ? `加入 ${confirmItems.length} 項食材`
+                  : alreadyAddedKeys && alreadyAddedKeys.size > 0
+                  ? "全部已加入購物清單"
                   : `跳過（共 ${totalIngredients} 項）`}
               </Text>
             </TouchableOpacity>
@@ -480,6 +498,23 @@ const s = StyleSheet.create({
   qty: {
     fontSize: 12,
     color: SUB,
+  },
+  rowAdded: {
+    opacity: 0.55,
+  },
+  ingNameAdded: {
+    textDecorationLine: "line-through",
+    color: SUB,
+  },
+  addedTag: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#16A34A",
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: "hidden",
   },
   footer: {
     paddingHorizontal: 16,

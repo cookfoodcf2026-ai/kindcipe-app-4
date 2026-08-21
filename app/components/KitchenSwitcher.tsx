@@ -15,6 +15,8 @@ export default function KitchenSwitcher() {
 
   if (!isAuthenticated) return null;
 
+  const hasMultipleKitchens = families.length > 1;
+
   const handleSelect = async (family: any) => {
     await switchFamily(String(family.id));
     setShowSheet(false);
@@ -24,17 +26,23 @@ export default function KitchenSwitcher() {
     <>
       <TouchableOpacity
         style={s.trigger}
-        onPress={() => setShowSheet(true)}
+        onPress={() => {
+          if (hasMultipleKitchens) {
+            setShowSheet(true);
+            return;
+          }
+          router.push("/kitchen-settings");
+        }}
         activeOpacity={0.7}
       >
         <Ionicons name="home-outline" size={14} color="#fff" />
         <Text style={s.triggerText} numberOfLines={1}>
           {activeFamily?.name || "廚房"}
         </Text>
-        <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.7)" />
+        <Ionicons name={hasMultipleKitchens ? "chevron-down" : "settings-outline"} size={12} color="rgba(255,255,255,0.7)" />
       </TouchableOpacity>
 
-      <Modal visible={showSheet} transparent animationType="slide">
+      <Modal visible={showSheet && hasMultipleKitchens} transparent animationType="slide">
         <View style={s.overlay}>
           <TouchableOpacity
             style={s.backdrop}

@@ -10,8 +10,10 @@ import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
+import Toast from "@/src/components/Toast";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import UnitPicker from "@/src/components/UnitPicker";
+import { DateUtil } from "@/src/lib/DateUtil";
 import {
   SHOPPING_TEMPLATES,
   templateToShoppingItems,
@@ -47,6 +49,7 @@ export default function ShoppingTemplatesScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const utils = trpc.useUtils();
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
   const templateIdParam = params.templateId as string;
   const dateParam = params.date as string;
@@ -54,10 +57,7 @@ export default function ShoppingTemplatesScreen() {
   // 1. 核心狀態
   const [selectedTemplate, setSelectedTemplate] = useState<ShoppingTemplate | null>(null);
   const [peopleCount, setPeopleCount] = useState(4); // 預設 4 人
-  const [planDate, setPlanDate] = useState<string | null>(() => {
-    const d = new Date();
-    return d.toISOString().split("T")[0]; // YYYY-MM-DD
-  });
+  const [planDate, setPlanDate] = useState<string | null>(DateUtil.todayISO());
   const planDateLabel = planDate ?? "未設定";
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [quantityOverrides, setQuantityOverrides] = useState<Record<string, number>>({});
@@ -103,16 +103,13 @@ export default function ShoppingTemplatesScreen() {
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("已加入購物車", `已將選取嘅食材加入購物車 🛒\n預定日子：${planDateLabel}`, [
-        { text: "繼續選購", style: "cancel" },
-        { text: "查看購物車", onPress: () => router.push("/shopping") },
-      ]);
+      setToast({ visible: true, message: `✅ 已將所選食材加入購物車（預定日子：${planDateLabel}）`, type: "success" });
       setSelectedTemplate(null);
       setSelectedItems(new Set());
       setQuantityOverrides({});
       setCustomItems([]);
     },
-    onError: (e) => Alert.alert("加入失敗", e.message),
+    onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
   });
   
   // 載入已儲存清單
@@ -1651,6 +1648,13 @@ export default function ShoppingTemplatesScreen() {
         </Modal>
 
       </KeyboardAvoidingView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+      />
     </>
   );
 }

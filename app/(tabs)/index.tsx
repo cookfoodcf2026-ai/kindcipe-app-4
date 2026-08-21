@@ -5,7 +5,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
@@ -25,6 +25,7 @@ import FilterModal from "@/src/components/FilterModal";
 import RecipeCard from "@/src/components/RecipeCard";
 import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
+import { DateUtil } from "@/src/lib/DateUtil";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -77,12 +78,10 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
   todayEatOut: boolean;
   router: ReturnType<typeof useRouter>;
 }) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = DateUtil.todayISO();
   
   // Query next 14 days of meal plans
-  const endDate = new Date(todayStr);
-  endDate.setDate(endDate.getDate() + 13); // Include today = 14 days total
-  const endDateStr = endDate.toISOString().split("T")[0];
+  const endDateStr = DateUtil.addDays(todayStr, 13); // Include today = 14 days total
   
   const { data: futureMeals = [] } = trpc.mealPlan.listByDateRange.useQuery(
     { startDate: todayStr, endDate: endDateStr },
@@ -114,14 +113,20 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(todayDinnerPlan), badge: "今天" });
   }
 
-  confirmedDinners.forEach((m: any) => {
-    const date = new Date(m.date);
-    const diffDays = Math.floor((date.getTime() - new Date(todayStr).getTime()) / 86400000);
-    let label = `${date.getMonth() + 1}月${date.getDate()}日`;
-    if (diffDays === 0) label = "今天";
-    else if (diffDays === 1) label = "明天";
-    else if (diffDays === 2) label = "後天";
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(m), badge: label });
+  confirmedDinners.forEach((m: any, idx: number) => {
+    let badge: string | undefined = undefined;
+    
+    // 只為第一個晚餐計算日期標籤（跟返購物清單做法）
+    if (idx === 0) {
+      const date = DateUtil.parseDate(m.date);
+      const diffDays = DateUtil.daysBetween(todayStr, m.date);
+      if (diffDays === 0) badge = "今天";
+      else if (diffDays === 1) badge = "明天";
+      else if (diffDays === 2) badge = "後天";
+      else badge = `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+    
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(m), badge });
   });
 
   const visibleDinnerRows = dinnerRows.slice(0, 3);
@@ -147,7 +152,8 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
             <View key={idx} style={s.dualCardRow}>
               <Ionicons name={row.icon as any} size={12} color={row.iconColor} />
               <Text style={s.dualCardRowText} numberOfLines={1}>{row.text}</Text>
-              {row.badge && (
+              {/* 只喺第一個項目顯示日期標籤（跟返購物清單做法） */}
+              {idx === 0 && row.badge && (
                 <View style={row.badgeKind === "conflict" ? s.conflictBadge : s.dateBadge}>
                   <Text style={row.badgeKind === "conflict" ? s.conflictBadgeText : s.dateBadgeText}>{row.badge}</Text>
                 </View>
@@ -174,12 +180,10 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
 function ShoppingListPreview({ router }: {
   router: ReturnType<typeof useRouter>;
 }) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = DateUtil.todayISO();
   
   // Calculate end date (14 days from today)
-  const endDate = new Date(todayStr);
-  endDate.setDate(endDate.getDate() + 13); // Include today = 14 days total
-  const endDateStr = endDate.toISOString().split("T")[0];
+  const endDateStr = DateUtil.addDays(todayStr, 13); // Include today = 14 days total
   
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
     staleTime: 1000 * 30,
@@ -210,9 +214,7 @@ function ShoppingListPreview({ router }: {
     
     if (!firstItemDate) return null;
     
-    const diffDays = Math.floor(
-      (new Date(firstItemDate).getTime() - new Date(todayStr).getTime()) / 86400000
-    );
+    const diffDays = DateUtil.daysBetween(todayStr, firstItemDate);
     
     if (diffDays === 0) return "今天";
     if (diffDays === 1) return "明天";
@@ -433,6 +435,7 @@ export default function RecipesTab() {
   const { height: screenHeight } = useWindowDimensions();
   const cardImageRatio = getRecipeCardImageRatio(screenHeight);
   const router = useRouter();
+  const { initialViewMode } = useLocalSearchParams<{ initialViewMode?: string }>();
   const utils = trpc.useUtils();
   const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
   const { user, familyRole } = useAuth();
@@ -476,6 +479,14 @@ export default function RecipesTab() {
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
   const searchInputRef = useRef<TextInput>(null);
   const skeletonAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (initialViewMode === "official" || initialViewMode === "user") {
+      setViewMode(initialViewMode);
+      router.setParams({ initialViewMode: undefined } as any);
+    }
+  }, [initialViewMode, router]);
+
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
     // Load search history
@@ -514,22 +525,22 @@ export default function RecipesTab() {
   };
 
   const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; image?: string; ingredients?: any[] } | null>(null);
-  const [quickPlanDate, setQuickPlanDate] = useState<string | null>(() => new Date().toISOString().split("T")[0]);
+  const [quickPlanDate, setQuickPlanDate] = useState<string | null>(DateUtil.todayISO());
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = DateUtil.todayISO();
   const { data: todayMeals = [] } = trpc.mealPlan.listByDateRange.useQuery({ startDate: todayStr, endDate: todayStr }, { staleTime: 30000 });
 
   // Use useMemo to stabilize weekStart calculation (fixes infinite re-query issue)
   const { weekStartStr, todayDow } = useMemo(() => {
-    const today = new Date(todayStr);
+    const today = DateUtil.parseDate(todayStr);
     const weekStart = new Date(today);
     const dayOfWeek = weekStart.getDay();
     const diff = weekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
     weekStart.setDate(diff);
-    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const weekStartStr = DateUtil.toISODate(weekStart);
     const todayDow = today.getDay() + 1; // 1=Mon, 7=Sun
     return { weekStartStr, todayDow };
   }, [todayStr]);
@@ -585,6 +596,13 @@ export default function RecipesTab() {
   const { data: userRecipes = [], isLoading: loadingUser } =
     trpc.recipes.listUser.useQuery({ limit: 200 }, { staleTime: 60000 });
 
+  const drafts = (userRecipes as any[])?.filter((r: any) => r.isDraft) ?? [];
+  const draftIdSet = useMemo(() => {
+    const set = new Set<string>();
+    drafts.forEach((d: any) => set.add(String(d.id)));
+    return set;
+  }, [drafts]);
+
   const isLoading = searchLoading || loadingUser;
 
   const addMealM = trpc.mealPlan.add.useMutation({
@@ -613,8 +631,6 @@ export default function RecipesTab() {
         }
       }
       
-      await invalidateMealPlanAndCart();
-
       // Find recipe from search results
       const found = searchRecipes.find((r: any) => r.id === variables.recipeId) as any;
       if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
@@ -628,6 +644,8 @@ export default function RecipesTab() {
       } else {
         setToast({ visible: true, message: "已加入排餐", type: "info" });
       }
+
+      void invalidateMealPlanAndCart();
     },
     onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
   });
@@ -640,11 +658,11 @@ export default function RecipesTab() {
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: async (_, variables) => {
-      await invalidateMealPlanAndCart();
       utils.shopping.list.refetch();
       const count = variables.items.length;
       setPlanPickerRecipe(null);
       setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
+      void invalidateMealPlanAndCart();
     },
     onError: (e) => {
       setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
@@ -668,6 +686,22 @@ export default function RecipesTab() {
       pool = pool.filter((r: any) => r.source === "custom");
     }
 
+    // Deduplicate by recipe id (keep first occurrence)
+    const seen = new Set<string>();
+    pool = pool.filter((r: any) => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+
+    // Hide drafts from the public grid (they resume via 新增食譜 / 編輯草稿, not here)
+    if (draftIdSet.size > 0) {
+      pool = pool.filter((r: any) => {
+        const rawId = String(r.id).replace(/^user_/, "");
+        return !draftIdSet.has(rawId);
+      });
+    }
+
     // Apply sorting
     if (sortBy === "popular") {
       // Backend already sorts by popularity (relevance → popularity → created_at)
@@ -679,17 +713,20 @@ export default function RecipesTab() {
     }
 
     return pool;
-  }, [searchRecipes, viewMode, sortBy]);
+  }, [searchRecipes, viewMode, sortBy, draftIdSet]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      refetchSearch(),
-      invalidateMealPlanAndCart(),
-      utils.recipes.listUser.invalidate(),
-      utils.weeklyMenu.getWeek.invalidate(),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        refetchSearch(),
+        invalidateMealPlanAndCart(),
+        utils.recipes.listUser.invalidate().catch(() => {}),
+        utils.weeklyMenu.getWeek.invalidate().catch(() => {}),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const navigateToRecipe = (item: any) => {
@@ -1094,8 +1131,8 @@ export default function RecipesTab() {
                 <Ionicons name="flame-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>還沒有食譜</Text>
                 <Text style={s.emptySub}>從 Instagram、YouTube 匯入你喜歡的食譜</Text>
-                <TouchableOpacity style={s.emptyBtn} onPress={() => router.push("/import")}>
-                  <Text style={s.emptyBtnTxt}>+ 匯入食譜</Text>
+                <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
+                  <Text style={s.emptyBtnTxt}>+ 篩選食譜</Text>
                 </TouchableOpacity>
               </>
             ) : (

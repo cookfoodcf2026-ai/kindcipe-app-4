@@ -25,9 +25,14 @@ const SEASONING_KEYWORDS_LOWER: string[] = (SEASONING_KEYWORDS as readonly strin
 /**
  * 判斷食材是否調味料／家中常備
  * 用子字串匹配，但會順序檢查（長字串優先由清單順序保證）
+ * 排除菜式詞（飯/麵/湯/煲/扒/排/餸 …）避免「雞油飯」被誤判為調味料。
  */
+const DISH_NAME_MARKERS = ["飯", "麵", "湯", "煲", "扒", "排", "餸", "料理", "菜式", "粥", "點心", "火鍋"];
+
 export function isSeasoning(name: string): boolean {
   const n = name.toLowerCase();
+  // 含菜式詞 → 一定唔係調味料
+  if (DISH_NAME_MARKERS.some((m) => n.includes(m))) return false;
   return SEASONING_KEYWORDS_LOWER.some((kw) => n.includes(kw));
 }
 

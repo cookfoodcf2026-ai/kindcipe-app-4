@@ -109,14 +109,23 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
           backgroundColor: colors.neutral.lightGray,
         }}
       >
-        <Image
-          source={{ uri: recipe.image }}
-          style={{
-            width: '100%',
-            height: '100%',
-            resizeMode: 'cover',
-          }}
-        />
+        {recipe.image ? (
+          <Image
+            source={{ uri: recipe.image }}
+            style={{
+              width: '100%',
+              height: '100%',
+              resizeMode: 'cover',
+            }}
+            onError={() => console.log('[RecipeDetailScreen] Image load failed:', recipe.title)}
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.xl, backgroundColor: colors.primary.navy }}>
+            <Text style={{ fontSize: 34, fontWeight: '900', color: '#fff', textAlign: 'center', lineHeight: 42 }} numberOfLines={2}>
+              {recipe.title}
+            </Text>
+          </View>
+        )}
 
         {/* 浮動按鈕 - 返回、收藏、分享 */}
         <View

@@ -1,343 +1,647 @@
-/**
- * 更多功能 Tab
- * 快速入口：AI助手 / 家中儲備 / 晚餐推薦 / 採購紀錄 / 自訂食譜 / 街市指南 / 設定
- */
+import { useMemo, useRef, useState } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Modal,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  useWindowDimensions,
 } from "react-native";
+import type { ComponentType, ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { colors } from "@/app/styles/colors";
+import { theme } from "@/app/styles/theme";
+import { typography } from "@/app/styles/typography";
+import {
+  BookmarkIcon,
+  RecipeIcon,
+  ImportIcon,
+  StarIcon,
+  PlannerIcon,
+  ShoppingIcon,
+  HomeIcon,
+  ReceiptIcon,
+  ChefHatIcon,
+  SettingsIcon,
+  LogOutIcon,
+  AddIcon,
+  ChatBubbleIcon,
+  BasketIcon,
+  XIcon,
+} from "@/src/components/icons";
 
-const BRAND = "#013E77";
-const BG = "#F5F8FC";
-const CARD = "#FFFFFF";
-const TEXT = "#1A1A1A";
-const SUB = "#9CA3AF";
-
-// 極簡統一風格：所有圖示統一深藍色 + 淺藍灰背景
-const UNIFIED_ICON_BG = "#EEF4FB";
-const UNIFIED_ICON_COLOR = "#013E77";
-
-type MenuItemDef = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  sub: string;
-  route: string;
-  iconBg: string;
-  iconColor: string;
-  badge?: string;
+type FeatureCardProps = {
+  title: string;
+  subtitle: string;
+  Icon: ComponentType<{ size?: number; color?: string }>;
+  accent?: "navy" | "copper";
+  onPress: () => void;
+  accessibilityLabel: string;
+  disabled?: boolean;
+  compact?: boolean;
 };
 
-const MENU_ITEMS: MenuItemDef[] = [
-  {
-    icon: "chatbubble-ellipses",
-    label: "AI 食譜助手",
-    sub: "告訴我你想吃什麼",
-    route: "/ai-chef",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "cube-outline",
-    label: "家中儲備",
-    sub: "管理食品/用品庫存",
-    route: "/pantry",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "calendar-outline",
-    label: "晚餐推薦",
-    sub: "本週/下週餐單設定",
-    route: "/weekly-menu",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "receipt-outline",
-    label: "採購紀錄",
-    sub: "購買歷史與常買商品",
-    route: "/purchase-history",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "add-circle-outline",
-    label: "新增食譜",
-    sub: "貼連結、貼文字、截圖上傳",
-    route: "/import",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "storefront-outline",
-    label: "街市指南",
-    sub: "97 個香港濕貨市場",
-    route: "/markets",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "basket-outline",
-    label: "聚會買餸單",
-    sub: "打邊爐/BBQ 一鍵買齊",
-    route: "/shopping-templates",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "cart-outline",
-    label: "智能補貨",
-    sub: "缺貨/即將耗盡補充",
-    route: "/restock",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "server-outline",
-    label: "管理員面板",
-    sub: "食譜 CRUD・數據分析",
-    route: "/admin",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "home-outline",
-    label: "管理廚房",
-    sub: "切換廚房・成員管理・設定",
-    route: "/kitchen-settings",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-  {
-    icon: "settings-outline",
-    label: "設定",
-    sub: "語言・訂閱・帳戶",
-    route: "/settings",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-];
-
-// 管理員專用選單：一般用戶隱藏（分類為 AI 週餐推薦基礎，僅供系統/管理員調整）
-const ADMIN_MENU_ITEMS: MenuItemDef[] = [
-  {
-    icon: "funnel-outline",
-    label: "分類管理",
-    sub: "系統食譜分類",
-    route: "/category-manager",
-    iconBg: UNIFIED_ICON_BG,
-    iconColor: UNIFIED_ICON_COLOR,
-  },
-];
-
-export default function MoreTab() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user, logout } = useAuth();
-
-  // 過濾選單：隱藏未完成功能，以及非管理員的後台按鈕
-  const visibleMenuItems = MENU_ITEMS.filter(item => {
-    // 1. 隱藏未完成的「家中儲備」與「智能補貨」
-    if (item.route === "/pantry" || item.route === "/restock") {
-      return false;
-    }
-    // 2. 隱藏非 admin 帳戶的「管理員面板」
-    if (item.route === "/admin") {
-      return user?.role === "admin";
-    }
-    return true;
-  });
-
-  // 管理員專用選單（一般用戶唔顯示）
-  const adminMenuItems = ADMIN_MENU_ITEMS.filter(item => {
-    if (item.route === "/category-manager") {
-      return user?.role === "admin";
-    }
-    return true;
-  });
-
-  const allVisibleItems = [...visibleMenuItems, ...adminMenuItems];
-
-  const handleLogout = () => {
-    Alert.alert("登出", "確定要登出嗎？", [
-      { text: "取消", style: "cancel" },
-      { text: "登出", style: "destructive", onPress: () => logout() },
-    ]);
-  };
-
-  // Fetch today summary data
-  // BUG#14 FIX: removed unused todayStr variable
-  const { data: pantryData = [] } = trpc.pantry.list.useQuery(undefined, { staleTime: 60000 });
-  const outOfStock = pantryData.filter((i: any) => i.inStock === false).length;
-  const lowStock = pantryData.filter((i: any) => i.isLow).length;
-
+function SectionHeader({ title }: { title: string }) {
   return (
-    <View style={s.root}>
-      {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
-        <View>
-          <Text style={s.headerTitle}>更多功能</Text>
-          <Text style={s.headerSub}>
-            {user?.name ? `嗨，${user.name.split(" ")[0]}` : "全部功能"}
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} style={s.scroll}>
-        {/* Quick status cards */}
-        {(outOfStock > 0 || lowStock > 0) && (
-          <TouchableOpacity style={s.alertBanner} onPress={() => router.push("/pantry")}>
-            <View style={s.alertIcon}>
-              <Ionicons name="alert-circle" size={18} color={BRAND} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.alertTitle}>家中儲備需要補充</Text>
-              <Text style={s.alertSub}>
-                {outOfStock > 0 ? `${outOfStock} 件缺貨` : ""}
-                {outOfStock > 0 && lowStock > 0 ? " · " : ""}
-                {lowStock > 0 ? `${lowStock} 件即將耗盡` : ""}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={BRAND} />
-          </TouchableOpacity>
-        )}
-
-        {/* Menu grid */}
-        <View style={s.grid}>
-          {allVisibleItems.map(item => (
-            <TouchableOpacity
-              key={item.route}
-              style={s.gridItem}
-              onPress={() => {
-                if (item.route === "/weekly-menu") {
-                  router.push({ pathname: "/(tabs)/planner", params: { openRecommend: "true" } });
-                } else {
-                  router.push(item.route as any);
-                }
-              }}
-            >
-              <View style={[s.gridIcon, { backgroundColor: item.iconBg }]}>
-                <Ionicons name={item.icon} size={26} color={item.iconColor} />
-              </View>
-              <Text style={s.gridLabel}>{item.label}</Text>
-              <Text style={s.gridSub} numberOfLines={1}>{item.sub}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Logout */}
-        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color={SUB} />
-          <Text style={s.logoutTxt}>登出</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
-      </ScrollView>
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionMarker} />
+      <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+function FeatureCard({
+  title,
+  subtitle,
+  Icon,
+  accent = "navy",
+  onPress,
+  accessibilityLabel,
+  disabled = false,
+}: FeatureCardProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && styles.cardPressed,
+        disabled && styles.cardDisabled,
+      ]}
+    >
+      <View style={[styles.cardIconWrap, accent === "copper" && styles.cardIconWrapCopper]}>
+        <Icon size={24} color={accent === "copper" ? colors.primary.copper : colors.primary.navy} />
+      </View>
+      <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+      <Text style={styles.cardSubtitle}>{subtitle}</Text>
+    </Pressable>
+  );
+}
 
-  header: {
-    backgroundColor: BRAND,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+function ModalSheet({
+  visible,
+  title,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{title}</Text>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="關閉" style={styles.closeBtn}>
+              <XIcon size={18} color={colors.neutral.darkGray} />
+            </Pressable>
+          </View>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+export default function MoreTab() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const { user, isLoading, isAuthenticated, familyRole, logoutAsync, logoutPending, resetLogout } = useAuth();
+  const navLockRef = useRef(false);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showLogoutSheet, setShowLogoutSheet] = useState(false);
+  const [logoutMsg, setLogoutMsg] = useState<string | null>(null);
+
+  const firstName = useMemo(() => {
+    const raw = user?.name?.trim();
+    if (!raw) return "";
+    return raw.split(/\s+/)[0];
+  }, [user?.name]);
+
+  const greetingName = firstName || "你";
+
+  const cardWidth = useMemo(() => {
+    const horizontal = 20;
+    const gap = 12;
+    return Math.floor((width - horizontal * 2 - gap) / 2);
+  }, [width]);
+
+  const navigate = (action: () => void) => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
+    action();
+    setTimeout(() => {
+      navLockRef.current = false;
+    }, 350);
+  };
+
+  const goToRecipes = (viewMode: "official" | "user") => {
+    navigate(() => {
+      router.push({ pathname: "/(tabs)", params: { initialViewMode: viewMode } } as any);
+    });
+  };
+
+  const goToComingSoon = (title: string, subtitle: string, message: string) => {
+    navigate(() => {
+      router.push({ pathname: "/coming-soon", params: { title, subtitle, message } } as any);
+    });
+  };
+
+  const handleLogoutConfirm = async () => {
+    setLogoutMsg(null);
+    try {
+      await logoutAsync();
+    } catch (e: any) {
+      setLogoutMsg(e?.message || "登出失敗，請再試一次。");
+    }
+  };
+
+  const recipeCards = [
+    {
+      title: "官方食譜",
+      subtitle: "瀏覽平台精選食譜",
+      Icon: RecipeIcon,
+      onPress: () => goToRecipes("official"),
+      accessibilityLabel: "官方食譜，瀏覽平台精選食譜",
+    },
+    {
+      title: "網紅食譜",
+      subtitle: "探索創作者熱門菜式",
+      Icon: StarIcon,
+      accent: "copper" as const,
+      onPress: () => goToComingSoon("網紅食譜", "探索創作者熱門菜式", "暫時沒有可顯示的網紅食譜。之後會接入已驗證的創作者內容。"),
+      accessibilityLabel: "網紅食譜，探索創作者熱門菜式",
+    },
+    {
+      title: "我的食譜",
+      subtitle: "管理你的自建與匯入食譜",
+      Icon: BookmarkIcon,
+      onPress: () => {
+        if (!isAuthenticated) {
+          Alert.alert("需要登入", "請先登入後再查看你的食譜。", [{ text: "取消", style: "cancel" }, { text: "登入", onPress: () => router.push("/login") }]);
+          return;
+        }
+        goToRecipes("user");
+      },
+      accessibilityLabel: "我的食譜，管理你的自建與匯入食譜",
+    },
+    {
+      title: "新增食譜",
+      subtitle: "貼上連結或手動建立",
+      Icon: AddIcon,
+      onPress: () => setShowAddSheet(true),
+      accessibilityLabel: "新增食譜，貼上連結或手動建立",
+    },
+  ];
+
+  const smartCards = [
+    {
+      title: "AI 助手",
+      subtitle: "AI Chef，解答煮食問題",
+      Icon: ChatBubbleIcon,
+      onPress: () => navigate(() => router.push("/ai-chef")),
+      accessibilityLabel: "AI 助手，AI Chef，解答煮食問題",
+    },
+    {
+      title: "今日餐單",
+      subtitle: "查看今日菜式與煮食步驟",
+      Icon: PlannerIcon,
+      onPress: () => navigate(() => router.push("/(tabs)/planner")),
+      accessibilityLabel: "今日餐單，查看今日菜式與煮食步驟",
+    },
+  ];
+
+  const familyCards = [
+    {
+      title: "聚會買餸單",
+      subtitle: "快速整理聚會採購",
+      Icon: BasketIcon,
+      onPress: () => navigate(() => router.push("/shopping-templates")),
+      accessibilityLabel: "聚會買餸單，快速整理聚會採購",
+    },
+    {
+      title: "管理廚房",
+      subtitle: "管理廚房與成員",
+      Icon: HomeIcon,
+      onPress: () => navigate(() => router.push("/kitchen-settings")),
+      accessibilityLabel: "管理廚房與成員",
+    },
+    {
+      title: "採購記錄",
+      subtitle: "查看過往採購內容",
+      Icon: ReceiptIcon,
+      onPress: () => navigate(() => router.push("/purchase-history")),
+      accessibilityLabel: "採購記錄，查看過往採購內容",
+    },
+    {
+      title: "廚房學堂",
+      subtitle: "學識切、醃、炒、蒸、煮",
+      Icon: ChefHatIcon,
+      accent: "copper" as const,
+      onPress: () => goToComingSoon("廚房學堂", "學識切、醃、炒、蒸、煮", "廚房學堂仍在準備中，之後會提供一步一步的烹飪教學。"),
+      accessibilityLabel: "廚房學堂，學識切、醃、炒、蒸、煮",
+    },
+  ];
+
+  return (
+    <View style={styles.root}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerTitle}>更多功能</Text>
+          <Text style={styles.headerSub}>嗨，{greetingName}，今天想煮什麼？</Text>
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 88, 112) }}
+      >
+        {isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={colors.primary.navy} />
+          </View>
+        ) : null}
+
+        <View style={styles.content}>
+          <View style={styles.sectionBlock}>
+            <SectionHeader title="食譜入口" />
+            <View style={styles.grid}>
+              {recipeCards.map((item) => (
+                <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
+                  <FeatureCard {...item} />
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <SectionHeader title="智能與靈感" />
+            <View style={styles.grid}>
+              {smartCards.map((item) => (
+                <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
+                  <FeatureCard {...item} />
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <SectionHeader title="採購與家庭" />
+            <View style={styles.grid}>
+              {familyCards.map((item) => (
+                <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
+                  <FeatureCard {...item} />
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <SectionHeader title="帳戶" />
+            <View style={styles.grid}>
+              <View style={[styles.gridCell, { width: cardWidth }]}>
+              <FeatureCard
+                  title="設定"
+                  subtitle="語言、通知與帳戶設定"
+                  Icon={SettingsIcon}
+                  onPress={() => navigate(() => router.push("/settings"))}
+                  accessibilityLabel="設定，語言、通知與帳戶設定"
+                />
+              </View>
+              <View style={[styles.gridCell, { width: cardWidth }]}>
+                <FeatureCard
+                  title="登出"
+                  subtitle="安全登出目前帳戶"
+                  Icon={LogOutIcon}
+                  onPress={() => {
+                    setLogoutMsg(null);
+                    resetLogout();
+                    setShowLogoutSheet(true);
+                  }}
+                  accessibilityLabel="登出，安全登出目前帳戶"
+                  accent="copper"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      <ModalSheet
+        visible={showAddSheet}
+        title="新增食譜"
+        onClose={() => setShowAddSheet(false)}
+      >
+        <View style={styles.sheetBody}>
+          <Pressable
+            style={({ pressed }) => [styles.sheetOption, pressed && styles.sheetOptionPressed]}
+            onPress={() => {
+              setShowAddSheet(false);
+              navigate(() => router.push("/import"));
+            }}
+          >
+            <ImportIcon size={22} color={colors.primary.navy} />
+            <View style={styles.sheetOptionTextWrap}>
+              <Text style={styles.sheetOptionTitle}>匯入和新增食譜</Text>
+              <Text style={styles.sheetOptionSub}>貼上連結、文字或截圖</Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.sheetOption, pressed && styles.sheetOptionPressed]}
+            onPress={() => {
+              setShowAddSheet(false);
+              navigate(() => router.push("/recipe-editor"));
+            }}
+          >
+            <RecipeIcon size={22} color={colors.primary.navy} />
+            <View style={styles.sheetOptionTextWrap}>
+              <Text style={styles.sheetOptionTitle}>新增空白食譜</Text>
+              <Text style={styles.sheetOptionSub}>自己慢慢建立食譜內容</Text>
+            </View>
+          </Pressable>
+
+          <Pressable style={styles.sheetCancel} onPress={() => setShowAddSheet(false)}>
+            <Text style={styles.sheetCancelText}>取消</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+
+      <ModalSheet
+        visible={showLogoutSheet}
+        title="確定要登出嗎？"
+        onClose={() => {
+          if (logoutPending) return;
+          setLogoutMsg(null);
+          setShowLogoutSheet(false);
+        }}
+      >
+        <View style={styles.logoutBody}>
+          <Text style={styles.logoutMsg}>登出後需要重新登入才能使用帳戶功能。</Text>
+          {logoutMsg ? <Text style={styles.logoutError}>{logoutMsg}</Text> : null}
+
+          <Pressable
+            style={({ pressed }) => [styles.logoutConfirm, pressed && !logoutPending && styles.logoutConfirmPressed, logoutPending && styles.logoutConfirmDisabled]}
+            disabled={logoutPending}
+            onPress={handleLogoutConfirm}
+          >
+            {logoutPending ? (
+              <ActivityIndicator color={colors.neutral.white} />
+            ) : (
+              <Text style={styles.logoutConfirmText}>登出</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.sheetCancel, pressed && styles.sheetOptionPressed]}
+            onPress={() => {
+              if (logoutPending) return;
+              setLogoutMsg(null);
+              setShowLogoutSheet(false);
+            }}
+          >
+            <Text style={styles.sheetCancelText}>取消</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.primary.cream,
   },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
-  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 3 },
-
-  scroll: { flex: 1 },
-
-  alertBanner: {
+  header: {
+    backgroundColor: colors.primary.navy,
+    paddingHorizontal: 20,
+    paddingBottom: 22,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  headerTextWrap: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  headerTitle: {
+    ...typography.h1,
+    color: colors.neutral.white,
+  },
+  headerSub: {
+    ...typography.body,
+    color: "rgba(255,255,255,0.82)",
+    marginTop: 6,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+  },
+  loadingWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+  },
+  sectionBlock: {
+    marginBottom: 18,
+  },
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    margin: 16,
-    marginBottom: 8,
-    backgroundColor: "#EEF4FB",
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: "#D4E4F7",
+    marginBottom: 12,
   },
-  alertIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#D4E4F7",
-    alignItems: "center",
-    justifyContent: "center",
+  sectionMarker: {
+    width: 18,
+    height: 4,
+    borderRadius: 99,
+    backgroundColor: colors.primary.copper,
+    marginRight: 8,
   },
-  alertTitle: { fontSize: 13, fontWeight: "700", color: BRAND },
-  alertSub: { fontSize: 11, color: SUB, marginTop: 2 },
-
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.primary.darkGray,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    gap: 10,
+    justifyContent: "space-between",
+    gap: 12,
   },
-  gridItem: {
-    width: "30%",
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-    shadowColor: "#013E77",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    flexGrow: 1,
+  gridCell: {
+    marginBottom: 0,
   },
-  gridIcon: {
-    width: 56,
-    height: 56,
+  card: {
+    width: "100%",
+    minHeight: 146,
+    backgroundColor: colors.neutral.white,
     borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E3ECF5",
+    padding: 14,
+    shadowColor: "#01213A",
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
+    borderColor: "#C9D8E8",
+    backgroundColor: "#F9FCFF",
+  },
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  cardIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: "#EEF4FB",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 14,
   },
-  gridLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: TEXT,
-    textAlign: "center",
-    marginBottom: 4,
+  cardIconWrapCopper: {
+    backgroundColor: "#FFF4DC",
   },
-  gridSub: {
-    fontSize: 10,
-    color: SUB,
-    textAlign: "center",
-    lineHeight: 13,
+  cardTitle: {
+    ...typography.body,
+    fontWeight: "800",
+    color: colors.primary.darkGray,
+    marginBottom: 5,
   },
-
-  logoutBtn: {
+  cardSubtitle: {
+    ...typography.bodySmall,
+    color: colors.neutral.darkGray,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.42)",
+    justifyContent: "flex-end",
+    padding: 16,
+  },
+  sheet: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 22,
+    padding: 16,
+  },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#D8E4F0",
+    alignSelf: "center",
+    marginBottom: 12,
+  },
+  sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 24,
-    marginBottom: 8,
-    paddingVertical: 12,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
-  logoutTxt: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: SUB,
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetTitle: {
+    ...typography.h3,
+    color: colors.primary.darkGray,
+  },
+  sheetBody: {
+    gap: 12,
+  },
+  sheetOption: {
+    minHeight: 68,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E3ECF5",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FCFEFF",
+  },
+  sheetOptionPressed: {
+    backgroundColor: "#F4F9FF",
+    borderColor: "#C9D8E8",
+  },
+  sheetOptionTextWrap: {
+    flex: 1,
+  },
+  sheetOptionTitle: {
+    ...typography.body,
+    fontWeight: "800",
+    color: colors.primary.darkGray,
+    marginBottom: 2,
+  },
+  sheetOptionSub: {
+    ...typography.bodySmall,
+    color: colors.neutral.darkGray,
+  },
+  sheetCancel: {
+    minHeight: 52,
+    marginTop: 2,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F6FA",
+  },
+  sheetCancelText: {
+    ...typography.body,
+    fontWeight: "800",
+    color: colors.primary.darkGray,
+  },
+  logoutBody: {
+    gap: 12,
+  },
+  logoutMsg: {
+    ...typography.body,
+    color: colors.neutral.darkGray,
+    lineHeight: 22,
+  },
+  logoutError: {
+    ...typography.bodySmall,
+    color: colors.status.error,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    padding: 10,
+  },
+  logoutConfirm: {
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: colors.primary.navy,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutConfirmPressed: {
+    opacity: 0.92,
+  },
+  logoutConfirmDisabled: {
+    opacity: 0.7,
+  },
+  logoutConfirmText: {
+    ...typography.body,
+    fontWeight: "800",
+    color: colors.neutral.white,
   },
 });
