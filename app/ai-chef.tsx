@@ -555,13 +555,15 @@ export default function AIChefScreen() {
       recipe.ingredients.forEach((ing, idx) => {
         const key = `${recipe.id}::${idx}`;
         const ingName = (ing.name || "").trim();
+        const ingUnit = (ing.unit || "").trim();
         if (!ingName || !realId) return;
+        // Match using name + unit (same as backend dedup logic)
+        // Also check fromRecipeId to ensure it's from the same recipe
         const matched = activeItems.some((item: any) => {
           const itemName = (item.name || "").trim();
+          const itemUnit = (item.unit || "").trim();
           const itemRecipeId = (item.fromRecipeId || "").trim();
-          // 同一個食譜（真實 id）先算「已加入」；唔睇日期/排餐 instance
-          // => 同一食譜再加另一日都會顯示已加，但其他食譜同名食材唔會誤中
-          return itemName === ingName && itemRecipeId === realId;
+          return itemName === ingName && itemUnit === ingUnit && itemRecipeId === realId;
         });
         if (matched) added.add(key);
       });
