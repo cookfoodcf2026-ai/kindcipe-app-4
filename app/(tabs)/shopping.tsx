@@ -16,6 +16,7 @@ import { scheduleShoppingNotification, requestNotificationPermission } from "@/l
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
 import { isSavePriceMissingRoute, savePriceViaToggleBoughtFallback } from "@/lib/savePriceCompat";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
+import { DateUtil } from "@/src/lib/DateUtil";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "待採購", color: "#013E77", bg: "#E8F0FE" },
@@ -68,40 +69,44 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   "其他": { bg: "#F9FAFB", border: "#E5E7EB", text: "#6B7280", badge: "#6B7280" },
 };
 
-const formatTimeAgo = (dateStr: string) => {
+const formatTimeAgo = (dateStr?: string | number | Date | null) => {
+  if (!dateStr) return "";
+  let thenMs = 0;
+  if (typeof dateStr === "number") thenMs = dateStr;
+  else if (dateStr instanceof Date) thenMs = dateStr.getTime();
+  else {
+    const d = DateUtil.parseDate(dateStr);
+    if (d instanceof Date && isNaN(d.getTime())) return "";
+    thenMs = d.getTime();
+  }
   const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.floor((now - then) / 1000);
+  const diff = Math.floor((now - thenMs) / 1000);
+  if (diff < 0) return "剛剛";
   if (diff < 60) return "剛剛";
   if (diff < 3600) return `${Math.floor(diff / 60)}分鐘前`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}小時前`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
-  return new Date(dateStr).toLocaleDateString("zh-HK");
+  return DateUtil.formatDate(String(dateStr));
 };
 
 const formatPlannedDate = (dateStr: string) => {
-  const today = new Date().toISOString().split("T")[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+  const today = DateUtil.todayISO();
+  const tomorrow = DateUtil.tomorrowISO();
   
   if (dateStr === today) return "今日";
   if (dateStr === tomorrow) return "聽日";
   
-  const date = new Date(dateStr);
-  const weekdays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-  return `${weekdays[date.getDay()]} (${dateStr.slice(5).replace("-", "/")})`;
+  const weekday = DateUtil.getWeekday(dateStr, true);
+  return `${weekday} (${dateStr.slice(5).replace("-", "/")})`;
 };
 
-const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-
 const formatDateCard = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const day = date.getDate();
-  const weekday = WEEKDAYS[date.getDay()];
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+  const today = DateUtil.todayISO();
+  const tomorrow = DateUtil.tomorrowISO();
+  const isToday = dateStr === today;
+  const isTomorrow = dateStr === tomorrow;
+  const day = new Date(dateStr + 'T00:00:00').getDate();
+  const weekday = DateUtil.getWeekday(dateStr, true);
   let suffix = "";
   if (isToday) suffix = "·今";
   else if (isTomorrow) suffix = "·明";
@@ -109,33 +114,19 @@ const formatDateCard = (dateStr: string) => {
 };
 
 const isTodayDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
+  return DateUtil.isToday(dateStr);
 };
 
 const isTomorrowDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return date.toDateString() === tomorrow.toDateString();
+  return DateUtil.isTomorrow(dateStr);
 };
 
 const isThisWeekDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const today = new Date();
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
-  return date >= startOfWeek && date <= endOfWeek;
+  return DateUtil.isThisWeek(dateStr);
 };
 
 const formatMonthLabel = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}月`;
+  return DateUtil.formatMonthLabel(dateStr);
 };
 
 export default function ShoppingTab() {
@@ -213,8 +204,8 @@ export default function ShoppingTab() {
   }, [utils]);
 
   const { data: items = [], isLoading } = trpc.shopping.list.useQuery(undefined, {
-    staleTime: 1000 * 10,
-    refetchInterval: 1000 * 3,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 15,
   });
 
   // Fetch full common ingredient list for local caching and filtering
@@ -254,6 +245,20 @@ export default function ShoppingTab() {
   }, [newName, items, ingredientsForSuggestions, showNameSuggestions]);
 
   const savePriceM = (trpc as any).shopping.savePrice.useMutation({
+    onMutate: async (variables: any) => {
+      await utils.shopping.list.cancel();
+      const current = utils.shopping.list.getData();
+      if (current) {
+        utils.shopping.list.setData(undefined, (old) => {
+          return old?.map(item => 
+            item.id === variables.itemId 
+              ? { ...item, actualPrice: variables.price }
+              : item
+          );
+        });
+      }
+      return { current };
+    },
     onSuccess: () => {
       utils.shopping.list.invalidate();
       setShowSavePrice(false);
@@ -261,7 +266,10 @@ export default function ShoppingTab() {
       setSavePriceVal("");
       Alert.alert("已記錄", "價格已儲存");
     },
-    onError: async (e: Error, variables: any) => {
+    onError: async (e: Error, variables: any, context: any) => {
+      if (context?.current) {
+        utils.shopping.list.setData(undefined, context.current);
+      }
       if (isSavePriceMissingRoute(e) && variables?.itemId && typeof variables.price === "number") {
         console.warn("[shopping.savePrice] 舊後端無此 route，改用 toggleBought fallback 記錄價格:", e.message);
         try {
@@ -303,8 +311,26 @@ export default function ShoppingTab() {
   });
 
   const toggleBoughtM = trpc.shopping.toggleBought.useMutation({
-    onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("操作失敗", e.message),
+    onMutate: async (variables: { id: number; bought: boolean }) => {
+      await utils.shopping.list.cancel();
+      const current = utils.shopping.list.getData();
+      if (current) {
+        utils.shopping.list.setData(undefined, (old) => {
+          return old?.map(item => 
+            item.id === variables.id 
+              ? { ...item, status: variables.bought ? "bought" as const : "active" as const, boughtAt: variables.bought ? new Date() : null }
+              : item
+          );
+        });
+      }
+      return { current };
+    },
+    onError: (e, variables, context) => {
+      if (context?.current) {
+        utils.shopping.list.setData(undefined, context.current);
+      }
+      Alert.alert("操作失敗", e.message);
+    },
   });
 
   const deleteItemM = trpc.shopping.delete.useMutation({
@@ -313,18 +339,46 @@ export default function ShoppingTab() {
   });
 
   const approveItemM = trpc.shopping.approve.useMutation({
+    onMutate: async (variables: { id: number; itemName?: string }) => {
+      await utils.shopping.list.cancel();
+      const current = utils.shopping.list.getData();
+      if (current) {
+        utils.shopping.list.setData(undefined, (old) => {
+          return old?.filter(item => item.id !== variables.id);
+        });
+      }
+      return { current };
+    },
+    onError: (e, variables, context) => {
+      if (context?.current) {
+        utils.shopping.list.setData(undefined, context.current);
+      }
+      Alert.alert("確認失敗", e.message);
+    },
     onSuccess: (_data, variables) => {
-      utils.shopping.list.invalidate();
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleShoppingNotification(variables.itemName || "食材");
       });
     },
-    onError: (e) => Alert.alert("確認失敗", e.message),
   });
 
   const rejectItemM = trpc.shopping.reject.useMutation({
-    onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("拒絕失敗", e.message),
+    onMutate: async (variables: { id: number; itemName?: string }) => {
+      await utils.shopping.list.cancel();
+      const current = utils.shopping.list.getData();
+      if (current) {
+        utils.shopping.list.setData(undefined, (old) => {
+          return old?.filter(item => item.id !== variables.id);
+        });
+      }
+      return { current };
+    },
+    onError: (e, variables, context) => {
+      if (context?.current) {
+        utils.shopping.list.setData(undefined, context.current);
+      }
+      Alert.alert("拒絕失敗", e.message);
+    },
   });
 
   const approveAllM = (trpc as any).shopping.approveAll.useMutation({
@@ -344,12 +398,31 @@ export default function ShoppingTab() {
   });
 
   const updateItemM = trpc.shopping.updateItem.useMutation({
+    onMutate: async (variables: any) => {
+      await utils.shopping.list.cancel();
+      const current = utils.shopping.list.getData();
+      if (current) {
+        utils.shopping.list.setData(undefined, (old) => {
+          return old?.map(item => 
+            item.id === variables.id 
+              ? { ...item, name: variables.name, quantity: variables.quantity, unit: variables.unit, plannedDate: variables.plannedDate }
+              : item
+          );
+        });
+      }
+      return { current };
+    },
+    onError: (e, variables, context) => {
+      if (context?.current) {
+        utils.shopping.list.setData(undefined, context.current);
+      }
+      Alert.alert("編輯失敗", e.message);
+    },
     onSuccess: () => {
       utils.shopping.list.invalidate();
       setShowEditModal(false);
       setEditItem(null);
     },
-    onError: (e) => Alert.alert("編輯失敗", e.message),
   });
 
   const { activeFamilyId, familyRole } = useAuth();
@@ -445,7 +518,9 @@ export default function ShoppingTab() {
     for (let i = 0; i < 30; i++) {
       const d = new Date(dateWindowStart);
       d.setDate(dateWindowStart.getDate() + i);
-      dates.push(d.toISOString().split("T")[0]);
+      const iso = DateUtil.toISODate(d);
+      if (!iso || iso.includes("NaN")) continue;
+      dates.push(iso);
     }
     return dates.map((date) => ({
       date,
@@ -509,7 +584,7 @@ export default function ShoppingTab() {
     if (activeDateFilter === "custom" && selectedDate) {
       setNewPlannedDate(selectedDate);
     } else {
-      setNewPlannedDate(new Date().toISOString().split("T")[0]);
+      setNewPlannedDate(DateUtil.todayISO());
     }
     setShowAddModal(true);
   }, [activeDateFilter, selectedDate]);
@@ -517,32 +592,7 @@ export default function ShoppingTab() {
   const handleToggle = useCallback(
     (item: any) => {
       const willBuy = item.status !== "bought";
-      if (willBuy) {
-        if (Platform.OS === "ios") {
-          Alert.prompt(
-            "輸入實際價格",
-            `「${item.name}」的實際購買價格？`,
-            [
-              { text: "跳過", style: "cancel", onPress: () => toggleBoughtM.mutate({ id: item.id, bought: true }) },
-              { text: "確定", onPress: (val: string | undefined) => {
-                const price = val ? parseInt(val.trim(), 10) : undefined;
-                toggleBoughtM.mutate({
-                  id: item.id,
-                  bought: true,
-                  actualPrice: price && !isNaN(price) ? price : undefined,
-                });
-              }},
-            ],
-            "plain-text",
-            "",
-            "number-pad",
-          );
-        } else {
-          toggleBoughtM.mutate({ id: item.id, bought: true });
-        }
-      } else {
-        toggleBoughtM.mutate({ id: item.id, bought: false });
-      }
+      toggleBoughtM.mutate({ id: item.id, bought: willBuy });
     },
     [toggleBoughtM],
   );
@@ -629,13 +679,19 @@ export default function ShoppingTab() {
               {item.name}
             </Text>
             {item.fromRecipeName && (
-              <TouchableOpacity
-                style={styles.recipeTag}
-                onPress={item.fromRecipeId ? () => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any) : undefined}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.recipeTagText}>{item.fromRecipeName}</Text>
-              </TouchableOpacity>
+              item.fromRecipeId ? (
+                <TouchableOpacity
+                  style={styles.recipeTag}
+                  onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.recipeTagText}>{item.fromRecipeName}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.recipeTagNeutral}>
+                  <Text style={styles.recipeTagTextNeutral} numberOfLines={1}>{item.fromRecipeName} · AI 建議</Text>
+                </View>
+              )
             )}
           </View>
           <View style={styles.itemMetaRow}>
@@ -820,16 +876,15 @@ export default function ShoppingTab() {
             style={[styles.dateFilterChip, activeDateFilter === chip.key && styles.dateFilterChipActive]}
             onPress={() => {
               if (chip.key === "today") {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                setDateWindowStart(today);
-                setSelectedDate(today.toISOString().split("T")[0]);
+                const today = DateUtil.todayISO();
+                const todayDate = DateUtil.parseDate(today);
+                setDateWindowStart(todayDate);
+                setSelectedDate(today);
               } else if (chip.key === "tomorrow") {
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                tomorrow.setHours(0, 0, 0, 0);
-                setDateWindowStart(tomorrow);
-                setSelectedDate(tomorrow.toISOString().split("T")[0]);
+                const tomorrow = DateUtil.tomorrowISO();
+                const tomorrowDate = DateUtil.parseDate(tomorrow);
+                setDateWindowStart(tomorrowDate);
+                setSelectedDate(tomorrow);
               } else if (chip.key === "week") {
                 const today = new Date();
                 const startOfWeek = new Date(today);
@@ -854,7 +909,7 @@ export default function ShoppingTab() {
       {dateCardsData.length > 0 && (
         <View style={styles.dateCardsSection}>
           <View style={styles.dateCardsHeader}>
-            <Text style={styles.dateCardsTitle}>🍴 按排餐日期</Text>
+            <Text style={styles.dateCardsTitle}>按購買日期</Text>
           </View>
           <Text style={styles.dateCardsMonth}>{currentMonth}</Text>
           <View style={styles.dateCardsRow}>
@@ -868,9 +923,9 @@ export default function ShoppingTab() {
               onScroll={handleDateCardsScroll}
               scrollEventThrottle={16}
             >
-              {dateCardsData.map((dc) => (
+              {dateCardsData.map((dc, index) => (
                 <TouchableOpacity
-                  key={dc.date}
+                  key={`${dc.date}-${index}`}
                   style={[styles.dateCard, selectedDate === dc.date && styles.dateCardSelected]}
                   onPress={() => handleDateCardTap(dc.date)}
                   activeOpacity={0.7}
@@ -1058,7 +1113,7 @@ export default function ShoppingTab() {
                   </View>
                   <Text style={styles.fieldLabel}>預計購買日期</Text>
                   <PlanDatePicker
-                    value={newPlannedDate || new Date().toISOString().split("T")[0]}
+                    value={newPlannedDate || DateUtil.todayISO()}
                     onChange={(iso) => setNewPlannedDate(iso)}
                   />
                   {newPlannedDate && (
@@ -1147,7 +1202,7 @@ export default function ShoppingTab() {
                     </Text>
                   )}
                   <PlanDatePicker
-                    value={editPlannedDate || new Date().toISOString().split("T")[0]}
+                    value={editPlannedDate || DateUtil.todayISO()}
                     onChange={(iso) => setEditPlannedDate(iso)}
                     maxDate={getLinkedMealPlanDate(editItem) || undefined}
                   />
@@ -1656,6 +1711,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#013E77",
     fontWeight: "500",
+  },
+  recipeTagNeutral: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  recipeTagTextNeutral: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontWeight: "500",
+    maxWidth: 140,
   },
   itemMetaRow: {
     flexDirection: "row",
