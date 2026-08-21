@@ -1,12 +1,10 @@
 {
   "cli": {
-    "version": ">= 3.0.0"
+    "version": ">= 5.4.0"
   },
   "build": {
     "production": {
       "android": {
-        "enableProguardInReleaseBuilds": true,
-        "enableShrinkResourcesInReleaseBuilds": true,
         "buildType": "app-bundle"
       },
       "ios": {

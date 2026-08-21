@@ -2,6 +2,7 @@
   "expo": {
     "name": "和諧食譜 Kindcipe",
     "slug": "kindcipe",
+    "owner": "kindcipe",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,10 +27,14 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1C2E4A"
       },
-      "package": "com.kindcipe.app"
+      "package": "com.kindcipe.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "@sentry/react-native",
       "expo-secure-store",
       [
@@ -44,9 +49,18 @@
       "@react-native-google-signin/google-signin"
     ],
     "scheme": "kindcipe",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "59ee279e-514a-4fb6-b98c-f04c84b969c0"
+      }
     }
   }
 }
