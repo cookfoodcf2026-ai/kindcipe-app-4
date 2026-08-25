@@ -4,6 +4,9 @@
   },
   "build": {
     "production": {
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "android": {
         "buildType": "app-bundle"
       },
@@ -12,10 +15,16 @@
       }
     },
     "development": {
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true"
+      },
       "distribution": "internal"
     }
   }
