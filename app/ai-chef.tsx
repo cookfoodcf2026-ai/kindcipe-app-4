@@ -108,19 +108,120 @@ const PLACEHOLDER_INGREDIENT_NAMES = new Set([
   "未知食材",
 ]);
 
+const INGREDIENT_UNIT_WORDS = "克|毫升|公升|升|ml|l|L|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb|角|副";
+const QUANTITY_WORDS = "[\\d.]+(?:[\\d.-]*[\\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許";
+const APPROX_PREFIX = "(?:約|大約|大概|近約|左右)\\s*";
+const ONLY_QUANTITY_RE = new RegExp(`^${APPROX_PREFIX}(${QUANTITY_WORDS})\\s*(?:(${INGREDIENT_UNIT_WORDS}))?\\s*$`, "i");
+const NAME_QTY_RE = new RegExp(`^(.+?)\\s+${APPROX_PREFIX}(${QUANTITY_WORDS})\\s*(?:(${INGREDIENT_UNIT_WORDS}))?\\s*$`, "i");
+const INGREDIENT_NOTE_KEYWORDS = ["潤肺", "止咳", "平喘", "唔好落太多", "唔好落", "不要落太多", "不要落", "少落", "少放", "可選", "建議", "功效", "養生", "清熱", "去濕", "補氣", "止咳平喘", "洗淨", "切片", "切碎", "切段", "切絲", "去皮", "去核", "浸泡", "泡發", "攪拌", "備用", "斬件", "拍扁"];
+const GENERIC_INGREDIENT_GROUP_NAMES = new Set(["食材", "材料", "原料", "配料", "調味料", "湯底", "湯料", "主料", "主材料", "餸料", "ingredients"]);
+const WATER_INGREDIENT_HINTS = /(?:^|[^A-Za-z\u4e00-\u9fa5])(?:清水|水|開水|滾水|熱水|凍水|上湯|高湯|雞湯|魚湯|湯底|清湯)(?:$|[^A-Za-z\u4e00-\u9fa5])/;
+
+const normalizeIngredientText = (text: string) =>
+  String(text ?? "")
+    .replace(/（[^）]*）/g, "")
+    .replace(/^[\s,，。．.!！？?、\-–—*•·]+|[\s,，。．.!！？?、\-–—*•·]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const isGenericIngredientGroupName = (name: string) => GENERIC_INGREDIENT_GROUP_NAMES.has(normalizeRecipeName(name));
+
 const isPlaceholderIngredientName = (name: string) => {
   const n = String(name ?? "").trim();
   return PLACEHOLDER_INGREDIENT_NAMES.has(n) || PLACEHOLDER_INGREDIENT_NAMES.has(normalizeRecipeName(n));
 };
 
 const normalizeIngredient = (ing: any): { name: string; quantity: string; unit: string } | null => {
-  const name = String(ing?.name ?? "").trim();
-  if (!name || isPlaceholderIngredientName(name)) return null;
+  const rawName = normalizeIngredientText(ing?.name ?? "");
+  const rawQuantity = ing?.quantity != null ? normalizeIngredientText(String(ing.quantity)) : "";
+  const rawUnit = ing?.unit != null ? normalizeIngredientText(String(ing.unit)) : "";
+  if (!rawName || isPlaceholderIngredientName(rawName) || isIngredientNoteFragment(rawName)) return null;
+
+  const qtyOnlyMatch = rawName.match(ONLY_QUANTITY_RE);
+  if (qtyOnlyMatch) {
+    return null;
+  }
+
+  const nameQtyMatch = rawName.match(NAME_QTY_RE);
+  if (nameQtyMatch) {
+    const cleanedName = normalizeIngredientText(nameQtyMatch[1]);
+    if (!cleanedName || isPlaceholderIngredientName(cleanedName) || isIngredientNoteFragment(cleanedName)) return null;
+    return {
+      name: cleanedName,
+      quantity: nameQtyMatch[2] || rawQuantity,
+      unit: nameQtyMatch[3] || rawUnit,
+    };
+  }
+
+  if (!rawQuantity && !rawUnit && /^(?:約|大約|大概|近約|左右)?\s*[\d.]+(?:[\d.-]*[\d.]+)?\s*(?:克|毫升|公升|升|ml|l|L|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb|角|副)\s*$/i.test(rawName)) {
+    return null;
+  }
+
   return {
-    name,
-    quantity: ing?.quantity != null ? String(ing.quantity) : "",
-    unit: ing?.unit != null ? String(ing.unit) : "",
+    name: rawName,
+    quantity: rawQuantity,
+    unit: rawUnit,
   };
+};
+
+const isQuantityOnlyIngredientLine = (text: string) => ONLY_QUANTITY_RE.test(normalizeIngredientText(String(text ?? "")));
+const isIngredientNoteFragment = (text: string) => {
+  const t = normalizeIngredientText(String(text ?? ""));
+  if (!t) return false;
+  if (INGREDIENT_NOTE_KEYWORDS.some((kw) => t.includes(kw))) return true;
+  return /[，,。．.!！？?]/.test(t);
+};
+
+const parseIngredientEntry = (text: string, parentName = ""): { name: string; quantity: string; unit: string } | null => {
+  const il = normalizeIngredientText(text);
+  if (!il || isIngredientNoteFragment(il)) return null;
+
+  const qtyOnlyMatch = il.match(ONLY_QUANTITY_RE);
+  if (qtyOnlyMatch) {
+    const parent = normalizeIngredientText(parentName);
+    if (parent && !isGenericIngredientGroupName(parent) && !isPlaceholderIngredientName(parent) && !isIngredientNoteFragment(parent)) {
+      return { name: parent, quantity: qtyOnlyMatch[1] || "適量", unit: qtyOnlyMatch[2] || "" };
+    }
+    return null;
+  }
+
+  const qMatch = il.match(NAME_QTY_RE);
+  if (qMatch) {
+    const name = normalizeIngredientText(qMatch[1]);
+    if (!name || isPlaceholderIngredientName(name) || isIngredientNoteFragment(name) || isGenericIngredientGroupName(name)) return null;
+    return { name, quantity: qMatch[2] || "適量", unit: qMatch[3] || "" };
+  }
+
+  if (/^(?:約|大約|大概|近約|左右)?\s*[\d.]+(?:[\d.-]*[\d.]+)?\s*(?:克|毫升|公升|升|ml|l|L|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb|角|副)\s*$/i.test(il)) {
+    return null;
+  }
+
+  return { name: il, quantity: "", unit: "" };
+};
+
+const hasWaterIngredient = (ingredients: { name: string; quantity: string; unit: string }[]) =>
+  ingredients.some((ing) => WATER_INGREDIENT_HINTS.test(normalizeIngredientText(ing.name)));
+
+const inferSoupWaterIngredient = (
+  recipeCategory: string,
+  ingredients: { name: string; quantity: string; unit: string }[],
+  description: string,
+  steps: string[],
+) => {
+  if (recipeCategory !== "湯水" || hasWaterIngredient(ingredients)) return ingredients;
+
+  const text = `${description} ${steps.join(" ")}`;
+  const qtyMatch = text.match(/(約|大約|大概|近約|左右)?\s*(\d+(?:\.\d+)?)\s*(公升|升|毫升|ml|l|L)/i);
+  if (qtyMatch) {
+    const unit = /^(ml|毫升)$/i.test(qtyMatch[3]) ? "毫升" : /^(l|L|升)$/i.test(qtyMatch[3]) ? "升" : qtyMatch[3];
+    return [{ name: "清水", quantity: qtyMatch[2], unit }, ...ingredients];
+  }
+
+  if (/加水|落水|注入水|煲滾|煮滾|加湯|加入湯底|倒入湯底/.test(text)) {
+    return [{ name: "清水", quantity: "適量", unit: "" }, ...ingredients];
+  }
+
+  return ingredients;
 };
 
 // 將任何來源嘅食譜 steps/ingredients 統一 normalize 成 string[] / 標準 ingredient[]
@@ -268,7 +369,7 @@ const MAX_IMAGES_PER_SESSION = 3;
 
 const LOADING_STEPS = [
   "AI 正在分析你的需求...",
-  "從食譜庫尋找合適建議...",
+  "生成食譜中...",
   "為你整理個人化結果...",
   "計算食材份量同配搭...",
   "準備食譜步驟同貼士...",
@@ -333,6 +434,12 @@ const splitRecipeBlocks = (text: string): string[] => {
     .split(/\n?\s*---\s*\n?/)
     .map(b => b.trim())
     .filter(Boolean);
+};
+
+// Detect if text contains recipe-like content (has recipe headers)
+const hasRecipeContent = (text: string): boolean => {
+  const recipeHeaderPattern = /^(?:食譜[一二三四五六七八九十\d]+[：:]\s*|[\d]+[.、．]\s*)?(?:中菜|西餐|日式|韓式|東南亞|甜品|飲品|其他|中式|西式|韓式|東南亞式|家常|菜|川菜|湘菜|素菜|湯水|小炒|主食|麵食|飯類)[^\n]*[——\-—|｜][^\n]*（?約?\d+分鐘）?/m;
+  return recipeHeaderPattern.test(text);
 };
 
 
@@ -502,6 +609,10 @@ export default function AIChefScreen() {
   // 收藏中狀態（顯示嗰張卡個 spinner）
   const [favoritingName, setFavoritingName] = useState<string>("");
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+  // 記錄已換過嘅食譜名稱，避免重複
+  const [swappedRecipeNames, setSwappedRecipeNames] = useState<Set<string>>(new Set());
+  // 記錄本次 chat 已見過嘅食譜名稱，避免同一個 session 反覆輪迴
+  const [sessionSeenRecipeNames, setSessionSeenRecipeNames] = useState<string[]>([]);
   // 批量排餐完成後用嚟開啟 IngredientPickerModal（多個食譜）
   const [batchPickerRecipes, setBatchPickerRecipesState] = useState<PickerRecipe[] | null>(null);
   const setBatchPickerRecipes = (recipes: PickerRecipe[] | null) => {
@@ -566,18 +677,22 @@ export default function AIChefScreen() {
     });
     batchPickerRecipes.forEach((recipe, ri) => {
       const realId = realIds[ri] || "";
+      const targetMealPlanId = recipe.fromMealPlanId ? Number(recipe.fromMealPlanId) : null;
+      const targetShoppingDate = recipe.date || todayISO();
       recipe.ingredients.forEach((ing, idx) => {
         const key = `${recipe.id}::${idx}`;
         const ingName = (ing.name || "").trim();
         const ingUnit = (ing.unit || "").trim();
         if (!ingName || !realId) return;
-        // Match using name + unit (same as backend dedup logic)
-        // Also check fromRecipeId to ensure it's from the same recipe
         const matched = activeItems.some((item: any) => {
           const itemName = (item.name || "").trim();
           const itemUnit = (item.unit || "").trim();
           const itemRecipeId = (item.fromRecipeId || "").trim();
-          return itemName === ingName && itemUnit === ingUnit && itemRecipeId === realId;
+          const itemMealPlanId = item.fromMealPlanId ? Number(item.fromMealPlanId) : null;
+          const itemDate = String(item.plannedDate ?? "").trim();
+          const sameMealPlan = targetMealPlanId != null && itemMealPlanId === targetMealPlanId;
+          const sameRecipeAndDate = itemName === ingName && itemUnit === ingUnit && itemRecipeId === realId && itemDate === targetShoppingDate;
+          return sameMealPlan || sameRecipeAndDate;
         });
         if (matched) added.add(key);
       });
@@ -705,7 +820,7 @@ export default function AIChefScreen() {
     const difficulty = rawDiff === "容易" ? "簡單" : rawDiff === "難" ? "困難" : rawDiff;
 
     // Extract ingredients
-    const ingredients: { name: string; quantity: string; unit: string }[] = [];
+      const ingredients: { name: string; quantity: string; unit: string }[] = [];
     const ingSection = text.match(/(?:\s*)?(?:食材|材料|原料|Ingredients)[：:]\s*([\s\S]*?)(?=\n\s*(?:🍳|步驟|做法|Steps?|烹飪方法|烹调方法)|$)/i);
     if (ingSection) {
       const ingLines = ingSection[1].split("\n");
@@ -715,57 +830,30 @@ export default function AIChefScreen() {
         // Handle format: "食材名：數量 單位" or "調味料：生抽 1湯匙、油 半湯匙"
         const colonMatch = il.match(/^(.+?)[：:]\s*(.+)$/);
         if (colonMatch) {
-          const ingName = colonMatch[1].trim();
-          const ingDetail = colonMatch[2].trim();
-          // Remove parenthetical notes like "（熟透的更好）"
-          const cleanDetail = ingDetail.replace(/（[^）]*）/g, "").trim();
+          const ingName = normalizeIngredientText(colonMatch[1]);
+          const ingDetail = normalizeIngredientText(colonMatch[2]);
+          if (!ingName || isQuantityOnlyIngredientLine(ingName) || isIngredientNoteFragment(ingName)) continue;
           // Check if it's a compound ingredient like "調味料：生抽 1湯匙、蠔油 半湯匙"
-          if (cleanDetail.includes("、") || cleanDetail.includes(",")) {
+          if (ingDetail.includes("、") || ingDetail.includes(",")) {
             // Split compound ingredients
-            const parts = cleanDetail.split(/[、,]/);
+            const parts = ingDetail.split(/[、,]/);
             for (const part of parts) {
-              const p = part.trim();
-              if (p) {
-                // First try to match just quantity+unit (like "1湯匙" or "半湯匙")
-                const qtyOnlyMatch = p.match(/^([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵||杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
-                if (qtyOnlyMatch) {
-                  // This is just a quantity, use the parent ingredient name
-                  ingredients.push({ name: ingName, quantity: qtyOnlyMatch[1] || "適量", unit: qtyOnlyMatch[2] || "" });
-                } else {
-                  // Try name + quantity + unit format (like "生抽 1湯匙")
-                  const qMatch = p.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
-                  if (qMatch) {
-                    ingredients.push({ name: qMatch[1].trim(), quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
-                  } else {
-                  ingredients.push({ name: p, quantity: "", unit: "" });
-                  }
-                }
-              }
+              const parsed = parseIngredientEntry(part, ingName);
+              if (parsed) ingredients.push(parsed);
             }
           } else {
-            // Handle ranges like "200-300克" and text after unit
-            const qMatch = cleanDetail.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
-            if (qMatch) {
-              ingredients.push({ name: ingName, quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
-            } else {
-              ingredients.push({ name: ingName, quantity: cleanDetail || "", unit: "" });
-            }
+            const parsed = parseIngredientEntry(ingDetail, ingName);
+            if (parsed) ingredients.push(parsed);
           }
         } else {
           // Old format: "食材名 數量 單位"
-          const cleanIl = il.replace(/（[^）]*）/g, "").trim();
-          const qMatch = cleanIl.match(/(.+?)\s+([\d.]+(?:[\d.-]*[\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許)\s*(克|毫升|ml|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb)?\s*$/);
-          if (qMatch) {
-            ingredients.push({ name: qMatch[1].trim(), quantity: qMatch[2] || "適量", unit: qMatch[3] || "" });
-          } else {
-            ingredients.push({ name: il, quantity: "", unit: "" });
-          }
+          const parsed = parseIngredientEntry(il);
+          if (parsed) ingredients.push(parsed);
         }
       }
     }
 
-    const filteredIngredients = ingredients.filter((ing) => !isPlaceholderIngredientName(ing.name));
-    const tags = buildRecipeTags(name, recipeCategory, difficulty, cookTime, description, filteredIngredients.length);
+    let filteredIngredients = ingredients.filter((ing) => !isPlaceholderIngredientName(ing.name));
 
     // Extract steps
     const steps: string[] = [];
@@ -792,6 +880,9 @@ export default function AIChefScreen() {
         }
       }
     }
+
+    filteredIngredients = inferSoupWaterIngredient(recipeCategory, filteredIngredients, description, steps);
+    const tags = buildRecipeTags(name, recipeCategory, difficulty, cookTime, description, filteredIngredients.length);
 
     return {
       name, description, cookTime, servings, difficulty, recipeCategory,
@@ -833,7 +924,16 @@ export default function AIChefScreen() {
       const fallbackRecipes = recipes.filter(isValidRecipe); // 唔理去重，至少有卡
 
       if (validRecipes.length > 0) {
-        setRecommendedRecipes(validRecipes.map(normalizeRecipe));
+        const normalizedValidRecipes = validRecipes.map(normalizeRecipe);
+        setRecommendedRecipes(normalizedValidRecipes);
+        setSessionSeenRecipeNames((prev) => {
+          const next = [...prev];
+          normalizedValidRecipes.forEach((r) => {
+            const name = normalizeRecipeName(r.name || "");
+            if (name && !next.includes(name)) next.push(name);
+          });
+          return next.slice(-15);
+        });
       } else if (fallbackRecipes.length > 0 && !noveltyRetryRef.current) {
         // 全部撞歷史 → 自動再試一次，叫 AI 出更唔同嘅
         noveltyRetryRef.current = true;
@@ -853,7 +953,16 @@ export default function AIChefScreen() {
         const validParsed = aggressiveParsed.filter(isValidRecipe);
         if (validParsed.length > 0) {
           console.log(`[AI Chef] Aggressive parse found ${validParsed.length} valid recipes`);
-          setRecommendedRecipes(validParsed.map(normalizeRecipe));
+          const normalizedValidParsed = validParsed.map(normalizeRecipe);
+          setRecommendedRecipes(normalizedValidParsed);
+          setSessionSeenRecipeNames((prev) => {
+            const next = [...prev];
+            normalizedValidParsed.forEach((r) => {
+              const name = normalizeRecipeName(r.name || "");
+              if (name && !next.includes(name)) next.push(name);
+            });
+            return next.slice(-15);
+          });
         } else {
           // Still nothing — clear stale recommendations
           console.log("[AI Chef] No valid recipes found after aggressive parse");
@@ -1378,6 +1487,10 @@ export default function AIChefScreen() {
     if (!preserveRetryState) noveltyRetryRef.current = false;
     lastChatModeRef.current = mode;
     resetAiNextSteps();
+    // 清空已換過嘅食譜記錄
+    setSwappedRecipeNames(new Set());
+    // 清空本次 chat 已見過嘅食譜記錄
+    setSessionSeenRecipeNames([]);
     const lastUser = [...messages].reverse().find(m => m.role === "user");
     const regeneratePrompt = lastUser
       ? "請再提供一組新的建議。"
@@ -1408,6 +1521,8 @@ export default function AIChefScreen() {
     setMealPrefs(EMPTY_PREFS);
     setMealResult(null);
     setRecommendedRecipes([]);
+    setSwappedRecipeNames(new Set());
+    setSessionSeenRecipeNames([]);
     setMealStep("people");
     addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
@@ -1449,21 +1564,67 @@ export default function AIChefScreen() {
     const lower = t.toLowerCase();
     switch (mealStep) {
       case "people": {
-        const n = parseInt(t.replace(/\D/g, ""), 10);
-        return { people: isNaN(n) || n < 1 ? 4 : n };
+        // 支援中文數字：兩人、四位、三個、十一人 等 (繁體/簡體)
+        const chineseNums: Record<string, number> = {
+          零: 0, 一: 1, 兩: 2, 二: 2, 三: 3, 四: 4, 五: 5,
+          六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
+          壹: 1, 貳: 2, 參: 3, 肆: 4, 伍: 5, 陸: 6, 柒: 7, 捌: 8, 玖: 9, 拾: 10,
+          // 簡體
+          两: 2, 么: 1, 个: 1
+        };
+        
+        // 嘗試抽取「X 人/位/個」格式 (支援繁體/簡體)
+        const cnMatch = t.match(/([零一两二三四五六七八九十壹贰叁肆伍陆柒捌玖拾两]+)\s*[人人位個个]/);
+        if (cnMatch) {
+          const cnStr = cnMatch[1];
+          // 處理複合數字如「十一」= 10+1
+          if (cnStr.includes('十')) {
+            const parts = cnStr.split('十');
+            let result = 0;
+            if (parts[0] && chineseNums[parts[0]] !== undefined) {
+              result += chineseNums[parts[0]] * 10;
+            } else if (parts[0] === '') {
+              result = 10; // 「十」= 10
+            }
+            if (parts[1] && chineseNums[parts[1]] !== undefined) {
+              result += chineseNums[parts[1]];
+            }
+            return { people: result > 0 ? result : 4 };
+          }
+          // 單一中文數字
+          if (chineseNums[cnStr] !== undefined) {
+            return { people: chineseNums[cnStr] };
+          }
+        }
+        
+        // 嘗試抽取阿拉伯數字
+        const numMatch = t.match(/(\d+)/);
+        if (numMatch) {
+          const n = parseInt(numMatch[1], 10);
+          return { people: n < 1 ? 4 : n };
+        }
+        
+        // 如果都無，就試下從中文數字單字抽取
+        for (const [cn, val] of Object.entries(chineseNums)) {
+          if (t.includes(cn) && val > 0) {
+            return { people: val };
+          }
+        }
+        
+        return { people: 4 }; // 預設值
       }
       case "audience": {
-        const hasKids = /仔|女|小朋友|細路|童|孩|kids|child/.test(lower);
-        const hasElderly = /老人家|長者|老人|爸|媽|爺|嫲|公公|婆婆|elderly|old/.test(lower);
+        const hasKids = /仔 | 女|小朋友 | 細路 | 童|孩|孩 子|kids|child|children/.test(lower);
+        const hasElderly = /老人家 | 長者 | 老人 | 爸|媽|爺|嫲|公公 | 婆婆|父母|elderly|old|parent/.test(lower);
         return { hasKids, hasElderly };
       }
       case "time": {
-        if (/快|30|半|急|quick/.test(lower)) return { time: "quick" as const };
-        if (/慢|煲|燉|leisure|slow/.test(lower)) return { time: "leisure" as const };
+        if (/快 |30|半|急|quick| 速|簡單| 易/.test(lower)) return { time: "quick" as const };
+        if (/慢 | 煲|燉|leisure|slow| 慢慢| 燜|煮 耐/.test(lower)) return { time: "leisure" as const };
         return { time: "normal" as const };
       }
       case "dislike":
-        return { dislikes: /冇|没有|無|none|沒有/.test(t) ? "" : t };
+        return { dislikes: /冇 | 没有|無|none| 沒有|唔食|不食| 過敏| 唔鍾意|不喜歡/.test(t) ? "" : t };
     }
     return {};
   };
@@ -1583,13 +1744,14 @@ export default function AIChefScreen() {
   };
 
   const buildMealPrompt = (prefs: MealPlanPreferences) => {
-    const timeLabel = prefs.time === "quick" ? "30分鐘內快手菜" : prefs.time === "leisure" ? "可慢慢煮/煲燉" : "普通約1小時";
-    return `請為我設計今晚「3餸1湯」晚餐，總共4道菜，適合${prefs.people}人食用。` +
+    const timeLabel = prefs.time === "quick" ? "30 分鐘內快手菜" : prefs.time === "leisure" ? "可慢慢煮/煲燉" : "普通約 1 小時";
+    return `請為我設計今晚「3 餸 1 湯」晚餐，總共 4 道菜，適合${prefs.people}人食用。` +
       (prefs.hasKids ? "有小朋友，口味要溫和、少辣、容易入口。" : "") +
       (prefs.hasElderly ? "有老人家，食材要易咀嚼、清淡少油鹽。" : "") +
       `煮食時間要求：${timeLabel}。` +
       (prefs.dislikes ? `避免食材/口味：${prefs.dislikes}。` : "") +
-      "請提供完整4個食譜，分類如下：\n" +
+      "食材欄每行只寫一種食材，唔好加入功效、備註、口味描述。" +
+      "請提供完整 4 個食譜，分類如下：\n" +
       "1. 肉類主菜（如豬/牛/雞）\n" +
       "2. 海鮮/其他蛋白主菜（如魚/蝦/豆腐蛋）\n" +
       "3. 蔬菜/小炒\n" +
@@ -1785,7 +1947,7 @@ export default function AIChefScreen() {
           : { ...r, _libraryRecipeId: found.recipeId };
       });
       setBatchRecipes(recipesWithIds);
-      // 同步返落 mealResult，令「加入採購」嗰批食譜都帶住 user_<id> ref
+      // 同步返落 mealResult，令「加入購買」嗰批食譜都帶住 user_<id> ref
       setMealResult(recipesWithIds);
       setPlanDate(date);
       setShowPlan(true);
@@ -1825,6 +1987,23 @@ export default function AIChefScreen() {
       .map(r => (r.name || "").trim())
       .filter(Boolean)
       .slice(0, 12);
+    const sessionAvoidNames = [...usedRecipeNames, ...sessionSeenRecipeNames];
+
+    const pickLibraryFallback = () => {
+      const alternatives = [...(userRecipes ?? [])]
+        .filter((r: any) => r.recipeCategory === category && r.name !== recipe.name)
+        .map(normalizeRecipe)
+        .filter((r): r is AIRecipe => !!r && isValidRecipe(r));
+      return alternatives.find((r) => !isDuplicateRecipeName(r.name, otherNames)) ?? alternatives[0] ?? null;
+    };
+
+    const collectCandidates = (res: any) => {
+      const structured = Array.isArray(res?.recipes) ? res.recipes : [];
+      const fallbackText = typeof res?.content === "string" ? tryParseRecipes(res.content) : [];
+      return [...structured, ...fallbackText]
+        .map(normalizeRecipe)
+        .filter((r): r is AIRecipe => !!r && isValidRecipe(r));
+    };
 
     const useAi = lastChatModeRef.current === "ai";
     const replaceFromAi = async () => {
@@ -1834,33 +2013,92 @@ export default function AIChefScreen() {
           `請只生成 1 個可直接煮嘅食譜，作為「${recipe.name}」嘅替代。`,
           `分類要同原本相近：${category}。`,
           `食譜名稱唔可以同以下已顯示食譜重複：${otherNames.length > 0 ? otherNames.join("、") : "無"}。`,
+          `食材欄每行只寫一種食材，唔好加入功效、備註、口味描述；每個食材都一定要有名字。`,
           `保持香港家庭日常可煮、步驟完整、繁體中文。`,
         ].join("\n");
 
         const tryGenerate = async (extra: string) => {
-          const res = await apiClient.aiRecipe.chat.mutate({
-            messages: [{ role: "user", content: `${prompt}${extra}` }],
-            mode: "ai",
-          });
-          const candidate = normalizeRecipe(res.recipes?.[0]);
-          if (candidate && isValidRecipe(candidate)) return candidate;
-          return null;
+          try {
+            const res = await apiClient.aiRecipe.chat.mutate({
+              messages: [{ role: "user", content: `${prompt}${extra}` }],
+              mode: "ai",
+            });
+
+            const candidates = collectCandidates(res);
+            if (candidates.length === 0) {
+              console.warn("[handleSwapRecipe] API returned no usable candidates:", res);
+              return null;
+            }
+
+            // 避開已顯示 + 已換過嘅食譜
+            const picked = candidates.find((candidate) => 
+              !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && 
+              !swappedRecipeNames.has(candidate.name)
+            ) ?? candidates[0];
+            if (picked) return picked;
+
+            console.warn("[handleSwapRecipe] All candidates duplicated:", candidates.map(c => c.name));
+            return null;
+          } catch (err: any) {
+            console.error("[handleSwapRecipe] API call failed:", err?.message || err);
+            throw err;
+          }
         };
 
         let candidate = await tryGenerate("");
-        const duplicate = candidate ? isDuplicateRecipeName(candidate.name, otherNames) : false;
-        if (!candidate || duplicate) {
-          candidate = await tryGenerate("\n再換一個完全唔同、唔重複嘅版本。");
+        const duplicate = candidate ? isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) : false;
+        const alreadySwapped = candidate ? swappedRecipeNames.has(candidate.name) : false;
+        if (!candidate || duplicate || alreadySwapped) {
+          const libraryFallback = pickLibraryFallback();
+          if (libraryFallback && !swappedRecipeNames.has(libraryFallback.name) && !isDuplicateRecipeName(libraryFallback.name, sessionAvoidNames)) {
+            showToast(`📚 食譜庫搵到相近替代：${libraryFallback.name}`);
+            candidate = libraryFallback;
+          } else {
+            showToast("📚 食譜庫冇相近替代，改用 AI 生成全新食譜");
+            candidate = await tryGenerate("\n請直接生成一個全新、唔重複、可直接煮嘅食譜。唔需要參考舊食譜。");
+          }
         }
 
-        if (candidate && isValidRecipe(candidate) && !isDuplicateRecipeName(candidate.name, otherNames)) {
+        if (candidate && isValidRecipe(candidate) && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
           replaceRecipeAtIndex(index, candidate);
           showToast(`✅ 已換成「${candidate.name}」`);
+          // 只保留最近 3 個換過嘅食譜
+          setSwappedRecipeNames(prev => {
+            const newSet = new Set(prev);
+            newSet.add(candidate.name);
+            if (newSet.size > 3) {
+              const arr = Array.from(newSet);
+              return new Set(arr.slice(arr.length - 3));
+            }
+            return newSet;
+          });
         } else {
-          showToast("⚠️ 暫時搵唔到可用替代，試下再按一次");
+          const fallback = pickLibraryFallback();
+          if (fallback && !swappedRecipeNames.has(fallback.name) && !isDuplicateRecipeName(fallback.name, sessionAvoidNames)) {
+            showToast(`📚 食譜庫搵到相近替代：${fallback.name}`);
+            replaceRecipeAtIndex(index, fallback);
+            showToast(`✅ 已換成「${fallback.name}」`);
+            setSwappedRecipeNames(prev => {
+              const newSet = new Set(prev);
+              newSet.add(fallback.name);
+              if (newSet.size > 3) {
+                const arr = Array.from(newSet);
+                return new Set(arr.slice(arr.length - 3));
+              }
+              return newSet;
+            });
+            return;
+          }
+          showToast("⚠️ 暫時搵唔到可用替代，已試過 AI 生成，請再按一次");
         }
       } catch (e: any) {
-        Alert.alert("換食譜失敗", e?.message || "請稍後再試");
+        console.error("[handleSwapRecipe] Error:", e);
+        const errorMsg = e?.message || "未知錯誤";
+        Alert.alert(
+          "換食譜失敗",
+          `錯誤：${errorMsg}\n\n請檢查網絡連接，或嘗試再次點擊。`,
+          [{ text: "確定" }]
+        );
       } finally {
         setSwappingIndex(null);
       }
@@ -1907,7 +2145,7 @@ export default function AIChefScreen() {
       date: plannedDate || todayISO(),
     }));
     setShopPlannedDate(plannedDate || todayISO());
-    // maxDate = 排餐嗰日（採購可早唔可遲）；冇傳就預設今日
+    // maxDate = 排餐嗰日（購買可早唔可遲）；冇傳就預設今日
     setShopMaxDate(maxDate || plannedDate || todayISO());
     setShopRecipes(recipes); // 保留 source 名稱等 onConfirm 用
     setBatchPickerRecipes(pickers);
@@ -1943,7 +2181,7 @@ export default function AIChefScreen() {
     const validRecipes = recommendedRecipes.filter(isValidRecipe);
     const planRe = /(加入|加埋|加落|排入|入|全部加|加)(.{0,8})(排餐|餐牌|下餐|菜單|三餐)|(加一)(排餐)/.test(text);
     const favRe = /(收藏|收埋|存入食譜庫|加入食譜庫|儲存食譜)/.test(text);
-    const shopRe = /(加入|加埋|加落|入)(.{0,6})(購物清單|購物車|採購|買嘢清單)|shopping ?list/i.test(text);
+    const shopRe = /(加入|加埋|加落|入)(.{0,6})(購物清單|購物車|購買|買嘢清單)|shopping ?list/i.test(text);
 
     if (planRe && validRecipes.length > 0) {
       let date = planDate ?? todayISO();
@@ -2024,17 +2262,21 @@ export default function AIChefScreen() {
   const handleQuickPlanFromText = () => {
     const validRecipes = recommendedRecipes.filter(isValidRecipe);
     if (validRecipes.length > 0) {
-      addMealPlanBatch(validRecipes);
+      setMealResult(validRecipes);
+      setRecommendedRecipes(validRecipes);
+      setMealStep("result");
+      scrollToLatestMessage();
       return;
     }
     const lastBot = [...messages].reverse().find(m => m.role === "assistant");
     const text = lastBot ? contentToText(lastBot.content) : "";
     const parsedRecipes = tryParseRecipes(text);
-    const validRecipe = parsedRecipes.find(isValidRecipe);
-    if (validRecipe) {
-      setPlanRecipe(validRecipe);
-      setPlanDate(todayISO()); // Reset to today
-      setShowPlan(true);
+    const validParsedRecipes = parsedRecipes.filter(isValidRecipe);
+    if (validParsedRecipes.length > 0) {
+      setMealResult(validParsedRecipes);
+      setRecommendedRecipes(validParsedRecipes);
+      setMealStep("result");
+      scrollToLatestMessage();
     } else {
       Alert.alert("未能識別食譜", "AI 回覆中未找到有效食譜，請直接點擊 AI 推薦食譜卡片上的「加排餐」。");
     }
@@ -2048,6 +2290,36 @@ export default function AIChefScreen() {
       return;
     }
     handlePrompt(text);
+  };
+
+  // Convert plain-text AI response to structured recipe cards
+  const handleConvertToRecipeCard = () => {
+    const lastBot = [...messages].reverse().find(m => m.role === "assistant");
+    if (!lastBot) return;
+    
+    const fullText = contentToText(lastBot.content);
+    const parsedRecipes = tryParseRecipes(fullText);
+    const validParsedRecipes = parsedRecipes.filter(isValidRecipe);
+    
+    // If we can already parse recipes, use them directly
+    if (validParsedRecipes.length > 0) {
+      setMealResult(validParsedRecipes);
+      setRecommendedRecipes(validParsedRecipes);
+      setMealStep("result");
+      scrollToLatestMessage();
+      return;
+    }
+    
+    // Otherwise, ask AI to restructure the content into recipe cards
+    const convertPrompt = "請將你剛才嘅建議，用結構化食譜卡格式重新整理（每個食譜都要有：名稱、類別、煮食時間、食材清單、烹飪步驟）。按照以下格式：\n\n食譜一：類別 —— 名稱（約 XX 分鐘）\n\n🛒 食材：\n- 食材名：數量 單位\n\n🍳 步驟：\n1. 步驟（第 X-Y 分鐘）：詳細動作";
+    
+    const msgs: Message[] = [...messages, { role: "user", content: convertPrompt }];
+    updateMessages(() => msgs);
+    resetAiNextSteps();
+    lastChatModeRef.current = "ai";
+    noveltyRetryRef.current = false;
+    chatMutation.mutate({ messages: buildBackendMessages(msgs) });
+    scrollToLatestMessage();
   };
 
   // ─── Plan modal confirm ────────────────────────────────
@@ -2185,6 +2457,14 @@ export default function AIChefScreen() {
               return (
                 <View style={{ minWidth: 200 }}>
                   {renderMarkdown(full, s)}
+                  <TouchableOpacity
+                    style={s.copyBtn}
+                    onPress={() => Clipboard.setStringAsync(full).then(() => showToast("已複製"))}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                  >
+                    <Ionicons name="copy-outline" size={12} color="#6B7280" />
+                    <Text style={s.copyBtnTxt}>複製</Text>
+                  </TouchableOpacity>
                 </View>
               );
             })()
@@ -2389,10 +2669,10 @@ export default function AIChefScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
-        <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={[s.root, { paddingTop: insets.top }]}> 
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -2427,7 +2707,7 @@ export default function AIChefScreen() {
                 <View style={[s.bubbleBot, s.typing]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <ActivityIndicator size="small" color={BRAND} />
-                    <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>思考中</Text>
+                    <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>生成食譜中，請稍候...</Text>
                   </View>
                   <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>{LOADING_STEPS[loadingStep]}</Text>
                   {loadingSeconds >= 10 && (
@@ -2452,9 +2732,22 @@ export default function AIChefScreen() {
                       <Text style={s.followUpTxt}>{chip}</Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity style={[s.followUpChip, s.followUpChipAction]} onPress={handleQuickPlanFromText} disabled={chatMutation.isPending}>
-                    <Text style={[s.followUpTxt, { color: "#fff" }]}>加入排餐</Text>
-                  </TouchableOpacity>
+                  {(() => {
+                    const lastBot = messages[messages.length - 1];
+                    const lastText = lastBot ? contentToText(lastBot.content) : "";
+                    const hasRecipe = hasRecipeContent(lastText);
+                    return (
+                      <TouchableOpacity
+                        style={[s.followUpChip, s.followUpChipAction]}
+                        onPress={hasRecipe ? handleQuickPlanFromText : handleConvertToRecipeCard}
+                        disabled={chatMutation.isPending}
+                      >
+                        <Text style={[s.followUpTxt, { color: "#fff" }]}>
+                          {hasRecipe ? "加入排餐" : "轉換為食譜卡"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                 </>
               ) : (
                 <>
@@ -2467,9 +2760,22 @@ export default function AIChefScreen() {
                       <Text style={s.followUpTxt}>{chip.label}</Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity style={[s.followUpChip, s.followUpChipAction]} onPress={handleQuickPlanFromText} disabled={chatMutation.isPending}>
-                    <Text style={[s.followUpTxt, { color: "#fff" }]}>加入排餐</Text>
-                  </TouchableOpacity>
+                  {(() => {
+                    const lastBot = messages[messages.length - 1];
+                    const lastText = lastBot ? contentToText(lastBot.content) : "";
+                    const hasRecipe = hasRecipeContent(lastText);
+                    return (
+                      <TouchableOpacity
+                        style={[s.followUpChip, s.followUpChipAction]}
+                        onPress={hasRecipe ? handleQuickPlanFromText : handleConvertToRecipeCard}
+                        disabled={chatMutation.isPending}
+                      >
+                        <Text style={[s.followUpTxt, { color: "#fff" }]}>
+                          {hasRecipe ? "加入排餐" : "轉換為食譜卡"}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                 </>
               )}
             </ScrollView>
@@ -2480,20 +2786,17 @@ export default function AIChefScreen() {
           <View style={s.recBar}>
             <View style={s.recHead}>
               <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? "今晚 3餸1湯" : "轉換其他食譜："}</Text>
-              {mealResult && mealResult.length === 4 && (
+              {mealResult && (
                 <View style={s.recBatch}>
-                  <TouchableOpacity style={s.batchMealBtn} onPress={() => addMealPlanBatch(mealResult)} disabled={saveRecipeM.isPending || addPlanM.isPending}>
-                    <Text style={s.batchMealTxt}>{saveRecipeM.isPending || addPlanM.isPending ? "處理中..." : "全部加一排餐"}</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity style={s.batchShopBtn} onPress={() => openShoppingSelection(mealResult)} disabled={addShoppingM.isPending}>
-                    <Text style={s.batchShopTxt}>加入採購</Text>
+                    <Text style={s.batchShopTxt}>加入購買</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recScroll}>
               {recommendedRecipes.map((r, i) => (
-                <View key={i} style={s.recCard}>
+                <View key={i} style={s.recCard} testID={`recipe-card-${i}`}>
                   <View style={s.recCardHeader}>
                     <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                       <Ionicons name="restaurant-outline" size={14} color={BRAND} />
@@ -2505,15 +2808,15 @@ export default function AIChefScreen() {
                       <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : "食譜庫"}</Text>
                     </View>
                   </View>
-                  <View style={s.recCardBody}>
-                    <Text style={s.recCardName} numberOfLines={2}>{r.name}</Text>
+                  <View style={s.recCardBody} testID={`recipe-card-content-${i}`}>
+                    <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>{r.name}</Text>
                     <View style={s.recCardMeta}>
                       <Text style={s.recCardMetaTxt}>{r.cookTime}分</Text>
                       <Text style={s.recCardMetaTxt}>{r.servings}人</Text>
                       <Text style={s.recCardMetaTxt}>{(r.ingredients || []).length}食材</Text>
-                      <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]}>{(r.steps || []).length}步驟</Text>
+                      <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]} testID={`recipe-card-steps-count-${i}`}>{(r.steps || []).length}步驟</Text>
                     </View>
-                    <View style={s.recCardTags}>
+                    <View style={s.recCardTags} testID={`recipe-card-tags-${i}`}>
                       {(r.tags || []).slice(0, 4).map((tag, tagIdx) => (
                         <View key={tagIdx} style={s.recTagPill}>
                           <Text style={s.recTagTxt} numberOfLines={1}>{tag}</Text>
@@ -2524,6 +2827,7 @@ export default function AIChefScreen() {
                     <TouchableOpacity
                       style={s.recCardIngredientsToggle}
                       onPress={() => setExpandedCard(expandedCard === i ? null : i)}
+                      testID={`recipe-card-ingredients-toggle-${i}`}
                     >
                       <Ionicons name={expandedCard === i ? "chevron-up" : "chevron-down"} size={13} color={BRAND} />
                       <Text style={s.recCardIngredientsToggleTxt}>
@@ -2531,7 +2835,7 @@ export default function AIChefScreen() {
                       </Text>
                     </TouchableOpacity>
                     {expandedCard === i && (
-                      <View style={s.recCardIngList}>
+                      <View style={s.recCardIngList} testID={`recipe-card-ingredients-${i}`}>
                         {(r.ingredients || []).slice(0, 5).map((ing, ingIdx) => (
                           <View key={ingIdx} style={s.recCardIngRow}>
                             <View style={s.recCardIngDot} />
@@ -2547,7 +2851,16 @@ export default function AIChefScreen() {
                         )}
                       </View>
                     )}
-                    <View style={s.recCardBtns}>
+                    {/* 步驟內容驗證 */}
+                    {r.steps && r.steps.length > 0 && (
+                      <View style={{ paddingVertical: 8 }} testID={`recipe-card-steps-content-${i}`}>
+                        <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} 步驟</Text>
+                        <Text style={{ fontSize: 11, color: TEXT }} numberOfLines={2} testID={`recipe-card-first-step-${i}`}>
+                          {r.steps[0]}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={s.recCardBtns} testID={`recipe-card-btns-${i}`}>
                       <TouchableOpacity
                         testID={`ai-chef-recipe-${i}-meal`}
                         style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
@@ -2584,7 +2897,10 @@ export default function AIChefScreen() {
                         disabled={chatMutation.isPending || swappingIndex === i}
                       >
                         {swappingIndex === i ? (
-                          <ActivityIndicator size="small" color={BRAND} />
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <ActivityIndicator size="small" color={BRAND} />
+                            <Text style={s.btnSwapTxt}>換中</Text>
+                          </View>
                         ) : (
                           <>
                             <Ionicons name="refresh-outline" size={14} color={BRAND} />
@@ -2693,7 +3009,7 @@ export default function AIChefScreen() {
             </View>
             <Text style={m.label}>日期</Text>
             <View style={{ width: Dimensions.get("window").width - 32 }}>
-              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
+              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={todayISO()} />
               {planDate && (
                 <TouchableOpacity 
                   onPress={() => setPlanDate(null)} 
@@ -2739,7 +3055,13 @@ export default function AIChefScreen() {
             onPress={confirmAction}
             disabled={saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))}
           >
-            {(saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending) ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.btnTxt}>確認</Text>}
+            {(addPlanM.isPending || addPlanBatchM.isPending) ? (
+              <Text style={m.btnTxt}>加入排餐，請稍後...</Text>
+            ) : (saveRecipeM.isPending || addShoppingM.isPending) ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={m.btnTxt}>確認</Text>
+            )}
           </TouchableOpacity>
         </View></View>
       </Modal>
