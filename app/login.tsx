@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
 import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -35,10 +36,12 @@ try {
   });
 } catch {}
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "admin";
 
 export default function LoginScreen() {
-  const [mode, setMode] = useState<Mode>("login");
+  const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [mode, setMode] = useState<Mode>(params.mode === "admin" ? "admin" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -50,6 +53,7 @@ export default function LoginScreen() {
 
   const emailLoginMutation = trpc.auth.emailLogin.useMutation();
   const emailRegisterMutation = trpc.auth.emailRegister.useMutation();
+  const adminLoginMutation = trpc.auth.adminLogin.useMutation();
 
   // ── After successful login ──────────────────────────────────────────────────
   // 登入後不直接跳到 tabs，讓 _layout.tsx 的 AuthGuard 根據 onboarding 狀態決定路由
@@ -66,6 +70,13 @@ export default function LoginScreen() {
     if (avail && !enabled) {
       setShowBiometricPrompt(true);
     }
+  };
+
+  const onAdminLoginSuccess = async () => {
+    await AsyncStorage.removeItem(FAMILY_ID_KEY);
+    await utils.invalidate();
+    await utils.auth.me.invalidate();
+    router.replace("/admin");
   };
 
   // ── Email Login / Register ──────────────────────────────────────────────────
@@ -86,7 +97,9 @@ export default function LoginScreen() {
     setLoadingType("email");
     try {
       let result: { token?: string };
-      if (mode === "login") {
+      if (mode === "admin") {
+        result = await adminLoginMutation.mutateAsync({ email: email.trim(), password });
+      } else if (mode === "login") {
         result = await emailLoginMutation.mutateAsync({ email: email.trim(), password });
       } else {
         result = await emailRegisterMutation.mutateAsync({
@@ -97,7 +110,11 @@ export default function LoginScreen() {
       }
 
       await saveAuthTokenFromResponse(result);
-      await onLoginSuccess();
+      if (mode === "admin") {
+        await onAdminLoginSuccess();
+      } else {
+        await onLoginSuccess();
+      }
     } catch (err: any) {
       if (mode === "register" && err?.data?.code === "CONFLICT") {
         Alert.alert("電郵已被註冊", err.message || "此電郵已被使用，請直接登入", [
@@ -105,8 +122,8 @@ export default function LoginScreen() {
           { text: "去登入", onPress: () => setMode("login") },
         ]);
       } else {
-        const msg = mode === "login" ? (err?.message || "電郵或密碼錯誤") : err?.message || "建立帳號失敗，請稍後再試";
-        Alert.alert(mode === "login" ? "登入失敗" : "註冊失敗", msg);
+        const msg = mode === "register" ? (err?.message || "建立帳號失敗，請稍後再試") : (err?.message || "電郵或密碼錯誤");
+        Alert.alert(mode === "register" ? "註冊失敗" : "登入失敗", msg);
       }
     } finally {
       setIsLoading(false);
@@ -121,7 +138,10 @@ export default function LoginScreen() {
     setLoadingType("google");
     try {
       const { GoogleSignin } = require("@react-native-google-signin/google-signin");
-      await GoogleSignin.hasPlayServices();
+      if (Platform.OS !== "ios") {
+        await GoogleSignin.hasPlayServices();
+      }
+      
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) throw new Error("No ID token");
@@ -137,6 +157,9 @@ export default function LoginScreen() {
       await saveAuthTokenFromResponse(data);
       await onLoginSuccess();
     } catch (err: any) {
+      if (__DEV__) {
+        console.error("Google login error:", err);
+      }
       if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
         Alert.alert("Google 登入失敗", "請稍後再試");
       }
@@ -177,6 +200,9 @@ export default function LoginScreen() {
       await saveAuthTokenFromResponse(data);
       await onLoginSuccess();
     } catch (err: any) {
+      if (__DEV__) {
+        console.error("Apple login error:", err);
+      }
       if (err.code !== "ERR_REQUEST_CANCELED") {
         Alert.alert("Apple 登入失敗", "請稍後再試");
       }
@@ -187,7 +213,7 @@ export default function LoginScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} testID="login-screen">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -217,14 +243,22 @@ export default function LoginScreen() {
                 登入
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeBtn, mode === "register" && styles.modeBtnActive]}
-              onPress={() => setMode("register")}
-            >
-              <Text style={[styles.modeBtnText, mode === "register" && styles.modeBtnTextActive]}>
-                建立帳號
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === "register" && styles.modeBtnActive]}
+                onPress={() => setMode("register")}
+              >
+                <Text style={[styles.modeBtnText, mode === "register" && styles.modeBtnTextActive]}>
+                  建立帳號
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeBtn, mode === "admin" && styles.modeBtnActive]}
+                onPress={() => setMode("admin")}
+              >
+                <Text style={[styles.modeBtnText, mode === "admin" && styles.modeBtnTextActive]}>
+                  管理員
+                </Text>
+              </TouchableOpacity>
           </View>
 
           {/* Email Form */}
@@ -301,58 +335,66 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : null}
               <Text style={styles.submitBtnText}>
-                {mode === "login" ? "登入" : "建立帳號"}
+                {mode === "register" ? "建立帳號" : "登入"}
               </Text>
             </TouchableOpacity>
+
+            {mode === "admin" && (
+              <Text style={styles.adminHint}>管理員登入後會直接進入管理面板。</Text>
+            )}
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>或使用以下方式</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {mode !== "admin" && (
+            <>
+              {/* Divider */}
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>或使用以下方式</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          {/* Social Buttons */}
-          <View style={styles.socialSection}>
-            <View>
-              {Platform.OS === "ios" && (
-                <TouchableOpacity
-                  style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
-                  onPress={handleAppleSignIn}
-                  disabled={isLoading}
-                  activeOpacity={0.85}
-                >
-                  {isLoading && loadingType === "apple" ? (
-                    <ActivityIndicator color={BRAND} size="small" />
-                  ) : (
-                    <Ionicons name="logo-apple" size={20} color={BRAND} />
+              {/* Social Buttons */}
+              <View style={styles.socialSection}>
+                <View>
+                  {Platform.OS === "ios" && (
+                    <TouchableOpacity
+                      style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
+                      onPress={handleAppleSignIn}
+                      disabled={isLoading}
+                      activeOpacity={0.85}
+                    >
+                      {isLoading && loadingType === "apple" ? (
+                        <ActivityIndicator color={BRAND} size="small" />
+                      ) : (
+                        <Ionicons name="logo-apple" size={20} color={BRAND} />
+                      )}
+                      <Text style={styles.socialBtnText}>使用 Apple 登入</Text>
+                    </TouchableOpacity>
                   )}
-                  <Text style={styles.socialBtnText}>使用 Apple 登入</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+                </View>
 
-            <View>
-              <TouchableOpacity
-                style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
-                onPress={handleGoogleSignIn}
-                disabled={isLoading}
-                activeOpacity={0.85}
-              >
-                {isLoading && loadingType === "google" ? (
-                  <ActivityIndicator color="#DB4437" size="small" />
-                ) : (
-                  <Ionicons name="logo-google" size={20} color="#DB4437" />
-                )}
-                <Text style={styles.socialBtnText}>使用 Google 登入</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+                <View>
+                  <TouchableOpacity
+                    style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
+                    onPress={handleGoogleSignIn}
+                    disabled={isLoading}
+                    activeOpacity={0.85}
+                  >
+                    {isLoading && loadingType === "google" ? (
+                      <ActivityIndicator color="#DB4437" size="small" />
+                    ) : (
+                      <Ionicons name="logo-google" size={20} color="#DB4437" />
+                    )}
+                    <Text style={styles.socialBtnText}>使用 Google 登入</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <Text style={styles.disclaimer}>
-            登入即表示你同意我們的服務條款及私隱政策
-          </Text>
+              <Text style={styles.disclaimer}>
+                登入即表示你同意我們的服務條款及私隱政策
+              </Text>
+            </>
+          )}
 
           {/* 開發用：重置 App 資料 */}
           <TouchableOpacity
@@ -392,6 +434,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={{ paddingVertical: 10, alignItems: "center" }}
               onPress={() => setShowBiometricPrompt(false)}
+              testID="biometric-skip"
             >
               <Text style={{ fontSize: 14, color: "#9CA3AF", fontWeight: "600" }}>暫時不要</Text>
             </TouchableOpacity>
@@ -452,6 +495,7 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  adminHint: { fontSize: 12, color: "#6B7280", marginTop: 10, textAlign: "center" },
 
   // Divider
   divider: {

@@ -2,7 +2,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   FlatList, Dimensions, ScrollView, ActivityIndicator,
   Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
-  useWindowDimensions,
+  useWindowDimensions, Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -14,11 +14,10 @@ import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCa
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Animated } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
-import Toast from "@/src/components/Toast";
+import { useToast } from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import FilterModal from "@/src/components/FilterModal";
@@ -33,10 +32,6 @@ const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
 const CARD_IMAGE_RATIO = getRecipeCardImageRatio(Dimensions.get("window").height);
 const BRAND = "#013E77";
 const BG = "#F5F5F5";
-
-const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
-
-const CATEGORY_ORDER = ["全部", "中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"];
 
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
@@ -102,7 +97,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
   // Check if today has BOTH eat-out AND dinner plan (conflict)
   const hasConflict = todayEatOut && todayDinnerPlan;
   
-  const dinnerRows: Array<{ icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }> = [];
+  const dinnerRows: { icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }[] = [];
 
   if (hasConflict) {
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
@@ -268,56 +263,6 @@ function ShoppingListPreview({ router }: {
   );
 }
 
-// ── Tonight's Menu Card (Original - kept for backward compatibility) ─────────────────────────────────────────────
-function TonightMenuCard({ todayMeals, router, isAdmin }: {
-  todayMeals: any[];
-  router: ReturnType<typeof useRouter>;
-  isAdmin: boolean;
-}) {
-  const dinner = todayMeals.filter((m: any) => m.mealType === "dinner" && m.status === "confirmed");
-  const pendingCount = todayMeals.filter((m: any) => m.status === "pending").length;
-
-  return (
-    <View style={s.summaryCard}>
-      <View style={s.summaryHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name="moon-outline" size={18} color={BRAND} />
-          <Text style={s.summaryTitle}>今晚菜單</Text>
-        </View>
-        <TouchableOpacity
-          style={s.planBtn}
-          onPress={() => router.push("/(tabs)/planner" as any)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={14} color="#fff" />
-          <Text style={s.planBtnTxt}>排餐</Text>
-        </TouchableOpacity>
-      </View>
-
-      {dinner.length > 0 ? (
-        <View style={s.summaryRows}>
-          {dinner.map((m: any, idx: number) => (
-            <View key={idx} style={s.summaryRow}>
-              <Ionicons name="restaurant-outline" size={14} color="#F59E0B" />
-              <Text style={s.summaryValue} numberOfLines={1}>{mealName(m)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={s.summaryEmpty}
-          onPress={() => router.push("/(tabs)/planner" as any)}
-          activeOpacity={0.7}
-        >
-          <Text style={s.summaryEmptyTxt}>今晚還沒安排晚餐，去排餐吧</Text>
-          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-// ── Pending Actions Card ─────────────────────────────────────────────
 function PendingActionsCard({ router, isAdmin }: {
   router: ReturnType<typeof useRouter>;
   isAdmin: boolean;
@@ -454,17 +399,16 @@ export default function RecipesTab() {
 
   const [showPaywall, setShowPaywall] = useState(false);
   
-  const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
+  const { data: sub, refetch: refetchSubscription } = trpc.family.subscription.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
-  const sub = subscriptionQuery.data;
   // Only hide banner for fully paid active subscribers (trial users should still see it)
   const isPaid = sub?.status === "active";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"all" | "official" | "user">("all");
+  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
@@ -473,7 +417,6 @@ export default function RecipesTab() {
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"newest" | "popular" | "cookTime" | "difficulty">("popular");
-  const [viewType, setViewType] = useState<"grid" | "list">("grid");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
@@ -491,7 +434,12 @@ export default function RecipesTab() {
     loadCustomCategories().then(c => setCategories(c));
     // Load search history
     AsyncStorage.getItem("kindcipe_search_history").then((h) => {
-      if (h) setSearchHistory(JSON.parse(h));
+      if (h) {
+        try {
+          const parsed = JSON.parse(h);
+          if (Array.isArray(parsed)) setSearchHistory(parsed);
+        } catch {}
+      }
     });
     // Skeleton loading animation
     const animation = Animated.loop(
@@ -502,7 +450,7 @@ export default function RecipesTab() {
     );
     animation.start();
     return () => animation.stop();
-  }, []);
+  }, [skeletonAnim]);
 
   // Debounce search query (300ms) - ONLY update query, DO NOT save history here!
   useEffect(() => {
@@ -528,27 +476,20 @@ export default function RecipesTab() {
   const [quickPlanDate, setQuickPlanDate] = useState<string | null>(DateUtil.todayISO());
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
 
   const todayStr = DateUtil.todayISO();
   const { data: todayMeals = [] } = trpc.mealPlan.listByDateRange.useQuery({ startDate: todayStr, endDate: todayStr }, { staleTime: 30000 });
 
   // Use useMemo to stabilize weekStart calculation (fixes infinite re-query issue)
-  const { weekStartStr, todayDow } = useMemo(() => {
+  const { weekStartStr } = useMemo(() => {
     const today = DateUtil.parseDate(todayStr);
     const weekStart = new Date(today);
     const dayOfWeek = weekStart.getDay();
     const diff = weekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
     weekStart.setDate(diff);
     const weekStartStr = DateUtil.toISODate(weekStart);
-    const todayDow = today.getDay() + 1; // 1=Mon, 7=Sun
-    return { weekStartStr, todayDow };
+    return { weekStartStr };
   }, [todayStr]);
-
-  const { data: weekMenu = { items: [] } } = trpc.weeklyMenu.getWeek.useQuery(
-    { weekStart: weekStartStr },
-    { staleTime: 1000 * 60 * 5 }
-  );
 
   // Get today's eat-out status from the dedicated family_eat_out table
   const { data: todayEatOutDates = [] } = trpc.eatOut.listByDateRange.useQuery(
@@ -562,8 +503,8 @@ export default function RecipesTab() {
       void invalidateMealPlanAndCart();
       void utils.weeklyMenu.getWeek.invalidate({ weekStart: weekStartStr });
       void utils.eatOut.listByDateRange.invalidate({ startDate: todayStr, endDate: todayStr });
-      void subscriptionQuery.refetch();
-    }, [invalidateMealPlanAndCart, utils, weekStartStr, todayStr, subscriptionQuery.refetch]),
+      void refetchSubscription();
+    }, [invalidateMealPlanAndCart, utils, weekStartStr, todayStr, refetchSubscription]),
   );
 
   const isAdmin = familyRole === "owner" || familyRole === "admin";
@@ -574,9 +515,9 @@ export default function RecipesTab() {
     total: searchTotal,
     officialCount: searchOfficialCount,
     customCount: searchCustomCount,
+    kolCount: searchKolCount,
     isLoading: searchLoading,
     isFetchingNextPage,
-    hasNextPage,
     fetchNextPage,
     refetch: refetchSearch,
     isError: isSearchError,
@@ -589,14 +530,14 @@ export default function RecipesTab() {
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
     source: viewMode,
-    limit: viewType === "grid" ? 20 : 30,
+    limit: 20,
   });
 
   // Legacy queries for backward compatibility (user recipes, counts)
   const { data: userRecipes = [], isLoading: loadingUser } =
     trpc.recipes.listUser.useQuery({ limit: 200 }, { staleTime: 60000 });
 
-  const drafts = (userRecipes as any[])?.filter((r: any) => r.isDraft) ?? [];
+  const drafts = useMemo(() => (userRecipes as any[]).filter((r: any) => r.isDraft), [userRecipes]);
   const draftIdSet = useMemo(() => {
     const set = new Set<string>();
     drafts.forEach((d: any) => set.add(String(d.id)));
@@ -604,6 +545,7 @@ export default function RecipesTab() {
   }, [drafts]);
 
   const isLoading = searchLoading || loadingUser;
+  const { showToast } = useToast();
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
@@ -642,12 +584,12 @@ export default function RecipesTab() {
           fromMealPlanId: result.newPlanId,
         });
       } else {
-        setToast({ visible: true, message: "已加入排餐", type: "info" });
+        showToast("已加入排餐", "info");
       }
 
       void invalidateMealPlanAndCart();
     },
-    onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
+    onError: (e) => showToast(`加入失敗：${e.message}`, "error"),
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -661,11 +603,11 @@ export default function RecipesTab() {
       utils.shopping.list.refetch();
       const count = variables.items.length;
       setPlanPickerRecipe(null);
-      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
+      showToast(`✅ ${count} 件食材已加入購物清單`);
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
-      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+      showToast(`加入食材失敗：${e.message}`, "error");
     },
   });
 
@@ -676,7 +618,7 @@ export default function RecipesTab() {
     return Array.from(counts.keys()).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0));
   }, [userRecipes, searchRecipes]);
 
-  // Filter recipes based on viewMode (official/user/all)
+  // Filter recipes based on viewMode (official/user/kol/all)
   const filteredRecipes = useMemo(() => {
     let pool = [...searchRecipes];
 
@@ -684,6 +626,11 @@ export default function RecipesTab() {
       pool = pool.filter((r: any) => r.source === "official");
     } else if (viewMode === "user") {
       pool = pool.filter((r: any) => r.source === "custom");
+    } else if (viewMode === "kol") {
+      pool = pool.filter((r: any) => {
+        const st = r.sourceType;
+        return st === "kol" || st === "instagram" || st === "youtube" || st === "xiaohongshu" || st === "threads" || st === "tiktok";
+      });
     }
 
     // Deduplicate by recipe id (keep first occurrence)
@@ -766,6 +713,7 @@ export default function RecipesTab() {
     const parts: string[] = [];
     if (viewMode === "user") parts.push("我的食譜");
     else if (viewMode === "official") parts.push("官方食譜");
+    else if (viewMode === "kol") parts.push("🌟 網紅食譜");
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label || activeCategory);
@@ -1194,6 +1142,7 @@ export default function RecipesTab() {
         setViewMode={setViewMode}
         officialCount={searchOfficialCount}
         userCount={searchCustomCount}
+        kolCount={searchKolCount}
       />
 
       <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
@@ -1211,7 +1160,7 @@ export default function RecipesTab() {
             </View>
 
             <Text style={s.planLabel}>選擇日期</Text>
-            <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} showShortcuts={true} />
+            <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
             {quickPlanDate && (
               <TouchableOpacity 
                 onPress={() => setQuickPlanDate(null)} 
@@ -1275,20 +1224,13 @@ export default function RecipesTab() {
             });
           } else {
             setPlanPickerRecipe(null);
-            setToast({ visible: true, message: "排餐已記錄", type: "info" });
+            showToast("排餐已記錄", "info");
           }
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);
-          setToast({ visible: true, message: "已跳過食材", type: "info" });
+          showToast("已跳過食材", "info");
         }}
-      />
-
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
 
       <PaywallModal

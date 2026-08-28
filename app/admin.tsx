@@ -8,6 +8,7 @@ import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/hooks/useAuth";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -97,16 +98,15 @@ export default function AdminScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
-  const [pin, setPin] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
   const [activeTab, setActiveTab] = useState<"recipes" | "analytics" | "pending">("recipes");
   const [searchQ, setSearchQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const { data: officialRecipesList = [] } = trpc.recipes.listOfficial.useQuery({ limit: 500 });
-  const { data: pendingList = [] } = trpc.recipes.adminListPending.useQuery(undefined, { enabled: unlocked });
+  const { data: pendingList = [] } = trpc.recipes.adminListPending.useQuery(undefined, { enabled: isAuthenticated && user?.role === "admin" });
 
   const createOfficialM = trpc.recipes.adminCreateOfficial.useMutation({
     onSuccess: () => { utils.recipes.listOfficial.invalidate(); setShowForm(false); Alert.alert("已新增官方 AI 食譜"); },
@@ -156,6 +156,7 @@ export default function AdminScreen() {
     name: "", nameEn: "", description: "", image: "",
     cookTime: "20", servings: "2", difficulty: "簡單",
     recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
+    isKol: false, // KOL 食譜標記
   });
 
   // 關閉新增食譜表單：若已有輸入內容，先提醒用戶
@@ -188,15 +189,6 @@ export default function AdminScreen() {
     }
   };
 
-  const handlePinSubmit = () => {
-    if (pin === "8888") {
-      setUnlocked(true);
-    } else {
-      Alert.alert("PIN 碼錯誤");
-      setPin("");
-    }
-  };
-
   const handleSave = () => {
     if (!form.name.trim()) { Alert.alert("請輸入菜名"); return; }
     if (!form.image.trim()) { Alert.alert("請輸入圖片網址"); return; }
@@ -212,38 +204,52 @@ export default function AdminScreen() {
       tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
       sourceAuthor: form.reelAuthor || undefined,
       sourceUrl: form.reelUrl || undefined,
+      sourceType: form.isKol ? ("kol" as const) : ("manual" as const),
     };
     createOfficialM.mutate(payload);
   };
 
-  if (!unlocked) {
+  if (authLoading) {
     return (
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: DARK }}>
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
       <View style={{ flex: 1, backgroundColor: DARK, alignItems: "center", justifyContent: "center", padding: 32 }}>
         <View style={{ backgroundColor: "#1E293B", borderRadius: 20, padding: 36, width: "100%" as any, maxWidth: 340, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
           <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: BRAND, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-            <Ionicons name="server" size={26} color="#fff" />
+            <Ionicons name="lock-closed" size={26} color="#fff" />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>管理員面板</Text>
-          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28 }}>Admin Dashboard · 請輸入 PIN 碼</Text>
-          <TextInput
-            style={{ width: "100%" as any, backgroundColor: DARK, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.1)", borderRadius: 12, padding: 12, color: "#F1F5F9", fontSize: 16, letterSpacing: 6, textAlign: "center" as any, marginBottom: 16 }}
-            value={pin}
-            onChangeText={setPin}
-            placeholder="輸入 PIN 碼"
-            placeholderTextColor="#64748B"
-            secureTextEntry
-            maxLength={8}
-            returnKeyType="done"
-            onSubmitEditing={handlePinSubmit}
-          />
-          <TouchableOpacity style={{ width: "100%" as any, backgroundColor: BRAND, paddingVertical: 12, borderRadius: 12, alignItems: "center" }} onPress={handlePinSubmit}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>進入管理面板</Text>
+          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>需要登入</Text>
+          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>請先用管理員帳號登入</Text>
+          <TouchableOpacity style={{ width: "100%" as any, backgroundColor: BRAND, paddingVertical: 12, borderRadius: 12, alignItems: "center" }} onPress={() => router.replace("/login?mode=admin" as any)}>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>去管理員登入</Text>
           </TouchableOpacity>
         </View>
         <Stack.Screen options={{ headerShown: false }} />
       </View>
-      </KeyboardAvoidingView>
+    );
+  }
+
+  if (user?.role !== "admin") {
+    return (
+      <View style={{ flex: 1, backgroundColor: DARK, alignItems: "center", justifyContent: "center", padding: 32 }}>
+        <View style={{ backgroundColor: "#1E293B", borderRadius: 20, padding: 36, width: "100%" as any, maxWidth: 340, alignItems: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+          <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <Ionicons name="alert-circle" size={26} color="#fff" />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>無管理權限</Text>
+          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>當前帳號唔係 Admin，無法進入管理後台。</Text>
+          <TouchableOpacity style={{ width: "100%" as any, backgroundColor: BRAND, paddingVertical: 12, borderRadius: 12, alignItems: "center" }} onPress={() => router.replace("/login?mode=admin" as any)}>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>切換管理員登入</Text>
+          </TouchableOpacity>
+        </View>
+        <Stack.Screen options={{ headerShown: false }} />
+      </View>
     );
   }
 
@@ -312,7 +318,7 @@ export default function AdminScreen() {
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: BRAND, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 }}
                   onPress={() => {
-                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60" });
+                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60", isKol: false });
                     setShowForm(true);
                   }}
                 >
@@ -385,8 +391,41 @@ export default function AdminScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }}>{recipe.name}</Text>
                       <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>⏱ {recipe.cookTime}分 · {recipe.servings}人 · {getMealType(recipe)}</Text>
+                      {recipe.sourceType === "kol" && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                          <Ionicons name="star" size={10} color="#F59E0B" />
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#F59E0B" }}>網紅食譜</Text>
+                        </View>
+                      )}
                     </View>
                     <View style={{ flexDirection: "row", gap: 4 }}>
+                      <TouchableOpacity
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 8,
+                          backgroundColor: recipe.sourceType === "kol" ? "#FEF3C7" : "#F1F5F9",
+                          borderWidth: 1,
+                          borderColor: recipe.sourceType === "kol" ? "#F59E0B" : BORDER,
+                        }}
+                        onPress={() => {
+                          const newType = recipe.sourceType === "kol" ? "manual" : "kol";
+                          updateOfficialM.mutate({
+                            id: Number(recipe.id),
+                            name: recipe.name,
+                            cookTime: recipe.cookTime ?? 20,
+                            servings: recipe.servings ?? 2,
+                            difficulty: recipe.difficulty ?? "中等",
+                            recipeCategory: recipe.recipeCategory ?? "mixed",
+                            tags: recipe.tags ?? [],
+                            sourceType: newType,
+                          });
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: recipe.sourceType === "kol" ? "#F59E0B" : SUB }}>
+                          {recipe.sourceType === "kol" ? "KOL" : "標記 KOL"}
+                        </Text>
+                      </TouchableOpacity>
                       {deleteConfirm === recipe.id ? (
                         <>
                           <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#EF4444", borderRadius: 8 }} onPress={() => deleteOfficialM.mutate({ id: Number(recipe.id) })}>

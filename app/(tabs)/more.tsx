@@ -147,9 +147,9 @@ export default function MoreTab() {
     }, 350);
   };
 
-  const goToRecipes = (viewMode: "official" | "user") => {
+  const goToRecipes = (viewMode: "official" | "kol" | "user") => {
     navigate(() => {
-      router.push({ pathname: "/(tabs)", params: { initialViewMode: viewMode } } as any);
+      router.push({ pathname: "/recipes", params: { source: viewMode } } as any);
     });
   };
 
@@ -181,7 +181,7 @@ export default function MoreTab() {
       subtitle: "探索創作者熱門菜式",
       Icon: StarIcon,
       accent: "copper" as const,
-      onPress: () => goToComingSoon("網紅食譜", "探索創作者熱門菜式", "暫時沒有可顯示的網紅食譜。之後會接入已驗證的創作者內容。"),
+      onPress: () => goToRecipes("kol"),
       accessibilityLabel: "網紅食譜，探索創作者熱門菜式",
     },
     {
@@ -226,10 +226,10 @@ export default function MoreTab() {
   const familyCards = [
     {
       title: "聚會買餸單",
-      subtitle: "快速整理聚會採購",
+      subtitle: "快速整理聚會購買",
       Icon: BasketIcon,
       onPress: () => navigate(() => router.push("/shopping-templates")),
-      accessibilityLabel: "聚會買餸單，快速整理聚會採購",
+      accessibilityLabel: "聚會買餸單，快速整理聚會購買",
     },
     {
       title: "管理廚房",
@@ -239,11 +239,11 @@ export default function MoreTab() {
       accessibilityLabel: "管理廚房與成員",
     },
     {
-      title: "採購記錄",
-      subtitle: "查看過往採購內容",
+      title: "購買記錄",
+      subtitle: "查看過往購買內容",
       Icon: ReceiptIcon,
       onPress: () => navigate(() => router.push("/purchase-history")),
-      accessibilityLabel: "採購記錄，查看過往採購內容",
+      accessibilityLabel: "購買記錄，查看過往購買內容",
     },
     {
       title: "廚房學堂",
@@ -299,7 +299,7 @@ export default function MoreTab() {
           </View>
 
           <View style={styles.sectionBlock}>
-            <SectionHeader title="採購與家庭" />
+            <SectionHeader title="購買與家庭" />
             <View style={styles.grid}>
               {familyCards.map((item) => (
                 <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
@@ -313,12 +313,12 @@ export default function MoreTab() {
             <SectionHeader title="帳戶" />
             <View style={styles.grid}>
               <View style={[styles.gridCell, { width: cardWidth }]}>
-              <FeatureCard
+                <FeatureCard
                   title="設定"
-                  subtitle="語言、通知與帳戶設定"
+                  subtitle="語言與帳戶設定"
                   Icon={SettingsIcon}
                   onPress={() => navigate(() => router.push("/settings"))}
-                  accessibilityLabel="設定，語言、通知與帳戶設定"
+                  accessibilityLabel="設定，語言與帳戶設定"
                 />
               </View>
               <View style={[styles.gridCell, { width: cardWidth }]}>

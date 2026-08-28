@@ -31,6 +31,7 @@ import { CrashScreen } from "@/src/components/CrashScreen";
 import { initGlobalErrorHandler } from "@/lib/global-error-handler";
 import { initIAP } from "@/lib/purchase";
 import { onOfflineChange } from "@/lib/trpc";
+import { ToastProvider } from "@/src/components/Toast";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
 Sentry.init({
@@ -71,6 +72,15 @@ function detectPlatform(url: string): string | null {
 
 // 高成功率平台清單（顯示提示）
 const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
+
+const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number } | null => {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -253,10 +263,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         
         const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
         if (hintedData) {
-          const { url, timestamp } = JSON.parse(hintedData);
+          const parsed = safeParseClipboardHint(hintedData);
+          const url = parsed?.url;
+          const timestamp = parsed?.timestamp;
           const now = Date.now();
           const hours24 = 24 * 60 * 60 * 1000;
-          if (url === text && now - timestamp < hours24) {
+          if (url === text && typeof timestamp === "number" && now - timestamp < hours24) {
             return;
           }
         }
@@ -302,9 +314,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const seg0 = segments[0] as string;
     const isLoggedIn = !!meQuery.data;
 
-    // 未登入，跳轉到登入頁（但不干擾已登入後的 stack screens）
+    // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
     if (!isLoggedIn && !inLoginPage) {
-      router.replace("/login");
+      if (seg0 === "admin") {
+        router.replace("/login?mode=admin");
+      } else {
+        router.replace("/login");
+      }
       return;
     }
 
@@ -378,78 +394,80 @@ export default function RootLayout() {
   useEffect(() => { initLanguage(); }, []);
 
   return (    <ErrorBoundary fallback={<CrashScreen />}>
-    <I18nextProvider i18n={i18n}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" />
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: "#013E77" },
-              headerTintColor: "#fff",
-              headerTitleStyle: { fontWeight: "bold" },
-            }}
-          >
-            <Stack.Screen
-              name="(tabs)"
-              options={{ 
-                headerShown: false,
-                title: '',
-              }}
-            />
-            <Stack.Screen
-              name="recipe/[id]"
-              options={{ 
-                headerShown: false,
-                title: '',
-                headerBackTitle: '',
-              }}
-            />
-            <Stack.Screen
-              name="login"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="onboarding"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="import"
-              options={{ 
-                headerShown: false,
-                title: "",
-                gestureEnabled: true,
-              }}
-            />
-            <Stack.Screen
-              name="recipe-editor"
-              options={{
-                headerShown: false,
-                title: "",
-                gestureEnabled: true,
-              }}
-            />
-            <Stack.Screen
-              name="settings"
-              options={{ 
-                headerShown: false,
-                title: '',
-                headerBackTitle: '',
-              }}
-            />
-            <Stack.Screen
-              name="coming-soon"
-              options={{
-                headerShown: false,
-                title: '',
-                gestureEnabled: true,
-              }}
-            />
-          </Stack>
-        </AuthGuard>
-        </QueryClientProvider>
-      </trpc.Provider>
-    </I18nextProvider>
+      <I18nextProvider i18n={i18n}>
+        <trpc.Provider client={trpcClient} queryClient={queryClient}>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <StatusBar style="light" />
+              <AuthGuard>
+                <Stack
+                  screenOptions={{
+                    headerStyle: { backgroundColor: "#013E77" },
+                    headerTintColor: "#fff",
+                    headerTitleStyle: { fontWeight: "bold" },
+                  }}
+                >
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="recipe/[id]"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                      headerBackTitle: '',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="login"
+                    options={{ headerShown: false, gestureEnabled: false }}
+                  />
+                  <Stack.Screen
+                    name="onboarding"
+                    options={{ headerShown: false, gestureEnabled: false }}
+                  />
+                  <Stack.Screen
+                    name="import"
+                    options={{
+                      headerShown: false,
+                      title: "",
+                      gestureEnabled: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="recipe-editor"
+                    options={{
+                      headerShown: false,
+                      title: "",
+                      gestureEnabled: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="settings"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                      headerBackTitle: '',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="coming-soon"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                      gestureEnabled: true,
+                    }}
+                  />
+                </Stack>
+              </AuthGuard>
+            </ToastProvider>
+          </QueryClientProvider>
+        </trpc.Provider>
+      </I18nextProvider>
     </ErrorBoundary>
   );
 }
