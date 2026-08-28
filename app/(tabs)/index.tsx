@@ -546,6 +546,11 @@ export default function RecipesTab() {
 
   const isLoading = searchLoading || loadingUser;
   const { showToast } = useToast();
+  const isKolSourceUnsupported = useMemo(() => {
+    if (viewMode !== "kol" || !isSearchError) return false;
+    const msg = String(searchError?.message ?? "");
+    return msg.includes("invalid_value") || msg.includes("Invalid option") || msg.includes("expected one of");
+  }, [viewMode, isSearchError, searchError]);
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
@@ -1042,7 +1047,16 @@ export default function RecipesTab() {
             </View>
           ) : (
           <View style={s.empty}>
-            {isSearchError ? (
+            {isKolSourceUnsupported ? (
+              <>
+                <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Text style={s.emptyTitle}>網紅食譜暫時未有內容</Text>
+                <Text style={s.emptySub}>管理員未上架 KOL 食譜，或者內容仍在準備中。</Text>
+                <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
+                  <Text style={s.emptyBtnTxt}>返回篩選</Text>
+                </TouchableOpacity>
+              </>
+            ) : isSearchError ? (
               <>
                 <Ionicons name="warning-outline" size={44} color="#EF4444" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>搜尋出錯</Text>
@@ -1073,6 +1087,15 @@ export default function RecipesTab() {
                     <Text style={s.emptySuggestChipTxt}> 清淡少油</Text>
                   </TouchableOpacity>
                 </View>
+              </>
+            ) : viewMode === "kol" ? (
+              <>
+                <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Text style={s.emptyTitle}>網紅食譜暫時未有內容</Text>
+                <Text style={s.emptySub}>Admin 未上架 KOL 食譜，或者內容仍在準備中。</Text>
+                <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
+                  <Text style={s.emptyBtnTxt}>返回篩選</Text>
+                </TouchableOpacity>
               </>
             ) : viewMode === "user" ? (
               <>
