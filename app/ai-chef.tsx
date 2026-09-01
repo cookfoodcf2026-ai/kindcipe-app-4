@@ -1505,7 +1505,7 @@ export default function AIChefScreen() {
     const regeneratePrompt = lastUser
       ? "請再提供一組新的建議。"
       : mode === "ai"
-        ? "請隨機提供一組唔重複嘅食譜，避免同之前建議過嘅菜式重複。"
+        ? "請隨機提供一組新食譜。如果諗唔到新嘢，可以用預設值（4 人份/清淡/簡單~中等）生成，最緊要即刻有嘢睇。"
         : "請從食譜庫再提供一組唔同嘅建議，避免同之前建議過嘅菜式重複。";
     const newMsgs: Message[] = [...messages, { role: "user", content: regeneratePrompt }];
     updateMessages(() => newMsgs);
