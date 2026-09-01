@@ -71,7 +71,6 @@ export default function RecipeCard({
               source={{ uri: imageUrl }}
               style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]}
               {...imageProps}
-              placeholder={{ backgroundColor: catColor.bg }}
               onError={() => setHasImageError(true)}
             />
           ) : (
@@ -79,7 +78,6 @@ export default function RecipeCard({
               source={localImage}
               style={[s.cardImg, { height: CARD_WIDTH * imageRatio }]}
               {...imageProps}
-              placeholder={{ backgroundColor: catColor.bg }}
               onError={() => setHasImageError(true)}
             />
           )

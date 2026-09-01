@@ -6,6 +6,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { categorizeIngredient, isSeasoning } from "@/constants/ingredients";
+import { DateUtil } from "@/src/lib/DateUtil";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
@@ -75,14 +77,10 @@ export default function IngredientPickerModal({
   visible, recipes, title, initialSelected, loading = false, 
   defaultDate, onDateChange, showDateSelector = true, maxDate, alreadyAddedKeys, onConfirm, onSkip,
 }: Props) {
+  const today = DateUtil.todayISO();
+  const normalizedDefaultDate = defaultDate && defaultDate >= today ? defaultDate : today;
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [date, setDate] = useState(defaultDate ?? (() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  })());
+  const [date, setDate] = useState(normalizedDefaultDate);
 
   // 將食材按類別分組
   const groupedIngredients = useMemo(() => {
@@ -106,9 +104,7 @@ export default function IngredientPickerModal({
 
   useEffect(() => {
     if (visible && recipes.length > 0 && !initializedRef.current) {
-      if (defaultDate) {
-        setDate(defaultDate);
-      }
+      setDate(normalizedDefaultDate);
       if (initialSelected) {
         setSelected(new Set(initialSelected));
       } else {
@@ -117,6 +113,7 @@ export default function IngredientPickerModal({
           r.ingredients.forEach((ing, idx) => {
             const key = `${r.id}::${idx}`;
             if (alreadyAddedKeys?.has(key)) return;
+            // 調味料預設唔勾選（用返現有 isSeasoning 邏輯）
             if (!isSeasoning(ing.name)) {
               def.add(key);
             }
@@ -129,7 +126,7 @@ export default function IngredientPickerModal({
     if (!visible) {
       initializedRef.current = false;
     }
-  }, [visible, initialSelected, defaultDate, alreadyAddedKeys]);
+  }, [visible, initialSelected, normalizedDefaultDate, alreadyAddedKeys]);
 
   const toggle = (key: string) => {
     setSelected((prev) => {
@@ -259,6 +256,7 @@ export default function IngredientPickerModal({
                 }}
                 showShortcuts={true}
                 maxDate={maxDate}
+                minDate={today}
               />
             </View>
           )}
@@ -266,7 +264,7 @@ export default function IngredientPickerModal({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 }}>
               <Ionicons name="warning" size={14} color="#DC2626" />
               <Text style={{ fontSize: 12, color: "#DC2626", fontWeight: "600" }}>
-                ⚠️ 採購日期（{date}）晚於排餐日期（{maxDate}）
+                ⚠️ 購買日期（{date}）晚於排餐日期（{maxDate}）
               </Text>
             </View>
           )}
@@ -284,7 +282,7 @@ export default function IngredientPickerModal({
                     </Text>
                     <Text style={s.categoryCount}>{items.length}</Text>
                     {isSeasoningGroup && (
-                      <Text style={s.seasoningHint}>（家中常備，預設不加入）</Text>
+                      <Text style={s.seasoningHint}>（家中常備，可按需要取消）</Text>
                     )}
                   </View>
                   {items.map(({ ing, key, recipeName }) => {
@@ -306,7 +304,7 @@ export default function IngredientPickerModal({
                         {isAdded ? (
                           <Text style={s.addedTag}>已加入</Text>
                         ) : (
-                          <Text style={s.qty}>{ing.quantity} {ing.unit}</Text>
+                          <Text style={s.qty}>{formatIngredientDisplay(ing.quantity, ing.unit)}</Text>
                         )}
                       </TouchableOpacity>
                     );
@@ -323,7 +321,7 @@ export default function IngredientPickerModal({
                 if (maxDate && date > maxDate) {
                   Alert.alert(
                     "日期無效",
-                    `採購日期（${date}）不能遲於排餐日期（${maxDate}）`,
+                    `購買日期（${date}）不能遲於排餐日期（${maxDate}）`,
                     [{ text: "確定" }]
                   );
                   return;

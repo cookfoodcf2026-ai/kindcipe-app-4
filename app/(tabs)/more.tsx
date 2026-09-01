@@ -277,7 +277,7 @@ export default function MoreTab() {
 
         <View style={styles.content}>
           <View style={styles.sectionBlock}>
-            <SectionHeader title="食譜入口" />
+            <SectionHeader title="食譜" />
             <View style={styles.grid}>
               {recipeCards.map((item) => (
                 <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>

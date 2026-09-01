@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, TextInput, Modal, ActivityIndicator, Dimensions, Linking, Platform, KeyboardAvoidingView, Keyboard
+  Alert, TextInput, Modal, ActivityIndicator, Linking, Platform, KeyboardAvoidingView, Keyboard
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
@@ -10,7 +10,7 @@ import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
-import Toast from "@/src/components/Toast";
+import { useToast } from "@/src/components/Toast";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import UnitPicker from "@/src/components/UnitPicker";
 import { DateUtil } from "@/src/lib/DateUtil";
@@ -22,10 +22,7 @@ import {
 import type {
   ShoppingTemplate,
   TemplateCategory,
-  TemplateItem
 } from "@/lib/shopping-templates";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const BRAND = "#013E77";
 const BG = "#FFFBF5";
@@ -44,12 +41,21 @@ type CustomItem = {
   price?: number;
 };
 
+const safeParseArray = <T,>(raw: string): T[] | null => {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function ShoppingTemplatesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const utils = trpc.useUtils();
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
+  const { showToast } = useToast();
 
   const templateIdParam = params.templateId as string;
   const dateParam = params.date as string;
@@ -89,7 +95,7 @@ export default function ShoppingTemplatesScreen() {
   // 儲存清單狀態
   const [showSaveListModal, setShowSaveListModal] = useState(false);
   const [savedListName, setSavedListName] = useState("");
-  const [savedLists, setSavedLists] = useState<Array<{ id: string; name: string; template: string; people: number; items: string[] }>>([]);
+  const [savedLists, setSavedLists] = useState<{ id: string; name: string; template: string; people: number; items: string[] }[]>([]);
 
   // 鍵盤高度（令底部浮動結算欄唔會被鍵盤遮住）
   const [keyboardH, setKeyboardH] = useState(0);
@@ -103,13 +109,13 @@ export default function ShoppingTemplatesScreen() {
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      setToast({ visible: true, message: `✅ 已將所選食材加入購物車（預定日子：${planDateLabel}）`, type: "success" });
+      showToast(`✅ 已將所選食材加入購物車（預定日子：${planDateLabel}）`);
       setSelectedTemplate(null);
       setSelectedItems(new Set());
       setQuantityOverrides({});
       setCustomItems([]);
     },
-    onError: (e) => setToast({ visible: true, message: `加入失敗：${e.message}`, type: "error" }),
+    onError: (e) => showToast(`加入失敗：${e.message}`, "error"),
   });
   
   // 載入已儲存清單
@@ -121,7 +127,8 @@ export default function ShoppingTemplatesScreen() {
     try {
       const stored = await AsyncStorage.getItem("@kindcipe:saved-shopping-lists");
       if (stored) {
-        setSavedLists(JSON.parse(stored));
+        const parsed = safeParseArray<any>(stored);
+        if (parsed) setSavedLists(parsed);
       }
     } catch (e) {
       console.error("Failed to load saved lists:", e);
@@ -288,19 +295,6 @@ export default function ShoppingTemplatesScreen() {
       });
       return next;
     });
-  };
-
-  // 8. 微調份量 (加減基準值)
-  const adjustItemQuantity = (item: TemplateItem, isIncrement: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const currentBase = quantityOverrides[item.id] !== undefined ? quantityOverrides[item.id] : item.baseQuantity;
-    const step = item.unit === "克" ? 50 : 1;
-    let newBase = isIncrement ? currentBase + step : currentBase - step;
-    if (newBase <= 0) newBase = step; // 最低為一個步長
-    setQuantityOverrides(prev => ({
-      ...prev,
-      [item.id]: newBase
-    }));
   };
 
   // 9. 自訂項目添加
@@ -807,7 +801,7 @@ export default function ShoppingTemplatesScreen() {
             
             {/* Template Cards */}
             <View style={{ padding: 16, gap: 12 }}>
-              {SHOPPING_TEMPLATES.map((template, idx) => (
+              {SHOPPING_TEMPLATES.map((template, _idx) => (
                 <TouchableOpacity
                   key={template.id}
                   style={{
@@ -855,7 +849,7 @@ export default function ShoppingTemplatesScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Ionicons name="information-circle-outline" size={20} color={BRAND} style={{ marginTop: 2 }} />
                   <Text style={{ fontSize: 13, color: BRAND, lineHeight: 18 }}>
-                    選擇模板後，你可以微調人數、採購日子並自由挑選食材。食材可一鍵加入家庭共享購物車，更支援自動 AA 制計數同中英印菲多語言清單分享！儲存咗嘅清單可以隨時重用。
+                    選擇模板後，你可以微調人數、購買日子並自由挑選食材。食材可一鍵加入家庭共享購物車，更支援自動 AA 制計數同中英印菲多語言清單分享！儲存咗嘅清單可以隨時重用。
                   </Text>
                 </View>
               </View>
@@ -956,8 +950,8 @@ export default function ShoppingTemplatesScreen() {
 
             {/* 2. 原生日子選擇器 */}
             <View style={{ marginTop: 12 }}>
-              <Text style={[s.controlLabel, { marginBottom: 8 }]}>📅 聚餐/採購日期</Text>
-              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} />
+              <Text style={[s.controlLabel, { marginBottom: 8 }]}>📅 聚餐/購買日期</Text>
+              <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
               {planDate && (
                 <TouchableOpacity 
                   onPress={() => setPlanDate(null)} 
@@ -1377,7 +1371,7 @@ export default function ShoppingTemplatesScreen() {
           <View style={s.modalOverlay}>
             <View style={s.modalContainer}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>💸 實際採購 AA 制計數機</Text>
+                <Text style={s.modalTitle}>💸 實際購買 AA 制計數機</Text>
                 <TouchableOpacity onPress={() => setShowAASplitModal(false)}>
                   <Ionicons name="close" size={20} color={TEXT} />
                 </TouchableOpacity>
@@ -1648,13 +1642,6 @@ export default function ShoppingTemplatesScreen() {
         </Modal>
 
       </KeyboardAvoidingView>
-
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
-      />
     </>
   );
 }

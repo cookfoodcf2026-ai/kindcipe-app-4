@@ -1,7 +1,8 @@
 module.exports = {
-  preset: "detox",
-  testRunner: "jest-circus/runner",
+  testRunner: 'jest-circus/runner',
   testTimeout: 120000,
-  reporters: ["detox/runners/jest/streamlineReporter"],
-  setupFilesAfterEnv: ["./init.js"],
+  testEnvironment: 'detox/runners/jest/testEnvironment',
+  globalSetup: 'detox/runners/jest/globalSetup',
+  globalTeardown: 'detox/runners/jest/globalTeardown',
+  reporters: ['detox/runners/jest/reporter'],
 };

@@ -186,7 +186,7 @@ export default function OnboardingScreen() {
             <Text style={styles.choiceDesc}>
               輸入家人給你的邀請碼{"\n"}
               加入已有廚房，與家人共享{"\n"}
-              食譜、餐單、採購即時同步
+              食譜、餐單、購買即時同步
             </Text>
           </TouchableOpacity>
         </View>

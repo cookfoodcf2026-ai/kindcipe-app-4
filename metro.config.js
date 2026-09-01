@@ -15,7 +15,4 @@ config.resolver.alias = {
   '@': path.resolve(__dirname),
 };
 
-// Disable watchman to prevent path encoding issues
-config.resolver.useWatchman = false;
-
 module.exports = config;

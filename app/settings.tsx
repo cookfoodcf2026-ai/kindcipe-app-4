@@ -2,8 +2,9 @@
  * 用戶設定頁面
  * 功能：
  * - 用戶資料顯示
+ * - 使用統計（本月 + 歷史月份）
  * - 語言切換（繁體中文、English、Filipino、Indonesian）
- * - 採購紀錄入口
+ * - 購買紀錄入口
  * - 家庭管理入口
  * - 登出
  */
@@ -33,12 +34,19 @@ const LANGUAGES = [
 
 const LANG_STORAGE_KEY = "kindcipe_language";
 
+function formatYearMonthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split("-");
+  return `${year} 年 ${Number(month)} 月`;
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, isAuthenticated, logout, familyRole, activeFamily, families } = useAuth();
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showUsageHistory, setShowUsageHistory] = useState(false);
+  const [expandedUsageMonths, setExpandedUsageMonths] = useState<Record<string, boolean>>({});
 
   // BUG#7 FIX: load persisted language on mount
   useEffect(() => {
@@ -82,8 +90,22 @@ export default function SettingsScreen() {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
+  const usageQuery = trpc.family.usage.useQuery(undefined, {
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  const usageHistoryByMemberQuery = trpc.family.usageHistoryByMember.useQuery({ months: 6 }, {
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
   const sub = subscriptionQuery.data;
+  const usage = usageQuery.data;
+  const usageHistoryByMember = usageHistoryByMemberQuery.data ?? [];
   const hasFamily = families.length > 0;
+  const currentYearMonth = new Date().toISOString().slice(0, 7);
+  const currentUsageMonth = usageHistoryByMember.find((row) => row.yearMonth === currentYearMonth);
+  const currentUsageMembers = currentUsageMonth?.members ?? [];
+  const currentUsageMax = Math.max(1, ...currentUsageMembers.map((m) => m.aiChat + m.imports));
 
   const getSubscriptionLabel = () => {
     if (!sub) return null;
@@ -176,7 +198,7 @@ export default function SettingsScreen() {
 
         {/* 訂閱狀態卡片 */}
         {isAuthenticated && subInfo && (
-          <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}>
+          <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}> 
             <View style={styles.subCardLeft}>
               <Text style={styles.subCardTitle}>訂閱狀態</Text>
               <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{subInfo.label}</Text>
@@ -189,6 +211,170 @@ export default function SettingsScreen() {
                 <Text style={styles.upgradeSmallBtnText}>升級</Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* 使用統計 */}
+        {isAuthenticated && activeFamily && usage && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>使用統計</Text>
+            <View style={styles.usageCard}>
+              <View style={styles.usageHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.usageTitle}>本月使用</Text>
+                  <Text style={styles.usageSubtitle}>成個廚房共享同一個 quota</Text>
+                </View>
+                <View style={styles.usageMonthBadge}>
+                  <Text style={styles.usageMonthBadgeText}>本月</Text>
+                </View>
+              </View>
+
+              <View style={styles.usageMetricRow}>
+                <Text style={styles.usageMetricLabel}>AI 對話</Text>
+                <Text style={styles.usageMetricValue}>{usage.aiChat.used}/{usage.aiChat.limit} 次</Text>
+              </View>
+              <View style={styles.usageBarTrack}>
+                <View
+                  style={[
+                    styles.usageBarFill,
+                    {
+                      width: `${Math.min(100, Math.round((usage.aiChat.used / Math.max(usage.aiChat.limit, 1)) * 100))}%`,
+                      backgroundColor: "#7C3AED",
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
+                <Text style={styles.usageMetricLabel}>食譜匯入</Text>
+                <Text style={styles.usageMetricValue}>{usage.imports.used}/{usage.imports.limit} 次</Text>
+              </View>
+              <View style={styles.usageBarTrack}>
+                <View
+                  style={[
+                    styles.usageBarFill,
+                    {
+                      width: `${Math.min(100, Math.round((usage.imports.used / Math.max(usage.imports.limit, 1)) * 100))}%`,
+                      backgroundColor: "#013E77",
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={{ height: 12 }} />
+
+              <Text style={styles.usageMemberSectionTitle}>成員用量</Text>
+              {currentUsageMembers.length > 0 ? (
+                <View style={styles.usageMemberList}>
+                  {currentUsageMembers.map((member) => {
+                    const total = member.aiChat + member.imports;
+                    const width = `${Math.max(6, Math.round((total / currentUsageMax) * 100))}%` as `${number}%`;
+                    return (
+                      <View key={member.userId} style={styles.usageMemberRow}>
+                        <View style={styles.usageMemberTopRow}>
+                          <Text style={styles.usageMemberName} numberOfLines={1}>
+                            {member.name}
+                          </Text>
+                          <Text style={styles.usageMemberCount}>
+                            {total} 次
+                          </Text>
+                        </View>
+                        <View style={styles.usageMemberBarTrack}>
+                          <View
+                            style={[
+                              styles.usageMemberBarFill,
+                              { width, backgroundColor: member.familyRole === "owner" ? "#013E77" : member.familyRole === "admin" ? "#7C3AED" : "#0F766E" },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.usageMemberSub}>
+                          AI {member.aiChat} · 匯入 {member.imports}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.usageMemberEmpty}>未有成員用量資料</Text>
+              )}
+            </View>
+
+            <View style={styles.usageTableCard}>
+              <TouchableOpacity
+                style={styles.usageTableToggle}
+                onPress={() => setShowUsageHistory((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.usageTableToggleTitle}>過去幾個月統計表</Text>
+                  <Text style={styles.usageTableToggleSubtitle}>點一下睇返月度使用數據</Text>
+                </View>
+                <Ionicons
+                  name={showUsageHistory ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#013E77"
+                />
+              </TouchableOpacity>
+
+              {showUsageHistory && (
+                <>
+                  {usageHistoryByMember.map((row) => {
+                    const isCurrent = row.yearMonth === currentYearMonth;
+                    const isExpanded = expandedUsageMonths[row.yearMonth] ?? false;
+                    return (
+                      <View key={row.yearMonth} style={styles.usageMonthCard}>
+                        <TouchableOpacity
+                          style={styles.usageMonthHeader}
+                          onPress={() =>
+                            setExpandedUsageMonths((prev) => ({
+                              ...prev,
+                              [row.yearMonth]: !isExpanded,
+                            }))
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.usageTableCell, styles.usageMonthTitle, isCurrent && styles.usageTableCellCurrent]}>
+                              {formatYearMonthLabel(row.yearMonth)}
+                            </Text>
+                            <Text style={styles.usageMonthSubtitle}>
+                              AI {row.aiChat} 次 · 匯入 {row.imports} 次
+                            </Text>
+                          </View>
+                          <Ionicons
+                            name={isExpanded ? "chevron-up" : "chevron-down"}
+                            size={18}
+                            color={isCurrent ? "#013E77" : "#9CA3AF"}
+                          />
+                        </TouchableOpacity>
+
+                        {isExpanded && (
+                          <View style={styles.usageMonthMembers}>
+                            <View style={styles.usageTableHeader}>
+                              <Text style={[styles.usageTableCell, styles.usageTableMember]}>成員</Text>
+                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>AI</Text>
+                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>匯入</Text>
+                            </View>
+                            {row.members.map((member) => (
+                              <View key={`${row.yearMonth}-${member.userId}`} style={styles.usageTableRow}>
+                                <Text style={[styles.usageTableCell, styles.usageTableMember]}>
+                                  {member.name}
+                                  <Text style={styles.usageTableMemberRole}>
+                                    {member.familyRole === "owner" ? " · 主人" : member.familyRole === "admin" ? " · 管理員" : member.familyRole === "helper" ? " · 幫手" : " · 成員"}
+                                  </Text>
+                                </Text>
+                                <Text style={styles.usageTableValue}>{member.aiChat}</Text>
+                                <Text style={styles.usageTableValue}>{member.imports}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+            </View>
           </View>
         )}
 
@@ -253,9 +439,9 @@ export default function SettingsScreen() {
         </View>
 
         {/* 安全設定 */}
-        {biometricAvailable && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>安全</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>安全</Text>
+          {biometricAvailable && (
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
@@ -273,8 +459,23 @@ export default function SettingsScreen() {
                 thumbColor={biometricOn ? "#013E77" : "#F9FAFB"}
               />
             </View>
-          </View>
-        )}
+          )}
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => router.push("/change-password")}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FEF2F2" }]}>
+                <Ionicons name="lock-closed-outline" size={20} color="#DC2626" />
+              </View>
+              <View>
+                <Text style={styles.settingLabel}>改密碼</Text>
+                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>更新登入用密碼</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
 
         {/* 功能入口 */}
         <View style={styles.section}>
@@ -284,12 +485,12 @@ export default function SettingsScreen() {
             style={styles.settingRow}
             onPress={() => router.push("/purchase-history")}
           >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
-                <Ionicons name="receipt-outline" size={20} color="#22C55E" />
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
+                  <Ionicons name="receipt-outline" size={20} color="#22C55E" />
+                </View>
+                <Text style={styles.settingLabel}>購買記錄</Text>
               </View>
-              <Text style={styles.settingLabel}>採購紀錄</Text>
-            </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
@@ -302,19 +503,6 @@ export default function SettingsScreen() {
                 <ChatBubbleIcon size={20} color="#013E77" />
               </View>
               <Text style={styles.settingLabel}>AI 助手</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingRow}
-            onPress={() => router.push({ pathname: "/(tabs)/planner", params: { openRecommend: "true" } })}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
-                <Ionicons name="calendar-outline" size={20} color="#FF8C00" />
-              </View>
-              <Text style={styles.settingLabel}>晚餐推薦設定</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -511,6 +699,118 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 16,
   },
   upgradeSmallBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+
+  // 使用統計
+  usageCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  usageHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  usageTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
+  usageSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 3 },
+  usageMonthBadge: {
+    backgroundColor: "#EEF4FB",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  usageMonthBadgeText: { fontSize: 11, fontWeight: "800", color: "#013E77" },
+  usageMetricRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  usageMetricLabel: { fontSize: 13, fontWeight: "700", color: "#374151" },
+  usageMetricValue: { fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
+  usageBarTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#EEF2F7",
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  usageBarFill: { height: "100%", borderRadius: 999 },
+  usageMemberSectionTitle: { fontSize: 13, fontWeight: "800", color: "#1A1A1A", marginBottom: 10 },
+  usageMemberList: { gap: 12 },
+  usageMemberRow: {
+    backgroundColor: "#FAFBFD",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
+  },
+  usageMemberTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  usageMemberName: { flex: 1, fontSize: 13, fontWeight: "800", color: "#1A1A1A", marginRight: 8 },
+  usageMemberCount: { fontSize: 12, fontWeight: "800", color: "#013E77" },
+  usageMemberBarTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "#E8EEF5",
+    overflow: "hidden",
+    marginTop: 10,
+  },
+  usageMemberBarFill: { height: "100%", borderRadius: 999 },
+  usageMemberSub: { fontSize: 11, color: "#6B7280", marginTop: 8 },
+  usageMemberEmpty: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
+  usageTableCard: {
+    backgroundColor: "#fff",
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  usageTableToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  usageTableToggleTitle: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
+  usageTableToggleSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 3 },
+  usageMonthCard: {
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  usageMonthHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  usageMonthTitle: { fontSize: 14, fontWeight: "800" },
+  usageMonthSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 4 },
+  usageMonthMembers: {
+    backgroundColor: "#FAFBFD",
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  usageTableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  usageTableRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  usageTableRowCurrent: { backgroundColor: "#EEF4FB" },
+  usageTableCell: { fontSize: 12, fontWeight: "700", color: "#374151" },
+  usageTableCellCurrent: { color: "#013E77" },
+  usageTableMonth: { flex: 1.6 },
+  usageTableMember: { flex: 1.5 },
+  usageTableValue: { flex: 0.7, textAlign: "center" },
+  usageTableMemberRole: { fontSize: 11, color: "#6B7280" },
 
   // 廚房狀態
   kitchenCard: {

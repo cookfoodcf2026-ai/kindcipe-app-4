@@ -1,0 +1,37 @@
+23:49:18.824 detox[45681] B jest --config e2e/jest.config.js e2e/p0-smoke.test.js
+watchman warning:  Recrawled this watch 21 times, most recently because:
+MustScanSubDirs UserDroppedTo resolve, please review the information on
+https://facebook.github.io/watchman/docs/troubleshooting.html#recrawl
+To clear this warning, run:
+`watchman watch-del '/Users/mavisng/Desktop/Kindcipe/manus/kindcipe-app-4' ; watchman watch-project '/Users/mavisng/Desktop/Kindcipe/manus/kindcipe-app-4'`
+
+23:49:38.835 detox[45683] i p0-smoke.test.js is assigned to 2CED0EF2-7068-42F3-A024-A752EE9301E0 (iPhone 17)
+23:49:38.838 detox[45683] i Kindcipe P0 Smoke Test: Scenario 1: logs in with email
+23:49:48.194 detox[45683] i com.kindcipe.app launched. To watch simulator logs, run:
+        /usr/bin/xcrun simctl spawn 2CED0EF2-7068-42F3-A024-A752EE9301E0 log stream --level debug --style compact --predicate 'process == "Kindcipe"'
+23:50:05.607 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:50:15.644 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:50:25.693 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:50:35.749 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:50:45.812 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:50:55.901 detox[45683] i The app is busy with the following tasks:
+• UI elements are busy:
+  - Layers needs layout: 45.
+  - View needs layout: 44.
+  - View needs display: 12.
+  - Layers needs display: 24.
+• There are 4 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.
+23:51:05.945 detox[45683] i The app is busy with the following tasks:
+• There are 1 work items pending on the dispatch queue: "Main Queue (<OS_dispatch_queue_main: com.apple.main-thread>)".
+• Run loop "Main Run Loop" is awake.

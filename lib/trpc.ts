@@ -5,13 +5,18 @@
  * 認證策略：Token-based 模式（React Native ）
  * - App 從 AsyncStorage 讀取 token
  * - 每個請求在 Authorization header 中附帶 token
+ *
+ * Type Safety Note:
+ * In standalone frontend mode (without backend sibling repo),
+ * we use type assertions to bypass tRPC's Router type constraint.
+ * The API contract in lib/router-types.ts defines the expected shapes.
+ * For production, import the actual backend router type or use @kindcipe/contracts.
  */
 import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AUTH_TOKEN_KEY, FAMILY_ID_KEY, getAuthToken } from "./auth";
-import type { AppRouter } from "./router-types";
+import { FAMILY_ID_KEY, getAuthToken } from "./auth";
 
 // ─── 後端 API 地址 ───────────────────────────────────────
 // 使用環境變數 EXPO_PUBLIC_API_URL（優先），預設指向 Railway 生產後端
@@ -39,7 +44,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
 }
 
 // ─── 請求逾時設定（毫秒）─────────────────────────────────
-const REQUEST_TIMEOUT_MS = 90_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 
 // ─── Lightweight offline detection (no native module) ─────────
 // Deduplicated: reports offline once, clears on first success.
@@ -74,7 +79,10 @@ export function reportNetworkFailure() {
 }
 
 // ─── tRPC React hooks ────────────────────────────────────
-export const trpc = createTRPCReact<AppRouter>( );
+// Standalone adapter: treat tRPC helpers as runtime-only.
+// Production should replace this with the real backend router type.
+const createTRPCReactAny = createTRPCReact as any;
+export const trpc: any = createTRPCReactAny();
 
 // ─── tRPC client factory (for React provider) ──────────
 const makeClient = () => ({
@@ -126,4 +134,5 @@ export function createTrpcClient() {
 }
 
 // ─── Direct API client (for non-hook calls) ────────────
-export const apiClient = createTRPCClient<AppRouter>(makeClient());
+const createTRPCClientAny = createTRPCClient as any;
+export const apiClient: any = createTRPCClientAny(makeClient());

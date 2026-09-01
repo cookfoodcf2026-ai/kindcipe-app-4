@@ -74,6 +74,7 @@ export default function LoginScreen() {
 
   const onAdminLoginSuccess = async () => {
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
+    await AsyncStorage.setItem("kindcipe_pending_admin_redirect", "1");
     await utils.invalidate();
     await utils.auth.me.invalidate();
     router.replace("/admin");
@@ -319,7 +320,7 @@ export default function LoginScreen() {
             </View>
 
             {mode === "login" && (
-              <TouchableOpacity style={styles.forgotRow}>
+              <TouchableOpacity style={styles.forgotRow} onPress={() => router.push("/forgot-password")}>
                 <Text style={styles.forgotText}>忘記密碼？</Text>
               </TouchableOpacity>
             )}

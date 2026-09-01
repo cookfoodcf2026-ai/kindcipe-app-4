@@ -22,17 +22,17 @@ import { useAuth } from "@/hooks/useAuth";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import FilterModal from "@/src/components/FilterModal";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
-import Toast from "@/src/components/Toast";
+import { useToast } from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import RecipeCard from "@/src/components/RecipeCard";
 import { mergeIngredients } from "@/constants/ingredients";
-import { toISODate, getDayBefore } from "@/src/lib/date";
+import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import type { CategoryDef } from "@/lib/category-storage";
 import { DEFAULT_CATEGORIES, loadCustomCategories } from "@/lib/category-storage";
-import { RecipeRef } from "@/src/lib/RecipeRef";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -53,24 +53,6 @@ const DAY_NAMES = ["週日", "週一", "週二", "週三", "週四", "週五", "
 
 // 隱藏實驗性 AI 推薦功能（Banner / 週餐推薦 Modal），如需重新顯示改做 true
 const SHOW_EXPERIMENTAL_AI = false;
-const POPULAR_CHIPS = [
-  { key: "quick15", label: "⚡ 快手 15 分鐘" },
-  { key: "quick30", label: "⏱ 快手 30 分鐘" },
-  { key: "tonight", label: " 今晚食" },
-  { key: "hk-style", label: "🇭🇰 港式家常" },
-  { key: "kids", label: "👶 小朋友啱食" },
-  { key: "vegetarian", label: " 素食主義" },
-  { key: "light", label: "🥗 清淡少油" },
-  { key: "one-person", label: "👤 一人食" },
-  { key: "high-protein", label: "💪 高蛋白" },
-  { key: "soup", label: "🍲 湯水" },
-  { key: "low-calorie", label: "🥗 低卡減肥" },
-  { key: "steamed", label: " 蒸餸" },
-  { key: "stir-fry", label: " 小炒" },
-  { key: "party", label: "🍽️ 請客食譜" },
-  { key: "3d1s", label: "🍱 3 餸 1 湯" },
-];
-
 const INGREDIENT_CATEGORIES = [
   { key: "meat", label: "🥩 肉類", keywords: ["雞肉", "豬肉", "牛肉", "羊肉", "鴨肉", "排骨", "雞翼", "雞腿", "午餐肉", "香腸", "火腿", "培根"] },
   { key: "seafood", label: "🐟 海鮮", keywords: ["魚", "蝦", "蟹", "三文魚", "帶子", "蜆", "蠔", "魷魚", "章魚", "海參", "鮑魚"] },
@@ -80,8 +62,6 @@ const INGREDIENT_CATEGORIES = [
   { key: "mushroom", label: "🍄 菌菇", keywords: ["香菇", "蘑菇", "金針菇", "杏鮑菇", "木耳", "靈芝"] },
   { key: "carb", label: "🍚 主食", keywords: ["飯", "麵", "米粉", "河粉", "烏冬", "意粉", "饅頭", "包"] },
 ];
-const SEASONING_CATS = new Set(["調味料", "醬料"]);
-
 const getWeekRange = (offset: number) => {
   const now = new Date();
   const dayOfWeek = now.getDay();
@@ -96,7 +76,6 @@ const formatDateShort = (d: Date) =>
   `${d.getMonth() + 1}/${d.getDate()}`;
 
 const formatWeekLabel = (monday: Date, sunday: Date) => {
-  const now = new Date();
   const todayMonday = getWeekRange(0).monday;
   if (monday.getTime() === todayMonday.getTime()) return "本週";
   const nextMonday = getWeekRange(1).monday;
@@ -217,6 +196,15 @@ function matchRecipeForSlot(r: any, slotType: SlotType): boolean {
   return false;
 }
 
+const normalizeText = (v: any) => String(v ?? "").toLowerCase();
+
+const getRecipeIngredientText = (recipe: any) => {
+  const ingredients = Array.isArray(recipe?.ingredients) ? recipe.ingredients : [];
+  return ingredients
+    .map((ing: any) => typeof ing === "string" ? ing : (ing?.name || ""))
+    .join(" ");
+};
+
 export default function PlannerTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -232,7 +220,6 @@ export default function PlannerTab() {
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const addMealLockRef = useRef(false);
   const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
   
   // FilterModal states（同 index.tsx 一致）
   const [showFilterSheet, setShowFilterSheet] = useState(false);
@@ -242,7 +229,7 @@ export default function PlannerTab() {
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<"popular" | "cookTime" | "difficulty">("popular");
-  const [viewMode, setViewMode] = useState<"all" | "official" | "user">("all");
+  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol">("all");
 
   // ─── AI Weekly Recommendation States ───
   const [showSmartRecommend, setShowSmartRecommend] = useState(false);
@@ -251,7 +238,7 @@ export default function PlannerTab() {
   const [showAISuggest, setShowAISuggest] = useState(false);
   const [previewRecipe, setPreviewRecipe] = useState<any | null>(null);
   const [pendingPlanInfo, setPendingPlanInfo] = useState<{ date: string; mealType: string; slot?: SlotType; dayOfWeek?: number } | null>(null);
-  const [pendingMealPlanId, setPendingMealPlanId] = useState<number | null>(null);
+  
   const [showMoveDateModal, setShowMoveDateModal] = useState(false);
   const [moveMealPlanTarget, setMoveMealPlanTarget] = useState<any | null>(null);
   const [moveMealPlanDate, setMoveMealPlanDate] = useState<string>("");
@@ -270,13 +257,14 @@ export default function PlannerTab() {
       setShowAISuggest(true);
       router.setParams({ openRecommend: undefined });
     }
-  }, [openRecommend]);
+  }, [openRecommend, router]);
 
   const { startDate, endDate, monday, sunday } = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
 
   const utils = trpc.useUtils();
   const invalidateAll = useInvalidateMealPlanAndCart();
   const { activeFamilyId } = useAuth();
+  const { showToast } = useToast();
 
   // 當切換廚房時，主動刷新相關查詢
   useEffect(() => {
@@ -327,11 +315,11 @@ export default function PlannerTab() {
       u.weeklyMenu.getWeek.refetch({ weekStart: weekRef.current.startDate });
       u.recipes.listUser.refetch();
       u.shopping.list.refetch();
-    }, [])
+    }, [invalidateAll])
   );
 
   // ─── AI Weekly Menu Queries & Mutations ────────────────────
-  const { data: recommendWeekData, refetch: refetchRecommendWeek, isFetching: isFetchingRecommend } = trpc.weeklyMenu.getWeek.useQuery(
+  const { data: recommendWeekData } = trpc.weeklyMenu.getWeek.useQuery(
     { weekStart: startDate },
     { 
       staleTime: 1000 * 60 * 5,  // 5 分鐘
@@ -356,22 +344,14 @@ export default function PlannerTab() {
   const setDayM = trpc.weeklyMenu.setDay.useMutation({
     onSuccess: () => {
       utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
-      Alert.alert("已設定");
+      showToast("已設定");
     },
     onError: (e) => Alert.alert("設定失敗", e.message),
   });
 
-  const removeDayM = trpc.weeklyMenu.removeDay.useMutation({
-    onSuccess: () => {
-      utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
-      Alert.alert("已移除");
-    },
-    onError: (e) => Alert.alert("失敗", e.message),
-  });
-
   const eatOutM = trpc.eatOut.set.useMutation({
     onSuccess: () => {
-      setToast({ visible: true, message: "已設定外出", type: "success" });
+      showToast("已設定外出");
     },
     onError: (e) => {
       let message = "設定外出失敗";
@@ -380,7 +360,7 @@ export default function PlannerTab() {
       } else if (e.data?.code === "FORBIDDEN") {
         message = "權限不足，請聯繫管理員";
       }
-      setToast({ visible: true, message, type: "error" });
+      showToast(message, "error");
     },
     onSettled: () => {
       utils.eatOut.listByDateRange.invalidate({ startDate, endDate });
@@ -395,21 +375,16 @@ export default function PlannerTab() {
       await invalidateAll();
       
       const days = new Set(variables.items.map(i => i.date));
-      const recipes = new Set(variables.items.map(i => i.recipeName));
       
       let message = `✅ 已排入 ${result?.count ?? days.size} 天晚餐（${result?.count ?? variables.items.length} 個餐次）`;
       if (result?.skippedCount && result.skippedCount > 0) {
         message += `，⚠️ ${result.skippedCount} 日因外出跳過`;
       }
       
-      setToast({ 
-        visible: true, 
-        message, 
-        type: "success" 
-      });
+      showToast(message);
     },
     onError: (e) => {
-      setToast({ visible: true, message: `批量排餐失敗：${e.message}`, type: "error" });
+      showToast(`批量排餐失敗：${e.message}`, "error");
     },
   });
 
@@ -431,8 +406,8 @@ export default function PlannerTab() {
     }
 
     try {
-      setToast({ visible: true, message: `正在將本日推薦導入排餐中...`, type: "info" });
-      const allMeals: Array<{ date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }> = [];
+      showToast(`正在將本日推薦導入排餐中...`, "info");
+    const allMeals: { date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }[] = [];
       const pickerRecipes: PickerRecipe[] = [];
 
       for (const slot of toAdd) {
@@ -493,14 +468,25 @@ export default function PlannerTab() {
                 );
                 const mergedIngredients = mergeIngredients(flat).map((ing) => ({
                   ...ing,
-                  plannedDate: ing.date ?? getDayBefore(itemDateStr),
+                  // 購物日期 = 排餐日前一日，但如果係過去就用今日
+                  plannedDate: (() => {
+                    if (ing.date) return ing.date;
+                    const dayBefore = getDayBefore(itemDateStr);
+                    const today = todayISO();
+                    return dayBefore < today ? today : dayBefore;
+                  })(),
                 }));
 
+                const suggestedShoppingDate = (() => {
+                  const dayBefore = getDayBefore(itemDateStr);
+                  const today = todayISO();
+                  return dayBefore < today ? today : dayBefore;
+                })();
                 setPickerRecipe({
                   id: `day_${item.dayOfWeek}_ai`,
                   name: `${DAY_LABELS[item.dayOfWeek]} 晚餐推薦食材`,
                   ingredients: mergedIngredients,
-                  date: getDayBefore(itemDateStr),
+                  date: suggestedShoppingDate,
                 });
               } else {
                 router.push("/(tabs)/shopping");
@@ -511,7 +497,7 @@ export default function PlannerTab() {
       );
     } catch (e: any) {
       console.error("[handleApplyToday] Error:", e);
-      setToast({ visible: true, message: `套用失敗：${e.message}`, type: "error" });
+      showToast(`套用失敗：${e.message}`, "error");
     }
   };
 
@@ -519,11 +505,11 @@ export default function PlannerTab() {
     onSuccess: async (_, variables) => {
       const count = variables.items.length;
       setPickerRecipe(null);
-      setToast({ visible: true, message: `✅ ${count} 件食材已加入購物清單`, type: "success" });
+      showToast(`✅ ${count} 件食材已加入購物清單`);
       void invalidateAll();
     },
     onError: (e) => {
-      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+      showToast(`加入食材失敗：${e.message}`, "error");
     },
   });
 
@@ -559,7 +545,7 @@ export default function PlannerTab() {
           if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
             openPicker(found.ingredients);
           } else {
-            setToast({ visible: true, message: "已加入排餐", type: "info" });
+            showToast("已加入排餐", "info");
           }
         }
 
@@ -601,11 +587,15 @@ export default function PlannerTab() {
     onError: (e) => {
       pendingIngredientsRef.current = null;
       addMealLockRef.current = false;
-      setToast({ visible: true, message: `新增失敗：${e.message}`, type: "error" });
+      showToast(`新增失敗：${e.message}`, "error");
     },
   });
 
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, { staleTime: 30000, refetchInterval: 60000 });
+  const shoppingItemsRef = useRef(shoppingItems);
+  useEffect(() => {
+    shoppingItemsRef.current = shoppingItems;
+  }, [shoppingItems]);
   const deleteShoppingItemM = trpc.shopping.delete.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
   });
@@ -692,16 +682,7 @@ export default function PlannerTab() {
     return Array.from(tags).sort((a, b) => a.localeCompare(b));
   }, [officialRecipes, userRecipes]);
 
-  const normalizeText = (v: any) => String(v ?? "").toLowerCase();
-
-  const getRecipeIngredientText = (recipe: any) => {
-    const ingredients = Array.isArray(recipe?.ingredients) ? recipe.ingredients : [];
-    return ingredients
-      .map((ing: any) => typeof ing === "string" ? ing : (ing?.name || ""))
-      .join(" ");
-  };
-
-  const matchesIngredientCategory = (recipe: any) => {
+  const matchesIngredientCategory = useCallback((recipe: any) => {
     if (!activeIngredientCategory) return true;
     const cat = INGREDIENT_CATEGORIES.find((c) => c.key === activeIngredientCategory);
     if (!cat) return true;
@@ -721,9 +702,9 @@ export default function PlannerTab() {
                 : cat.key === "vegetable"
                   ? /菜心|白菜|生菜|菠菜|西蘭花|椰菜|甘藍|芹菜|韭菜|蔥|蒜|洋蔥/.test(text)
                   : true;
-  };
+  }, [activeIngredientCategory]);
 
-  const matchesPopularChip = (recipe: any, chipKey: string) => {
+  const matchesPopularChip = useCallback((recipe: any, chipKey: string) => {
     const name = normalizeText(recipe?.name);
     const desc = normalizeText(recipe?.description);
     const tags = normalizeText((Array.isArray(recipe?.tags) ? recipe.tags : []).join(" "));
@@ -749,7 +730,7 @@ export default function PlannerTab() {
       case "3d1s": return /3餸1湯|三餸一湯|3 餸 1 湯|四道菜/.test(`${name} ${desc} ${tags}`);
       default: return true;
     }
-  };
+  }, []);
 
   const pickerFilterCount = useMemo(() => {
     return (activeCategory !== "all" ? 1 : 0)
@@ -816,7 +797,7 @@ export default function PlannerTab() {
     }
 
     return filtered;
-  }, [officialRecipes, userRecipes, pickerSearch, pickerSourceFilter, viewMode, activeCategory, activeIngredientCategory, filterCookTimeMax, activeTagFilters, activePopularChips, sortBy]);
+  }, [officialRecipes, userRecipes, pickerSearch, pickerSourceFilter, viewMode, activeCategory, activeIngredientCategory, filterCookTimeMax, activeTagFilters, activePopularChips, sortBy, matchesIngredientCategory, matchesPopularChip]);
 
   const handleAddMeal = useCallback(
     (recipe: any) => {
@@ -848,7 +829,7 @@ export default function PlannerTab() {
           style: "destructive",
           onPress: () => {
             deleteMealM.mutate({ id: mp.id });
-            const recipeItems = (shoppingItems as any[]).filter(
+            const recipeItems = (shoppingItemsRef.current as any[]).filter(
               (si: any) =>
                 (si.fromMealPlanId === mp.id || (si.fromRecipeName === mp.recipeName && si.plannedDate === mp.date)) &&
                 si.status !== "bought",
@@ -877,7 +858,7 @@ export default function PlannerTab() {
         },
       ]);
     },
-    [deleteMealM, shoppingItems, deleteShoppingItemM],
+    [deleteMealM, deleteShoppingItemM],
   );
 
   const openMoveDateModal = useCallback((mp: any) => {
@@ -889,7 +870,7 @@ export default function PlannerTab() {
     setShowSyncDateModal(false);
     setPendingMoveDateSave(null);
     setShowMoveDateModal(true);
-  }, [shoppingItems]);
+  }, []);
 
   const openSyncDateModal = useCallback(() => {
     setDraftSyncShoppingDateMode(syncShoppingDateMode);
@@ -1001,11 +982,13 @@ export default function PlannerTab() {
     return { byMealPlanId, byRecipeAndDate, byRecipeIdAndDate, byRecipeIdWithShopDate };
   }, [shoppingItems]);
 
-  // 已加入判定：統一成「同一食譜 id + 同食材名」（同 recipe/[id] / ai-chef 一致）
+  // 已加入判定：優先用同一 mealPlanId；冇 mealPlanId 先 fallback 到「同食譜 id + 同購物日期」
   const pickerAlreadyAddedKeys = useMemo(() => {
     const added = new Set<string>();
     if (!pickerRecipe?.ingredients?.length || !shoppingItems.length) return added;
     const targetRecipeId = pickerRecipe.id;
+    const targetMealPlanId = (pickerRecipe as any).fromMealPlanId ? Number((pickerRecipe as any).fromMealPlanId) : null;
+    const targetShoppingDate = pickerRecipe.date ? getDayBefore(pickerRecipe.date) : toISODate(new Date());
     const activeItems = (shoppingItems as any[]).filter((item: any) => item.status !== "bought");
     pickerRecipe.ingredients.forEach((ing, idx) => {
       const key = `${pickerRecipe.id}::${idx}`;
@@ -1014,7 +997,11 @@ export default function PlannerTab() {
       const matched = activeItems.some((item: any) => {
         const itemName = (item.name || "").trim();
         const itemRecipeId = (item.fromRecipeId || "").trim();
-        return itemName === ingName && itemRecipeId === targetRecipeId;
+        const itemMealPlanId = item.fromMealPlanId ? Number(item.fromMealPlanId) : null;
+        const itemDate = String(item.plannedDate ?? "").trim();
+        const sameMealPlan = targetMealPlanId != null && itemMealPlanId === targetMealPlanId;
+        const sameRecipeAndDate = itemName === ingName && itemRecipeId === targetRecipeId && itemDate === targetShoppingDate;
+        return sameMealPlan || sameRecipeAndDate;
       });
       if (matched) added.add(key);
     });
@@ -1030,8 +1017,6 @@ export default function PlannerTab() {
 
   const handleAddToCartFromMeal = useCallback(
     (mp: any) => {
-      const prefix = mp.recipeId.startsWith("user_") ? "user_" : "official_";
-      const recipeIdNum = mp.recipeId.replace(prefix, "");
       const found = [...officialRecipes, ...userRecipes].find(
         (r: any) => `official_${r.id}` === mp.recipeId || `user_${r.id}` === mp.recipeId
       ) as any;
@@ -1044,10 +1029,10 @@ export default function PlannerTab() {
           fromMealPlanId: mp.id,
         });
       } else {
-        setToast({ visible: true, message: "無法獲取食譜食材", type: "error" });
+        showToast("無法獲取食譜食材", "error");
       }
     },
-    [officialRecipes, userRecipes],
+    [officialRecipes, userRecipes, showToast],
   );
 
   const handleConfirmMeal = useCallback(
@@ -1093,7 +1078,7 @@ export default function PlannerTab() {
       || mealShoppingLookup.byMealPlanId.has(mp.id)
       || mealShoppingLookup.byRecipeAndDate.has(`${mp.recipeName}__${mp.date}`)
       || mealShoppingLookup.byRecipeIdAndDate.has(`${mp.recipeId}__${mp.date}`)
-      // 兜底：AI 生成食譜可能無 fromMealPlanId，改用食譜 id 匹配（採購日通常係排餐日或前一日）
+      // 兜底：AI 生成食譜可能無 fromMealPlanId，改用食譜 id 匹配（購買日通常係排餐日或前一日）
       || mealShoppingLookup.byRecipeIdWithShopDate.has(`${mp.recipeId}__${mp.date}`)
       || mealShoppingLookup.byRecipeIdWithShopDate.has(`${mp.recipeId}__${getDayBefore(mp.date)}`);
     const templateIcon = mp.recipeId === "template_hotpot" ? "flame-outline" : mp.recipeId === "template_bbq" ? "restaurant-outline" : "rose-outline";
@@ -1252,7 +1237,6 @@ export default function PlannerTab() {
     const today = isToday(day.date);
     const past = isPast(day.date);
     const allConfirmed = dayMeals.length > 0 && dayMeals.every((m) => m.status === "confirmed");
-    const hasPending = dayMeals.some((m) => m.status === "pending");
 
     return (
       <TouchableOpacity
@@ -1325,7 +1309,6 @@ export default function PlannerTab() {
             <View style={styles.addMealRow}>
               {["breakfast", "lunch", "dinner", "snack"].map((mt) => {
                 const cfg = MEAL_TYPE_CONFIG[mt];
-                const exists = dayMeals.some((m) => m.mealType === mt);
                 return (
                   <TouchableOpacity
                     key={mt}
@@ -1586,12 +1569,12 @@ export default function PlannerTab() {
             });
           } else {
             setPickerRecipe(null);
-            setToast({ visible: true, message: "排餐已記錄", type: "info" });
+            showToast("排餐已記錄", "info");
           }
         }}
         onSkip={() => {
           setPickerRecipe(null);
-          setToast({ visible: true, message: "已跳過食材", type: "info" });
+          showToast("已跳過食材", "info");
         }}
       />
 
@@ -1624,6 +1607,7 @@ export default function PlannerTab() {
                 onChange={setMoveMealPlanDate}
                 showShortcuts={true}
                 monthsAhead={12}
+                minDate={toISODate(new Date())}
               />
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
@@ -1722,6 +1706,7 @@ export default function PlannerTab() {
                   value={clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) ?? toISODate(new Date())}
                   onChange={setDraftSyncShoppingDate}
                   maxDate={moveMealPlanDate || undefined}
+                  minDate={toISODate(new Date())}
                   showShortcuts={true}
                 />
               </View>
@@ -2015,7 +2000,7 @@ export default function PlannerTab() {
                 fromRecipeName: previewRecipe.name,
                 plannedDate: pendingPlanInfo?.date ? getDayBefore(pendingPlanInfo.date) : undefined,
               });
-              setToast({ visible: true, message: "✅ 食材已加入購物車", type: "success" });
+              showToast("✅ 食材已加入購物車");
             }
             setPreviewRecipe(null);
             setPendingPlanInfo(null);
@@ -2023,15 +2008,6 @@ export default function PlannerTab() {
           isAdding={setDayM.isPending || addShoppingBatchM.isPending}
         />
       )}
-
-
-
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
-      />
     </View>
   );
 }
@@ -2122,7 +2098,7 @@ function RecipeDetailModal({
                   recipe.ingredients.map((ing: any, i: number) => (
                     <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: i < recipe.ingredients.length - 1 ? 1 : 0, borderBottomColor: "#F3F4F6" }}>
                       <Text style={{ fontSize: 13, color: "#1A1A1A" }}>{ing.name}</Text>
-                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#4B5563" }}>{ing.quantity} {ing.unit}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: "#4B5563" }}>{formatIngredientDisplay(ing.quantity, ing.unit)}</Text>
                     </View>
                   ))
                 ) : (
@@ -2427,10 +2403,10 @@ function AISuggestModalRN({
     );
   };
 
-  const slots: SlotType[] = ["meat", "seafood", "veg", "soup"];
+  const slots = useMemo<SlotType[]>(() => ["meat", "seafood", "veg", "soup"], []);
   const countFilledDay = useCallback((day: any): number =>
     slots.reduce((count, slot) => count + (normalizeName(day?.[slot]?.name) ? 1 : 0), 0),
-    []);
+    [slots]);
 
   useEffect(() => {
     if (!visible) return;
@@ -2468,7 +2444,7 @@ function AISuggestModalRN({
       });
     });
     return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([name]) => name));
-  }, [sortedDays]);
+  }, [sortedDays, slots]);
 
   useEffect(() => {
     if (!sortedDays.length) return;
@@ -2518,7 +2494,7 @@ function AISuggestModalRN({
                     }}
                   >
                     <Ionicons name="sparkles" size={16} color="#fff" />
-                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>重新生成</Text>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>AI 生成</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2661,7 +2637,7 @@ function AISuggestModalRN({
                   disabled={aiSuggestM.isPending}
                   hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: aiSuggestM.isPending ? "#B0BAC9" : "#6B7280" }}>重新生成</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: aiSuggestM.isPending ? "#B0BAC9" : "#6B7280" }}>AI 生成</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -2675,7 +2651,7 @@ function AISuggestModalRN({
           dayOfWeek={swapTarget.day}
           slotType={swapTarget.slot}
           officialRecipes={officialRecipes}
-          currentId={suggestedDays.find(d => d.dayOfWeek === swapTarget.day)?.[swapTarget.slot]?.id || ""}
+          _currentId={suggestedDays.find(d => d.dayOfWeek === swapTarget.day)?.[swapTarget.slot]?.id || ""}
           currentRecipeName={normalizeName(suggestedDays.find(d => d.dayOfWeek === swapTarget.day)?.[swapTarget.slot]?.name)}
           blockedRecipeNames={Array.from(duplicateNames)}
           onSelect={(dish) => {
@@ -2719,7 +2695,7 @@ function AISuggestModalRN({
             }
             handleSwap(swapPreview.day, swapPreview.slot, swapPreview.dish);
             setSwapPreview(null);
-            Alert.alert("✅ 已替換", `週${DAY_SHORT[swapPreview.day]}${SLOT_META[swapPreview.slot].label} 已更新`);
+            Alert.alert(`週${DAY_SHORT[swapPreview.day]}${SLOT_META[swapPreview.slot].label} 已更新`);
           }}
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];
@@ -2748,9 +2724,9 @@ function AISuggestModalRN({
 }
 
 function SwapPickerRN({
-  dayOfWeek, slotType, officialRecipes, currentId, currentRecipeName, blockedRecipeNames, onSelect, onClose,
-}: {
-  dayOfWeek: number; slotType: SlotType; officialRecipes: any[]; currentId: string; currentRecipeName?: string; blockedRecipeNames?: string[];
+    dayOfWeek, slotType, officialRecipes, _currentId, currentRecipeName, blockedRecipeNames, onSelect, onClose,
+  }: {
+  dayOfWeek: number; slotType: SlotType; officialRecipes: any[]; _currentId: string; currentRecipeName?: string; blockedRecipeNames?: string[];
   onSelect: (dish: any) => void; onClose: () => void;
 }) {
   const [search, setSearch] = useState("");

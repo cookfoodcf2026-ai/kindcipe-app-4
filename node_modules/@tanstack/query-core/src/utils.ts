@@ -4,12 +4,9 @@ import type {
   FetchStatus,
   MutationKey,
   MutationStatus,
-  QueryBooleanOption,
   QueryFunction,
   QueryKey,
   QueryOptions,
-  StaleTime,
-  StaleTimeFunction,
 } from './types'
 import type { Mutation } from './mutation'
 import type { FetchOptions, Query } from './query'
@@ -112,32 +109,26 @@ export function timeUntilStale(updatedAt: number, staleTime?: number): number {
   return Math.max(updatedAt + (staleTime || 0) - Date.now(), 0)
 }
 
-export function resolveStaleTime<
+export function resolveQueryValue<
+  TValue,
   TQueryFnData = unknown,
   TError = DefaultError,
   TData = TQueryFnData,
   TQueryKey extends QueryKey = QueryKey,
 >(
-  staleTime:
+  value:
     | undefined
-    | StaleTimeFunction<TQueryFnData, TError, TData, TQueryKey>,
+    | TValue
+    | ((query: Query<TQueryFnData, TError, TData, TQueryKey>) => TValue),
   query: Query<TQueryFnData, TError, TData, TQueryKey>,
-): StaleTime | undefined {
-  return typeof staleTime === 'function' ? staleTime(query) : staleTime
-}
-
-export function resolveQueryBoolean<
-  TQueryFnData = unknown,
-  TError = DefaultError,
-  TData = TQueryFnData,
-  TQueryKey extends QueryKey = QueryKey,
->(
-  option:
-    | undefined
-    | QueryBooleanOption<TQueryFnData, TError, TData, TQueryKey>,
-  query: Query<TQueryFnData, TError, TData, TQueryKey>,
-): boolean | undefined {
-  return typeof option === 'function' ? option(query) : option
+): TValue | undefined {
+  return typeof value === 'function'
+    ? (
+        value as (
+          query: Query<TQueryFnData, TError, TData, TQueryKey>,
+        ) => TValue
+      )(query)
+    : value
 }
 
 export function matchQuery(
@@ -256,7 +247,22 @@ export function partialMatchKey(a: any, b: any): boolean {
   }
 
   if (a && b && typeof a === 'object' && typeof b === 'object') {
-    return Object.keys(b).every((key) => partialMatchKey(a[key], b[key]))
+    if (Array.isArray(a) && Array.isArray(b)) {
+      for (let i = 0; i < b.length; i++) {
+        if (!partialMatchKey(a[i], b[i])) {
+          return false
+        }
+      }
+      return true
+    }
+
+    const bKeys = Object.keys(b)
+    for (const key of bKeys) {
+      if (!partialMatchKey(a[key], b[key])) {
+        return false
+      }
+    }
+    return true
   }
 
   return false

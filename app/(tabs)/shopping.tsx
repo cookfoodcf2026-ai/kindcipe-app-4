@@ -3,18 +3,18 @@ import {
   TextInput, Modal, ScrollView, ActivityIndicator, Platform,
   KeyboardAvoidingView, Dimensions, RefreshControl,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { trpc } from "@/lib/trpc";
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, Fragment } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
-import { isSavePriceMissingRoute, savePriceViaToggleBoughtFallback } from "@/lib/savePriceCompat";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { DateUtil } from "@/src/lib/DateUtil";
 
@@ -129,6 +129,49 @@ const formatMonthLabel = (dateStr: string) => {
   return DateUtil.formatMonthLabel(dateStr);
 };
 
+type SwipeDeleteWrapperProps = {
+  onDelete: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+};
+
+function SwipeDeleteWrapper({ onDelete, disabled, children }: SwipeDeleteWrapperProps) {
+  const swipeableRef = useRef<Swipeable>(null);
+
+  const handleDeletePress = () => {
+    swipeableRef.current?.close();
+    onDelete();
+  };
+
+  const renderRightActions = () => {
+    return (
+      <TouchableOpacity
+        style={styles.swipeDeleteBtn}
+        onPress={handleDeletePress}
+      >
+        <Ionicons name="trash-outline" size={24} color="#fff" />
+        <Text style={styles.swipeDeleteTxt}>刪除</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  if (disabled) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={40}
+      friction={2}
+      overshootRight={false}
+    >
+      {children}
+    </Swipeable>
+  );
+}
+
 export default function ShoppingTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -173,6 +216,8 @@ export default function ShoppingTab() {
   const [showSavePrice, setShowSavePrice] = useState(false);
   const [savePriceItem, setSavePriceItem] = useState<any>(null);
   const [savePriceVal, setSavePriceVal] = useState("");
+  const [savePriceMode, setSavePriceMode] = useState<"buy" | "actual">("actual");
+  const [editBudgetPrice, setEditBudgetPrice] = useState("");
   const savePriceEditedRef = useRef(false);
 
   const { data: lastPricesMap = {} } = (trpc as any).shopping.lastPrices.useQuery(
@@ -221,12 +266,12 @@ export default function ShoppingTab() {
   const addModalScrollRef = useRef<ScrollView>(null);
 
   const nameSuggestions = useMemo(() => {
-    const existingNames = Array.from(new Set(items.map((i: any) => i.name)));
+    const existingNames = Array.from<string>(new Set(items.map((i: any) => String(i.name))));
     
     if (!newName.trim()) {
       if (!showNameSuggestions) return [];
       return existingNames
-        .map((n) => {
+        .map((n: string) => {
           const item = items.find((i: any) => i.name === n);
           return { id: 0, name: n, category: item?.category || "其他", unit: item?.unit } as CommonIngredientSuggestion;
         })
@@ -235,8 +280,8 @@ export default function ShoppingTab() {
     
     const commonSuggestions = getCommonIngredientSuggestions(ingredientsForSuggestions, newName);
     const existingSuggestions = existingNames
-      .filter((n) => n.toLowerCase().includes(newName.toLowerCase()))
-      .map((n) => {
+      .filter((n: string) => n.toLowerCase().includes(newName.toLowerCase()))
+      .map((n: string) => {
         const item = items.find((i: any) => i.name === n);
         return { id: 0, name: n, category: item?.category || "其他", unit: item?.unit } as CommonIngredientSuggestion;
       });
@@ -260,31 +305,20 @@ export default function ShoppingTab() {
       return { current };
     },
     onSuccess: () => {
+      if (savePriceMode === "buy") {
+        toggleBoughtM.mutate({ id: savePriceItem!.id, bought: true });
+      }
       utils.shopping.list.invalidate();
       setShowSavePrice(false);
       setSavePriceItem(null);
       setSavePriceVal("");
-      Alert.alert("已記錄", "價格已儲存");
+      Alert.alert(savePriceMode === "buy" ? "已購買" : "已記錄", savePriceMode === "buy" ? "價格已儲存，項目已標記為已購買" : "價格已儲存");
     },
     onError: async (e: Error, variables: any, context: any) => {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      if (isSavePriceMissingRoute(e) && variables?.itemId && typeof variables.price === "number") {
-        console.warn("[shopping.savePrice] 舊後端無此 route，改用 toggleBought fallback 記錄價格:", e.message);
-        try {
-          await savePriceViaToggleBoughtFallback(variables.itemId, variables.price);
-          utils.shopping.list.invalidate();
-          setShowSavePrice(false);
-          setSavePriceItem(null);
-          setSavePriceVal("");
-          Alert.alert("已記錄", "價格已儲存（舊版後端兼容）");
-        } catch (e2: any) {
-          Alert.alert("儲存失敗", `兼容儲存都失敗：${e2?.message ?? "未知錯誤"}`);
-        }
-      } else {
-        Alert.alert("儲存失敗", e.message);
-      }
+      Alert.alert("儲存失敗", e.message || "請檢查網絡連接");
     },
   });
 
@@ -427,6 +461,7 @@ export default function ShoppingTab() {
 
   const { activeFamilyId, familyRole } = useAuth();
   const isAdmin = familyRole === "owner" || familyRole === "admin";
+  const hasFamily = activeFamilyId != null;
 
   const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
     enabled: !!activeFamilyId,
@@ -514,6 +549,15 @@ export default function ShoppingTab() {
   }, [activeItems]);
 
   const dateCardsData = useMemo(() => {
+    const allCount = activeItems.filter(i => i.status !== "bought").length;
+    const allCard = {
+      date: "__all__",
+      day: "全部",
+      weekday: "所有日期",
+      count: allCount,
+      isAll: true,
+    };
+    
     const dates: string[] = [];
     for (let i = 0; i < 30; i++) {
       const d = new Date(dateWindowStart);
@@ -522,11 +566,14 @@ export default function ShoppingTab() {
       if (!iso || iso.includes("NaN")) continue;
       dates.push(iso);
     }
-    return dates.map((date) => ({
+    const dateCards = dates.map((date) => ({
       date,
       ...formatDateCard(date),
       count: activeItems.filter((i) => i.plannedDate === date).length,
+      isAll: false,
     }));
+    
+    return [allCard, ...dateCards];
   }, [dateWindowStart, activeItems]);
 
   const currentMonth = useMemo(() => {
@@ -591,10 +638,23 @@ export default function ShoppingTab() {
 
   const handleToggle = useCallback(
     (item: any) => {
-      const willBuy = item.status !== "bought";
-      toggleBoughtM.mutate({ id: item.id, bought: willBuy });
+      if (item.status === "bought") {
+        toggleBoughtM.mutate({ id: item.id, bought: false });
+        return;
+      }
+      if (hasFamily) {
+        // Family 用戶：彈 Modal 記錄價格
+        setSavePriceItem(item);
+        setSavePriceMode("buy");
+        savePriceEditedRef.current = false;
+        setSavePriceVal(String(item.actualPrice ?? item.estimatedPrice ?? ""));
+        setShowSavePrice(true);
+      } else {
+        // Solo 用戶：直接 toggle，唔彈 Modal
+        toggleBoughtM.mutate({ id: item.id, bought: true });
+      }
     },
-    [toggleBoughtM],
+    [toggleBoughtM, hasFamily],
   );
 
   const handleDelete = useCallback(
@@ -607,12 +667,13 @@ export default function ShoppingTab() {
     [deleteItemM],
   );
 
-  const handleEdit = useCallback((item: any) => {
+  const openBudgetEdit = useCallback((item: any) => {
     setEditItem(item);
     setEditName(item.name);
     setEditQty(item.quantity || "");
     setEditUnit(item.unit || "");
     setEditPlannedDate(item.plannedDate || null);
+    setEditBudgetPrice(item.estimatedPrice != null ? String(item.estimatedPrice) : "");
     setShowEditModal(true);
   }, []);
 
@@ -625,23 +686,34 @@ export default function ShoppingTab() {
       Alert.alert("日期超出範圍", `採購日期不能遲過排餐日（${linkedMealDate}）`);
       return;
     }
+    const budgetPrice = editBudgetPrice.trim();
+    if (budgetPrice && (isNaN(parseInt(budgetPrice, 10)) || parseInt(budgetPrice, 10) <= 0)) {
+      Alert.alert("請輸入有效預算價格");
+      return;
+    }
     (updateItemM.mutate as any)({
       id: editItem.id,
       name,
       quantity: editQty.trim() || undefined,
       unit: editUnit.trim() || undefined,
       plannedDate: editPlannedDate || undefined,
+      estimatedPrice: budgetPrice ? parseInt(budgetPrice, 10) : undefined,
     });
-  }, [editItem, editName, editQty, editUnit, editPlannedDate, updateItemM, getLinkedMealPlanDate]);
+  }, [editItem, editName, editQty, editUnit, editPlannedDate, editBudgetPrice, updateItemM, getLinkedMealPlanDate]);
 
   const toggleCategoryExpand = useCallback((cat: string) => {
     setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
   }, []);
 
   const handleDateCardTap = useCallback((date: string) => {
+    if (date === "__all__") {
+      setSelectedDate("__all__");
+      setActiveDateFilter("all");
+      return;
+    }
     if (selectedDate === date) {
       setSelectedDate(null);
-      setActiveDateFilter("all");
+      setActiveDateFilter("today");
     } else {
       setSelectedDate(date);
       setActiveDateFilter("custom");
@@ -656,12 +728,25 @@ export default function ShoppingTab() {
     return list;
   }, [groupedByCategory]);
 
+  const openPriceAction = useCallback((item: any) => {
+    const isBought = item.status === "bought";
+    if (isBought || item.actualPrice != null) {
+      setSavePriceItem(item);
+      setSavePriceMode("actual");
+      savePriceEditedRef.current = false;
+      setSavePriceVal(String(item.actualPrice ?? item.estimatedPrice ?? ""));
+      setShowSavePrice(true);
+      return;
+    }
+    openBudgetEdit(item);
+  }, [openBudgetEdit]);
+
   const renderItem = (item: any) => {
     const isBought = item.status === "bought";
     const isPending = item.status === "pending";
     const isProcessing = toggleBoughtM.isPending || deleteItemM.isPending;
 
-    return (
+    const itemContent = (
       <View key={item.id} style={[styles.itemRow, isBought && styles.itemRowBought]}>
         <TouchableOpacity
           style={[styles.itemCheckbox, isBought && styles.itemCheckboxChecked]}
@@ -706,6 +791,38 @@ export default function ShoppingTab() {
                 </Text>
               </View>
             )}
+            <View style={styles.priceRow}>
+              {isBought && item.actualPrice != null ? (
+                <Text style={styles.itemPrice}>購買 HK${item.actualPrice}</Text>
+              ) : item.estimatedPrice != null ? (
+                <Text style={styles.itemPrice}>預算 HK${item.estimatedPrice}</Text>
+              ) : null}
+              {!isBought && !isPending && (
+                <>
+                  <TouchableOpacity
+                    style={styles.compareBtn}
+                    onPress={() => { setPriceKw(item.name); setShowPrice(true); }}
+                  >
+                    <Ionicons name="search-outline" size={13} color="#013E77" />
+                    <Text style={styles.compareBtnText}>格價</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.moreBtn}
+                    onPress={() => {
+                      Alert.alert(item.name, "選擇操作", [
+                        { text: "取消", style: "cancel" },
+                        { text: "編輯", onPress: () => openBudgetEdit(item) },
+                        { text: "預計價格", onPress: () => openBudgetEdit(item) },
+                        { text: "格價", onPress: () => { setPriceKw(item.name); setShowPrice(true); } },
+                        { text: "刪除", style: "destructive", onPress: () => handleDelete(item) },
+                      ]);
+                    }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
             {isBought && item.boughtByName && (
               <Text style={styles.itemBoughtBy}>{item.boughtByName} · {item.boughtAt ? formatTimeAgo(item.boughtAt) : "剛剛"}</Text>
             )}
@@ -735,46 +852,16 @@ export default function ShoppingTab() {
             </View>
           )}
         </View>
-
-        <View style={styles.itemActions}>
-          {!isBought && !isPending && (
-            <>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => { setSavePriceItem(item); savePriceEditedRef.current = false; setSavePriceVal(String(item.estimatedPrice || "")); setShowSavePrice(true); }}
-              >
-                <Text style={styles.actionBtnText}>輸入價格</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionIconBtn}
-                onPress={() => handleEdit(item)}
-              >
-                <Ionicons name="pencil-outline" size={15} color="#6B7280" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => { setPriceKw(item.name); setShowPrice(true); }}
-              >
-                <Text style={styles.actionBtnText}>比價</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionIconBtn}
-                onPress={() => handleDelete(item)}
-              >
-                <Ionicons name="trash-outline" size={15} color="#EF4444" />
-              </TouchableOpacity>
-            </>
-          )}
-          {isBought && (
-            <TouchableOpacity
-              style={styles.actionIconBtn}
-              onPress={() => handleDelete(item)}
-            >
-              <Ionicons name="trash-outline" size={15} color="#EF4444" />
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
+    );
+
+    return (
+      <SwipeDeleteWrapper
+        onDelete={() => handleDelete(item)}
+        disabled={isBought || isPending}
+      >
+        {itemContent}
+      </SwipeDeleteWrapper>
     );
   };
 
@@ -806,7 +893,11 @@ export default function ShoppingTab() {
           </View>
         </TouchableOpacity>
 
-        {isExpanded && catItems.map((item: any) => renderItem(item))}
+        {isExpanded && catItems.map((item: any) => (
+          <Fragment key={item.id}>
+            {renderItem(item)}
+          </Fragment>
+        ))}
 
         {isExpanded && (
           <TouchableOpacity
@@ -831,6 +922,12 @@ export default function ShoppingTab() {
           <Text style={styles.headerSubtitle}>{filteredUnboughtCount} 項待買 · {filteredBoughtCount} 項已買</Text>
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.headerAddBtn, { backgroundColor: "#F3F4F6", marginRight: 6 }]}
+            onPress={() => router.push("/purchase-history")}
+          >
+            <Ionicons name="time-outline" size={20} color="#6B7280" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerAddBtn} onPress={() => handleOpenAddModal()}>
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
@@ -865,11 +962,9 @@ export default function ShoppingTab() {
 
       <View style={styles.dateFilterRow}>
         {[
-          { key: "all" as const, label: "全部" },
           { key: "today" as const, label: "今天" },
           { key: "tomorrow" as const, label: "明天" },
           { key: "week" as const, label: "本週" },
-          { key: "custom" as const, label: "自訂" },
         ].map((chip) => (
           <TouchableOpacity
             key={chip.key}
@@ -898,9 +993,6 @@ export default function ShoppingTab() {
               setActiveDateFilter(chip.key);
             }}
           >
-            {chip.key === "custom" && (
-              <Ionicons name="calendar-outline" size={12} color={activeDateFilter === chip.key ? "#fff" : "#6B7280"} style={{ marginRight: 3 }} />
-            )}
             <Text style={[styles.dateFilterChipText, activeDateFilter === chip.key && styles.dateFilterChipTextActive]}>{chip.label}</Text>
           </TouchableOpacity>
         ))}
@@ -930,12 +1022,22 @@ export default function ShoppingTab() {
                   onPress={() => handleDateCardTap(dc.date)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
-                  <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
-                  {dc.count > 0 && (
-                    <View style={styles.dateCardBadge}>
-                      <Text style={styles.dateCardBadgeText}>{dc.count}</Text>
-                    </View>
+                  {dc.isAll ? (
+                    <>
+                      <Text style={[styles.dateCardDay, styles.dateCardAllDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
+                      <Text style={[styles.dateCardWeekday, styles.dateCardAllWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
+                      {dc.count > 0 && <Text style={[styles.dateCardAllCount, selectedDate === dc.date && { color: "#fff" }]}>{dc.count} 項</Text>}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
+                      <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
+                      {dc.count > 0 && (
+                        <View style={styles.dateCardBadge}>
+                          <Text style={styles.dateCardBadgeText}>{dc.count}</Text>
+                        </View>
+                      )}
+                    </>
                   )}
                 </TouchableOpacity>
               ))}
@@ -1211,6 +1313,15 @@ export default function ShoppingTab() {
                       <Text style={styles.datePickerClear}>清除日期</Text>
                     </TouchableOpacity>
                   )}
+                  <Text style={styles.fieldLabel}>預算價格 ($)</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    placeholder="預算價格"
+                    placeholderTextColor="#9CA3AF"
+                    value={editBudgetPrice}
+                    onChangeText={setEditBudgetPrice}
+                    keyboardType="number-pad"
+                  />
                   <TouchableOpacity
                     style={[styles.submitBtn, !editName.trim() && styles.submitBtnDisabled]}
                     onPress={handleSaveEdit}
@@ -1263,7 +1374,7 @@ export default function ShoppingTab() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>記錄價格</Text>
+                <Text style={styles.modalTitle}>{savePriceMode === "buy" ? "記錄購買價" : "記錄購買價"}</Text>
                 <TouchableOpacity onPress={() => setShowSavePrice(false)}>
                   <Ionicons name="close-outline" size={20} color="#6B7280" />
                 </TouchableOpacity>
@@ -1532,6 +1643,36 @@ const styles = StyleSheet.create({
     color: "#013E77",
     fontWeight: "600",
   },
+  dateCardAllDay: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  dateCardAllWeekday: {
+    fontSize: 10,
+    lineHeight: 12,
+    marginTop: 0,
+  },
+  dateCardAllCount: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#013E77",
+    marginTop: 2,
+  },
+  swipeDeleteBtn: {
+    width: 72,
+    height: "100%",
+    backgroundColor: "#EF4444",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  swipeDeleteTxt: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#fff",
+    marginTop: 4,
+  },
   dateCardBadge: {
     position: "absolute",
     top: 6,
@@ -1761,6 +1902,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#013E77",
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 2,
+  },
+  itemPrice: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#013E77",
+  },
+  compareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F0FE",
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    gap: 3,
+  },
+  compareBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#013E77",
+  },
+  moreBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   itemActions: {
     flexDirection: "row",

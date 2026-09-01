@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, ActivityIndicator, Alert, Modal, Image,
-  Platform, Dimensions, KeyboardAvoidingView,
+  ActivityIndicator, Alert, Modal,
+  Platform, KeyboardAvoidingView,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,8 +10,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
+import { useToast } from "@/src/components/Toast";
 
-const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
 const CARD = "#FFFFFF";
@@ -42,6 +42,7 @@ export default function PantryScreen() {
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"food" | "household">("food");
   const [searchQ, setSearchQ] = useState("");
@@ -57,7 +58,7 @@ export default function PantryScreen() {
   const boughtItems = useMemo(() => shoppingItems.filter((i: any) => i.status === "bought"), [shoppingItems]);
 
   const addItemM = trpc.pantry.add.useMutation({
-    onSuccess: () => { utils.pantry.list.invalidate(); setShowAddModal(false); setNewName(""); setNewQty(""); setNewUnit(""); Alert.alert("已加入儲備"); },
+    onSuccess: () => { utils.pantry.list.invalidate(); setShowAddModal(false); setNewName(""); setNewQty(""); setNewUnit(""); showToast("已加入儲備"); },
     onError: (e) => Alert.alert("失敗", e.message),
   });
   const deleteItemM = trpc.pantry.delete.useMutation({
@@ -71,7 +72,7 @@ export default function PantryScreen() {
     onSuccess: () => utils.pantry.list.invalidate(),
   });
   const addFromShoppingM = trpc.pantry.addFromShopping.useMutation({
-    onSuccess: (result: any) => { utils.pantry.list.invalidate(); Alert.alert(`已將 ${result.count} 件已買商品入庫`); },
+    onSuccess: (result: any) => { utils.pantry.list.invalidate(); showToast(`已將 ${result.count} 件已買商品入庫`); },
     onError: (e) => Alert.alert("失敗", e.message),
   });
   const addShoppingM = trpc.shopping.add.useMutation({
@@ -231,8 +232,8 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>缺貨 ({outOfStockItems.length} 件)</Text>
               <Text style={{ fontSize: 10, color: "#991B1B", marginTop: 1 }}>{outOfStockItems.slice(0, 3).map((i: any) => i.name).join("、")}{outOfStockItems.length > 3 ? `等${outOfStockItems.length}件` : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${outOfStockItems.length}件缺貨商品加入購物清單`); }}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入採購</Text>
+            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${outOfStockItems.length}件缺貨商品加入購物清單`); }}>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入購買</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -245,8 +246,8 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>即將耗盡 ({lowItems.length} 件)</Text>
               <Text style={{ fontSize: 10, color: "#78350F", marginTop: 1 }}>{lowItems.slice(0, 3).map((i: any) => i.name).join("、")}{lowItems.length > 3 ? `等${lowItems.length}件` : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); Alert.alert(`已將${lowItems.length}件即將耗盡商品加入購物清單`); }}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入採購</Text>
+            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${lowItems.length}件即將耗盡商品加入購物清單`); }}>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入購買</Text>
             </TouchableOpacity>
           </View>
         )}

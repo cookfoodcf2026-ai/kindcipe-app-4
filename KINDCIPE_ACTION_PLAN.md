@@ -105,6 +105,24 @@
 ### T1.1-1.6 Release 執漏（跟 T1.0 checklist 順序做）
 - **順序**：Privacy → ATT → __DEV__ → OAuth → TestFlight → IAP → 提交
 
+### T3.4 Web App 連結分享激活（Post-Launch）
+
+**時機：** Web App (`kindcipe-site`) 部署完成後先激活
+
+**文件：** `app/recipe/[id].tsx`
+
+**步驟：**
+1. 已預留按鈕代碼（使用 `EXPO_PUBLIC_WEBAPP_URL` 環境變數）
+2. 修改 `.env` 加 `EXPO_PUBLIC_WEBAPP_URL=https://kindcipe.com`
+3. 重新啟動 Expo：`npx expo start -c`
+
+**驗收：**
+- [ ] 擰「連結」按鈕 → 複製 `https://kindcipe.com/recipe/123`
+- [ ] 貼到瀏覽器 → 開到對應食譜頁
+- [ ] 分享按鈕喺 Recipe Detail 頁面頂部顯示（金色連結 icon）
+
+> **注意：** 呢個功能已經預留喺 `app/recipe/[id].tsx`（1016-1026 行），但係因為 Web App 仲未部署，所以而家複製嘅連結會係 `https://kindcipe.com/recipe/xxx`。等 Static Site 上線後，先改 `.env` 然後重新啟動 App。
+
 > ### 🙋 人手 item 越早開越好（唔使等 code，即刻可以做，並行唔阻塞）
 > 1. **買 domain**（T0.1）→ 解鎖 T0.2/T0.6
 > 2. **開 GA4 account** → 攞 Measurement ID（T0.3）

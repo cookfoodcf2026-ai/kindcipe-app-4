@@ -1,14 +1,72 @@
-import { useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+export type ToastType = "success" | "error" | "info";
 
 type ToastProps = {
   visible: boolean;
   message: string;
-  type?: "success" | "error" | "info";
+  type?: ToastType;
   onHide?: () => void;
   duration?: number;
 };
+
+type ToastContextValue = {
+  showToast: (message: string, type?: ToastType, duration?: number) => void;
+  hideToast: () => void;
+};
+
+const ToastContext = createContext<ToastContextValue | null>(null);
+
+export function useToast() {
+  const ctx = useContext(ToastContext);
+  if (!ctx) {
+    throw new Error("useToast must be used within a ToastProvider");
+  }
+  return ctx;
+}
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toast, setToast] = useState<{ id: number; visible: boolean; message: string; type: ToastType; duration: number }>({
+    id: 0,
+    visible: false,
+    message: "",
+    type: "success",
+    duration: 3000,
+  });
+
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  const showToast = useCallback((message: string, type: ToastType = "success", duration = 3000) => {
+    setToast(prev => ({
+      id: prev.id + 1,
+      visible: true,
+      message,
+      type,
+      duration,
+    }));
+  }, []);
+
+  const value = useMemo(() => ({ showToast, hideToast }), [showToast, hideToast]);
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      <Toast
+        key={toast.id}
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        duration={toast.duration}
+        onHide={hideToast}
+      />
+    </ToastContext.Provider>
+  );
+}
 
 export default function Toast({ visible, message, type = "success", onHide, duration = 3000 }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -30,7 +88,7 @@ export default function Toast({ visible, message, type = "success", onHide, dura
 
       return () => clearTimeout(timer);
     }
-  }, [visible, duration]);
+  }, [visible, message, duration, onHide, opacity, translateY]);
 
   if (!visible) return null;
 

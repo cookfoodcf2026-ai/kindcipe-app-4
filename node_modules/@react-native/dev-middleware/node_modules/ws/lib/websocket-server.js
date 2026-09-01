@@ -27,9 +27,9 @@ class WebSocketServer extends EventEmitter {
    *     clients
    * @param {Function} options.handleProtocols An hook to handle protocols
    * @param {String} options.host The hostname where to bind the server
-   * @param {Number} [options.maxBufferedChunks=1048576] The maximum number of
+   * @param {Number} [options.maxBufferedChunks=262144] The maximum number of
    *     buffered data chunks
-   * @param {Number} [options.maxFragments=131072] The maximum number of message
+   * @param {Number} [options.maxFragments=16384] The maximum number of message
    *     fragments
    * @param {Number} options.maxPayload The maximum allowed message size
    * @param {Boolean} options.noServer Enable no server mode
@@ -46,8 +46,8 @@ class WebSocketServer extends EventEmitter {
 
     options = Object.assign(
       {
-        maxBufferedChunks: 1024 * 1024,
-        maxFragments: 128 * 1024,
+        maxBufferedChunks: 256 * 1024,
+        maxFragments: 16 * 1024,
         maxPayload: 100 * 1024 * 1024,
         perMessageDeflate: false,
         handleProtocols: null,

@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { REDIRECT_PLATFORMS, openPlatform } from "@/lib/price";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
+import { useToast } from "@/src/components/Toast";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -40,6 +41,7 @@ export default function RestockScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"urgent" | "predict">("urgent");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [markedRestocked, setMarkedRestocked] = useState<Set<string>>(new Set());
@@ -50,8 +52,11 @@ export default function RestockScreen() {
   const { data: frequency = [], isLoading: freqLoading } = trpc.purchaseHistory.frequency.useQuery();
 
   const addShoppingM = trpc.shopping.add.useMutation({
-    onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("失敗", e.message),
+    onSuccess: (_data: unknown, variables: { name: string }) => {
+      utils.shopping.list.invalidate();
+      showToast(`「${variables.name}」已加入購物清單`);
+    },
+    onError: (e: any) => Alert.alert("失敗", e.message),
   });
 
   const toggleInStockM = trpc.pantry.toggleInStock.useMutation({
@@ -109,7 +114,6 @@ export default function RestockScreen() {
 
   const handleAddToShopping = (name: string) => {
     addShoppingM.mutate({ name, status: "active" });
-    Alert.alert("已加入購物清單", `「${name}」已加入購物清單`);
   };
 
   return (

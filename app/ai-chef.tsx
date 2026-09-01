@@ -2443,7 +2443,10 @@ export default function AIChefScreen() {
                         {renderMarkdown(block, s)}
                         <TouchableOpacity
                           style={s.copyBtn}
-                          onPress={() => Clipboard.setStringAsync(block).then(() => showToast("已複製食譜"))}
+                          onPress={async () => {
+                            await Clipboard.setStringAsync(block);
+                            showToast("已複製食譜");
+                          }}
                           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                         >
                           <Ionicons name="copy-outline" size={12} color="#6B7280" />
@@ -2459,7 +2462,10 @@ export default function AIChefScreen() {
                   {renderMarkdown(full, s)}
                   <TouchableOpacity
                     style={s.copyBtn}
-                    onPress={() => Clipboard.setStringAsync(full).then(() => showToast("已複製"))}
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(full);
+                      showToast("已複製");
+                    }}
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                   >
                     <Ionicons name="copy-outline" size={12} color="#6B7280" />
@@ -2710,11 +2716,6 @@ export default function AIChefScreen() {
                     <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>生成食譜中，請稍候...</Text>
                   </View>
                   <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>{LOADING_STEPS[loadingStep]}</Text>
-                  {loadingSeconds >= 10 && (
-                    <Text style={[s.bubbleTxt, { fontSize: 11, color: SUB, marginTop: 4 }]}>
-                      已等待約 {loadingSeconds * 2} 秒，通常需時 10–30 秒，請稍候...
-                    </Text>
-                  )}
                 </View>
               </View>
             ) : null
@@ -2952,7 +2953,10 @@ export default function AIChefScreen() {
           </View>
         )}
 
-        <View style={[s.inputBar, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
+      </View>
+
+      <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
+        <View style={s.inputBar}>
           <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
             <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
           </TouchableOpacity>
@@ -3201,7 +3205,8 @@ const s = StyleSheet.create({
   btnSwap: { flex: 1, backgroundColor: "#EEF4FB", paddingVertical: 7, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   btnSwapTxt: { fontSize: 11, fontWeight: "700", color: BRAND },
   headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD },
+  bottomDock: { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 8, backgroundColor: CARD },
   disclaimer: { fontSize: 11, color: HINT, textAlign: "center", paddingHorizontal: 16, paddingVertical: 6, backgroundColor: CARD },
   input: { flex: 1, backgroundColor: BG, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: TEXT, maxHeight: 100, minHeight: 40, borderWidth: 1, borderColor: BORDER },
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: BRAND, alignItems: "center", justifyContent: "center" },

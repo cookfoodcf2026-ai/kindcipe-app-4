@@ -47,8 +47,9 @@ export default function PlanDatePicker({
   minDate,
   maxDate,
 }: PlanDatePickerProps) {
-  const min = minDate || DateUtil.todayISO();
   const today = DateUtil.todayISO();
+  const min = minDate || today;
+  const normalizedValue = value && value < min ? min : value;
   const days = monthsAhead * 30;
 
   const [dateWindowStart, setDateWindowStart] = useState(() => {
@@ -77,11 +78,17 @@ export default function PlanDatePicker({
   }, [dateWindowStart, days]);
 
   const currentMonth = useMemo(() => {
-    if (value) return formatMonthLabel(value);
+    if (normalizedValue) return formatMonthLabel(normalizedValue);
     if (visibleMonth) return visibleMonth;
     if (dateCardsData.length === 0) return "";
     return formatMonthLabel(dateCardsData[0].date);
-  }, [value, dateCardsData, visibleMonth]);
+  }, [normalizedValue, dateCardsData, visibleMonth]);
+
+  useEffect(() => {
+    if (value && value < min) {
+      onChange(min);
+    }
+  }, [value, min, onChange]);
 
   const handleScroll = useCallback(
     (event: any) => {
@@ -172,7 +179,7 @@ export default function PlanDatePicker({
   // Only reacts when the target actually changes — NOT on manual scroll / arrow taps,
   // otherwise the picker keeps snapping back to the selected date while the user scrolls.
   useEffect(() => {
-    const target = value || maxDate;
+    const target = normalizedValue || maxDate;
     if (!target) return;
     if (lastTargetRef.current === target) return;
     lastTargetRef.current = target;
@@ -210,7 +217,7 @@ export default function PlanDatePicker({
         scrollRef.current.scrollTo({ x, animated: true });
       }
     }
-  }, [value, maxDate, dateCardsData, dateWindowStart]);
+  }, [normalizedValue, maxDate, dateCardsData, dateWindowStart]);
 
   // After the window was extended to include an out-of-range target, scroll to it once the new cards render.
   useEffect(() => {
@@ -230,12 +237,12 @@ export default function PlanDatePicker({
       {showShortcuts && shortcuts.length > 0 && (
         <View style={s.shortcutRow}>
           {shortcuts.map((item) => (
-            <TouchableOpacity
-              key={item.iso}
-              style={[
-                s.shortcutChip,
-                value === item.iso && s.shortcutChipActive,
-              ]}
+              <TouchableOpacity
+                key={item.iso}
+                style={[
+                  s.shortcutChip,
+                  normalizedValue === item.iso && s.shortcutChipActive,
+                ]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 onChange(item.iso);
@@ -250,12 +257,12 @@ export default function PlanDatePicker({
                 setVisibleMonth("");
               }}
             >
-              <Text
-                style={[
-                  s.shortcutChipTxt,
-                  value === item.iso && s.shortcutChipTxtActive,
-                ]}
-              >
+                <Text
+                  style={[
+                    s.shortcutChipTxt,
+                    normalizedValue === item.iso && s.shortcutChipTxtActive,
+                  ]}
+                >
                 {item.label}
               </Text>
             </TouchableOpacity>

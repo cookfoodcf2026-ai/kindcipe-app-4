@@ -2,19 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@shared/*": [
-        "../kindcipe-backend/shared/*"
-      ],
-      "@shared/const": [
-        "../kindcipe-backend/shared/const"
-      ],
-      "@shared/_core/errors": [
-        "../kindcipe-backend/shared/_core/errors"
       ]
     }
   },

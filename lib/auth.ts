@@ -1,28 +1,54 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 export const AUTH_TOKEN_KEY = "kindcipe_auth_token";
 export const FAMILY_ID_KEY = "kindcipe_active_family_id";
 export const BIOMETRIC_KEY = "kindcipe_biometric_enabled";
 
+/**
+ * SecureStore is the ONLY acceptable storage for auth tokens in production.
+ * 
+ * AsyncStorage fallback is ONLY for:
+ * - E2E tests (EXPO_PUBLIC_E2E=1) on iOS Simulator
+ * 
+ * ⚠️ WARNING: Do NOT use AsyncStorage for auth tokens in production.
+ * It is unencrypted and is only acceptable for E2E testing on Simulator.
+ */
+const isIOS = Platform.OS === "ios";
+const isE2ETest = process.env.EXPO_PUBLIC_E2E === "1";
+const useSecureStore = !(isIOS && isE2ETest);
+
 // ─── Token (SecureStore with biometric protection) ─────────────────────
 export async function saveAuthToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token, {
-    requireAuthentication: false,
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
+  if (useSecureStore) {
+    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token, {
+      requireAuthentication: false,
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+  } else {
+    await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+  }
 }
 
 export async function getAuthToken(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    if (useSecureStore) {
+      return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    } else {
+      return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    }
   } catch {
     return null;
   }
 }
 
 export async function clearAuthToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+  if (useSecureStore) {
+    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
+  } else {
+    await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+  }
 }
 
 export async function saveAuthTokenFromResponse(data: unknown): Promise<void> {
@@ -55,20 +81,20 @@ export async function setBiometricEnabled(enabled: boolean): Promise<void> {
     await AsyncStorage.setItem(BIOMETRIC_KEY, "true");
     // Re-save token with biometric protection
     const token = await getAuthToken();
-    if (token) {
+    if (token && useSecureStore) {
       await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token, {
         requireAuthentication: true,
-        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
       });
     }
   } else {
     await AsyncStorage.removeItem(BIOMETRIC_KEY);
     // Re-save without biometric protection
     const token = await getAuthToken();
-    if (token) {
+    if (token && useSecureStore) {
       await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token, {
         requireAuthentication: false,
-        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
       });
     }
   }

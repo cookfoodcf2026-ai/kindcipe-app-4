@@ -45,6 +45,15 @@ const UNIT_CONVERSIONS: Record<string, Record<string, number>> = {
   "公升": { "毫升": 1000, "杯": 4.22675, "湯匙": 66.6667, "茶匙": 200 },
 };
 
+const safeParseStringArray = (raw: string): string[] | null => {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 interface Props {
   value: string;
   onChange: (unit: string) => void;
@@ -67,7 +76,8 @@ export default function UnitPicker({ value, onChange, onUnitChange, quantity, on
     try {
       const stored = await AsyncStorage.getItem("@kindcipe:custom-units");
       if (stored) {
-        setCustomUnits(JSON.parse(stored));
+        const parsed = safeParseStringArray(stored);
+        if (parsed) setCustomUnits(parsed);
       }
     } catch (e) {
       console.error("Failed to load custom units:", e);

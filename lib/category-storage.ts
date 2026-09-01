@@ -19,11 +19,20 @@ export const DEFAULT_CATEGORIES: CategoryDef[] = [
   { key: "其他",   label: "其他",   emoji: "📦" },
 ];
 
+function safeParseCategories(raw: string): CategoryDef[] | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadCustomCategories(): Promise<CategoryDef[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed: CategoryDef[] = JSON.parse(raw);
+      const parsed = safeParseCategories(raw);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch {}

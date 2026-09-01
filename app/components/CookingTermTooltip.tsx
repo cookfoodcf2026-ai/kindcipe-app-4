@@ -17,18 +17,41 @@ export default function CookingTermTooltip({ visible, term, onClose }: Props) {
     fil: "Filipino",
     id: "Bahasa",
   };
+  
+  const TEXT_SELECTION_COLOR = "rgba(1, 62, 119, 0.22)";
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <View style={styles.box}>
-          <Text style={styles.term}>{term}</Text>
-          <Text style={styles.desc}>{info.zh}</Text>
+          <Text 
+            selectable 
+            selectionColor={TEXT_SELECTION_COLOR}
+            
+            style={styles.term}
+          >
+            {term}
+          </Text>
+          <Text 
+            selectable 
+            selectionColor={TEXT_SELECTION_COLOR}
+            
+            style={styles.desc}
+          >
+            {info.zh}
+          </Text>
           <View style={styles.langSection}>
             {(["en", "fil", "id"] as const).map((lang) => (
               <View key={lang} style={styles.langRow}>
                 <Text style={styles.langLabel}>{LANG_LABELS[lang]}</Text>
-                <Text style={styles.langValue}>{info[lang]}</Text>
+                <Text 
+                  selectable 
+                  selectionColor={TEXT_SELECTION_COLOR}
+                  
+                  style={styles.langValue}
+                >
+                  {info[lang]}
+                </Text>
               </View>
             ))}
           </View>

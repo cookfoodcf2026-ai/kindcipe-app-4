@@ -10,6 +10,8 @@
  * - 確保不同帳戶都會看到 onboarding
  * - 同一帳戶完成後不再重複顯示
  */
+import "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -46,6 +48,7 @@ void SplashScreen.preventAutoHideAsync();
 
 // 以用戶 ID 為 key，確保不同帳戶都有獨立的 onboarding 狀態
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
+const PENDING_ADMIN_REDIRECT_KEY = "kindcipe_pending_admin_redirect";
 
 // Helper functions for clipboard detection
 function isValidUrl(url: string): boolean {
@@ -302,53 +305,68 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [meQuery.isLoading, isLoggedIn, isTabsGroup]);
 
   useEffect(() => {
-    if (biometricFailed) {
-      if (segments[0] !== "login") router.replace("/login");
-      return;
-    }
-    if (meQuery.isLoading || !onboardingChecked) return;
-
-    const inTabsGroup = segments[0] === "(tabs)";
-    const inLoginPage = segments[0] === "login";
-    const inOnboarding = segments[0] === "onboarding";
-    const seg0 = segments[0] as string;
-    const isLoggedIn = !!meQuery.data;
-
-    // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
-    if (!isLoggedIn && !inLoginPage) {
-      if (seg0 === "admin") {
-        router.replace("/login?mode=admin");
-      } else {
-        router.replace("/login");
+    (async () => {
+      if (biometricFailed) {
+        if (segments[0] !== "login") router.replace("/login");
+        return;
       }
-      return;
-    }
+      if (meQuery.isLoading || !onboardingChecked) return;
 
-    // 已登入
-    if (isLoggedIn) {
-      if (!onboardingDone) {
-        // 若用戶已擁有 kitchen，直接視為完成 onboarding 並返回 tabs，
-        // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
-        if (meQuery.data?.activeFamilyId) {
-          const key = getOnboardingKey(meQuery.data.id);
-          AsyncStorage.setItem(key, "true");
-          setOnboardingDone(true);
-          router.replace("/(tabs)");
-        } else if (!inOnboarding && (inLoginPage || inTabsGroup)) {
-          if (inTabsGroup) {
-            ensureOnboardingCheck();
-          } else {
-            router.replace("/onboarding");
+      const inTabsGroup = segments[0] === "(tabs)";
+      const inLoginPage = segments[0] === "login";
+      const inForgotPassword = segments[0] === "forgot-password";
+      const inResetPassword = segments[0] === "reset-password";
+      const inOnboarding = segments[0] === "onboarding";
+      const seg0 = segments[0] as string;
+      const isLoggedIn = !!meQuery.data;
+
+      // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
+      if (!isLoggedIn && !inLoginPage && !inForgotPassword && !inResetPassword) {
+        if (seg0 === "admin") {
+          router.replace("/login?mode=admin");
+        } else {
+          router.replace("/login");
+        }
+        return;
+      }
+
+      // 已登入
+      if (isLoggedIn) {
+        if (inForgotPassword || inResetPassword) {
+          return;
+        }
+
+        const pendingAdminRedirect = await AsyncStorage.getItem(PENDING_ADMIN_REDIRECT_KEY);
+        if (pendingAdminRedirect === "1") {
+          await AsyncStorage.removeItem(PENDING_ADMIN_REDIRECT_KEY);
+          if (seg0 !== "admin") router.replace("/admin");
+          return;
+        }
+
+        if (!onboardingDone) {
+          // 若用戶已擁有 kitchen，直接視為完成 onboarding 並返回 tabs，
+          // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
+          if (meQuery.data?.activeFamilyId) {
+            const key = getOnboardingKey(meQuery.data.id);
+            AsyncStorage.setItem(key, "true");
+            setOnboardingDone(true);
+            router.replace("/(tabs)");
+          } else if (!inOnboarding && (inLoginPage || inTabsGroup)) {
+            if (inTabsGroup) {
+              ensureOnboardingCheck();
+            } else {
+              router.replace("/onboarding");
+            }
+          }
+        } else {
+          // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
+          // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
+          if (inLoginPage || inForgotPassword || inResetPassword || inOnboarding || seg0 === "index") {
+            router.replace("/(tabs)");
           }
         }
-      } else {
-        // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
-        // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
-        if (inLoginPage || inOnboarding || seg0 === "index") {
-          router.replace("/(tabs)");
-        }
       }
-    }
+    })();
   }, [meQuery.isLoading, meQuery.data, segments, onboardingChecked, onboardingDone]);
 
   const showLoading = !biometricFailed && (biometricPrompt || meQuery.isLoading || !onboardingChecked);
@@ -393,14 +411,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   useEffect(() => { initLanguage(); }, []);
 
-  return (    <ErrorBoundary fallback={<CrashScreen />}>
-      <I18nextProvider i18n={i18n}>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
-          <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <StatusBar style="light" />
-              <AuthGuard>
-                <Stack
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary fallback={<CrashScreen />}>
+        <I18nextProvider i18n={i18n}>
+          <trpc.Provider client={trpcClient} queryClient={queryClient}>
+            <QueryClientProvider client={queryClient}>
+              <ToastProvider>
+                <StatusBar style="light" />
+                <AuthGuard>
+                  <Stack
                   screenOptions={{
                     headerStyle: { backgroundColor: "#013E77" },
                     headerTintColor: "#fff",
@@ -469,5 +489,6 @@ export default function RootLayout() {
         </trpc.Provider>
       </I18nextProvider>
     </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

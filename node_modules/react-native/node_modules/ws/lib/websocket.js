@@ -442,9 +442,9 @@ module.exports = WebSocket;
  *     header
  * @param {String} options.origin Value of the `Origin` or
  *     `Sec-WebSocket-Origin` header
- * @param {Number} [options.maxBufferedChunks=1048576] The maximum number of
+ * @param {Number} [options.maxBufferedChunks=262144] The maximum number of
  *     buffered data chunks
- * @param {Number} [options.maxFragments=131072] The maximum number of message
+ * @param {Number} [options.maxFragments=16384] The maximum number of message
  *     fragments
  * @param {Number} options.maxPayload The maximum allowed message size
  * @param {Boolean} options.followRedirects Whether or not to follow redirects
@@ -455,8 +455,8 @@ function initAsClient(websocket, address, protocols, options) {
   const opts = Object.assign(
     {
       protocolVersion: protocolVersions[1],
-      maxBufferedChunks: 1024 * 1024,
-      maxFragments: 128 * 1024,
+      maxBufferedChunks: 256 * 1024,
+      maxFragments: 16 * 1024,
       maxPayload: 100 * 1024 * 1024,
       perMessageDeflate: true,
       followRedirects: false,

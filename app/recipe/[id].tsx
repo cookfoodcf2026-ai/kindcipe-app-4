@@ -17,9 +17,11 @@ import {
   Image, ActivityIndicator, Alert, Modal, Linking, Platform, BackHandler,
   Dimensions, TextInput, Share, KeyboardAvoidingView,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Image as ExpoImage } from "expo-image";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useKeepAwake } from "expo-keep-awake";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -73,6 +75,7 @@ const HINT = "#C7C7CC";
 const BORDER = "#F0EDE8";
 const GREEN = "#4CAF50";
 const PURPLE = "#9C27B0";
+const TEXT_SELECTION_COLOR = "rgba(1, 62, 119, 0.22)";
 
 const PLACEHOLDER_INGREDIENT_NAMES = new Set([
   "適量", "少許", "些許", "若干", "適宜", "適當", "隨意", "視乎口味", "依個人喜好",
@@ -105,7 +108,7 @@ function formatMealDate(dateStr: string): string {
 }
 
 // ── Per-step timer component ────────────────────────────────────────
-function StepTimer({ defaultSeconds = 0 }: { defaultSeconds?: number }) {
+function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number, onTimerEnd?: () => void }) {
   const [mode, setMode] = useState<"idle" | "input" | "counting">("idle");
   const [totalSec, setTotalSec] = useState(defaultSeconds);
   const [remaining, setRemaining] = useState(defaultSeconds);
@@ -113,7 +116,9 @@ function StepTimer({ defaultSeconds = 0 }: { defaultSeconds?: number }) {
   const [inputMin, setInputMin] = useState(defaultSeconds > 0 ? String(Math.floor(defaultSeconds / 60)) : "");
   const [inputSec, setInputSec] = useState(defaultSeconds > 0 ? String(defaultSeconds % 60) : "0");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerEndedRef = useRef(false);
 
+  // Countdown timer
   useEffect(() => {
     if (running) {
       intervalRef.current = setInterval(() => {
@@ -130,6 +135,22 @@ function StepTimer({ defaultSeconds = 0 }: { defaultSeconds?: number }) {
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [running]);
+
+  // Trigger callback when timer ends (only once)
+  useEffect(() => {
+    if (remaining === 0 && totalSec > 0 && !running && !timerEndedRef.current) {
+      // Mark as ended to prevent infinite loop
+      timerEndedRef.current = true;
+      
+      // Trigger callback (which handles audio, haptics, and toast)
+      if (onTimerEnd) onTimerEnd();
+    }
+    
+    // Reset timerEndedRef when timer is reset
+    if (running && totalSec > 0) {
+      timerEndedRef.current = false;
+    }
+  }, [remaining, running, totalSec, onTimerEnd]);
 
   const isDone = remaining === 0 && totalSec > 0;
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -311,6 +332,49 @@ export default function RecipeDetailScreen() {
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [, setPlanPickerShoppingDate] = useState<string | null>(null);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
+  const playTimerEndSound = async () => {
+    try {
+      const { Audio } = await import("expo-av");
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" },
+        { shouldPlay: true }
+      );
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if ('didJustFinishPlaying' in status && status.didJustFinishPlaying) {
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch (error) {
+      console.log("[Timer Sound] Expo Go native module not available, fallback to Haptics/Toast");
+    }
+  };
+  
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2000);
+  }, []);
+  
+  const handleTimerEnd = useCallback(async (stepNum: number) => {
+    // 1. 嘗試播放聲音（Expo Go 會 gracefully fallback）
+    await playTimerEndSound();
+    
+    // 2. 震動（包裹 try-catch）
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 100);
+      setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
+    } catch (error) {
+      console.log("[Haptics] Not available in Expo Go");
+    }
+    
+    // 3. Toast 提示
+    showToast(`步驟 ${stepNum} 計時結束 ⏰`);
+  }, [showToast]);
   const [showAllMealPlans, setShowAllMealPlans] = useState(false);
   const [showAllShopping, setShowAllShopping] = useState(false);
   // Track hero image load error to fall back to placeholder
@@ -919,16 +983,16 @@ export default function RecipeDetailScreen() {
                 // 組合完整分享文字
                 const shareText = [
                   `🍽️ ${recipe?.name ?? "食譜"}`,
-                  (recipe as any).description ? `${(recipe as any).description}` : "",
+                  (recipe as any).description ? `📝 ${(recipe as any).description}` : "",
                   "",
-                  recipe?.cookTime ? `⏱ ${recipe.cookTime} 分鐘` : "",
+                  recipe?.cookTime ? `⏱️ ${recipe.cookTime} 分鐘` : "",
                   `👥 ${effectiveServings} 人份`,
                   (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
                   "",
-                  "📋 食材清單：",
+                  `🛒 食材清單：`,
                   ingText,
                   "",
-                  "👨‍🍳 烹飪步驟：",
+                  `👨‍🍳 烹飪步驟：`,
                   stepText,
                   "",
                   (recipe as any).housewifeTips ? `💡 主婦貼士：${(recipe as any).housewifeTips}` : "",
@@ -943,6 +1007,70 @@ export default function RecipeDetailScreen() {
               }}
             >
               <Ionicons name="share-outline" size={20} color="#013E77" />
+            </TouchableOpacity>
+            {/* Copy Whole Recipe button */}
+            <TouchableOpacity
+              style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 64 }]}
+              onPress={async () => {
+                // 處理食材 - 使用 adjustedQty (已調整份量)
+                const ingText = adjustedIngredients
+                  .map((i: any) => {
+                    const name = i.name ?? "未知食材";
+                    const qty = i.adjustedQty ?? i.quantity ?? "";
+                    const unit = i.unit ?? "";
+                    return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
+                  })
+                  .join("\n");
+                
+                // 處理步驟 - 支援多種屬性名稱，包含小貼士
+                const stepText = steps
+                  .map((s: any, i: number) => {
+                    const instruction = typeof s === "string" 
+                      ? s 
+                      : (s.instruction ?? s.description ?? s.step ?? `步驟 ${i + 1}`);
+                    const tip = s.tip ?? s.tips ?? "";
+                    
+                    let result = `${i + 1}. ${instruction}`;
+                    if (tip) result += `\n   💡 ${tip}`;
+                    return result;
+                  })
+                  .join("\n");
+                
+                // 組合完整複製文字
+                const copyText = [
+                  `🍽️ ${recipe?.name ?? "食譜"}`,
+                  (recipe as any).description ? `📝 ${(recipe as any).description}` : "",
+                  "",
+                  recipe?.cookTime ? `⏱️ ${recipe.cookTime} 分鐘` : "",
+                  `👥 ${effectiveServings} 人份`,
+                  (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
+                  "",
+                  `🛒 食材清單：`,
+                  ingText,
+                  "",
+                  `👨‍🍳 烹飪步驟：`,
+                  stepText,
+                  "",
+                  (recipe as any).housewifeTips ? `💡 主婦貼士：${(recipe as any).housewifeTips}` : "",
+                ].filter(Boolean).join("\n");
+                
+                await Clipboard.setStringAsync(copyText);
+                showToast("已複製整個食譜");
+              }}
+            >
+              <Ionicons name="copy-outline" size={20} color="#013E77" />
+            </TouchableOpacity>
+            {/* 🔗 Web App Link Share Button - Activate when Web App is deployed */}
+            <TouchableOpacity
+              style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 112 }]}
+              onPress={() => {
+                const webappUrl = process.env.EXPO_PUBLIC_WEBAPP_URL || "https://kindcipe.com";
+                const recipeUrl = `${webappUrl}/recipe/${recipe?.id}`;
+                Clipboard.setStringAsync(recipeUrl);
+                showToast("已複製食譜連結");
+              }}
+            >
+              <Ionicons name="link-outline" size={20} color="#013E77" />
             </TouchableOpacity>
             {/* Recipe info overlay */}
             <View style={s.heroInfo}>
@@ -994,7 +1122,13 @@ export default function RecipeDetailScreen() {
             {/* ── Description ── */}
             {(recipe as any).description ? (
               <View style={s.descriptionCard}>
-                <Text style={s.description}>{(recipe as any).description}</Text>
+                <Text 
+                  selectable 
+                  selectionColor={TEXT_SELECTION_COLOR}
+                  style={s.description}
+                >
+                  {(recipe as any).description}
+                </Text>
               </View>
             ) : null}
 
@@ -1189,7 +1323,26 @@ export default function RecipeDetailScreen() {
                   <Ionicons name="bulb-outline" size={15} color="#F59E0B" />
                   <Text style={s.tipsTitle}>主婦貼士</Text>
                 </View>
-                <Text style={s.tipsTxt}>{(recipe as any).housewifeTips}</Text>
+                <Text 
+                  selectable 
+                  selectionColor={TEXT_SELECTION_COLOR}
+                  
+                  style={s.tipsTxt}
+                >
+                  {(recipe as any).housewifeTips}
+                </Text>
+                <TouchableOpacity
+                  style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4 }}
+                  onPress={async () => {
+                    await Clipboard.setStringAsync((recipe as any).housewifeTips);
+                    showToast("已複製貼士");
+                  }}
+                  hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="copy-outline" size={12} color="#6B7280" />
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>📋 複製</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1200,7 +1353,29 @@ export default function RecipeDetailScreen() {
                   <Ionicons name="basket-outline" size={16} color={GREEN} />
                 </View>
                 <Text style={s.cardTitle}>食材清單 ({adjustedIngredients.length} 項)</Text>
-                <Ionicons name={showIngredients ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}
+                    onPress={async () => {
+                      const ingText = adjustedIngredients
+                        .map((i: any) => {
+                          const name = i.name ?? "未知食材";
+                          const qty = i.adjustedQty ?? i.quantity ?? "";
+                          const unit = i.unit ?? "";
+                          return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
+                        })
+                        .join("\n");
+                      await Clipboard.setStringAsync(ingText);
+                      showToast("已複製食材清單");
+                    }}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="copy-outline" size={13} color="#013E77" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>📋 複製</Text>
+                  </TouchableOpacity>
+                  <Ionicons name={showIngredients ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
+                </View>
               </TouchableOpacity>
 
               {showIngredients && (
@@ -1215,7 +1390,14 @@ export default function RecipeDetailScreen() {
                         {/* Color dot: green=fresh, blue=packaged */}
                         <View style={[s.ingDot, { backgroundColor: isPackaged ? BRAND : GREEN }]} />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={s.ingName}>{ing.name}</Text>
+                          <Text 
+                            selectable 
+                            selectionColor={TEXT_SELECTION_COLOR}
+                            
+                            style={s.ingName}
+                          >
+                            {ing.name}
+                          </Text>
                           {ing.category && (
                             <View style={[s.ingCatTag, { backgroundColor: isPackaged ? "#E8F0FA" : "#E8F5E9" }]}>
                               <Text style={[s.ingCatTxt, { color: isPackaged ? "#012D56" : "#166534" }]}>{ing.category}</Text>
@@ -1253,7 +1435,32 @@ export default function RecipeDetailScreen() {
                   <Ionicons name="restaurant-outline" size={16} color={BRAND} />
                 </View>
                 <Text style={s.cardTitle}>烹飪步驟 ({steps.length} 步)</Text>
-                <Ionicons name={showSteps ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}
+                    onPress={async () => {
+                      const stepText = steps
+                        .map((s: any, i: number) => {
+                          const instruction = typeof s === "string" 
+                            ? s 
+                            : (s.instruction ?? s.description ?? s.step ?? `步驟 ${i + 1}`);
+                          const tip = s.tip ?? s.tips ?? "";
+                          let result = `${i + 1}. ${instruction}`;
+                          if (tip) result += `\n   💡 ${tip}`;
+                          return result;
+                        })
+                        .join("\n");
+                      await Clipboard.setStringAsync(stepText);
+                      showToast("已複製步驟清單");
+                    }}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="copy-outline" size={13} color="#013E77" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>📋 複製</Text>
+                  </TouchableOpacity>
+                  <Ionicons name={showSteps ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
+                </View>
               </TouchableOpacity>
 
               {showSteps && (
@@ -1275,7 +1482,12 @@ export default function RecipeDetailScreen() {
                         <View style={{ flex: 1 }}>
                           {/* Instruction with term highlighting */}
                           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-                            <Text style={{ flex: 1, fontSize: 15, color: TEXT, lineHeight: 22 }}>
+                            <Text 
+                              selectable 
+                              selectionColor={TEXT_SELECTION_COLOR}
+                              
+                              style={{ flex: 1, fontSize: 15, color: TEXT, lineHeight: 22 }}
+                            >
                               {highlightStepText(instruction)}
                             </Text>
                             {isOptional && (
@@ -1284,6 +1496,18 @@ export default function RecipeDetailScreen() {
                               </View>
                             )                            }
                           </View>
+                          <TouchableOpacity
+                            style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4 }}
+                            onPress={async () => {
+                              await Clipboard.setStringAsync(instruction);
+                              showToast(`已複製步驟 ${i + 1}`);
+                            }}
+                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="copy-outline" size={12} color="#6B7280" />
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>📋 複製</Text>
+                          </TouchableOpacity>
 
                           {/* Step image */}
                           {stepImage && (
@@ -1293,14 +1517,22 @@ export default function RecipeDetailScreen() {
                           {/* Tip — purple box */}
                           {tip && (
                             <View style={[s.tipBox, isOptional && s.tipBoxGray]}>
-                              <Text style={[s.tipBoxTxt, isOptional && { color: SUB }]}>
+                              <Text 
+                                selectable 
+                                selectionColor={TEXT_SELECTION_COLOR}
+                                
+                                style={[s.tipBoxTxt, isOptional && { color: SUB }]}
+                              >
                                 {isOptional ? <Ionicons name="play-forward" size={12} color={SUB} /> : <Ionicons name="bulb" size={12} color={PURPLE} />} {tip}
                               </Text>
                             </View>
                           )}
 
                           {/* Per-step timer */}
-                          <StepTimer defaultSeconds={durSeconds} />
+                          <StepTimer 
+                            defaultSeconds={durSeconds} 
+                            onTimerEnd={() => handleTimerEnd(i + 1)}
+                          />
                         </View>
                       </View>
                     );

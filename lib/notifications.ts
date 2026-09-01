@@ -1,6 +1,8 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+const isSimulator = __DEV__ && Platform.OS === "ios";
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -12,22 +14,31 @@ Notifications.setNotificationHandler({
 });
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-  if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== "granted") {
+  try {
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") {
+      return false;
+    }
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "預設通知",
+        importance: Notifications.AndroidImportance.HIGH,
+      });
+    }
+    return true;
+  } catch (err) {
+    if (isSimulator) {
+      console.warn("Notification permission failed (simulator - expected):", err);
+      return false;
+    }
+    console.error("Notification permission error:", err);
     return false;
   }
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "預設通知",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
-  return true;
 }
 
 export async function scheduleMealNotification(mealName: string, mealTime: string) {

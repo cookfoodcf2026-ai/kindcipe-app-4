@@ -18,6 +18,7 @@ node_modules/.package-lock.json
 
 # Backups
 *.bak
+package-lock.json.backup
 
 # Environment variables (contains API URLs, should not be committed)
 .env
