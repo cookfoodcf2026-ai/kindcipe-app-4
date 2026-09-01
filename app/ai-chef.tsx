@@ -108,6 +108,15 @@ const PLACEHOLDER_INGREDIENT_NAMES = new Set([
   "未知食材",
 ]);
 
+// Helper: Filter out placeholder ingredients for accurate count
+const getValidIngredients = (ingredients: AIRecipe["ingredients"]) => {
+  if (!ingredients || ingredients.length === 0) return [];
+  return ingredients.filter(ing => {
+    const name = (ing.name || "").trim();
+    return name.length > 1 && !PLACEHOLDER_INGREDIENT_NAMES.has(name);
+  });
+};
+
 const INGREDIENT_UNIT_WORDS = "克|毫升|公升|升|ml|l|L|g|kg|個|條|隻|片|碗|湯匙|茶匙|匙|包|盒|粒|瓣|棵|紮|杯|碟|勺|份|根|塊|斤|磅|oz|lb|角|副";
 const QUANTITY_WORDS = "[\\d.]+(?:[\\d.-]*[\\d.]+)?|半|一|兩|二|三|四|五|六|七|八|九|十|幾|若干|少許|適量|些許";
 const APPROX_PREFIX = "(?:約|大約|大概|近約|左右)\\s*";
@@ -2697,33 +2706,180 @@ export default function AIChefScreen() {
           }
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ListFooterComponent={
-            libraryLoading ? (
-              <View style={s.msgRow}>
-                <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>
-                <View style={[s.bubbleBot, s.typing]}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <ActivityIndicator size="small" color={BRAND} />
-                    <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>🔍 正在搵食譜庫...</Text>
+          ListFooterComponent={() => (
+            <>
+              {libraryLoading ? (
+                <View style={s.msgRow}>
+                  <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>
+                  <View style={[s.bubbleBot, s.typing]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ActivityIndicator size="small" color={BRAND} />
+                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>🔍 正在搵食譜庫...</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ) : chatMutation.isPending ? (
-              <View style={s.msgRow}>
-                <View style={s.avatar}><Ionicons name="sparkles" size={16} color={BRAND} /></View>
-                <View style={[s.bubbleBot, s.typing]}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <ActivityIndicator size="small" color={BRAND} />
-                    <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>生成食譜中，請稍候...</Text>
+              ) : chatMutation.isPending ? (
+                <View style={s.msgRow}>
+                  <View style={s.avatar}><Ionicons name="sparkles" size={16} color={BRAND} /></View>
+                  <View style={[s.bubbleBot, s.typing]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <ActivityIndicator size="small" color={BRAND} />
+                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>生成食譜中，請稍候...</Text>
+                    </View>
+                    <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>{LOADING_STEPS[loadingStep]}</Text>
                   </View>
-                  <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>{LOADING_STEPS[loadingStep]}</Text>
                 </View>
-              </View>
-            ) : null
-          }
+              ) : null}
+              {recommendedRecipes.length > 0 && !chatMutation.isPending && (
+                <View style={s.recBar}>
+                  <View style={s.recHead}>
+                    <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? "今晚 3 餸 1 湯" : "轉換其他食譜："}</Text>
+                    {mealResult && (
+                      <View style={s.recBatch}>
+                        <TouchableOpacity style={s.batchShopBtn} onPress={() => openShoppingSelection(mealResult)} disabled={addShoppingM.isPending}>
+                          <Text style={s.batchShopTxt}>加入購買</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recScroll}>
+                    {recommendedRecipes.map((r, i) => (
+                      <View key={i} style={s.recCard} testID={`recipe-card-${i}`}>
+                        <View style={s.recCardHeader}>
+                          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                            <Ionicons name="restaurant-outline" size={14} color={BRAND} />
+                            <Text style={s.recCardDiff}>{r.recipeCategory || "其他"}</Text>
+                            <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
+                            <Text style={s.recCardDiff}>{r.difficulty}</Text>
+                          </View>
+                          <View style={[s.recCardSourceBadge, r.source === "ai" ? s.recCardSourceAI : s.recCardSourceLibrary]}>
+                            <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : "食譜庫"}</Text>
+                          </View>
+                        </View>
+                        <View style={s.recCardBody} testID={`recipe-card-content-${i}`}>
+                          <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>{r.name}</Text>
+                          <View style={s.recCardMeta}>
+                            <Text style={s.recCardMetaTxt}>{r.cookTime}分</Text>
+                            <Text style={s.recCardMetaTxt}>{r.servings}人</Text>
+                            <Text style={s.recCardMetaTxt}>{getValidIngredients(r.ingredients).length}食材</Text>
+                            <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]} testID={`recipe-card-steps-count-${i}`}>{(r.steps || []).length}步驟</Text>
+                          </View>
+                          <View style={s.recCardTags} testID={`recipe-card-tags-${i}`}>
+                            {(r.tags || []).slice(0, 4).map((tag, tagIdx) => (
+                              <View key={tagIdx} style={s.recTagPill}>
+                                <Text style={s.recTagTxt} numberOfLines={1}>{tag}</Text>
+                              </View>
+                            ))}
+                          </View>
+                          {/* 睇食材（撳開先見） */}
+                          <TouchableOpacity
+                            style={s.recCardIngredientsToggle}
+                            onPress={() => setExpandedCard(expandedCard === i ? null : i)}
+                            testID={`recipe-card-ingredients-toggle-${i}`}
+                          >
+                            <Ionicons name={expandedCard === i ? "chevron-up" : "chevron-down"} size={13} color={BRAND} />
+                            <Text style={s.recCardIngredientsToggleTxt}>
+                              {expandedCard === i ? "收起食材" : `睇食材 (${getValidIngredients(r.ingredients).length})`}
+                            </Text>
+                          </TouchableOpacity>
+                          {expandedCard === i && (
+                            <View style={s.recCardIngList} testID={`recipe-card-ingredients-${i}`}>
+                              {getValidIngredients(r.ingredients).slice(0, 5).map((ing, ingIdx) => (
+                                <View key={ingIdx} style={s.recCardIngRow}>
+                                  <View style={s.recCardIngDot} />
+                                  <Text style={s.recCardIngTxt}>
+                                    {ing.name}
+                                    {ing.quantity ? ` ${ing.quantity}` : ""}
+                                    {ing.unit ? ` ${ing.unit}` : ""}
+                                  </Text>
+                                </View>
+                              ))}
+                              {getValidIngredients(r.ingredients).length > 5 && (
+                                <Text style={s.recCardIngMore}>+{getValidIngredients(r.ingredients).length - 5} 項</Text>
+                              )}
+                            </View>
+                          )}
+                          {/* 步驟內容驗證 */}
+                          {r.steps && r.steps.length > 0 && (
+                            <View style={{ paddingVertical: 8 }} testID={`recipe-card-steps-content-${i}`}>
+                              <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} 步驟</Text>
+                              <Text style={{ fontSize: 11, color: TEXT }} numberOfLines={2} testID={`recipe-card-first-step-${i}`}>
+                                {r.steps[0]}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={s.recCardBtns} testID={`recipe-card-btns-${i}`}>
+                            <TouchableOpacity
+                              testID={`ai-chef-recipe-${i}-meal`}
+                              style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
+                              onPress={() => {
+                                if (isValidRecipe(r)) {
+                                  setPlanRecipe(r);
+                                  setPlanDate(todayISO());
+                                  setShowPlan(true);
+                                } else {
+                                  Alert.alert("無法加入", "此食譜資料不完整。");
+                                }
+                              }}
+                              disabled={!isValidRecipe(r)}
+                            >
+                              <Text style={s.btnMealTxt}>加排餐</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              testID={`ai-chef-recipe-${i}-favorite`}
+                              style={[s.btnFavorite, (!isValidRecipe(r) || r.source === "official" || r.source === "custom") && { opacity: 0.4 }]}
+                              onPress={() => handleFavoriteRecipe(r)}
+                              disabled={!isValidRecipe(r) || r.source === "official" || r.source === "custom" || favoritingName === (r.name || "").trim()}
+                            >
+                              {favoritingName === (r.name || "").trim() ? (
+                                <ActivityIndicator size="small" color={BRAND} />
+                              ) : (
+                                <Ionicons name="bookmark-outline" size={14} color={BRAND} />
+                              )}
+                              <Text style={s.btnFavoriteTxt}>收藏</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              testID={`ai-chef-recipe-${i}-swap`}
+                              style={[s.btnSwap, { opacity: chatMutation.isPending ? 0.5 : 1 }]}
+                              onPress={() => handleSwapRecipe(r, i)}
+                              disabled={chatMutation.isPending || swappingIndex === i}
+                            >
+                              {swappingIndex === i ? (
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                  <ActivityIndicator size="small" color={BRAND} />
+                                  <Text style={s.btnSwapTxt}>換中</Text>
+                                </View>
+                              ) : (
+                                <>
+                                  <Ionicons name="refresh-outline" size={14} color={BRAND} />
+                                  <Text style={s.btnSwapTxt}>換</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>換成其他食譜：</Text>
+                    <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
+                      <TouchableOpacity style={[s.sourceBtnLib, { flex: 1 }]} onPress={() => regenerateWithMode("library")} disabled={chatMutation.isPending}>
+                        <Text style={s.sourceBtnTxt}>📚 食譜庫</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }]} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
+                        <Text style={s.sourceBtnTxt}>✨ AI 生成</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </>
+          )}
         />
 
-        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (
+        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <View style={s.followUpBar}>
             <Text style={s.followUpLabel}>下一步：</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
@@ -2781,152 +2937,6 @@ export default function AIChefScreen() {
                 </>
               )}
             </ScrollView>
-          </View>
-        )}
-
-        {recommendedRecipes.length > 0 && !chatMutation.isPending && (
-          <View style={s.recBar}>
-            <View style={s.recHead}>
-              <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? "今晚 3餸1湯" : "轉換其他食譜："}</Text>
-              {mealResult && (
-                <View style={s.recBatch}>
-                  <TouchableOpacity style={s.batchShopBtn} onPress={() => openShoppingSelection(mealResult)} disabled={addShoppingM.isPending}>
-                    <Text style={s.batchShopTxt}>加入購買</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recScroll}>
-              {recommendedRecipes.map((r, i) => (
-                <View key={i} style={s.recCard} testID={`recipe-card-${i}`}>
-                  <View style={s.recCardHeader}>
-                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                      <Ionicons name="restaurant-outline" size={14} color={BRAND} />
-                      <Text style={s.recCardDiff}>{r.recipeCategory || "其他"}</Text>
-                      <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
-                      <Text style={s.recCardDiff}>{r.difficulty}</Text>
-                    </View>
-                    <View style={[s.recCardSourceBadge, r.source === "ai" ? s.recCardSourceAI : s.recCardSourceLibrary]}>
-                      <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : "食譜庫"}</Text>
-                    </View>
-                  </View>
-                  <View style={s.recCardBody} testID={`recipe-card-content-${i}`}>
-                    <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>{r.name}</Text>
-                    <View style={s.recCardMeta}>
-                      <Text style={s.recCardMetaTxt}>{r.cookTime}分</Text>
-                      <Text style={s.recCardMetaTxt}>{r.servings}人</Text>
-                      <Text style={s.recCardMetaTxt}>{(r.ingredients || []).length}食材</Text>
-                      <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]} testID={`recipe-card-steps-count-${i}`}>{(r.steps || []).length}步驟</Text>
-                    </View>
-                    <View style={s.recCardTags} testID={`recipe-card-tags-${i}`}>
-                      {(r.tags || []).slice(0, 4).map((tag, tagIdx) => (
-                        <View key={tagIdx} style={s.recTagPill}>
-                          <Text style={s.recTagTxt} numberOfLines={1}>{tag}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    {/* 睇食材（撳開先見） */}
-                    <TouchableOpacity
-                      style={s.recCardIngredientsToggle}
-                      onPress={() => setExpandedCard(expandedCard === i ? null : i)}
-                      testID={`recipe-card-ingredients-toggle-${i}`}
-                    >
-                      <Ionicons name={expandedCard === i ? "chevron-up" : "chevron-down"} size={13} color={BRAND} />
-                      <Text style={s.recCardIngredientsToggleTxt}>
-                        {expandedCard === i ? "收起食材" : `睇食材 (${(r.ingredients || []).length})`}
-                      </Text>
-                    </TouchableOpacity>
-                    {expandedCard === i && (
-                      <View style={s.recCardIngList} testID={`recipe-card-ingredients-${i}`}>
-                        {(r.ingredients || []).slice(0, 5).map((ing, ingIdx) => (
-                          <View key={ingIdx} style={s.recCardIngRow}>
-                            <View style={s.recCardIngDot} />
-                            <Text style={s.recCardIngTxt}>
-                              {ing.name}
-                              {ing.quantity ? ` ${ing.quantity}` : ""}
-                              {ing.unit ? ` ${ing.unit}` : ""}
-                            </Text>
-                          </View>
-                        ))}
-                        {(r.ingredients || []).length > 5 && (
-                          <Text style={s.recCardIngMore}>+{(r.ingredients || []).length - 5} 項</Text>
-                        )}
-                      </View>
-                    )}
-                    {/* 步驟內容驗證 */}
-                    {r.steps && r.steps.length > 0 && (
-                      <View style={{ paddingVertical: 8 }} testID={`recipe-card-steps-content-${i}`}>
-                        <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} 步驟</Text>
-                        <Text style={{ fontSize: 11, color: TEXT }} numberOfLines={2} testID={`recipe-card-first-step-${i}`}>
-                          {r.steps[0]}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={s.recCardBtns} testID={`recipe-card-btns-${i}`}>
-                      <TouchableOpacity
-                        testID={`ai-chef-recipe-${i}-meal`}
-                        style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
-                        onPress={() => {
-                          if (isValidRecipe(r)) {
-                            setPlanRecipe(r);
-                            setPlanDate(todayISO());
-                            setShowPlan(true);
-                          } else {
-                            Alert.alert("無法加入", "此食譜資料不完整。");
-                          }
-                        }}
-                        disabled={!isValidRecipe(r)}
-                      >
-                        <Text style={s.btnMealTxt}>加排餐</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        testID={`ai-chef-recipe-${i}-favorite`}
-                        style={[s.btnFavorite, (!isValidRecipe(r) || r.source === "official" || r.source === "custom") && { opacity: 0.4 }]}
-                        onPress={() => handleFavoriteRecipe(r)}
-                        disabled={!isValidRecipe(r) || r.source === "official" || r.source === "custom" || favoritingName === (r.name || "").trim()}
-                      >
-                        {favoritingName === (r.name || "").trim() ? (
-                          <ActivityIndicator size="small" color={BRAND} />
-                        ) : (
-                          <Ionicons name="bookmark-outline" size={14} color={BRAND} />
-                        )}
-                        <Text style={s.btnFavoriteTxt}>收藏</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        testID={`ai-chef-recipe-${i}-swap`}
-                        style={[s.btnSwap, { opacity: chatMutation.isPending ? 0.5 : 1 }]}
-                        onPress={() => handleSwapRecipe(r, i)}
-                        disabled={chatMutation.isPending || swappingIndex === i}
-                      >
-                        {swappingIndex === i ? (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <ActivityIndicator size="small" color={BRAND} />
-                            <Text style={s.btnSwapTxt}>換中</Text>
-                          </View>
-                        ) : (
-                          <>
-                            <Ionicons name="refresh-outline" size={14} color={BRAND} />
-                            <Text style={s.btnSwapTxt}>換</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>換成其他食譜：</Text>
-              <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
-                <TouchableOpacity style={[s.sourceBtnLib, { flex: 1 }]} onPress={() => regenerateWithMode("library")} disabled={chatMutation.isPending}>
-                  <Text style={s.sourceBtnTxt}>📚 食譜庫</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }]} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
-                  <Text style={s.sourceBtnTxt}>✨ AI 生成</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
         )}
 

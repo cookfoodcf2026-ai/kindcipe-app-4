@@ -22,14 +22,35 @@ const BORDER = "#E0EAF4";
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "未定";
   const date = typeof d === "string" ? new Date(d) : d;
-  if (isNaN(date.getTime())) return "未定";
+  
+  // 檢查是否為有效日期
+  if (isNaN(date.getTime())) {
+    console.warn('formatDate received invalid date:', d);
+    return "未定";
+  }
+  
+  const month = date.getMonth();
+  const day = date.getDate();
+  
+  // 如果 month 或 day 係 NaN，返回預設值
+  if (isNaN(month) || isNaN(day)) {
+    console.warn('formatDate got NaN month/day:', { month, day, date });
+    return "未定";
+  }
+  
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const target = new Date(date.getFullYear(), month, day);
+  
+  if (isNaN(target.getTime())) {
+    // 如果 target 無效，直接返回原始日期
+    return `${month + 1}月${day}日`;
+  }
+  
   if (target.getTime() === today.getTime()) return "今天";
   if (target.getTime() === yesterday.getTime()) return "昨天";
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
+  return `${month + 1}月${day}日`;
 }
 
 function daysSince(d: Date | string): number {

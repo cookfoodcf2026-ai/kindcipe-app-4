@@ -105,12 +105,19 @@ const formatDateCard = (dateStr: string) => {
   const tomorrow = DateUtil.tomorrowISO();
   const isToday = dateStr === today;
   const isTomorrow = dateStr === tomorrow;
-  const day = new Date(dateStr + 'T00:00:00').getDate();
+  
+  // 安全地解析日期
+  const dateObj = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  const day = dateObj.getDate();
+  
+  // 如果 day 係 NaN，使用預設值
+  const safeDay = isNaN(day) ? '1' : String(day);
+  
   const weekday = DateUtil.getWeekday(dateStr, true);
   let suffix = "";
   if (isToday) suffix = "·今";
   else if (isTomorrow) suffix = "·明";
-  return { day: String(day), weekday: `${weekday}${suffix}`, isToday, isTomorrow };
+  return { day: safeDay, weekday: `${weekday}${suffix}`, isToday, isTomorrow };
 };
 
 const isTodayDate = (dateStr: string) => {
@@ -569,7 +576,7 @@ export default function ShoppingTab() {
     const dateCards = dates.map((date) => ({
       date,
       ...formatDateCard(date),
-      count: activeItems.filter((i) => i.plannedDate === date).length,
+      count: activeItems.filter((i) => i.plannedDate === date && i.status !== "bought").length,  // 只計待買數量
       isAll: false,
     }));
     
@@ -1033,8 +1040,8 @@ export default function ShoppingTab() {
                       <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
                       <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
                       {dc.count > 0 && (
-                        <View style={styles.dateCardBadge}>
-                          <Text style={styles.dateCardBadgeText}>{dc.count}</Text>
+                        <View style={[styles.dateCardBadge, { backgroundColor: dc.count > 3 ? "#DC2626" : "#E8F0FA" }]}>
+                          <Text style={[styles.dateCardBadgeText, { color: dc.count > 3 ? "#fff" : "#013E77" }]}>{dc.count}</Text>
                         </View>
                       )}
                     </>
