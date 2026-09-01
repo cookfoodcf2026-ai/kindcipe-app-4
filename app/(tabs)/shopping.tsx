@@ -296,7 +296,7 @@ export default function ShoppingTab() {
     return combined.slice(0, 20);
   }, [newName, items, ingredientsForSuggestions, showNameSuggestions]);
 
-  const savePriceM = (trpc as any).shopping.savePrice.useMutation({
+  const savePriceM = (trpc as any).purchaseHistory.savePrice.useMutation({
     onMutate: async (variables: any) => {
       await utils.shopping.list.cancel();
       const current = utils.shopping.list.getData();
