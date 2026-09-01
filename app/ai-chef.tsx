@@ -2910,6 +2910,7 @@ export default function AIChefScreen() {
               ) : (
                 <>
                   {[
+                    { label: "🎲 隨便幫我諗", prompt: "隨便幫我諗，乜嘢都得" },
                     { label: "再詳細啲", prompt: "可以再詳細啲嗎？" },
                     { label: "畀我完整食譜", prompt: "請提供完整食譜，包括食材清單同烹飪步驟" },
                     { label: "換一批建議", prompt: "可以換另一組建議嗎？" },
@@ -2942,9 +2943,14 @@ export default function AIChefScreen() {
 
         {!chatMutation.isPending && recommendedRecipes.length === 0 && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
-            <TouchableOpacity style={{ backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
-              <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ 試 AI 生成</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handlePrompt("隨便幫我諗，乜嘢都得")} disabled={chatMutation.isPending}>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>🎲 隨便幫我諗</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ 試 AI 生成</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
