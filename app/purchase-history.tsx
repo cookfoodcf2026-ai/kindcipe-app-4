@@ -20,31 +20,37 @@ const HINT = "#B0BAC9";
 const BORDER = "#E0EAF4";
 
 function formatDate(d: Date | string | null | undefined): string {
-  if (!d) return "未定";
+  if (!d) {
+    console.log('formatDate: null/undefined input', d);
+    return "未定";
+  }
   const date = typeof d === "string" ? new Date(d) : d;
   
   // 檢查是否為有效日期
   if (isNaN(date.getTime())) {
-    console.warn('formatDate received invalid date:', d);
+    console.warn('formatDate: Invalid date received:', d, new Date(String(d)));
     return "未定";
   }
   
   const month = date.getMonth();
   const day = date.getDate();
+  const year = date.getFullYear();
+  
+  console.log('formatDate debug:', { input: d, month, day, year, dateObj: date });
   
   // 如果 month 或 day 係 NaN，返回預設值
   if (isNaN(month) || isNaN(day)) {
-    console.warn('formatDate got NaN month/day:', { month, day, date });
+    console.warn('formatDate: NaN month/day', { month, day, date });
     return "未定";
   }
   
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
-  const target = new Date(date.getFullYear(), month, day);
+  const target = new Date(year, month, day);
   
   if (isNaN(target.getTime())) {
-    // 如果 target 無效，直接返回原始日期
+    console.warn('formatDate: Invalid target date', { target, year, month, day });
     return `${month + 1}月${day}日`;
   }
   

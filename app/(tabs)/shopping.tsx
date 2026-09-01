@@ -1037,8 +1037,10 @@ export default function ShoppingTab() {
                     </>
                   ) : (
                     <>
-                      <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
-                      <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
+                      <View style={{ flexDirection: "column", alignItems: "center", flex: 1 }}>
+                        <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
+                        <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
+                      </View>
                       {dc.count > 0 && (
                         <View style={[styles.dateCardBadge, { backgroundColor: dc.count > 3 ? "#DC2626" : "#E8F0FA" }]}>
                           <Text style={[styles.dateCardBadgeText, { color: dc.count > 3 ? "#fff" : "#013E77" }]}>{dc.count}</Text>
@@ -1682,20 +1684,20 @@ const styles = StyleSheet.create({
   },
   dateCardBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#013E77",
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
+    top: 4,
+    right: 4,
+    backgroundColor: "#E8F0FA",
+    borderRadius: 99,
+    minWidth: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 3,
+    paddingHorizontal: 5,
   },
   dateCardBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
-    color: "#fff",
+    color: "#013E77",
   },
   searchBar: {
     flexDirection: "row",

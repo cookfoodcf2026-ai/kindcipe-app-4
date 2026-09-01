@@ -2879,7 +2879,7 @@ export default function AIChefScreen() {
           )}
         />
 
-        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (
           <View style={s.followUpBar}>
             <Text style={s.followUpLabel}>下一步：</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
