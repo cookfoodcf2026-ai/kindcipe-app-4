@@ -276,7 +276,8 @@ export default function PurchaseHistoryScreen() {
       Alert.alert("已更新", "購買記錄已更新");
     },
     onError: (e: Error) => {
-      Alert.alert("更新失敗", e.message);
+      console.error('[DEBUG] SAVE PRICE ERROR:', e);
+      Alert.alert("更新失敗", e.message || "請檢查網絡連接");
     },
   });
 
@@ -291,7 +292,7 @@ export default function PurchaseHistoryScreen() {
     }
     
     saveEditPurchaseM.mutate({
-      id: editPurchaseItem.id,
+      id: parseInt(editPurchaseItem.id, 10),
       actualPrice: price,
       quantity: qty,
     });
