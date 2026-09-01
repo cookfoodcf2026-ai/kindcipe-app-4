@@ -19,8 +19,10 @@ const SUB = "#9CA3AF";
 const HINT = "#B0BAC9";
 const BORDER = "#E0EAF4";
 
-function formatDate(d: Date | string): string {
+function formatDate(d: Date | string | null | undefined): string {
+  if (!d) return "未定";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "未定";
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
@@ -443,13 +445,37 @@ export default function PurchaseHistoryScreen() {
                               <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND }}>x{items.length}</Text>
                             </View>
                           </View>
-                          <View style={{ flexDirection: "row", gap: 10, marginTop: 3 }}>
-                            {items[0].actualPrice != null && <Text style={{ fontSize: 12, fontWeight: "600", color: BRAND }}>HK${items[0].actualPrice}</Text>}
-                            <Text style={{ fontSize: 12, color: SUB }}>{items[0].boughtByUser || ""}</Text>
+                          <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3 }}>
+                            {(() => {
+                              const item = items[0];
+                              const hasBudget = item.estimatedPrice != null;
+                              const hasActual = item.actualPrice != null;
+                              const diff = hasActual && hasBudget ? item.actualPrice - item.estimatedPrice : null;
+                              const diffPercent = diff && item.estimatedPrice ? diff / item.estimatedPrice : null;
+                              const showDiff = diffPercent && diffPercent > 0.1;
+                              
+                              if (hasBudget && hasActual) {
+                                return (
+                                  <>
+                                    <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "line-through" }}>HK${item.estimatedPrice}</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: "700", color: showDiff ? "#DC2626" : "#013E77" }}>
+                                      HK${item.actualPrice}
+                                      {showDiff && <Text style={{ fontSize: 10, fontWeight: "700" }}> (+{diff})</Text>}
+                                    </Text>
+                                  </>
+                                );
+                              } else if (hasActual) {
+                                return <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>HK${item.actualPrice}</Text>;
+                              } else if (hasBudget) {
+                                return <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>預算 HK${item.estimatedPrice}</Text>;
+                              }
+                              return null;
+                            })()}
+                            {items[0].boughtByUser && <Text style={{ fontSize: 12, color: SUB }}>{items[0].boughtByUser}</Text>}
                           </View>
                         </View>
                         <TouchableOpacity
-                          style={{ backgroundColor: "#F5F8FC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER }}
+                          style={{ backgroundColor: "#F5F8FC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER, marginLeft: 8 }}
                           onPress={() => handleRebuy(items[0])}
                         >
                           <Ionicons name="refresh-outline" size={16} color={BRAND} />

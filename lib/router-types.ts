@@ -778,7 +778,15 @@ export interface PriceWatchItem {
 // ============================================================================
 
 export interface PurchaseHistoryRouter {
+  list: { input: void; output: any[] };
   frequency: { input: GetPurchaseFrequencyInput; output: PurchaseFrequency[] };
+  update: { input: UpdatePurchaseHistoryInput; output: any };
+}
+
+export interface UpdatePurchaseHistoryInput {
+  id: string;
+  actualPrice?: number | null;
+  quantity?: string | null;
 }
 
 export interface GetPurchaseFrequencyInput {

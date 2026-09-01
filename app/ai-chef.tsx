@@ -291,8 +291,8 @@ const isDuplicateRecipeName = (candidate: string, historyNames: string[]) => {
     const other = normalizeRecipeName(n);
     if (!other) return false;
     if (normalized === other) return true;
-    if (normalized.includes(other) || other.includes(normalized)) return true;
-    return recipeNameSimilarity(normalized, other) >= 0.82;
+    // Only check for near-exact matches (avoid false positives like "雞" vs "豉油雞")
+    return recipeNameSimilarity(normalized, other) >= 0.95;
   });
 };
 
@@ -974,8 +974,9 @@ export default function AIChefScreen() {
     },
     onError: (err: any) => {
       const rawMsg = err?.message || err?.data?.message || "";
+      const lowerMsg = rawMsg.toLowerCase();
       let msg: string;
-      if (rawMsg.includes("aborted") || rawMsg.includes("AbortError") || rawMsg.includes("timeout")) {
+      if (lowerMsg.includes("abort") || lowerMsg.includes("timeout")) {
         msg = "AI 回應時間過長，請簡化問題或稍後再試。";
       } else if (rawMsg) {
         msg = rawMsg;
