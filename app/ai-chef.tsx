@@ -2944,11 +2944,11 @@ export default function AIChefScreen() {
         {!chatMutation.isPending && recommendedRecipes.length === 0 && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handlePrompt("隨便幫我諗，乜嘢都得")} disabled={chatMutation.isPending}>
-                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>🎲 隨便幫我諗</Text>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => regenerateWithMode("library")} disabled={chatMutation.isPending}>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>📚 食譜庫</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => regenerateWithMode("ai")} disabled={chatMutation.isPending}>
-                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ 試 AI 生成</Text>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ AI 生成</Text>
               </TouchableOpacity>
             </View>
           </View>
