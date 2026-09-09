@@ -209,10 +209,10 @@ export default function MoreTab() {
   const smartCards = [
     {
       title: "AI 助手",
-      subtitle: "AI Chef，解答煮食問題",
+      subtitle: "AI 助手，解答煮食問題",
       Icon: ChatBubbleIcon,
       onPress: () => navigate(() => router.push("/ai-chef")),
-      accessibilityLabel: "AI 助手，AI Chef，解答煮食問題",
+      accessibilityLabel: "AI 助手，解答煮食問題",
     },
     {
       title: "今日餐單",

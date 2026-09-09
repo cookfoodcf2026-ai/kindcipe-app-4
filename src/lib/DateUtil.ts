@@ -112,18 +112,11 @@ const isTomorrow = (dateStr: string): boolean => {
  * 判斷是否本週內（用用戶時區）
  */
 const isThisWeek = (dateStr: string): boolean => {
-  const d = new Date(toDateStr(dateStr));
-  const today = new Date();
-  const tz = getUserTimezone();
-  const todayStr = today.toLocaleString('en-US', { timeZone: tz });
-  const localToday = new Date(todayStr);
-  const startOfWeek = new Date(localToday);
-  startOfWeek.setDate(localToday.getDate() - localToday.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
-  return d >= startOfWeek && d <= endOfWeek;
+  const mondayISO = getThisMondayISO();
+  const sundayISO = getThisSundayISO();
+  
+  // 純字串比較：永遠不受時區 UTC 轉換干擾！
+  return dateStr >= mondayISO && dateStr <= sundayISO;
 };
 
 /**
@@ -167,6 +160,35 @@ const daysBetween = (dateStr1: string, dateStr2: string): number => {
 };
 
 /**
+ * 獲取本週週一嘅 ISO 日期字串 (YYYY-MM-DD)
+ */
+const getThisMondayISO = (): string => {
+  const now = new Date();
+  const day = now.getDay();
+  const daysToSubtract = day === 0 ? 6 : day - 1;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToSubtract);
+  
+  const yyyy = monday.getFullYear();
+  const mm = String(monday.getMonth() + 1).padStart(2, "0");
+  const dd = String(monday.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+/**
+ * 獲取本週週日嘅 ISO 日期字串 (YYYY-MM-DD)
+ */
+const getThisSundayISO = (): string => {
+  const mondayStr = getThisMondayISO();
+  const [y, m, d] = mondayStr.split("-").map(Number);
+  const sunday = new Date(y, m - 1, d + 6);
+  
+  const yyyy = sunday.getFullYear();
+  const mm = String(sunday.getMonth() + 1).padStart(2, "0");
+  const dd = String(sunday.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+/**
  * 解析 ISO 日期字串為 Date 對象（本地時間）
  * 支援純日期 (YYYY-MM-DD) 同完整 timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)
  */
@@ -193,6 +215,8 @@ export const DateUtil = {
   formatMonthLabel,
   daysBetween,
   parseDate,
+  getThisMondayISO,
+  getThisSundayISO,
 };
 
 export default DateUtil;

@@ -42,6 +42,7 @@ export type PickerRecipe = {
   id: string;
   name: string;
   date?: string;
+  mealType?: string;  // 用餐時段：breakfast / lunch / dinner / snack
   fromMealPlanId?: number;
   ingredients: PickerIngredient[];
 };
@@ -53,7 +54,8 @@ export type ConfirmedItem = {
   quantity: string;
   unit: string;
   category: string;
-  plannedDate?: string;
+  plannedDate?: string;  // 採買日（購物車歸類日期）
+  mealDate?: string;     // 用餐日（排餐日，標籤顯示）
   fromMealPlanId?: number;
 };
 
@@ -63,7 +65,14 @@ interface Props {
   title?: string;
   initialSelected?: Set<string>;
   loading?: boolean;
-  defaultDate?: string;
+  
+  // 新增：明確語意（優先使用）
+  mealDate?: string;          // 用餐日（排餐日）
+  defaultBuyDate?: string;    // 預設採買日（通常係用餐日前一日）
+  
+  // 保留：向後兼容（如果無 mealDate 就用 defaultDate）
+  defaultDate?: string;       // @deprecated 但保留
+  
   onDateChange?: (date: string) => void;
   showDateSelector?: boolean;
   maxDate?: string;
@@ -75,12 +84,63 @@ interface Props {
 
 export default function IngredientPickerModal({
   visible, recipes, title, initialSelected, loading = false, 
-  defaultDate, onDateChange, showDateSelector = true, maxDate, alreadyAddedKeys, onConfirm, onSkip,
+  mealDate, defaultBuyDate, defaultDate, onDateChange, showDateSelector = true, maxDate, alreadyAddedKeys, onConfirm, onSkip,
 }: Props) {
   const today = DateUtil.todayISO();
-  const normalizedDefaultDate = defaultDate && defaultDate >= today ? defaultDate : today;
+  
+  // 向後兼容計算：如果無 mealDate 就用 defaultDate
+  const effectiveMealDate = mealDate || defaultDate;
+  
+  // 採買日優先順序：defaultBuyDate -> (如果有 mealDate 則取前一日) -> defaultDate
+  const effectiveBuyDate = defaultBuyDate || (mealDate ? DateUtil.getDayBefore(mealDate) : defaultDate);
+  
+  // 修改：允許選擇過去日期（如果 maxDate 存在，表示係排餐日，可以選前一日）
+  const normalizedDefaultDate = useMemo(() => {
+    if (!effectiveBuyDate) return today;
+    // 如果有 maxDate（排餐日），優先使用 effectiveBuyDate（即使係過去）
+    if (maxDate && effectiveBuyDate <= maxDate) {
+      return effectiveBuyDate;
+    }
+    // 如果 effectiveBuyDate 係未來，就用 effectiveBuyDate
+    if (effectiveBuyDate >= today) {
+      return effectiveBuyDate;
+    }
+    // 否則用 today
+    return today;
+  }, [effectiveBuyDate, maxDate, today]);
+  
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [date, setDate] = useState(normalizedDefaultDate);
+  // 修復 1: 直接綁定 normalizedDefaultDate
+  const [date, setDate] = useState(normalizedDefaultDate || effectiveBuyDate || today);
+  
+  // 修復 2: useEffect 確保 visible 為 true 時，第一時間校正 date
+  useEffect(() => {
+    if (visible && normalizedDefaultDate) {
+      console.log("[IngredientPickerModal] Correcting date:", {
+        from: date,
+        to: normalizedDefaultDate,
+      });
+      setDate(normalizedDefaultDate);
+    }
+  }, [visible, normalizedDefaultDate]);
+  
+  // 診斷日誌
+  useEffect(() => {
+    if (visible) {
+      console.log("[IngredientPickerModal] Props:", {
+        mealDate,
+        defaultBuyDate,
+        defaultDate,
+        effectiveMealDate,
+        effectiveBuyDate,
+        maxDate,
+        today,
+        normalizedDefaultDate,
+        date,
+        visible,
+      });
+    }
+  }, [mealDate, defaultBuyDate, defaultDate, effectiveMealDate, effectiveBuyDate, maxDate, today, normalizedDefaultDate, date, visible]);
 
   // 將食材按類別分組
   const groupedIngredients = useMemo(() => {
@@ -89,11 +149,11 @@ export default function IngredientPickerModal({
       r.ingredients.forEach((ing, idx) => {
         const cat = ing.category || detectCategory(ing.name);
         if (!groups[cat]) groups[cat] = [];
-        groups[cat].push({ recipeId: r.id, recipeName: r.name, ing, idx, key: `${r.id}::${idx}` });
+        groups[cat].push({ recipeId: r.id, recipeName: r.name, ing, idx, key: `${r.id}::${idx}::${date}` });  // ← 加日期入 key
       });
     });
     return groups;
-  }, [recipes]);
+  }, [recipes, date]);
 
   const seasoningCount = useMemo(
     () => Object.entries(groupedIngredients).reduce((sum, [cat, items]) => cat === "調味料" ? sum + items.length : sum, 0),
@@ -111,7 +171,7 @@ export default function IngredientPickerModal({
         const def = new Set<string>();
         recipes.forEach((r) => {
           r.ingredients.forEach((ing, idx) => {
-            const key = `${r.id}::${idx}`;
+            const key = `${r.id}::${idx}::${normalizedDefaultDate}`;
             if (alreadyAddedKeys?.has(key)) return;
             // 調味料預設唔勾選（用返現有 isSeasoning 邏輯）
             if (!isSeasoning(ing.name)) {
@@ -140,7 +200,7 @@ export default function IngredientPickerModal({
     const newSet = new Set<string>();
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
-        const key = `${r.id}::${idx}`;
+        const key = `${r.id}::${idx}::${date}`;
         if (alreadyAddedKeys?.has(key)) return;
         if (!isSeasoning(ing.name)) {
           newSet.add(key);
@@ -154,7 +214,7 @@ export default function IngredientPickerModal({
     const newSet = new Set<string>();
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
-        const key = `${r.id}::${idx}`;
+        const key = `${r.id}::${idx}::${date}`;
         if (alreadyAddedKeys?.has(key)) return;
         newSet.add(key);
       });
@@ -170,7 +230,7 @@ export default function IngredientPickerModal({
     const items: ConfirmedItem[] = [];
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
-        const key = `${r.id}::${idx}`;
+        const key = `${r.id}::${idx}::${date}`;  // ← 加日期入 key（唔同日子 = 唔同 key）
         if (alreadyAddedKeys?.has(key)) return;
         if (selected.has(key)) {
           items.push({
@@ -180,14 +240,15 @@ export default function IngredientPickerModal({
             quantity: String(ing.quantity ?? ""),
             unit: ing.unit || "",
             category: ing.category || detectCategory(ing.name),
-            plannedDate: date,
+            plannedDate: date,  // ← 用戶揀嘅採買日（購物車歸類日期）
+            mealDate: effectiveMealDate,  // ← 排餐日（標籤，不可變）
             fromMealPlanId: r.fromMealPlanId,
           });
         }
       });
     });
     return items;
-  }, [recipes, selected, date, alreadyAddedKeys]);
+  }, [recipes, selected, date, effectiveMealDate, alreadyAddedKeys]);
 
   const totalIngredients = useMemo(
     () => recipes.reduce((sum, r) => sum + r.ingredients.length, 0),
@@ -198,6 +259,46 @@ export default function IngredientPickerModal({
   const modalTitle = title || (multiRecipe
     ? `加入食材到購物清單（${recipes.length} 個食譜）`
     : "加入食材到購物清單");
+
+  // 日期標籤 Helper：解析食譜嘅日期同餐別
+  const formatMealPlanDateBadge = useMemo(() => {
+    const dates = recipes.filter(r => r.date).map(r => r.date!).sort();
+    const mealTypes = [...new Set(recipes.filter(r => r.mealType).map(r => r.mealType!))];
+    
+    if (dates.length === 0) return null;
+    
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+    const sameDate = minDate === maxDate;
+    
+    const formatDate = (iso: string) => {
+      const d = new Date(iso + "T12:00:00");
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const weekday = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][d.getDay()];
+      return `${month}/${day} (${weekday})`;
+    };
+    
+    const formatMealType = (type: string) => {
+      const map: Record<string, string> = {
+        breakfast: "早餐",
+        lunch: "午餐",
+        dinner: "晚餐",
+        snack: "小食",
+      };
+      return map[type] || type;
+    };
+    
+    if (sameDate && mealTypes.length === 1) {
+      return `📅 ${formatDate(minDate)} ${formatMealType(mealTypes[0])}`;
+    }
+    
+    if (sameDate && mealTypes.length > 1) {
+      return `📅 ${formatDate(minDate)} ${mealTypes.map(formatMealType).join("、")}`;
+    }
+    
+    return `📅 ${formatDate(minDate)} ~ ${formatDate(maxDate)}`;
+  }, [recipes]);
 
   const sortedCategories = useMemo(() => {
     const cats = Object.keys(groupedIngredients);
@@ -222,6 +323,11 @@ export default function IngredientPickerModal({
               )}
               {!multiRecipe && recipes.length === 1 && (
                 <Text style={s.subTitle}>{recipes[0].name}</Text>
+              )}
+              {formatMealPlanDateBadge && (
+                <View style={s.dateBadge}>
+                  <Text style={s.dateBadgeText}>{formatMealPlanDateBadge}</Text>
+                </View>
               )}
             </View>
             <TouchableOpacity onPress={onSkip}>
@@ -251,12 +357,16 @@ export default function IngredientPickerModal({
               <PlanDatePicker 
                 value={date}
                 onChange={(newDate) => {
+                  console.log("[PlanDatePicker] Date changed:", {
+                    oldValue: date,
+                    newValue: newDate,
+                  });
                   setDate(newDate);
                   onDateChange?.(newDate);
                 }}
                 showShortcuts={true}
                 maxDate={maxDate}
-                minDate={today}
+                // minDate={today}  // 移除 minDate 限制，允許選擇過去日期
               />
             </View>
           )}
@@ -385,6 +495,19 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: SUB,
     marginTop: 2,
+  },
+  dateBadge: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  dateBadgeText: {
+    fontSize: 12,
+    color: "#013E77",
+    fontWeight: "500",
   },
   quickActions: {
     flexDirection: "row",

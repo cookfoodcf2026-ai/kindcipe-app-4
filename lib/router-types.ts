@@ -353,6 +353,14 @@ export interface ShoppingListItem {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  // 新增字段：
+  estimatedPrice?: number;
+  lastPrice?: number;
+  plannedDate?: string;  // 採買日（購物車歸類日期）
+  mealDate?: string;     // 用餐日（排餐日，標籤顯示）
+  boughtByName?: string;
+  boughtAt?: string;
+  proposedByName?: string;
 }
 
 // ============================================================================
@@ -578,10 +586,24 @@ export interface AiRecipeChatInput {
   pantryItems?: string[];
   shoppingItems?: string[];
   mealPlanHistory?: MealPlan[];
+  instant?: boolean;
+  source?: 'ai' | 'library';
 }
 
 export interface AiRecipeChatOutput {
-  recipes: AiRecipeRecipe[];
+  type: "greeting" | "lost_user" | "clarification" | "follow_up" | "recipe" | "text" | "vision";
+  // Greeting
+  greeting?: string;
+  // Lost user
+  suggestion?: string;
+  // Clarification
+  questions?: string[];
+  // Follow up
+  continuation?: string;
+  // Recipe
+  recipes?: AiRecipeRecipe[];
+  // General content (for text/vision responses)
+  content?: string;
   generatedAt: string;
   prompt: string;
 }
@@ -621,6 +643,7 @@ export interface AiRecipeRecipe {
   difficulty: 'easy' | 'medium' | 'hard';
   cuisine?: string;
   tags?: string[];
+  source?: 'ai' | 'library';
   nutrition?: {
     calories: number;
     protein: number;
@@ -778,21 +801,17 @@ export interface PriceWatchItem {
 // ============================================================================
 
 export interface PurchaseHistoryRouter {
-  list: { input: void; output: any[] };
-  frequency: { input: GetPurchaseFrequencyInput; output: PurchaseFrequency[] };
-  update: { input: UpdatePurchaseHistoryInput; output: any };
+  list: { input: { limit?: number } | void; output: any[] };
+  frequency: { input: void; output: PurchaseFrequency[] };
+  lastPrices: { input: { itemNames: string[] }; output: Record<string, number> };
+  savePrice: { input: { itemId: number; itemName: string; price: number; category?: string; unit?: string; quantity?: string }; output: { success: boolean } };
+  update: { input: UpdatePurchaseHistoryInput; output: { success: boolean } };
 }
 
 export interface UpdatePurchaseHistoryInput {
-  id: string;
+  id: number;
   actualPrice?: number | null;
   quantity?: string | null;
-}
-
-export interface GetPurchaseFrequencyInput {
-  limit?: number;
-  startDate?: string;
-  endDate?: string;
 }
 
 export interface PurchaseFrequency {

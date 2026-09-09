@@ -18,6 +18,13 @@ import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FAMILY_ID_KEY, getAuthToken } from "./auth";
 
+function toHeaderRecord(headers: HeadersInit | undefined): Record<string, string> {
+  if (!headers) return {};
+  if (headers instanceof Headers) return Object.fromEntries(headers.entries());
+  if (Array.isArray(headers)) return Object.fromEntries(headers);
+  return { ...(headers as Record<string, string>) };
+}
+
 // ─── 後端 API 地址 ───────────────────────────────────────
 // 使用環境變數 EXPO_PUBLIC_API_URL（優先），預設指向 Railway 生產後端
 // 開發時可在 .env 中設定為 ngrok 或其他測試網址
@@ -90,14 +97,15 @@ const makeClient = () => ({
     httpBatchLink({
       url: `${API_BASE_URL}/api/v1/trpc`,
       transformer: superjson,
-      async fetch(url, options ) {
+      async fetch(url, options) {
         const [token, familyId] = await Promise.all([
           getAuthToken(),
           AsyncStorage.getItem(FAMILY_ID_KEY),
         ]);
-        const headers = {
-          ...options?.headers,
-        } as Record<string, string>;
+        
+        // 改：先構建完整嘅 headers，唔好覆蓋 options.headers
+        const headers: Record<string, string> = toHeaderRecord(options?.headers);
+        
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
         }
@@ -111,7 +119,7 @@ const makeClient = () => ({
 
         try {
           const response = await fetch(url, {
-            ...options,
+            ...(options || {}),
             headers,
             credentials: "include",
             signal: controller.signal,

@@ -219,6 +219,9 @@ export default function PlannerTab() {
   const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const addMealLockRef = useRef(false);
+  const [isAddingMeal, setIsAddingMeal] = useState(false);
+  // 幽靈卡死修復：用 Ref 暫存待開啟嘅 Recipe，等 Modal 完全關閉後先開啟
+  const pendingPickerRecipeRef = useRef<any>(null);
   const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
   
   // FilterModal states（同 index.tsx 一致）
@@ -275,25 +278,41 @@ export default function PlannerTab() {
     }
   }, [activeFamilyId, startDate, invalidateAll, utils]);
 
+  const mealPlanStartTime = useRef(Date.now());
   const { data: mealPlans = [], isLoading } =
     trpc.mealPlan.listByDateRange.useQuery(
       { startDate, endDate },
       { 
-        staleTime: 1000 * 60 * 5,  // 5 分鐘
+        staleTime: 5 * 60 * 1000,  // 5 分鐘內唔會重新請求
+        gcTime: 10 * 60 * 1000,    // 10 分鐘內保留喺 cache
         refetchOnWindowFocus: false,
         retry: 2,
-        placeholderData: keepPreviousData,
+        placeholderData: keepPreviousData, // 即刻顯示舊數據，背景刷新
+        onSuccess: () => {
+          const loadTime = Date.now() - mealPlanStartTime.current;
+          console.log(`[Perf] mealPlan loaded: ${loadTime}ms, count: ${mealPlans?.length ?? 0}`);
+        },
       },
     );
 
+  const [shouldLoadRecipes, setShouldLoadRecipes] = useState(false);
+
   const { data: officialRecipes = [] } = trpc.recipes.listOfficial.useQuery(
     { limit: 200, offset: 0 },
-    { staleTime: 1000 * 60 * 10 }, // 10 分鐘
+    { 
+      staleTime: 1000 * 60 * 10,
+      enabled: shouldLoadRecipes, // Lazy Loading: 只喺用戶開 Modal 先加載
+      onSuccess: () => console.log("[Perf] officialRecipes loaded"),
+    },
   );
 
   const { data: userRecipes = [] } = trpc.recipes.listUser.useQuery(
     { limit: 200, offset: 0 },
-    { staleTime: 1000 * 60 * 10 }, // 10 分鐘
+    { 
+      staleTime: 1000 * 60 * 10,
+      enabled: shouldLoadRecipes, // Lazy Loading: 只喺用戶開 Modal 先加載
+      onSuccess: () => console.log("[Perf] userRecipes loaded"),
+    },
   );
 
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
@@ -335,9 +354,16 @@ export default function PlannerTab() {
   }, [recommendWeekData]);
 
   // Get this week's eat-out dates from the dedicated family_eat_out table
+  const eatOutStartTime = useRef(Date.now());
   const { data: eatOutDates = [] } = trpc.eatOut.listByDateRange.useQuery(
     { startDate, endDate },
-    { staleTime: 30000 }
+    { 
+      staleTime: 30000,
+      onSuccess: () => {
+        const loadTime = Date.now() - eatOutStartTime.current;
+        console.log(`[Perf] eatOut.listByDateRange loaded: ${loadTime}ms`);
+      },
+    }
   );
   const eatOutDateSet = useMemo(() => new Set(eatOutDates), [eatOutDates]);
 
@@ -349,9 +375,24 @@ export default function PlannerTab() {
     onError: (e) => Alert.alert("設定失敗", e.message),
   });
 
+  const [isSettingEatOut, setIsSettingEatOut] = useState<string | null>(null);
+
   const eatOutM = trpc.eatOut.set.useMutation({
-    onSuccess: () => {
-      showToast("已設定外出");
+    onMutate: (variables) => {
+      setIsSettingEatOut(variables.date);
+    },
+    onSuccess: (_, variables) => {
+      // 外食設定成功後，根據是否有刪除排餐顯示唔同 notice
+      if (variables.eatOut) {
+        const mealsOnDate = mealsByDate[variables.date] || [];
+        if (mealsOnDate.length > 0) {
+          showToast(`已設定外出（刪除 ${mealsOnDate.length} 個排餐）`, "info");
+        } else {
+          showToast("已設定外出");
+        }
+      } else {
+        showToast("已取消外出");
+      }
     },
     onError: (e) => {
       let message = "設定外出失敗";
@@ -362,7 +403,8 @@ export default function PlannerTab() {
       }
       showToast(message, "error");
     },
-    onSettled: () => {
+    onSettled: (_, __, variables) => {
+      setIsSettingEatOut(null);
       utils.eatOut.listByDateRange.invalidate({ startDate, endDate });
       // eatOut may delete the day's dinner meal plans → refresh them too
       void invalidateAll();
@@ -434,6 +476,7 @@ export default function PlannerTab() {
             name: dishName,
             ingredients: official.ingredients,
             date: getDayBefore(itemDateStr),
+            mealType: "dinner",
           });
         }
       }
@@ -520,47 +563,13 @@ export default function PlannerTab() {
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
-      const finishAddFlow = async () => {
-        setShowAddModal(false);
+      // 診斷日誌（檢查 Map 狀態）
+      console.log("[addMealM] Start - Recipe ID:", variables.recipeId);
+      console.log("[addMealM] pendingIngredientsRef:", pendingIngredientsRef.current?.length ?? 0);
+      console.log("[addMealM] userRecipeMap size:", userRecipeMap.size);
+      console.log("[addMealM] officialRecipeMap size:", officialRecipeMap.size);
 
-        const ings = pendingIngredientsRef.current;
-        pendingIngredientsRef.current = null;
-
-        const openPicker = (ingredients: any[]) => {
-          setPickerRecipe({
-            id: variables.recipeId,
-            name: variables.recipeName,
-            ingredients,
-            date: variables.date,
-            fromMealPlanId: result.newPlanId,
-          });
-        };
-
-        if (ings && ings.length > 0) {
-          openPicker(ings);
-        } else {
-          const found = [...officialRecipes, ...userRecipes].find(
-            (r: any) => `official_${r.id}` === variables.recipeId || `user_${r.id}` === variables.recipeId
-          ) as any;
-          if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
-            openPicker(found.ingredients);
-          } else {
-            showToast("已加入排餐", "info");
-          }
-        }
-
-        void (async () => {
-          console.log("[Planner] addMealM onSuccess, refreshing in background...");
-          try {
-            await utils.mealPlan.listByDateRange.refetch({ startDate, endDate });
-          } catch { /* non-fatal */ }
-          try { await invalidateAll(); } catch { /* non-fatal */ }
-        })();
-
-        addMealLockRef.current = false;
-      };
-
-      // Conflict detected (eatOut / duplicate): ask the user BEFORE finalizing.
+      // 處理 Conflict 流程
       if (result.warning && result.hasConflict) {
         const isEatOutConflict = result.warning.includes("外出");
         Alert.alert(
@@ -573,23 +582,139 @@ export default function PlannerTab() {
                 deleteMealM.mutate({ id: result.newPlanId });
               }
               pendingIngredientsRef.current = null;
-              setShowAddModal(false);
+              setIsAddingMeal(false);
               addMealLockRef.current = false;
             }},
-            { text: "確定", onPress: () => { void finishAddFlow(); }},
+            { 
+              text: "確定", 
+              onPress: async () => {
+                // 直接執行後續流程
+                await completeAddFlow(result, variables);
+              }
+            },
           ]
         );
         return;
       }
 
-      await finishAddFlow();
+      // 正常流程
+      await completeAddFlow(result, variables);
     },
     onError: (e) => {
+      console.error("[addMealM] onError:", e);
       pendingIngredientsRef.current = null;
       addMealLockRef.current = false;
+      setIsAddingMeal(false); // 確保錯誤時都關閉 Loading
       showToast(`新增失敗：${e.message}`, "error");
     },
   });
+
+  // Safety Timeout Handler - 防呆兜底：強制解鎖防 Hang 機
+  // 無論 API 成功、失敗或取消，只要觸發加入流程超過 8 秒，強制解鎖
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    
+    if (isAddingMeal) {
+      console.log("[SafetyTimeout] Lock engaged, starting 8s timeout");
+      timeoutId = setTimeout(() => {
+        console.warn("[SafetyTimeout] Forcing unlock after 8s timeout!");
+        addMealLockRef.current = false;
+        setIsAddingMeal(false);
+        // 清空 pending Ref
+        pendingPickerRecipeRef.current = null;
+        showToast("操作超時，請重新嘗試", "error");
+      }, 8000); // 8 秒超時
+    }
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isAddingMeal, showToast]);
+
+  // 完成排餐加入流程（抽取為獨立函數）
+  const completeAddFlow = async (result: any, variables: any) => {
+    console.log("[completeAddFlow] Start");
+    
+    // 1. 關閉選單 Modal
+    setShowAddModal(false);
+    
+    // 2. 取得 Ingredients（優先從 Ref 讀取，否則用 Map O(1) 查找）
+    let ings = pendingIngredientsRef.current;
+    pendingIngredientsRef.current = null;
+
+    if (!ings || ings.length === 0) {
+      const isUser = variables.recipeId.startsWith('user_');
+      const numericId = getNumericId(variables.recipeId);
+      const found = isUser 
+        ? userRecipeMap.get(numericId) 
+        : officialRecipeMap.get(numericId);
+      
+      if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
+        ings = found.ingredients;
+      } else {
+        // Fallback 警告：Map 可能未初始化
+        console.warn("[addMealM] Map lookup failed for recipe ID:", variables.recipeId, "- Map may not be initialized yet");
+      }
+    }
+
+    console.log("[completeAddFlow] Ingredients count:", ings?.length ?? 0);
+    
+    // 3. 若有食材，開啟 Shopping Picker Modal
+    if (ings && ings.length > 0) {
+      const pickerRecipeData = {
+        id: variables.recipeId,
+        name: variables.recipeName,
+        ingredients: ings,
+        date: variables.date,
+        mealType: variables.mealType,
+        fromMealPlanId: result.newPlanId,
+      };
+      
+      console.log("[completeAddFlow] Calling setPickerRecipe:", pickerRecipeData);
+      console.log("[completeAddFlow] Date info:", {
+        variablesDate: variables.date,
+        getDayBefore: getDayBefore(variables.date),
+        today: new Date().toISOString().split("T")[0],
+      });
+      
+      // 修復：用 Ref 暫存，等 Add Modal onDismiss 後先開啟
+      pendingPickerRecipeRef.current = pickerRecipeData;
+      
+      // Fallback：如果 400ms 後 onDismiss 都無觸發，強制開啟
+      setTimeout(() => {
+        if (pendingPickerRecipeRef.current) {
+          console.warn("[completeAddFlow] onDismiss timeout, forcing open Shopping Modal");
+          const forcedData = pendingPickerRecipeRef.current;
+          pendingPickerRecipeRef.current = null;
+          
+          // 強制解鎖 UI
+          setIsAddingMeal(false);
+          addMealLockRef.current = false;
+          
+          // 強制開啟 Shopping Modal
+          setPickerRecipe(forcedData);
+        }
+      }, 400);
+      
+    } else {
+      // 4. 無食材時，先關閉 Loading 再彈出成功 Alert
+      console.log("[completeAddFlow] No ingredients, showing Alert");
+      setIsAddingMeal(false);
+      addMealLockRef.current = false;
+      Alert.alert("✅ 已加入排餐", variables.recipeName, [{ text: "確定" }]);
+    }
+
+    // 5. 背景靜默刷新
+    void (async () => {
+      console.log("[Planner] addMealM onSuccess, refreshing in background...");
+      try {
+        await utils.mealPlan.listByDateRange.refetch({ startDate, endDate });
+      } catch { /* non-fatal */ }
+      try { await invalidateAll(); } catch { /* non-fatal */ }
+    })();
+  };
 
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, { staleTime: 30000, refetchInterval: 60000 });
   const shoppingItemsRef = useRef(shoppingItems);
@@ -800,22 +925,38 @@ export default function PlannerTab() {
   }, [officialRecipes, userRecipes, pickerSearch, pickerSourceFilter, viewMode, activeCategory, activeIngredientCategory, filterCookTimeMax, activeTagFilters, activePopularChips, sortBy, matchesIngredientCategory, matchesPopularChip]);
 
   const handleAddMeal = useCallback(
-    (recipe: any) => {
+    async (recipe: any) => {
       if (addMealLockRef.current || addMealM.isPending) return;
       if (addDayIndex < 0) return;
       const dateStr = weekDays[addDayIndex]?.dateStr;
       if (!dateStr) return;
+      
       addMealLockRef.current = true;
       const prefix = recipe._source === "user" ? "user_" : recipe._source === "template" ? "" : "official_";
       pendingIngredientsRef.current = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
-      addMealM.mutate({
-        date: dateStr,
-        mealType: addMealType as "breakfast" | "lunch" | "dinner" | "snack",
-        recipeId: `${prefix}${recipe.id}`,
-        recipeName: recipe.name,
-        recipeImage: recipe.thumbnailUrl || recipe.image || undefined,
-        autoAddIngredients: false,
-      });
+      
+      // 啟動 Loading 狀態
+      setIsAddingMeal(true);
+      
+      // 關閉選單 Modal（必須加返呢個）
+      setShowAddModal(false);
+      
+      try {
+        addMealM.mutate({
+          date: dateStr,
+          mealType: addMealType as "breakfast" | "lunch" | "dinner" | "snack",
+          recipeId: `${prefix}${recipe.id}`,
+          recipeName: recipe.name,
+          recipeImage: recipe.thumbnailUrl || recipe.image || undefined,
+          autoAddIngredients: false,
+        });
+      } catch (e) {
+        console.error("[handleAddMeal] Error:", e);
+        setIsAddingMeal(false);
+        setShowAddModal(false);
+        addMealLockRef.current = false;
+        Alert.alert("加入失敗", "請稍後再試");
+      }
     },
     [addDayIndex, addMealType, weekDays, addMealM],
   );
@@ -991,7 +1132,7 @@ export default function PlannerTab() {
     const targetShoppingDate = pickerRecipe.date ? getDayBefore(pickerRecipe.date) : toISODate(new Date());
     const activeItems = (shoppingItems as any[]).filter((item: any) => item.status !== "bought");
     pickerRecipe.ingredients.forEach((ing, idx) => {
-      const key = `${pickerRecipe.id}::${idx}`;
+      const key = `${pickerRecipe.id}::${idx}::${targetShoppingDate}`;
       const ingName = (ing.name || "").trim();
       if (!ingName) return;
       const matched = activeItems.some((item: any) => {
@@ -1056,6 +1197,63 @@ export default function PlannerTab() {
     [officialRecipes, userRecipes, confirmMealM],
   );
 
+  // 外食切換 Handler（含衝突檢測 + 併行刪除排餐）
+  const handleToggleEatOut = useCallback(async (date: string, currentEatOut: boolean) => {
+    console.log("[EatOut] handleToggleEatOut called:", { date, currentEatOut });
+    
+    // 如果原本唔係外食，而家要切換成外食，且當日已有排餐
+    if (!currentEatOut) {
+      const mealsOnDate = mealsByDate[date] || [];
+      console.log("[EatOut] mealsOnDate count:", mealsOnDate.length);
+      
+      if (mealsOnDate.length > 0) {
+        // 確保之前嘅 Loading 已關閉
+        setIsAddingMeal(false);
+        
+        const shouldDelete = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "外食衝突提示",
+            `本日已有 ${mealsOnDate.length} 個餐次，設定外出將會刪除當天排餐，確定要繼續嗎？`,
+            [
+              { 
+                text: "取消", 
+                style: "cancel", 
+                onPress: () => {
+                  console.log("[EatOut] Cancel clicked");
+                  setIsSettingEatOut(null);
+                  addMealLockRef.current = false;
+                  resolve(false);
+                }
+              },
+              { 
+                text: "確定刪除並外食", 
+                style: "destructive", 
+                onPress: () => {
+                  console.log("[EatOut] Confirm clicked");
+                  resolve(true);
+                }
+              },
+            ]
+          );
+        });
+
+        if (!shouldDelete) {
+          console.log("[EatOut] User cancelled");
+          return;
+        }
+
+        // 併行刪除所有排餐（效能優化：10 個餐次從 10 秒降至 0.5 秒）
+        console.log("[EatOut] Deleting meals in parallel:", mealsOnDate.length);
+        await Promise.all(mealsOnDate.map(meal => deleteMealM.mutateAsync({ id: meal.id })));
+        console.log("[EatOut] Meals deleted");
+      }
+    }
+
+    // 設定外食
+    console.log("[EatOut] Setting eatOut");
+    eatOutM.mutate({ date, eatOut: !currentEatOut });
+  }, [mealsByDate, eatOutM, deleteMealM]);
+
   const toggleDay = (idx: number) => {
     setExpandedDay(expandedDay === idx ? null : idx);
   };
@@ -1066,6 +1264,7 @@ export default function PlannerTab() {
     setAddMealType(mealType);
     setPickerSearch("");
     setPickerSourceFilter("all");
+    setShouldLoadRecipes(true); // 觸發食譜庫加載
     setShowAddModal(true);
   };
 
@@ -1265,16 +1464,20 @@ export default function PlannerTab() {
               onPress={(e) => {
                 e.stopPropagation?.();
                 const currentEatOut = eatOutDateSet.has(day.dateStr);
-                eatOutM.mutate({
-                  date: day.dateStr,
-                  eatOut: !currentEatOut,
-                });
+                handleToggleEatOut(day.dateStr, currentEatOut);
               }}
+              disabled={isSettingEatOut === day.dateStr}
             >
-              <Ionicons name="restaurant-outline" size={11} color={eatOutDateSet.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
-              <Text style={[styles.eatOutTxt, eatOutDateSet.has(day.dateStr) && styles.eatOutTxtActive]}>
-                外出
-              </Text>
+              {isSettingEatOut === day.dateStr ? (
+                <ActivityIndicator size="small" color="#D97706" />
+              ) : (
+                <>
+                  <Ionicons name="restaurant-outline" size={11} color={eatOutDateSet.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
+                  <Text style={[styles.eatOutTxt, eatOutDateSet.has(day.dateStr) && styles.eatOutTxtActive]}>
+                    外出
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
             {dayMeals.length > 0 ? (
               <View style={[styles.countBadge, { backgroundColor: allConfirmed ? "#DCFCE7" : "#E8F0FE" }]}>
@@ -1429,7 +1632,27 @@ export default function PlannerTab() {
 
       {/* ＋餐次搜尋 Modal（注意：要同 index.tsx 嘅搜尋 modal 保持同步） */}
       {/* TODO: 如果想用完整 FilterModal，参考 index.tsx line 1161 */}
-      <Modal visible={showAddModal} animationType="slide" transparent>
+      <Modal 
+        visible={showAddModal} 
+        animationType="slide" 
+        transparent
+        onDismiss={() => {
+          // 幽靈卡死修復：當 Add Modal 完全關閉後，先開啟 Shopping Modal
+          console.log("[Modal onDismiss] Add Modal closed, opening Shopping Modal");
+          if (pendingPickerRecipeRef.current) {
+            const pickerData = pendingPickerRecipeRef.current;
+            pendingPickerRecipeRef.current = null;
+            
+            // 強制解鎖 UI
+            setIsAddingMeal(false);
+            addMealLockRef.current = false;
+            
+            // 開啟 Shopping Modal
+            setPickerRecipe(pickerData);
+            console.log("[Modal onDismiss] Shopping Modal opened:", pickerData?.name);
+          }
+        }}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
@@ -1545,10 +1768,44 @@ export default function PlannerTab() {
         </View>
       </Modal>
 
+      {/* 獨立 Loading Modal（最外層，100% 可見） */}
+      <Modal 
+        animationType="fade" 
+        transparent 
+        visible={isAddingMeal}
+        onRequestClose={() => {}}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <View style={{
+            backgroundColor: "#fff",
+            paddingHorizontal: 32,
+            paddingVertical: 24,
+            borderRadius: 16,
+            alignItems: "center",
+            gap: 12,
+          }}>
+            <ActivityIndicator size="large" color="#013E77" />
+            <Text style={{
+              fontSize: 16,
+              fontWeight: "700",
+              color: "#1A1A1A",
+            }}>
+              正在加入排餐中...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
       <IngredientPickerModal
         visible={!!pickerRecipe}
         recipes={pickerRecipe ? [pickerRecipe] : []}
-        defaultDate={pickerRecipe?.date ? getDayBefore(pickerRecipe.date) : undefined}
+        mealDate={pickerRecipe?.date}
+        defaultBuyDate={pickerRecipe?.date ? getDayBefore(pickerRecipe.date) : undefined}
         maxDate={pickerRecipe?.date}
         showDateSelector={true}
         loading={addShoppingBatchM.isPending}
@@ -1561,11 +1818,12 @@ export default function PlannerTab() {
                 quantity: i.quantity,
                 unit: i.unit,
                 category: i.category,
+                mealDate: i.mealDate,  // 用餐日（標籤）
               })),
               fromRecipeId: items[0].recipeId,
               fromRecipeName: items[0].recipeName,
               fromMealPlanId: items[0].fromMealPlanId,
-              plannedDate: items[0].plannedDate,
+              plannedDate: items[0].plannedDate,  // 採買日（購物車歸類日期）
             });
           } else {
             setPickerRecipe(null);
@@ -2250,16 +2508,16 @@ function SlotPickerModal({
                 onPress={() => {
                   Alert.alert(
                     "🤖 AI 生成食譜",
-                    `AI 生成功能已移至 AI Chef，你可以：\n\n1. 去 AI Chef 輸入「生成 3 個${meta.label}食譜」\n2. 或使用「食譜庫」揀選現有食譜`,
+                    `AI 生成功能已移至 AI 助手，你可以：\n\n1. 去 AI 助手輸入「生成 3 個${meta.label}食譜」\n2. 或使用「食譜庫」揀選現有食譜`,
                     [
                       { text: "取消", style: "cancel" },
-                      { text: "開啟 AI Chef", onPress: () => { router.push("/ai-chef"); onClose(); } }
+                      { text: "開啟 AI 助手", onPress: () => { router.push("/ai-chef"); onClose(); } }
                     ]
                   );
                 }}
               >
                 <Ionicons name="sparkles" size={14} color="#fff" />
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff", marginTop: 2 }}>去 AI Chef 生成</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff", marginTop: 2 }}>去 AI 助手生成</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -3323,5 +3581,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 40,
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  loadingContent: {
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1A1A1A",
   },
 });

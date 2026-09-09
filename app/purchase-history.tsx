@@ -64,6 +64,18 @@ function daysSince(d: Date | string): number {
   return Math.floor((Date.now() - date.getTime()) / 86400000);
 }
 
+function formatTimeAgo(dateStr?: string | number | Date | null): string {
+  if (!dateStr) return "";
+  const date = DateUtil.parseDate(dateStr);
+  if (isNaN(date.getTime())) return "";
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60) return "剛剛";
+  if (diff < 3600) return `${Math.floor(diff / 60)}分鐘前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小時前`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
+  return formatDate(date);
+}
+
 function getCategoryColor(category: string | null | undefined): string {
   const map: Record<string, string> = {
     "蔬菜生果": "#4CAF50", "肉類": "#F44336", "海鮮": "#2196F3",
@@ -186,7 +198,7 @@ export default function PurchaseHistoryScreen() {
   const consolidatedPurchased = useMemo(() => {
     if (!filteredHistory || filteredHistory.length === 0) return [];
 
-    // 1. 按日期 (dateKey) 作為第一層 Group
+    // 只按日期分組，不再按名稱聚合，保留每次購買記錄
     const dateMap = new Map<string, any[]>();
     
     filteredHistory.forEach((item: any) => {
@@ -197,24 +209,10 @@ export default function PurchaseHistoryScreen() {
       dateMap.get(dateKey)!.push(item);
     });
 
-    // 2. 每個日期內部按品名 (name) 進行數量與金額合併
     return Array.from(dateMap.entries()).map(([date, items]) => {
-      const itemMap = new Map<string, any>();
-
-      items.forEach((item: any) => {
-        const existing = itemMap.get(item.name);
-        if (existing) {
-          existing.quantity = (existing.quantity || 1) + (item.quantity || 1);
-          existing.actualPrice = (existing.actualPrice || 0) + (item.actualPrice || 0);
-          existing.budgetPrice = (existing.budgetPrice || 0) + (item.estimatedPrice || 0);
-        } else {
-          itemMap.set(item.name, { ...item });
-        }
-      });
-
       return {
         date,
-        items: Array.from(itemMap.values()),
+        items,
       };
     });
   }, [filteredHistory]);
@@ -459,59 +457,8 @@ export default function PurchaseHistoryScreen() {
                       <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>{items.length} 項</Text>
                     </View>
                   </View>
-                  <View style={{ backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
-                    {items.length > 1 ? (
-                      // 合併顯示（同一日期有相同名稱的項目）
-                      <View style={{ flexDirection: "row", alignItems: "center", padding: 12 }}>
-                        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: getCategoryColor(items[0].category), alignItems: "center", justifyContent: "center", marginRight: 10 }}>
-                          <Ionicons name="cart-outline" size={18} color="#fff" />
-                        </View>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 }} numberOfLines={1}>{cleanItemName(items[0].name)}</Text>
-                            <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND }}>x{items.length}</Text>
-                            </View>
-                          </View>
-                          <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3 }}>
-                            {(() => {
-                              const item = items[0];
-                              const hasBudget = item.estimatedPrice != null;
-                              const hasActual = item.actualPrice != null;
-                              const diff = hasActual && hasBudget ? item.actualPrice - item.estimatedPrice : null;
-                              const diffPercent = diff && item.estimatedPrice ? diff / item.estimatedPrice : null;
-                              const showDiff = diffPercent && diffPercent > 0.1;
-                              
-                              if (hasBudget && hasActual) {
-                                return (
-                                  <>
-                                    <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "line-through" }}>HK${item.estimatedPrice}</Text>
-                                    <Text style={{ fontSize: 12, fontWeight: "700", color: showDiff ? "#DC2626" : "#013E77" }}>
-                                      HK${item.actualPrice}
-                                      {showDiff && <Text style={{ fontSize: 10, fontWeight: "700" }}> (+{diff})</Text>}
-                                    </Text>
-                                  </>
-                                );
-                              } else if (hasActual) {
-                                return <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>HK${item.actualPrice}</Text>;
-                              } else if (hasBudget) {
-                                return <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>預算 HK${item.estimatedPrice}</Text>;
-                              }
-                              return null;
-                            })()}
-                            {items[0].boughtByUser && <Text style={{ fontSize: 12, color: SUB }}>{items[0].boughtByUser}</Text>}
-                          </View>
-                        </View>
-                        <TouchableOpacity
-                          style={{ backgroundColor: "#F5F8FC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER, marginLeft: 8 }}
-                          onPress={() => handleRebuy(items[0])}
-                        >
-                          <Ionicons name="refresh-outline" size={16} color={BRAND} />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      // 單一項目顯示
-                      items.map((item: any, idx: number) => {
+                    <View style={{ backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
+                      {items.map((item: any, idx: number) => {
                         const hasBudget = item.estimatedPrice != null;
                         const hasActual = item.actualPrice != null;
                         const diff = hasActual && hasBudget ? item.actualPrice - item.estimatedPrice : null;
@@ -524,20 +471,25 @@ export default function PurchaseHistoryScreen() {
                             style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: idx < items.length - 1 ? 1 : 0, borderBottomColor: "#F9F3EC" }}
                             onPress={() => handleEditPurchase(item)}
                           >
-                            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: getCategoryColor(item.category), alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+                            <TouchableOpacity
+                              style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: getCategoryColor(item.category), alignItems: "center", justifyContent: "center", marginRight: 10 }}
+                              onPress={() => handleRebuy(item)}
+                            >
                               <Ionicons name="cart-outline" size={18} color="#fff" />
-                            </View>
+                            </TouchableOpacity>
                             <View style={{ flex: 1, minWidth: 0 }}>
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                 <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 }} numberOfLines={1}>{cleanItemName(item.name)}</Text>
-                                {item.boughtByUser && (
+                                {(item.userName || item.boughtByUser || item.boughtByName) && (
                                   <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                    <Text style={{ fontSize: 9, fontWeight: "700", color: BRAND }}>{item.boughtByUser}</Text>
+                                    <Text style={{ fontSize: 9, fontWeight: "700", color: BRAND }}>{item.userName || item.boughtByUser || item.boughtByName}</Text>
                                   </View>
                                 )}
                               </View>
                               <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
-                                {item.quantity && <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>}
+                                {(item.quantity || item.unit) && (
+                                  <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>
+                                )}
                                 {hasBudget && hasActual ? (
                                   <>
                                     <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "line-through" }}>HK${item.estimatedPrice}</Text>
@@ -551,20 +503,20 @@ export default function PurchaseHistoryScreen() {
                                 ) : hasBudget ? (
                                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>預算 HK${item.estimatedPrice}</Text>
                                 ) : null}
+                                <Text style={{ fontSize: 12, color: SUB }}>{formatTimeAgo(item.boughtAt)}</Text>
                               </View>
                             </View>
                             <TouchableOpacity
-                              style={{ backgroundColor: "#F5F8FC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER }}
-                              onPress={() => handleRebuy(item)}
+                              style={{ backgroundColor: "#F5F8FC", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER, marginLeft: 8 }}
+                              onPress={() => handleEditPurchase(item)}
                             >
-                              <Ionicons name="refresh-outline" size={16} color={BRAND} />
+                              <Ionicons name="create-outline" size={16} color={BRAND} />
                             </TouchableOpacity>
                           </TouchableOpacity>
                         );
-                      })
-                    )}
+                      })}
+                    </View>
                   </View>
-                </View>
               ))
             )}
           </ScrollView>

@@ -349,7 +349,7 @@ export default function RecipeDetailScreen() {
           sound.unloadAsync().catch(() => {});
         }
       });
-    } catch (error) {
+    } catch {
       console.log("[Timer Sound] Expo Go native module not available, fallback to Haptics/Toast");
     }
   };
@@ -368,16 +368,14 @@ export default function RecipeDetailScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 100);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
-    } catch (error) {
+    } catch {
       console.log("[Haptics] Not available in Expo Go");
     }
     
     // 3. Toast 提示
     showToast(`步驟 ${stepNum} 計時結束 ⏰`);
   }, [showToast]);
-  const [showAllMealPlans, setShowAllMealPlans] = useState(false);
-  const [showAllShopping, setShowAllShopping] = useState(false);
-  // Track hero image load error to fall back to placeholder
+  // 英雄圖片載入狀態
   const [heroImgError, setHeroImgError] = useState(false);
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: () => {
@@ -439,6 +437,17 @@ export default function RecipeDetailScreen() {
   // 最近的一次排餐（用於快速顯示）
   const latestMealPlan = allRecipeMealPlans.length > 0 ? allRecipeMealPlans[0] : null;
   
+  // 初始化選中的排餐 ID（設為 null，用 useEffect 自動設預設值）
+  const [selectedMealPlanId, setSelectedMealPlanId] = useState<number | null>(null);
+  const [isShoppingExpanded, setIsShoppingExpanded] = useState<boolean>(true);
+  
+  // 自動選中第一個排餐（當資料載入完成後）
+  useEffect(() => {
+    if (allRecipeMealPlans.length > 0 && selectedMealPlanId === null) {
+      setSelectedMealPlanId(allRecipeMealPlans[0].id);
+    }
+  }, [allRecipeMealPlans, selectedMealPlanId]);
+  
   const shoppingListQ = trpc.shopping.list.useQuery(undefined, {
     enabled: isAuthenticated && !!user,
     staleTime: 1000 * 30,
@@ -486,7 +495,19 @@ export default function RecipeDetailScreen() {
     return groups;
   }, [shoppingListQ.data, recipeStringId, recipe?.name]);
 
-  const visibleShopGroups = showAllShopping ? recipeShopping : recipeShopping.slice(0, 3);
+  // 當前選中排餐對應嘅購物食材（用排餐日計算購物日）
+  const activeShoppingGroup = useMemo(() => {
+    if (!selectedMealPlanId || !allRecipeMealPlans.length) return recipeShopping[0] || null;
+    
+    const selectedPlan = allRecipeMealPlans.find(p => p.id === selectedMealPlanId);
+    if (!selectedPlan) return recipeShopping[0] || null;
+    
+    // 計算對應嘅購物日（排餐日前一日）
+    const expectedShoppingDate = getDayBefore(selectedPlan.date);
+    
+    // 過濾出該購物日嘅食材組
+    return recipeShopping.find(g => g.date === expectedShoppingDate) || recipeShopping[0] || null;
+  }, [selectedMealPlanId, allRecipeMealPlans, recipeShopping]);
 
    // 加入排餐後跳去購物清單選食材：已加入狀態要跟購物日期分開
    // 同一食譜如果係另一日再加入，唔應該因為舊日期而 cross 掉
@@ -508,7 +529,7 @@ export default function RecipeDetailScreen() {
       if (!itemName || (!isSameMealPlan && !isSameRecipeAndDate)) return;
       (planPickerRecipe.ingredients || []).forEach((ing: any, idx: number) => {
         const nm = String(ing?.name ?? "").trim();
-        if (nm && nm === itemName) added.add(`${planPickerRecipe.id}::${idx}`);
+        if (nm && nm === itemName) added.add(`${planPickerRecipe.id}::${idx}::${targetDate}`);
       });
     });
     return added;
@@ -516,7 +537,12 @@ export default function RecipeDetailScreen() {
 
   const savePriceM = (trpc as any).purchaseHistory.savePrice.useMutation({
     onSuccess: (_data: any, variables: any) => {
-      utils.shopping.list.invalidate();
+      void Promise.all([
+        utils.shopping.list.invalidate(),
+        utils.purchaseHistory.list.invalidate(),
+        utils.purchaseHistory.lastPrices.invalidate(),
+        utils.purchaseHistory.frequency.invalidate(),
+      ]);
       if (variables?.itemName) {
         setIngredientPrices(prev => ({ ...prev, [variables.itemName]: variables.price }));
       }
@@ -529,7 +555,7 @@ export default function RecipeDetailScreen() {
     if (ingredientPrices[ingName]) return ingredientPrices[ingName];
     const shoppingItem = shoppingItemsByName[ingName];
     if (shoppingItem?.estimatedPrice) return shoppingItem.estimatedPrice;
-    if (lastPricesMap[ingName]) return lastPricesMap[ingName];
+    if (lastPricesMap[ingName]?.price != null) return lastPricesMap[ingName].price;
     return null;
   };
 
@@ -576,11 +602,11 @@ export default function RecipeDetailScreen() {
     ingredients.forEach((ing: any) => { if (ing.name) names.add(ing.name); });
     return Array.from(names);
   }, [ingredients]);
-  const lastPricesQ = (trpc as any).shopping.lastPrices.useQuery(
+  const lastPricesQ = (trpc as any).purchaseHistory.lastPrices.useQuery(
     { itemNames: allIngNames },
     { enabled: isAuthenticated && !!user && allIngNames.length > 0 },
   );
-  const lastPricesMap: Record<string, number> = lastPricesQ.data ?? {};
+  const lastPricesMap: Record<string, { price: number; boughtAt: string | Date }> = lastPricesQ.data ?? {};
   
 /**
  * Local image fallback removed — recipe covers are remote-first (R2).
@@ -724,6 +750,7 @@ export default function RecipeDetailScreen() {
             name: recipe?.name ?? "",
             ingredients: ings,
             date: planDate ?? undefined,
+            mealType: planMeal ?? undefined,
             fromMealPlanId: result.newPlanId,
           });
           setPlanPickerShoppingDate(shoppingDateForPlan);
@@ -1217,102 +1244,85 @@ export default function RecipeDetailScreen() {
                   <Ionicons name="calendar-outline" size={16} color={BRAND} />
                   <Text style={s.mealPlanTitle}>📅 已排餐 ({allRecipeMealPlans.length} 次)</Text>
                 </View>
-                <View style={s.mealPlanList}>
-                  {/* 默認顯示最近 3 次 */}
-      {allRecipeMealPlans.slice(0, 3).map((plan: any, _idx: number) => {
+                
+                {/* 橫向 ScrollView - Chips 設計（兼任 Date Tab） */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled={true}
+                  contentContainerStyle={s.mealPlanChipsContainer}
+                >
+                  {allRecipeMealPlans.map((plan: any) => {
                     const planDate = new Date(plan.date + "T00:00:00");
                     const dayOfWeek = ["日", "一", "二", "三", "四", "五", "六"][planDate.getDay()];
                     const mealTypeLabel = plan.mealType === "dinner" ? "晚餐" : plan.mealType === "lunch" ? "午餐" : plan.mealType === "breakfast" ? "早餐" : "小食";
+                    const isSelected = selectedMealPlanId === plan.id;
                     return (
                       <TouchableOpacity
                         key={plan.id}
-                        style={s.mealPlanItem}
-                        onPress={() => {
-                          // 點擊日期→跳轉排餐頁
-                          router.push("/(tabs)/planner");
-                        }}
+                        style={[s.mealPlanChip, isSelected && s.mealPlanChipSelected]}
+                        onPress={() => setSelectedMealPlanId(plan.id)}
                       >
-                        <View style={s.mealPlanDateBox}>
-                          <Text style={s.mealPlanDate}>{planDate.getMonth() + 1}/{planDate.getDate()}</Text>
-                          <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
-                        </View>
-                        <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
+                        <Text style={[s.mealPlanChipText, isSelected && s.mealPlanChipTextSelected]} numberOfLines={1}>
+                          📅 {planDate.getMonth() + 1}/{planDate.getDate()} ({dayOfWeek}) {mealTypeLabel}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
-                  {/* 展開更多 */}
-                  {allRecipeMealPlans.length > 3 && (
-                    <TouchableOpacity
-                      style={s.mealPlanExpand}
-                      onPress={() => {
-                        // 展開顯示全部
-                        setShowAllMealPlans(!showAllMealPlans);
-                      }}
-                    >
-                      <Text style={s.mealPlanExpandText}>
-                        {showAllMealPlans ? "收起" : `展開更多 (${allRecipeMealPlans.length - 3} 次)`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {/* 顯示全部 */}
-                  {showAllMealPlans && allRecipeMealPlans.slice(3).map((plan: any, _idx: number) => {
-                    const planDate = new Date(plan.date + "T00:00:00");
-                    const dayOfWeek = ["日", "一", "二", "三", "四", "五", "六"][planDate.getDay()];
-                    const mealTypeLabel = plan.mealType === "dinner" ? "晚餐" : plan.mealType === "lunch" ? "午餐" : plan.mealType === "breakfast" ? "早餐" : "小食";
-                    return (
-                      <TouchableOpacity
-                        key={plan.id}
-                        style={s.mealPlanItem}
-                        onPress={() => {
-                          router.push("/(tabs)/planner");
-                        }}
-                      >
-                        <View style={s.mealPlanDateBox}>
-                          <Text style={s.mealPlanDate}>{planDate.getMonth() + 1}/{planDate.getDate()}</Text>
-                          <Text style={s.mealPlanDay}>({dayOfWeek})</Text>
-                        </View>
-                        <Text style={s.mealPlanMealType}>{mealTypeLabel}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                </ScrollView>
               </View>
             )}
 
             {/* ── 已加入購物清單 ── */}
             {recipeShopping.length > 0 && (
               <View style={s.mealPlanCard}>
-                <View style={s.mealPlanHeader}>
-                  <Ionicons name="cart-outline" size={16} color={BRAND} />
-                  <Text style={s.mealPlanTitle}>🛒 已加入購物清單 ({recipeShopping.reduce((n, g) => n + g.items.length, 0)} 項)</Text>
-                  <TouchableOpacity onPress={() => router.push("/(tabs)/shopping")}>
-                    <Text style={[s.btnAITxt, { color: BRAND }]}>去購物車</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={s.mealPlanList}>
-                  {visibleShopGroups.map((g) => (
-                    <View key={g.date || "none"} style={s.shopDateGroup}>
-                      <View style={s.shopDateRow}>
-                        <Ionicons name="calendar-outline" size={12} color="#013E77" />
-                        <Text style={s.shopDateText}>{g.date ? formatMealDate(g.date) : "未設定日期"}</Text>
-                        <Text style={s.shopDateCount}>{g.items.length} 項</Text>
-                      </View>
-                      {g.items.map((it) => (
-                        <View key={it.id} style={s.shopItemRow}>
-                          <Text style={s.shopItemName} numberOfLines={1}>{it.name}</Text>
-                          {(it.quantity || it.unit) && (
-                            <Text style={s.shopItemQty}>{it.quantity || ""}{it.unit ? ` ${it.unit}` : ""}</Text>
-                          )}
-                        </View>
-                      ))}
+                {/* 可點擊嘅 Header（摺疊控制） */}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setIsShoppingExpanded(!isShoppingExpanded)}
+                  style={s.shoppingHeaderRow}
+                >
+                  <View style={s.rowLeft}>
+                    <Ionicons name="cart-outline" size={18} color={BRAND} />
+                    <Text style={s.shoppingTitle}>
+                      🛒 已加入購物清單 ({activeShoppingGroup?.items?.length || 0} 項)
+                    </Text>
+                    <Text style={s.hintText}>• 點擊上方日期切換</Text>
+                  </View>
+                  <Ionicons
+                    name={isShoppingExpanded ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color="#9CA3AF"
+                  />
+                </TouchableOpacity>
+                
+                {/* 展開後顯示食材明細 */}
+                {isShoppingExpanded && activeShoppingGroup && (
+                  <View style={s.shopDateGroup}>
+                    <View style={s.shopDateRow}>
+                      <Ionicons name="calendar-outline" size={12} color="#013E77" />
+                      <Text style={s.shopDateText}>{activeShoppingGroup.date ? formatMealDate(activeShoppingGroup.date) : "未設定日期"}</Text>
+                      <Text style={s.shopDateCount}>{activeShoppingGroup.items.length} 項</Text>
                     </View>
-                  ))}
-                  {recipeShopping.length > 3 && (
-                    <TouchableOpacity style={s.mealPlanExpand} onPress={() => setShowAllShopping(!showAllShopping)}>
-                      <Text style={s.mealPlanExpandText}>{showAllShopping ? "收起" : `展開更多 (${recipeShopping.length - 3} 組日期)`}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                    {activeShoppingGroup.items.map((it: any) => (
+                      <View key={it.id} style={s.shopItemRow}>
+                        <Text style={s.shopItemName} numberOfLines={1}>{it.name}</Text>
+                        {(it.quantity || it.unit) && (
+                          <Text style={s.shopItemQty}>{it.quantity || ""}{it.unit ? ` ${it.unit}` : ""}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {/* 空狀態提示 */}
+                {isShoppingExpanded && !activeShoppingGroup && (
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>
+                      呢日仲未加入購物車食材
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -1756,7 +1766,7 @@ export default function RecipeDetailScreen() {
 
                 {(() => {
                   const existingItem = shoppingItemsByName[kw];
-                  const lastPrice = lastPricesMap[kw];
+                  const lastPrice = lastPricesMap[kw]?.price;
                   const sessionPrice = ingredientPrices[kw];
                   return (
                     <>
@@ -2307,7 +2317,8 @@ export default function RecipeDetailScreen() {
           visible={!!planPickerRecipe}
           recipes={planPickerRecipe ? [planPickerRecipe] : []}
           loading={addShoppingM.isPending}
-          defaultDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
+          mealDate={planPickerRecipe?.date}
+          defaultBuyDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
           maxDate={planPickerRecipe?.date}
           onDateChange={setPlanPickerShoppingDate}
           alreadyAddedKeys={planPickerAlreadyAdded}
@@ -2320,11 +2331,12 @@ export default function RecipeDetailScreen() {
                   quantity: i.quantity,
                   unit: i.unit,
                   category: i.category,
+                  mealDate: i.mealDate,  // 用餐日（標籤）
                 })),
                 fromRecipeId: items[0].recipeId,
                 fromRecipeName: items[0].recipeName,
                 fromMealPlanId: items[0].fromMealPlanId,
-                plannedDate: items[0].plannedDate,
+                plannedDate: items[0].plannedDate,  // 採買日（購物車歸類日期）
               });
             } else {
               setPlanPickerRecipe(null);
@@ -2405,10 +2417,47 @@ const s = StyleSheet.create({
   btnAI: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#F5F3FF", paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DDD6FE" },
   btnAITxt: { color: "#7C3AED", fontSize: 12, fontWeight: "800" },
 
-  // Meal Plan Card
-  mealPlanCard: { backgroundColor: "#F8FAFC", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: BRAND },
-  mealPlanHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  // Meal Plan Card - 橫向 Chips 設計
+  mealPlanCard: { backgroundColor: "#F8FAFC", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: BRAND },
+  mealPlanHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   mealPlanTitle: { fontSize: 15, fontWeight: "800", color: BRAND },
+  mealPlanChipsContainer: { paddingVertical: 4, gap: 8 },
+  mealPlanChip: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  mealPlanChipSelected: {
+    backgroundColor: "#0284C7",
+    borderColor: "#0284C7",
+  },
+  mealPlanChipText: { fontSize: 12, fontWeight: "500", color: "#374151" },
+  mealPlanChipTextSelected: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
+  
+  // 購物清單 Header（可摺疊）
+  shoppingHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  shoppingTitle: { fontSize: 14, fontWeight: "800", color: "#1E3A8A" },
+  hintText: { fontSize: 11, color: "#0284C7", fontWeight: "600" },
+  
   mealPlanList: { gap: 6 },
   mealPlanItem: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" },
   mealPlanDateBox: { alignItems: "center" },
@@ -2427,38 +2476,38 @@ const s = StyleSheet.create({
   shopItemQty: { fontSize: 12, color: SUB },
 
   // Tips
-  tipsCard: { backgroundColor: "#FFFBEB", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
+  tipsCard: { backgroundColor: "#FFFBEB", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
   tipsRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   tipsTitle: { fontSize: 14, fontWeight: "800", color: "#92400E" },
   tipsTxt: { fontSize: 13, color: "#78350F", lineHeight: 20 },
 
   // Cooking Tips Card
-  cookingTipsCard: { backgroundColor: "#FEF3C7", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
-  tipsCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  cookingTipsCard: { backgroundColor: "#FEF3C7", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
+  cookingTipsHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   cookingTipsTitle: { fontSize: 15, fontWeight: "800", color: "#92400E" },
   tipsList: { gap: 6 },
   tipItem: { flexDirection: "row", gap: 6 },
   tipItemTxt: { fontSize: 13, color: "#78350F", lineHeight: 20, flex: 1 },
 
   // Safety Card
-  safetyCard: { backgroundColor: "#FEF2F2", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#EF4444" },
-  safetyHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  safetyCard: { backgroundColor: "#FEF2F2", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: "#EF4444" },
+  safetyHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   safetyTitle: { fontSize: 15, fontWeight: "800", color: "#991B1B" },
   safetyList: { gap: 6 },
   safetyItem: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   safetyItemTxt: { fontSize: 13, color: "#991B1B", lineHeight: 20, flex: 1 },
 
   // Alternative Methods Card
-  alternativeCard: { backgroundColor: "#ECFEFF", marginTop: 16, borderRadius: 16, padding: 16, borderLeftWidth: 4, borderLeftColor: "#06B6D4" },
-  alternativeHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  alternativeCard: { backgroundColor: "#ECFEFF", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: "#06B6D4" },
+  alternativeHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   alternativeTitle: { fontSize: 15, fontWeight: "800", color: "#164E63" },
   altMethod: { marginTop: 8, paddingLeft: 8, borderLeftWidth: 2, borderLeftColor: "#06B6D4" },
   altMethodTitle: { fontSize: 14, fontWeight: "700", color: "#0E7490", marginBottom: 4 },
   altMethodTxt: { fontSize: 13, color: "#155E75", lineHeight: 18 },
 
   // Card
-  card: { backgroundColor: CARD, marginTop: 16, borderRadius: 20, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
-  cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  card: { backgroundColor: CARD, marginTop: 16, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  cardHeaderRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
   cardIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#E8F5E9", alignItems: "center", justifyContent: "center" },
   cardTitle: { flex: 1, fontSize: 16, fontWeight: "800", color: TEXT },
   divider: { height: 1, backgroundColor: BORDER, marginVertical: 12 },

@@ -42,7 +42,7 @@ const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; title: string; d
   import_limit: {
     emoji: "📥",
     title: "已達免費匯入上限",
-    desc: "免費版每月最多匯入 20 個食譜\n升級後可匯入最多 200/300 個",
+    desc: "免費版每月最多匯入 20 個食譜\n升級後可匯入最多 300 個",
   },
   recipe_limit: {
     emoji: "📚",
@@ -170,7 +170,7 @@ export default function PaywallModal({
           {/* Features list */}
           <View style={styles.featuresList}>
             {[
-              "每月最多 200/300 個食譜匯入",
+              "每月最多 300 個食譜匯入",
               "無限儲存食譜",
               "最多 6 位家庭成員",
               "截圖匯入食譜",
