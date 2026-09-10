@@ -8,6 +8,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
@@ -1680,18 +1681,23 @@ export default function AIChefScreen() {
     addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
 
-  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（ref 防重複觸發）
+  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 每次 focus 都檢查，自動開始 3 餸 1 湯問卷。
+  // 用 useFocusEffect（fresh 或 reuse 都可靠），normalize param（expo-router 或會回傳 array）。
   const heroParams = useLocalSearchParams<{ action?: string }>();
-  const autoStartedMealRef = useRef(false);
-  useEffect(() => {
-    if (autoStartedMealRef.current) return;
-    if (heroParams.action === "daily" && mealStep === "idle") {
-      autoStartedMealRef.current = true;
-      isSoupModeRef.current = true;
-      startMealFlow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroParams.action, mealStep]);
+  const heroAction = Array.isArray(heroParams.action) ? heroParams.action[0] : heroParams.action;
+  useFocusEffect(
+    useCallback(() => {
+      if (heroAction === "daily") {
+        // 答緊問卷就保留（唔重頭嚟）；否則 reset + 開始新一輪
+        const answering = mealStep === "people" || mealStep === "audience" || mealStep === "time" || mealStep === "dislike" || mealStep === "generating";
+        if (!answering) {
+          isSoupModeRef.current = true;
+          startMealFlow();
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [heroAction, mealStep])
+  );
 
   const askMealQuestion = (step: MealPlanStep) => {
     const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
@@ -1835,14 +1841,8 @@ export default function AIChefScreen() {
         setAiNextSteps([]);
         setChatStarted(true);
         if (data.recipes?.length > 0) {
+          // 唔再用重複湊 4（避免「（variation）」假卡）；後端已保證結構化 4 卡，AI fallback 就顯示實際有嘅
           const safeRecipes = data.recipes.map(normalizeRecipe);
-          // 確保至少 4 張卡（如果少於 4 個，重複最後一個補足）
-          while (safeRecipes.length < 4) {
-            const lastRecipe = safeRecipes[safeRecipes.length - 1];
-            if (lastRecipe) {
-              safeRecipes.push({ ...lastRecipe, name: `${lastRecipe.name}（variation）` });
-            }
-          }
           setMealResult(safeRecipes.slice(0, 4));
           setRecommendedRecipes(safeRecipes.slice(0, 4));
         }
@@ -1924,40 +1924,34 @@ export default function AIChefScreen() {
   const generateMealPlan = async (prefs: MealPlanPreferences, msgs: Message[]) => {
     // 設置 3 餸 1 湯模式
     isSoupModeRef.current = true;
-    // ── Library-first：用問卷條件先搜食譜庫 ──
+    // ── Library-first：行結構化 meal path（pickSoupMeal，同食譜庫 button 一致，唔再隨機抽）──
     setLibraryLoading(true);
     setRecommendedRecipes([]);
     try {
-      const searchTerms: string[] = [];
-      if (prefs.time === "quick") searchTerms.push("快手");
-      else if (prefs.time === "leisure") searchTerms.push("慢煮");
-      const audienceTag = prefs.hasKids ? "小朋友" : prefs.hasElderly ? "清淡" : "";
-      if (audienceTag) searchTerms.push(audienceTag);
-      if (!searchTerms.length) searchTerms.push("家常");
-      const searchResult = await apiClient.recipes.search.query({
-        query: searchTerms.join(" "),
-        limit: 12,
+      const res = await apiClient.aiRecipe.chat.mutate({
+        messages: [{ role: "user", content: "家常菜。提供 4 個唔同嘅食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。" }],
+        mode: "library",
+        excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       });
-      const rawRecipes = Array.isArray(searchResult?.recipes) ? searchResult.recipes : [];
+      const rawRecipes = Array.isArray(res?.recipes) ? res.recipes : [];
       const libraryRecipes = rawRecipes
         .map(normalizeRecipe)
         .filter(isValidRecipe);
       if (libraryRecipes.length >= 4) {
-        // 有庫存食譜 → 直接顯示 4 道
-        console.log(`[AI 助手] Meal flow found ${libraryRecipes.length} library recipes`);
+        console.log(`[AI 助手] Meal flow structured found ${libraryRecipes.length} library recipes`);
         setMealStep("result");
-        const recipesToShow = libraryRecipes.sort(() => Math.random() - 0.5).slice(0, 4);
+        const recipesToShow = libraryRecipes.slice(0, 4);
         setMealResult(recipesToShow);
         setRecommendedRecipes(recipesToShow);
         recordSeenRecipes(recipesToShow);
-        addUserMessage(`3 餸 1 湯（${prefs.people}人，${searchTerms.join("/")}`);
-        addBotMessage(`我喺食譜庫搵到 4 個配合嘅食譜：`);
+        addUserMessage(`3 餸 1 湯（${prefs.people}人）`);
+        addBotMessage(`我喺食譜庫搵到呢套 3 餸 1 湯：`);
         setLibraryLoading(false);
         return;
       }
-      console.log(`[AI 助手] Meal flow library search found ${libraryRecipes.length}, need 4, falling back to AI`);
+      console.log(`[AI 助手] Meal flow structured found ${libraryRecipes.length}, need 4, falling back to AI`);
     } catch (e) {
-      console.error("[AI 助手] Meal flow library search failed:", e);
+      console.error("[AI 助手] Meal flow structured failed:", e);
     }
     setLibraryLoading(false);
     // Fallback：AI 3 餸 1 湯
@@ -1975,14 +1969,8 @@ export default function AIChefScreen() {
         setAiNextSteps([]);
         setChatStarted(true);
         if (data.recipes?.length > 0) {
+          // 唔再用重複湊 4（避免「（variation）」假卡）
           const safeRecipes = data.recipes.map(normalizeRecipe);
-          // 確保至少 4 張卡
-          while (safeRecipes.length < 4) {
-            const lastRecipe = safeRecipes[safeRecipes.length - 1];
-            if (lastRecipe) {
-              safeRecipes.push({ ...lastRecipe, name: `${lastRecipe.name}（variation）` });
-            }
-          }
           setMealResult(safeRecipes.slice(0, 4));
           setRecommendedRecipes(safeRecipes.slice(0, 4));
         }
