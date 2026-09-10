@@ -3,13 +3,14 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   Platform, Modal, ScrollView, Alert, Keyboard, Image, ActionSheetIOS,
   ActivityIndicator, Animated, Dimensions, TouchableWithoutFeedback,
-  KeyboardAvoidingView, Pressable, ImageBackground,
+  KeyboardAvoidingView, Pressable,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
@@ -2759,26 +2760,27 @@ export default function AIChefScreen() {
             disabled={chatMutation.isPending}
             style={s.heroCard}
           >
-            <ImageBackground
+            <ExpoImage
               source={require("../assets/herocard-v2.jpeg")}
-              style={s.heroCardBody}
-              imageStyle={s.heroCardImg}
-              resizeMode="cover"
-            >
-              <View style={s.heroCardScrim} pointerEvents="none">
-                <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.18 }]} />
-                <View style={[s.heroCardScrimLayer, { width: "66%", opacity: 0.26 }]} />
-                <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.34 }]} />
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              contentPosition="right center"
+              cachePolicy="memory-disk"
+              transition={0}
+            />
+            <View style={s.heroCardScrim} pointerEvents="none">
+              <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.18 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "66%", opacity: 0.26 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.34 }]} />
+            </View>
+            <View style={s.heroCardContent}>
+              <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
+              <Text style={s.heroCardSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.subtitle}</Text>
+              <View style={s.heroCardCta}>
+                <Text style={s.heroCardCtaTxt}>即刻幫我諗</Text>
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </View>
-              <View style={s.heroCardContent}>
-                <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
-                <Text style={s.heroCardSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.subtitle}</Text>
-                <View style={s.heroCardCta}>
-                  <Text style={s.heroCardCtaTxt}>即刻幫我諗</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-                </View>
-              </View>
-            </ImageBackground>
+            </View>
           </PressScale>
         )}
 
@@ -2804,22 +2806,27 @@ export default function AIChefScreen() {
         <Text style={s.scenarioLabel}>或者按場景揀</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenarioRow}>
           {scenarios.map((a) => (
-            <PressScale
-              key={a.id}
-              testID={`ai-chef-quick-${a.id}`}
-              onPress={() => handleQuickAction(a.id)}
-              disabled={chatMutation.isPending}
-              style={s.scenarioCard}
-            >
-              <ImageBackground source={a.image} style={s.scenarioCardBg} resizeMode="cover" imageStyle={s.scenarioCardImg}>
+              <PressScale
+                key={a.id}
+                testID={`ai-chef-quick-${a.id}`}
+                onPress={() => handleQuickAction(a.id)}
+                disabled={chatMutation.isPending}
+                style={s.scenarioCard}
+              >
+                <ExpoImage
+                  source={a.image}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={0}
+                />
                 <View style={s.scenarioCardScrim} />
                 <View style={s.scenarioCardContent}>
                   <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
                   <Text style={s.scenarioCardTitle} numberOfLines={1}>{a.label}</Text>
                   <Text style={s.scenarioCardSub} numberOfLines={1}>{a.subtitle}</Text>
                 </View>
-              </ImageBackground>
-            </PressScale>
+              </PressScale>
           ))}
         </ScrollView>
         </View>
@@ -3489,9 +3496,7 @@ const s = StyleSheet.create({
   greetingEmoji: { fontSize: 32 },
   greetingName: { fontSize: 18, fontWeight: "900", color: TEXT },
   greetingTagline: { fontSize: 13, color: SUB, marginTop: 2 },
-  heroCard: { alignSelf: "stretch", height: 135, backgroundColor: "#F5EDE0", borderRadius: 22, overflow: "hidden", shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
-  heroCardBody: { height: "100%", width: "100%", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16 },
-  heroCardImg: { borderRadius: 22 },
+  heroCard: { alignSelf: "stretch", height: 135, borderRadius: 22, overflow: "hidden", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16, shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
   heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0 },
   heroCardScrimLayer: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FFF8F0" },
   heroCardContent: { zIndex: 2, gap: 2, maxWidth: "58%" },
@@ -3505,9 +3510,7 @@ const s = StyleSheet.create({
   toolBtnTxt: { fontSize: 14, fontWeight: "800", color: TEXT, flex: 1 },
   scenarioLabel: { fontSize: 12, color: SUB, fontWeight: "700", alignSelf: "flex-start", marginTop: 26, marginBottom: 10 },
   scenarioRow: { alignSelf: "stretch", flexDirection: "row", gap: 12, paddingRight: 4 },
-  scenarioCard: { width: 176, height: 128, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E0EAF4", backgroundColor: "#FAF8F5" },
-  scenarioCardBg: { flex: 1, justifyContent: "flex-end", width: "100%", height: "100%" },
-  scenarioCardImg: { borderRadius: 16 },
+  scenarioCard: { width: 176, height: 128, borderRadius: 16, overflow: "hidden", justifyContent: "flex-end", borderWidth: 1, borderColor: "#E0EAF4", backgroundColor: "#FAF8F5" },
   scenarioCardScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.30)" },
   scenarioCardContent: { paddingHorizontal: 12, paddingBottom: 12, zIndex: 2 },
   scenarioCardEmoji: { fontSize: 20, marginBottom: 4 },

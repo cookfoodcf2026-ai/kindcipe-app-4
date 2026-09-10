@@ -2,12 +2,13 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   FlatList, Dimensions, ScrollView, ActivityIndicator,
   Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
-  useWindowDimensions, Animated, ImageBackground,
+  useWindowDimensions, Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
@@ -277,12 +278,15 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
       activeOpacity={0.85}
       onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily" } } as any)}
     >
-      <ImageBackground
-        source={require("../../assets/herocard-v2.jpeg")}
-        style={s.tonightHero}
-        imageStyle={s.tonightHeroImg}
-        resizeMode="cover"
-      >
+      <View style={s.tonightHero}>
+        <ExpoImage
+          source={require("../../assets/herocard-v2.jpeg")}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          contentPosition="right center"
+          cachePolicy="memory-disk"
+          transition={0}
+        />
         <View style={s.tonightHeroScrim} pointerEvents="none">
           <View style={[s.tonightHeroScrimLayer, { width: "100%", opacity: 0.18 }]} />
           <View style={[s.tonightHeroScrimLayer, { width: "66%", opacity: 0.26 }]} />
@@ -296,7 +300,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
             <Ionicons name="arrow-forward" size={14} color="#fff" />
           </View>
         </View>
-      </ImageBackground>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -1370,14 +1374,12 @@ const s = StyleSheet.create({
   },
   tonightHero: {
     height: 135,
-    backgroundColor: "#F5EDE0",
     borderRadius: 18,
     overflow: "hidden",
     justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
-  tonightHeroImg: { borderRadius: 18 },
   tonightHeroText: { zIndex: 2, gap: 2, maxWidth: "58%" },
   tonightHeroScrim: {
     position: "absolute",
