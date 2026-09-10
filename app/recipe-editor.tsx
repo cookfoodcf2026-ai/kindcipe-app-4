@@ -57,6 +57,16 @@ const CATEGORY_OPTIONS = [
   { key: "其他",   label: "其他",   icon: "grid-outline" },
 ] as const;
 
+const DISH_TYPE_OPTIONS = [
+  { key: "",         label: "未指定（自動判斷）", icon: "help-circle-outline" },
+  { key: "主菜",     label: "主菜（肉類）",       icon: "restaurant-outline" },
+  { key: "海鮮",     label: "海鮮/蛋白",          icon: "fish-outline" },
+  { key: "蔬菜",     label: "蔬菜/小炒",          icon: "leaf-outline" },
+  { key: "湯水",     label: "湯水",               icon: "water-outline" },
+  { key: "甜品",     label: "甜品",               icon: "ice-cream-outline" },
+  { key: "飲品",     label: "飲品",               icon: "cafe-outline" },
+] as const;
+
 type Ingredient = { id: string; name: string; quantity: string; unit: string };
 type Step = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
 
@@ -80,6 +90,7 @@ export default function RecipeEditorScreen() {
   const [cookTime, setCookTime] = useState("30");
   const [difficulty, setDifficulty] = useState("中等");
   const [category, setCategory] = useState("中菜");
+  const [dishType, setDishType] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [tags, setTags] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
@@ -162,6 +173,7 @@ const scrollToFocused = useCallback((e: any) => {
       setCookTime(String(r.cookTime ?? 30));
       setDifficulty(r.difficulty ?? "中等");
       setCategory(r.recipeCategory ?? "中菜");
+      setDishType(r.dishType ?? "");
       setSourceUrl(r.sourceUrl ?? "");
       setTags((r.tags || []).join(" "));
       setImageError(false);
@@ -211,6 +223,7 @@ const scrollToFocused = useCallback((e: any) => {
     setCookTime(String(d.cookTime ?? 30));
     setDifficulty(d.difficulty ?? "中等");
     setCategory(d.recipeCategory ?? "中菜");
+    setDishType(d.dishType ?? "");
     setSourceUrl(d.sourceUrl ?? "");
     setTags((d.tags || []).join(" "));
     setImageError(false);
@@ -458,6 +471,7 @@ const scrollToFocused = useCallback((e: any) => {
         cookTime: parseInt(cookTime) || 30,
         difficulty,
         recipeCategory: category,
+        dishType: dishType || undefined,
         tags: recipeTags.length > 0 ? recipeTags : ["自訂"],
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
@@ -491,14 +505,14 @@ const scrollToFocused = useCallback((e: any) => {
     if (
       name.trim() || description.trim() || sourceUrl.trim() || tags.trim() ||
       servings !== "4" || prepTime !== "15" || cookTime !== "30" ||
-      difficulty !== "中等" || category !== "中菜"
+      difficulty !== "中等" || category !== "中菜" || dishType !== ""
     ) return true;
     if (ingredients.some(i => i.name.trim())) return true;
     if (steps.some(s => s.instruction.trim())) return true;
     if (imageUri || imageBase64) return true;
     if (steps.some(s => s.imageUri || s.imageBase64)) return true;
     return false;
-  }, [name, description, sourceUrl, tags, servings, prepTime, cookTime, difficulty, category, ingredients, steps, imageUri, imageBase64]);
+  }, [name, description, sourceUrl, tags, servings, prepTime, cookTime, difficulty, category, dishType, ingredients, steps, imageUri, imageBase64]);
 
   // 是否可發佈（完整：有名 + ≥1 食材 + ≥1 步驟 + 數字有效）
   const isComplete = useMemo(() => {
@@ -552,6 +566,7 @@ const scrollToFocused = useCallback((e: any) => {
         cookTime: parseInt(cookTime) || 30,
         difficulty,
         recipeCategory: category,
+        dishType: dishType || undefined,
         tags: recipeTags.length > 0 ? recipeTags : ["自訂"],
         ingredients: ingredients.map(i => ({
           name: i.name || "", quantity: i.quantity, unit: i.unit || "克", category: "食材",
@@ -588,7 +603,7 @@ const scrollToFocused = useCallback((e: any) => {
     }
     setIsSaving(false);
     leave(opts);
-  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave]);
+  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, dishType, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave]);
 
   // 統一退出入口：header ✕ / iOS 滑動返回 / Android back / usePreventRemove
   const onExitRequested = useCallback((opts: { action?: any } = {}) => {
@@ -772,6 +787,18 @@ const scrollToFocused = useCallback((e: any) => {
                 onPress={() => setCategory(opt.key)}>
                 <Ionicons name={opt.icon as any} size={18} color={category === opt.key ? "#fff" : BRAND} />
                 <Text style={[st.catLabel, category === opt.key && st.catLabelActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[st.label, { marginTop: 12 }]}>菜式類型 <Text style={st.hintTxt}>（影響「3 餸 1 湯」配搭）</Text></Text>
+          <View style={st.catGrid}>
+            {DISH_TYPE_OPTIONS.map(opt => (
+              <TouchableOpacity key={opt.key || "auto"}
+                style={[st.catChip, dishType === opt.key && st.catChipActive]}
+                onPress={() => setDishType(opt.key)}>
+                <Ionicons name={opt.icon as any} size={18} color={dishType === opt.key ? "#fff" : BRAND} />
+                <Text style={[st.catLabel, dishType === opt.key && st.catLabelActive]}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -992,6 +1019,7 @@ const st = StyleSheet.create({
 
   // Form
   label: { fontSize: 13, fontWeight: "700", color: "#5A4A3A", marginBottom: 6 },
+  hintTxt: { fontSize: 12, fontWeight: "400", color: "#9A8B7A" },
   hint: { fontSize: 12, color: HINT, marginBottom: 14, marginTop: -8 },
   input: {
     backgroundColor: BG, borderWidth: 1.5, borderColor: BORDER,

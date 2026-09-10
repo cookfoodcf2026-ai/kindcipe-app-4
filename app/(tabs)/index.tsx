@@ -269,7 +269,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
     <TouchableOpacity
       style={s.tonightHeroWrap}
       activeOpacity={0.85}
-      onPress={() => router.push("/ai-chef" as any)}
+      onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily" } } as any)}
     >
       <ImageBackground
         source={require("../../assets/herocard-v2.jpeg")}

@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
@@ -1677,6 +1677,19 @@ export default function AIChefScreen() {
     setMealStep("people");
     addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
+
+  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（ref 防重複觸發）
+  const heroParams = useLocalSearchParams<{ action?: string }>();
+  const autoStartedMealRef = useRef(false);
+  useEffect(() => {
+    if (autoStartedMealRef.current) return;
+    if (heroParams.action === "daily" && mealStep === "idle") {
+      autoStartedMealRef.current = true;
+      isSoupModeRef.current = true;
+      startMealFlow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroParams.action, mealStep]);
 
   const askMealQuestion = (step: MealPlanStep) => {
     const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
