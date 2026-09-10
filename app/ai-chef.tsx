@@ -22,6 +22,7 @@ import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import AdSlot from "@/src/components/AdSlot";
+import PaywallModal from "@/components/PaywallModal";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore } from "@/src/lib/date";
@@ -1261,6 +1262,7 @@ export default function AIChefScreen() {
   // ─── Plan modal ────────────────────────────────────────
 
   const [showPlan, setShowPlan] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   // 同步 planRecipe，避免 onSuccess 閉包讀到舊值（尤其係 ensureSaved 後帶住 user_<id> 去購物清單）
   const planRecipeRef = useRef<AIRecipe | null>(null);
@@ -2829,7 +2831,7 @@ export default function AIChefScreen() {
         </ScrollView>
         </View>
 
-        <AdSlot onPressUpgrade={() => setShowPlan(true)} />
+          <AdSlot onPressUpgrade={() => setShowPaywall(true)} />
       </View>
     );
   };
@@ -3290,7 +3292,7 @@ export default function AIChefScreen() {
 
       {chatStarted || messages.length > 0 || isMealAnswering || askingIngredients ? (
         <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
-          <AdSlot onPressUpgrade={() => setShowPlan(true)} />
+        <AdSlot onPressUpgrade={() => setShowPaywall(true)} />
           <View style={s.inputBar}>
             <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
               <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
@@ -3461,6 +3463,12 @@ export default function AIChefScreen() {
           setBatchPickerRecipes(null);
           showToast("已跳過食材");
         }}
+      />
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="generic"
       />
     </>
   );
