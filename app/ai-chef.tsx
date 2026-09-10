@@ -10,6 +10,7 @@ import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context"
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
@@ -2765,7 +2766,12 @@ export default function AIChefScreen() {
               imageStyle={s.heroCardImg}
               resizeMode="cover"
             >
-              <View style={s.heroCardScrim} />
+              <LinearGradient
+                colors={["rgba(255,248,240,0.85)", "rgba(255,248,240,0.4)", "rgba(255,248,240,0)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={s.heroCardScrim}
+              />
               <View style={s.heroCardContent}>
                 <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
                 <Text style={s.heroCardSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.subtitle}</Text>
@@ -3487,8 +3493,8 @@ const s = StyleSheet.create({
   greetingTagline: { fontSize: 13, color: SUB, marginTop: 2 },
   heroCard: { alignSelf: "stretch", height: 135, backgroundColor: "#F5EDE0", borderRadius: 22, overflow: "hidden", shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
   heroCardBody: { flex: 1, width: "100%", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16 },
-  heroCardImg: { borderRadius: 22, transform: [{ translateX: 60 }] },
-  heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0, width: "66%", backgroundColor: "rgba(255,248,240,0.62)" },
+  heroCardImg: { borderRadius: 22 },
+  heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0, width: "66%" },
   heroCardContent: { zIndex: 2, gap: 2, maxWidth: "58%" },
   heroCardTitle: { fontSize: 22, fontWeight: "900", color: "#2C1A0E" },
   heroCardSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },

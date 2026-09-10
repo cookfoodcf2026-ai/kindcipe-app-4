@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
@@ -277,7 +278,12 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
         imageStyle={s.tonightHeroImg}
         resizeMode="cover"
       >
-        <View style={s.tonightHeroScrim} />
+        <LinearGradient
+          colors={["rgba(255,248,240,0.85)", "rgba(255,248,240,0.4)", "rgba(255,248,240,0)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={s.tonightHeroScrim}
+        />
         <View style={s.tonightHeroText}>
           <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
           <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦！</Text>
@@ -1367,7 +1373,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
-  tonightHeroImg: { borderRadius: 18, transform: [{ translateX: 60 }] },
+  tonightHeroImg: { borderRadius: 18 },
   tonightHeroText: { zIndex: 2, gap: 2, maxWidth: "58%" },
   tonightHeroScrim: {
     position: "absolute",
@@ -1375,7 +1381,6 @@ const s = StyleSheet.create({
     left: 0,
     bottom: 0,
     width: "66%",
-    backgroundColor: "rgba(255,248,240,0.62)",
   },
   tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E" },
   tonightHeroSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },
