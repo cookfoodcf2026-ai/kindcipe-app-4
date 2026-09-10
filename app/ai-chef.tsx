@@ -2748,7 +2748,6 @@ export default function AIChefScreen() {
           <Text style={s.greetingEmoji}>🍳</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.greetingName}>{userName ? `${userName}，你好` : "你好"}</Text>
-            <Text style={s.greetingTagline}>諗唔到食咩好？不如睇下我嘅提議！</Text>
           </View>
         </View>
 
@@ -3492,10 +3491,9 @@ const s = StyleSheet.create({
   msgImage: { width: 180, height: 180, borderRadius: 10, marginBottom: 6 },
   empty: { flex: 1, paddingHorizontal: 16, justifyContent: "space-between" },
   emptyContent: { alignSelf: "stretch" },
-  greetingRow: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "stretch", marginBottom: 20 },
+  greetingRow: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "stretch", marginBottom: 16 },
   greetingEmoji: { fontSize: 32 },
   greetingName: { fontSize: 18, fontWeight: "900", color: TEXT },
-  greetingTagline: { fontSize: 13, color: SUB, marginTop: 2 },
   heroCard: { alignSelf: "stretch", height: 135, borderRadius: 22, overflow: "hidden", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16, shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
   heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0 },
   heroCardScrimLayer: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FFF8F0" },
