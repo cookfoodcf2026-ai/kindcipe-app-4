@@ -3,15 +3,17 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   Platform, Modal, ScrollView, Alert, Keyboard, Image, ActionSheetIOS,
   ActivityIndicator, Animated, Dimensions, TouchableWithoutFeedback,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Pressable, ImageBackground,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
-import { trpc, apiClient, API_BASE_URL } from "@/lib/trpc";
+import { trpc, apiClient, API_BASE_URL, resolveImageUrl } from "@/lib/trpc";
+import { getRecipeLocalImage } from "@/lib/recipe-local-images";
 import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
@@ -19,6 +21,7 @@ import { compressImage } from "@/lib/image-utils";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
+import AdSlot from "@/src/components/AdSlot";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore } from "@/src/lib/date";
@@ -334,16 +337,16 @@ const extractAiHistoryRecipeNames = (sessions: ChatSession[]): string[] => {
 };
 
 const QUICK_ACTIONS = [
-  { id: "random", icon: "shuffle-outline", label: "食譜庫隨機抽" },
-  { id: "ai", icon: "sparkles-outline", label: "AI 生成食譜" },
-  { id: "fridge", icon: "camera-outline", label: "拍雪櫃幫我諗" },
-  { id: "daily", icon: "restaurant-outline", label: "幫我諗3餸1湯" },
-  { id: "quick", icon: "time-outline", label: "30分鐘快手" },
-  { id: "healthy", icon: "heart-outline", label: "清淡健康" },
-  { id: "ricecooker", icon: "hardware-chip-outline", label: "電飯煲懶人" },
-  { id: "kids", icon: "happy-outline", label: "小朋友啱食" },
-  { id: "guest", icon: "wine-outline", label: "宴客/有朋友" },
-  { id: "pantry", icon: "basket-outline", label: "用雪櫃食材" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "今晚食咩好？😋", subtitle: "等我幫你安排你嘅排餐啦！", group: "hero", tint: "#FF7A3D", color: "#FFFFFF" },
+  { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#DCE9FF", color: "#1D4ED8" },
+  { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
+  { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#F1E0FF", color: "#7C3AED" },
+  { id: "pantry", icon: "basket-outline", emoji: "🧺", label: "用雪櫃食材", group: "tools", tint: "#DCFCE7", color: "#16A34A" },
+  { id: "quick", icon: "time-outline", emoji: "⏱️", label: "30分鐘快手", subtitle: "收工即煮，快手搞定", image: require("../assets/recipes/scene-quick.png"), group: "scenario", tint: "#FFFFFF", color: "#013E77" },
+  { id: "healthy", icon: "heart-outline", emoji: "🥦", label: "清淡健康", subtitle: "少油少鹽，食得輕盈", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#013E77" },
+  { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲懶人", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#013E77" },
+  { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#013E77" },
+  { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客/有朋友", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#013E77" },
 ];
 
 const HOT_KEY_CONFIG: Record<string, {
@@ -597,6 +600,38 @@ function renderMarkdown(text: string, styles: any): React.ReactNode[] {
   return elements;
 }
 
+// ─── Pressable with press-scale + haptics micro-interaction ───
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+function PressScale({ children, onPress, disabled, testID, style }: {
+  children: React.ReactNode;
+  onPress: () => void;
+  disabled?: boolean;
+  testID?: string;
+  style?: any;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  return (
+    <AnimatedPressable
+      testID={testID}
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => {
+        if (Platform.OS !== "web") {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+        Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+      }}
+      onPressOut={() => {
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+      }}
+      style={[style, { transform: [{ scale }] }]}
+    >
+      {children}
+    </AnimatedPressable>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────
 
 export default function AIChefScreen() {
@@ -604,7 +639,6 @@ export default function AIChefScreen() {
   const insets = useSafeAreaInsets();
   const { user, activeFamily } = useAuth();
   const activeFamilyId = activeFamily?.id;
-  const kitchenName = activeFamily?.name ?? "Kindcipe";
   const userName = user?.name ?? "";
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -1995,7 +2029,7 @@ export default function AIChefScreen() {
       scrollToEnd();
     } else {
       setAskingIngredients(true);
-      addBotMessage("我見你雪櫃暫時未有同步到食材。\n\n你而家有咩食材？可以告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。");
+      addBotMessage("你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。");
     }
   };
 
@@ -2697,21 +2731,95 @@ export default function AIChefScreen() {
 
   // ─── Render: Empty state ───────────────────────────────
 
-  const renderEmpty = () => (
+  const renderEmpty = () => {
+    const hero = QUICK_ACTIONS.find((a) => a.group === "hero");
+    const tools = QUICK_ACTIONS.filter((a) => a.group === "tools");
+    const scenarios = QUICK_ACTIONS.filter((a) => a.group === "scenario");
+    return (
       <View style={s.empty}>
-        <View style={s.emptyIcon}><Ionicons name="sparkles" size={48} color={BRAND} /></View>
-        <Text style={s.emptyTitle}>{userName ? `${userName}，今晚食咩好？` : "今晚食咩好？"}</Text>
-        <Text style={s.emptySub}>{userName ? `${kitchenName}的 AI 助手` : "AI 幫你決定今晚煮什麼"}</Text>
-        <View style={s.quickGrid}>
-          {QUICK_ACTIONS.map((a) => (
-          <TouchableOpacity key={a.id} testID={`ai-chef-quick-${a.id}`} style={s.quickBtn} onPress={() => handleQuickAction(a.id)} disabled={chatMutation.isPending}>
-            <Ionicons name={a.icon as any} size={20} color={BRAND} />
-            <Text style={s.quickBtnTxt}>{a.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <View style={s.emptyContent}>
+        {/* Greeting */}
+        <View style={s.greetingRow}>
+          <Text style={s.greetingEmoji}>🍳</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.greetingName}>{userName ? `${userName}，你好` : "你好"}</Text>
+            <Text style={s.greetingTagline}>等我幫你安排你嘅排餐啦！</Text>
+          </View>
+        </View>
+
+        {/* Hero card */}
+        {hero && (
+          <PressScale
+            testID={`ai-chef-quick-${hero.id}`}
+            onPress={() => handleQuickAction(hero.id)}
+            disabled={chatMutation.isPending}
+            style={s.heroCard}
+          >
+            <ImageBackground
+              source={require("../assets/herocard-v2.jpeg")}
+              style={s.heroCardBody}
+              imageStyle={s.heroCardImg}
+              resizeMode="cover"
+            >
+              <View style={s.heroCardScrim} />
+              <View style={s.heroCardContent}>
+                <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
+                <Text style={s.heroCardSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.subtitle}</Text>
+                <View style={s.heroCardCta}>
+                  <Text style={s.heroCardCtaTxt}>即刻幫我諗</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+                </View>
+              </View>
+            </ImageBackground>
+          </PressScale>
+        )}
+
+        {/* Tools 2x2 */}
+        <View style={s.toolGrid}>
+          {tools.map((a) => (
+            <PressScale
+              key={a.id}
+              testID={`ai-chef-quick-${a.id}`}
+              onPress={() => handleQuickAction(a.id)}
+              disabled={chatMutation.isPending}
+              style={s.toolBtn}
+            >
+              <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
+                <Ionicons name={a.icon as any} size={22} color={a.color} />
+              </View>
+              <Text style={s.toolBtnTxt}>{a.label}</Text>
+            </PressScale>
+          ))}
+        </View>
+
+        {/* Scenario cards — horizontal scroll */}
+        <Text style={s.scenarioLabel}>或者按場景揀</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenarioRow}>
+          {scenarios.map((a) => (
+            <PressScale
+              key={a.id}
+              testID={`ai-chef-quick-${a.id}`}
+              onPress={() => handleQuickAction(a.id)}
+              disabled={chatMutation.isPending}
+              style={s.scenarioCard}
+            >
+              <ImageBackground source={a.image} style={s.scenarioCardBg} resizeMode="cover" imageStyle={s.scenarioCardImg}>
+                <View style={s.scenarioCardScrim} />
+                <View style={s.scenarioCardContent}>
+                  <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
+                  <Text style={s.scenarioCardTitle} numberOfLines={1}>{a.label}</Text>
+                  <Text style={s.scenarioCardSub} numberOfLines={1}>{a.subtitle}</Text>
+                </View>
+              </ImageBackground>
+            </PressScale>
+          ))}
+        </ScrollView>
+        </View>
+
+        <AdSlot onPressUpgrade={() => setShowPlan(true)} />
       </View>
-    </View>
-  );
+    );
+  };
 
   // ─── Render: Meal flow hot keys ────────────────────────
 
@@ -2893,7 +3001,7 @@ export default function AIChefScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
-        <View style={[s.root, { paddingTop: insets.top }]}> 
+        <View style={s.root}> 
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -2976,6 +3084,15 @@ export default function AIChefScreen() {
                             <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : "食譜庫"}</Text>
                           </View>
                         </View>
+                        {(() => {
+                          const imgUrl = resolveImageUrl(getRecipeImage(r));
+                          const localImg = getRecipeLocalImage(r.name);
+                          return imgUrl ? (
+                            <Image source={{ uri: imgUrl }} style={s.recCardImg} resizeMode="cover" />
+                          ) : localImg ? (
+                            <Image source={localImg} style={s.recCardImg} resizeMode="cover" />
+                          ) : null;
+                        })()}
                         <View style={s.recCardBody} testID={`recipe-card-content-${i}`}>
                           <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>{r.name}</Text>
                           <View style={s.recCardMeta}>
@@ -3054,9 +3171,8 @@ export default function AIChefScreen() {
                               {favoritingName === (r.name || "").trim() ? (
                                 <ActivityIndicator size="small" color={BRAND} />
                               ) : (
-                                <Ionicons name="bookmark-outline" size={14} color={BRAND} />
+                                <Ionicons name="heart-outline" size={18} color={BRAND} />
                               )}
-                              <Text style={s.btnFavoriteTxt}>收藏</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               testID={`ai-chef-recipe-${i}-swap`}
@@ -3099,64 +3215,45 @@ export default function AIChefScreen() {
           )}
         />
 
-        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (
-          <View style={s.followUpBar}>
-            <Text style={s.followUpLabel}>下一步：</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
-              {aiNextSteps.length > 0 ? (
-                <>
-                  {aiNextSteps.filter(c => c.trim() !== "加入排餐").map((chip, i) => (
-                    <TouchableOpacity key={i} style={s.followUpChip} onPress={() => handleNextStep(chip)} disabled={chatMutation.isPending}>
-                      <Text style={s.followUpTxt}>{chip}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {(() => {
-                    const lastBot = messages[messages.length - 1];
-                    const lastText = lastBot ? contentToText(lastBot.content) : "";
-                    const hasRecipe = hasRecipeContent(lastText);
-                    return (
-                      <TouchableOpacity
-                        style={[s.followUpChip, s.followUpChipAction]}
-                        onPress={handleConvertToRecipeCard}
-                        disabled={chatMutation.isPending}
-                      >
-                        <Text style={[s.followUpTxt, { color: "#fff" }]}>
-                          {hasRecipe ? "加入排餐" : "轉換為食譜卡"}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })()}
-                </>
-              ) : (
-                <>
-                  {[
-                    { label: "🎲 隨便幫我諗", prompt: "隨便幫我諗，乜嘢都得" },
-                    { label: "再詳細啲", prompt: "可以再詳細啲嗎？" },
-                    { label: "畀我完整食譜", prompt: "請提供完整食譜，包括食材清單同烹飪步驟" },
-                    { label: "換一批建議", prompt: "可以換另一組建議嗎？" },
-                  ].map((chip, i) => (
-                    <TouchableOpacity key={i} style={s.followUpChip} onPress={() => handlePrompt(chip.prompt)} disabled={chatMutation.isPending}>
-                      <Text style={s.followUpTxt}>{chip.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {(() => {
-                    const lastBot = messages[messages.length - 1];
-                    const lastText = lastBot ? contentToText(lastBot.content) : "";
-                    const hasRecipe = hasRecipeContent(lastText);
-                    return (
-                      <TouchableOpacity
-                        style={[s.followUpChip, s.followUpChipAction]}
-                        onPress={handleConvertToRecipeCard}
-                        disabled={chatMutation.isPending}
-                      >
-                        <Text style={[s.followUpTxt, { color: "#fff" }]}>
-                          {hasRecipe ? "加入排餐" : "轉換為食譜卡"}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })()}
-                </>
-              )}
+        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (() => {
+          const lastBot = messages[messages.length - 1];
+          const lastText = lastBot ? contentToText(lastBot.content) : "";
+          const hasRecipe = hasRecipeContent(lastText);
+          const chips = aiNextSteps.filter(c => c.trim() !== "加入排餐");
+          if (!hasRecipe && chips.length === 0) return null;
+          return (
+            <View style={s.followUpBar}>
+              <Text style={s.followUpLabel}>下一步：</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
+                {chips.map((chip, i) => (
+                  <TouchableOpacity key={i} style={s.followUpChip} onPress={() => handleNextStep(chip)} disabled={chatMutation.isPending}>
+                    <Text style={s.followUpTxt}>{chip}</Text>
+                  </TouchableOpacity>
+                ))}
+                {hasRecipe && (
+                  <TouchableOpacity
+                    style={[s.followUpChip, s.followUpChipAction]}
+                    onPress={handleConvertToRecipeCard}
+                    disabled={chatMutation.isPending}
+                  >
+                    <Text style={[s.followUpTxt, { color: "#fff" }]}>下一步 ➔</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+          );
+        })()}
+
+        {askingIngredients && (
+          <View style={s.hotKeyBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
+              {COMMON_INGREDIENT_CHIPS.map((ing, i) => (
+                <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => {
+                  setInput(prev => prev ? `${prev}、${ing}` : ing);
+                }} disabled={chatMutation.isPending}>
+                  <Text style={s.hotKeyChipTxt}>{ing}</Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
         )}
@@ -3176,24 +3273,11 @@ export default function AIChefScreen() {
 
         {renderMealHotKeys()}
 
-        {askingIngredients && (
-          <View style={s.hotKeyBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
-              {COMMON_INGREDIENT_CHIPS.map((ing, i) => (
-                <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => {
-                  setInput(prev => prev ? `${prev}、${ing}` : ing);
-                }} disabled={chatMutation.isPending}>
-                  <Text style={s.hotKeyChipTxt}>{ing}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
       </View>
 
       {chatStarted || messages.length > 0 || isMealAnswering || askingIngredients ? (
         <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
+          <AdSlot onPressUpgrade={() => setShowPlan(true)} />
           <View style={s.inputBar}>
             <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
               <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
@@ -3373,7 +3457,7 @@ export default function AIChefScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  emptyList: { flexGrow: 1, padding: 20, paddingTop: 24 },
+  emptyList: { flexGrow: 1, padding: 20, paddingTop: 12 },
   list: { padding: 14 },
   msgRow: { flexDirection: "row", marginBottom: 12, gap: 8, alignItems: "flex-end" },
   avatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" },
@@ -3385,13 +3469,35 @@ const s = StyleSheet.create({
   bubbleTxt: { fontSize: 14, color: TEXT, lineHeight: 21 },
   typing: { paddingHorizontal: 18, paddingVertical: 14 },
   msgImage: { width: 180, height: 180, borderRadius: 10, marginBottom: 6 },
-  empty: { alignItems: "center", paddingHorizontal: 16 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: "900", color: TEXT, marginBottom: 6 },
-  emptySub: { fontSize: 14, color: SUB, marginBottom: 24 },
-  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
-  quickBtn: { width: "47%", backgroundColor: CARD, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1, borderColor: BORDER, flexDirection: "row", alignItems: "center", gap: 8 },
-  quickBtnTxt: { fontSize: 13, color: TEXT, fontWeight: "700" },
+  empty: { flex: 1, paddingHorizontal: 16, justifyContent: "space-between" },
+  emptyContent: { alignSelf: "stretch" },
+  greetingRow: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "stretch", marginBottom: 20 },
+  greetingEmoji: { fontSize: 32 },
+  greetingName: { fontSize: 18, fontWeight: "900", color: TEXT },
+  greetingTagline: { fontSize: 13, color: SUB, marginTop: 2 },
+  heroCard: { alignSelf: "stretch", height: 135, backgroundColor: "#F5EDE0", borderRadius: 22, overflow: "hidden", shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
+  heroCardBody: { flex: 1, width: "100%", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16 },
+  heroCardImg: { borderRadius: 22, transform: [{ translateX: 60 }] },
+  heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0, width: "66%", backgroundColor: "rgba(255,248,240,0.62)" },
+  heroCardContent: { zIndex: 2, gap: 2, maxWidth: "58%" },
+  heroCardTitle: { fontSize: 22, fontWeight: "900", color: "#2C1A0E" },
+  heroCardSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },
+  heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FF7A3D", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
+  heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: "#FFFFFF" },
+  toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
+  toolBtn: { width: "48%", flexGrow: 1, backgroundColor: CARD, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  toolIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  toolBtnTxt: { fontSize: 14, fontWeight: "800", color: TEXT, flex: 1 },
+  scenarioLabel: { fontSize: 12, color: SUB, fontWeight: "700", alignSelf: "flex-start", marginTop: 26, marginBottom: 10 },
+  scenarioRow: { alignSelf: "stretch", flexDirection: "row", gap: 12, paddingRight: 4 },
+  scenarioCard: { width: 176, height: 128, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#E0EAF4", backgroundColor: "#FAF8F5" },
+  scenarioCardBg: { flex: 1, justifyContent: "flex-end", width: "100%", height: "100%" },
+  scenarioCardImg: { borderRadius: 16 },
+  scenarioCardScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.30)" },
+  scenarioCardContent: { paddingHorizontal: 12, paddingBottom: 12, zIndex: 2 },
+  scenarioCardEmoji: { fontSize: 20, marginBottom: 4 },
+  scenarioCardTitle: { fontSize: 14, fontWeight: "800", color: "#FFFFFF" },
+  scenarioCardSub: { fontSize: 11, color: "rgba(255,255,255,0.85)", marginTop: 2 },
   hotKeyBar: { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingVertical: 10 },
   hotKeyScroll: { paddingHorizontal: 12, gap: 8 },
   hotKeyChip: { backgroundColor: "#EEF4FB", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER },
@@ -3418,6 +3524,7 @@ const s = StyleSheet.create({
   recScroll: { gap: 10 },
   recCard: { width: 170, minHeight: 160, backgroundColor: CARD, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, overflow: "hidden" },
   recCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingTop: 8, paddingBottom: 4 },
+  recCardImg: { width: "100%", height: 96, backgroundColor: BORDER },
   recCardDiff: { fontSize: 10, fontWeight: "700", color: BRAND },
   recCardSourceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   recCardSourceLibrary: { backgroundColor: "#E0F2FE" },
@@ -3440,8 +3547,7 @@ const s = StyleSheet.create({
   recCardIngMore: { fontSize: 10, color: SUB, marginTop: 2, fontWeight: "600" },
   btnMeal: { flex: 1, backgroundColor: BRAND, paddingVertical: 7, borderRadius: 8, alignItems: "center" },
   btnMealTxt: { fontSize: 11, fontWeight: "700", color: "#fff" },
-  btnFavorite: { flex: 1, backgroundColor: CARD, borderWidth: 1.5, borderColor: BRAND, paddingVertical: 6, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
-  btnFavoriteTxt: { fontSize: 11, fontWeight: "700", color: BRAND },
+  btnFavorite: { flex: 1, backgroundColor: CARD, borderWidth: 1.5, borderColor: BRAND, paddingVertical: 6, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   btnSwap: { flex: 1, backgroundColor: "#EEF4FB", paddingVertical: 7, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   btnSwapTxt: { fontSize: 11, fontWeight: "700", color: BRAND },
   headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },

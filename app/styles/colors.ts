@@ -6,6 +6,15 @@ export const colors = {
     darkGray: '#333D4B',
   },
 
+  brand: {
+    headerNavy: '#0D2040',
+    navy: '#013E77',
+    warmOrange: '#FF7A3D',
+    cream: '#FAF8F5',
+    heroText: '#FFFFFF',
+    heroSub: 'rgba(255,255,255,0.92)',
+  },
+
   neutral: {
     white: '#FFFFFF',
     lightGray: '#F5F5F5',

@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, FlatList,
   TextInput, Modal, ScrollView, ActivityIndicator, Platform,
-  KeyboardAvoidingView, Dimensions, RefreshControl,
+  KeyboardAvoidingView, RefreshControl, useWindowDimensions,
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -207,7 +207,7 @@ function SwipeDeleteWrapper({ onDelete, disabled, children }: SwipeDeleteWrapper
 export default function ShoppingTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { height: screenHeight } = Dimensions.get("window");
+  const { height: screenHeight } = useWindowDimensions();
   const modalMaxHeight = screenHeight * 0.65;
 
   const dateCardsScrollRef = useRef<ScrollView>(null);

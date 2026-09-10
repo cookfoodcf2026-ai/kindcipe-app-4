@@ -2,6 +2,8 @@ import { Tabs } from "expo-router";
 import { RecipeIcon, PlannerIcon, ShoppingIcon, GridIcon } from "@/src/components/icons";
 import { usePendingCounts } from "@/hooks/usePendingCounts";
 
+const badgeLabel = (n: number) => (n > 99 ? "99+" : n > 0 ? String(n) : undefined);
+
 export default function TabLayout() {
   const { plannerBadge, shoppingBadge } = usePendingCounts();
 
@@ -33,7 +35,7 @@ export default function TabLayout() {
         name="planner"
         options={{
           title: "排餐",
-          tabBarBadge: plannerBadge > 0 ? plannerBadge : undefined,
+          tabBarBadge: badgeLabel(plannerBadge),
           tabBarBadgeStyle: plannerBadge > 0 ? { backgroundColor: "#EF4444", color: "#fff", fontSize: 10, fontWeight: "700" } : undefined,
           tabBarIcon: ({ color }) => (
             <PlannerIcon size={22} color={color} />
@@ -44,7 +46,7 @@ export default function TabLayout() {
         name="shopping"
         options={{
           title: "購物",
-          tabBarBadge: shoppingBadge > 0 ? shoppingBadge : undefined,
+          tabBarBadge: badgeLabel(shoppingBadge),
           tabBarBadgeStyle: shoppingBadge > 0 ? { backgroundColor: "#013E77", color: "#fff", fontSize: 10, fontWeight: "700" } : undefined,
           tabBarIcon: ({ color }) => (
             <ShoppingIcon size={22} color={color} />

@@ -2,7 +2,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   FlatList, Dimensions, ScrollView, ActivityIndicator,
   Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
-  useWindowDimensions, Animated,
+  useWindowDimensions, Animated, ImageBackground,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -157,7 +157,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
           ))}
           {moreCount > 0 && (
             <TouchableOpacity style={s.dualCardMoreRow} onPress={() => router.push("/(tabs)/planner" as any)}>
-              <Text style={s.dualCardMoreText}>更多 {moreCount} 項 ›</Text>
+              <Text style={s.dualCardMoreText}>查看全部 ›</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -250,7 +250,7 @@ function ShoppingListPreview({ router }: {
           ))}
           {moreCount > 0 && (
             <View style={s.dualCardMoreRow}>
-              <Text style={s.dualCardMoreText}>更多 {moreCount} 項</Text>
+              <Text style={s.dualCardMoreText}>查看全部 ›</Text>
             </View>
           )}
         </View>
@@ -259,6 +259,34 @@ function ShoppingListPreview({ router }: {
           <Text style={s.dualCardEmptyTxt}>購物清單是空的</Text>
         </View>
       )}
+    </TouchableOpacity>
+  );
+}
+
+// ── Tonight Hero Card (primary entry → AI Chef) ───────────────────────
+function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
+  return (
+    <TouchableOpacity
+      style={s.tonightHeroWrap}
+      activeOpacity={0.85}
+      onPress={() => router.push("/ai-chef" as any)}
+    >
+      <ImageBackground
+        source={require("../../assets/herocard-v2.jpeg")}
+        style={s.tonightHero}
+        imageStyle={s.tonightHeroImg}
+        resizeMode="cover"
+      >
+        <View style={s.tonightHeroScrim} />
+        <View style={s.tonightHeroText}>
+          <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
+          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦！</Text>
+          <View style={s.tonightHeroCta}>
+            <Text style={s.tonightHeroCtaTxt}>即刻幫我諗</Text>
+            <Ionicons name="arrow-forward" size={14} color="#fff" />
+          </View>
+        </View>
+      </ImageBackground>
     </TouchableOpacity>
   );
 }
@@ -368,7 +396,7 @@ function PremiumUpgradeButton({ onPress, style }: { onPress: () => void; style?:
         onPress={onPress}
         activeOpacity={0.85}
       >
-        <Text style={s.upgradeBarText}>升級至 Pro 版（免費試用 7 天）{`\n`}與家人連繫，連結 AI</Text>
+        <Text style={s.upgradeBarText}>👑 Pro</Text>
       </TouchableOpacity>
     </View>
   );
@@ -742,6 +770,11 @@ export default function RecipesTab() {
 
   const ListHeader = (
     <View style={s.listHeaderOuter}>
+      {/* Tonight Hero: primary entry → AI Chef */}
+      <View style={{ marginHorizontal: 14, marginBottom: 10 }}>
+        <TonightHeroCard router={router} />
+      </View>
+
       {/* Dual-card layout: Tonight's Menu + Shopping List Preview */}
       <View style={s.dualCardContainer}>
         <TonightMenuCardCompact todayMeals={todayMeals} todayEatOut={todayEatOut} router={router} />
@@ -1285,7 +1318,7 @@ const s = StyleSheet.create({
     gap: 8,
     marginLeft: "auto",
   },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
+  headerTitle: { fontSize: 15, fontWeight: "700", color: "rgba(255,255,255,0.85)", letterSpacing: 0.5 },
   headerSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
   headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
 
@@ -1318,6 +1351,46 @@ const s = StyleSheet.create({
     marginBottom: 8,
     gap: 8,
   },
+  tonightHeroWrap: {
+    shadowColor: "#8A4B2A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  tonightHero: {
+    height: 135,
+    backgroundColor: "#F5EDE0",
+    borderRadius: 18,
+    overflow: "hidden",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  tonightHeroImg: { borderRadius: 18, transform: [{ translateX: 60 }] },
+  tonightHeroText: { zIndex: 2, gap: 2, maxWidth: "58%" },
+  tonightHeroScrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: "66%",
+    backgroundColor: "rgba(255,248,240,0.62)",
+  },
+  tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E" },
+  tonightHeroSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },
+  tonightHeroCta: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FF7A3D",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    marginTop: 10,
+  },
+  tonightHeroCtaTxt: { fontSize: 14, fontWeight: "800", color: "#fff" },
   dualCardWrapper: {
     flex: 1,
     backgroundColor: "#fff",
@@ -1448,24 +1521,18 @@ const s = StyleSheet.create({
   upgradeBarBtn: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 9,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#EAB308",
-    backgroundColor: "#FFF0B8",
-    shadowColor: "#B45309",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    elevation: 2,
+    borderColor: "rgba(255,255,255,0.28)",
+    backgroundColor: "rgba(255,255,255,0.14)",
   },
   upgradeBarText: {
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 13,
     textAlign: "center",
     fontWeight: "800",
-    color: "#92400E",
+    color: "#FDE68A",
     letterSpacing: 0.1,
   },
 
