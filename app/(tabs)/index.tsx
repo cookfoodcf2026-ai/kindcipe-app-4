@@ -288,9 +288,9 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
           transition={0}
         />
         <View style={s.tonightHeroScrim} pointerEvents="none">
-          <View style={[s.tonightHeroScrimLayer, { width: "100%", opacity: 0.18 }]} />
-          <View style={[s.tonightHeroScrimLayer, { width: "66%", opacity: 0.26 }]} />
-          <View style={[s.tonightHeroScrimLayer, { width: "40%", opacity: 0.34 }]} />
+          <View style={[s.tonightHeroScrimLayer, { width: "100%", opacity: 0.22 }]} />
+          <View style={[s.tonightHeroScrimLayer, { width: "62%", opacity: 0.45 }]} />
+          <View style={[s.tonightHeroScrimLayer, { width: "40%", opacity: 0.50 }]} />
         </View>
         <View style={s.tonightHeroText}>
           <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
@@ -1394,8 +1394,8 @@ const s = StyleSheet.create({
     bottom: 0,
     backgroundColor: "#FFF8F0",
   },
-  tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E" },
-  tonightHeroSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },
+  tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  tonightHeroSubtitle: { fontSize: 13, color: "#3A2B1E", marginTop: 2, fontWeight: "600", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   tonightHeroCta: {
     alignSelf: "flex-start",
     flexDirection: "row",
