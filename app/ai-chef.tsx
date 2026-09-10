@@ -3490,7 +3490,7 @@ const s = StyleSheet.create({
   greetingName: { fontSize: 18, fontWeight: "900", color: TEXT },
   greetingTagline: { fontSize: 13, color: SUB, marginTop: 2 },
   heroCard: { alignSelf: "stretch", height: 135, backgroundColor: "#F5EDE0", borderRadius: 22, overflow: "hidden", shadowColor: "#8A4B2A", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6 },
-  heroCardBody: { flex: 1, width: "100%", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16 },
+  heroCardBody: { height: "100%", width: "100%", justifyContent: "center", paddingHorizontal: 20, paddingVertical: 16 },
   heroCardImg: { borderRadius: 22 },
   heroCardScrim: { position: "absolute", top: 0, left: 0, bottom: 0 },
   heroCardScrimLayer: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FFF8F0" },
