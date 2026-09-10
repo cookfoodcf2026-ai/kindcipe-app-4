@@ -1946,7 +1946,7 @@ export default function AIChefScreen() {
         setRecommendedRecipes(recipesToShow);
         recordSeenRecipes(recipesToShow);
         addUserMessage(`3 餸 1 湯（${prefs.people}人）`);
-        addBotMessage(`我喺食譜庫搵到呢套 3 餸 1 湯：`);
+        addBotMessage(res?.content || `我喺食譜庫搵到呢套 3 餸 1 湯：`);
         setLibraryLoading(false);
         return;
       }
