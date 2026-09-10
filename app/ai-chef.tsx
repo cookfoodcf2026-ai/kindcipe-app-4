@@ -2774,7 +2774,6 @@ export default function AIChefScreen() {
             </View>
             <View style={s.heroCardContent}>
               <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
-              <Text style={s.heroCardSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.subtitle}</Text>
               <View style={s.heroCardCta}>
                 <Text style={s.heroCardCtaTxt}>即刻幫我諗</Text>
                 <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />

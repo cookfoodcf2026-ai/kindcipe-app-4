@@ -294,7 +294,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
         </View>
         <View style={s.tonightHeroText}>
           <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
-          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦！</Text>
+          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦</Text>
           <View style={s.tonightHeroCta}>
             <Text style={s.tonightHeroCtaTxt}>即刻幫我諗</Text>
             <Ionicons name="arrow-forward" size={14} color="#fff" />
