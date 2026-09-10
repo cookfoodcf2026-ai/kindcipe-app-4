@@ -2769,9 +2769,9 @@ export default function AIChefScreen() {
               transition={0}
             />
             <View style={s.heroCardScrim} pointerEvents="none">
-              <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.22 }]} />
-              <View style={[s.heroCardScrimLayer, { width: "62%", opacity: 0.45 }]} />
-              <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.50 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.25 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "66%", opacity: 0.52 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.55 }]} />
             </View>
             <View style={s.heroCardContent}>
               <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
@@ -3501,7 +3501,7 @@ const s = StyleSheet.create({
   heroCardScrimLayer: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FFF8F0" },
   heroCardContent: { zIndex: 2, gap: 2, maxWidth: "58%" },
   heroCardTitle: { fontSize: 22, fontWeight: "900", color: "#2C1A0E", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-  heroCardSubtitle: { fontSize: 13, color: "#3A2B1E", marginTop: 2, fontWeight: "600", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  heroCardSubtitle: { fontSize: 13, color: "#241609", marginTop: 2, fontWeight: "700", textShadowColor: "rgba(90,60,20,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#FF7A3D", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
   heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: "#FFFFFF" },
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
