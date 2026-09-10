@@ -1695,16 +1695,9 @@ export default function AIChefScreen() {
           startMealFlow();
           router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
         }
-      } else if (autoStartedRef.current) {
-        // 冇 daily 意圖 + 唔喺答緊問卷 → reset 返 homepage；答緊就保留進度
-        const answering = mealStep === "people" || mealStep === "audience" || mealStep === "time" || mealStep === "dislike" || mealStep === "generating";
-        if (!answering) {
-          autoStartedRef.current = false;
-          handleNewChat();
-        }
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [heroAction, mealStep])
+    }, [heroAction])
   );
 
   const askMealQuestion = (step: MealPlanStep) => {
