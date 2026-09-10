@@ -1681,18 +1681,26 @@ export default function AIChefScreen() {
     addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
 
-  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 每次 focus 都檢查，自動開始 3 餸 1 湯問卷。
-  // 用 useFocusEffect（fresh 或 reuse 都可靠），normalize param（expo-router 或會回傳 array）。
+  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（只一次）。
+  // 消費後即刻用 setParams 清走 action，避免 param persist 令「之後所有 entry 都當 daily」。
   const heroParams = useLocalSearchParams<{ action?: string }>();
   const heroAction = Array.isArray(heroParams.action) ? heroParams.action[0] : heroParams.action;
+  const autoStartedRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (heroAction === "daily") {
-        // 答緊問卷就保留（唔重頭嚟）；否則 reset + 開始新一輪
-        const answering = mealStep === "people" || mealStep === "audience" || mealStep === "time" || mealStep === "dislike" || mealStep === "generating";
-        if (!answering) {
+        if (!autoStartedRef.current) {
+          autoStartedRef.current = true;
           isSoupModeRef.current = true;
           startMealFlow();
+          router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
+        }
+      } else if (autoStartedRef.current) {
+        // 冇 daily 意圖 + 唔喺答緊問卷 → reset 返 homepage；答緊就保留進度
+        const answering = mealStep === "people" || mealStep === "audience" || mealStep === "time" || mealStep === "dislike" || mealStep === "generating";
+        if (!answering) {
+          autoStartedRef.current = false;
+          handleNewChat();
         }
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
