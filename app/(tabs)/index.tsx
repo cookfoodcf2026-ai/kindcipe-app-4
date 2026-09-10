@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
@@ -166,6 +165,9 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
         // No dinner arranged in 14 days
         <View style={s.dualCardEmpty}>
           <Text style={s.dualCardEmptyTxt}>還沒有安排晚餐</Text>
+          <TouchableOpacity style={s.dualCardEmptyBtn} onPress={() => router.push("/(tabs)/planner" as any)} activeOpacity={0.8}>
+            <Text style={s.dualCardEmptyBtnTxt}>去排餐 ›</Text>
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
@@ -258,6 +260,9 @@ function ShoppingListPreview({ router }: {
       ) : (
         <View style={s.dualCardEmpty}>
           <Text style={s.dualCardEmptyTxt}>購物清單是空的</Text>
+          <TouchableOpacity style={s.dualCardEmptyBtn} onPress={() => router.push("/(tabs)/shopping" as any)} activeOpacity={0.8}>
+            <Text style={s.dualCardEmptyBtnTxt}>去加食材 ›</Text>
+          </TouchableOpacity>
         </View>
       )}
     </TouchableOpacity>
@@ -278,12 +283,11 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
         imageStyle={s.tonightHeroImg}
         resizeMode="cover"
       >
-        <LinearGradient
-          colors={["rgba(255,248,240,0.85)", "rgba(255,248,240,0.4)", "rgba(255,248,240,0)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={s.tonightHeroScrim}
-        />
+        <View style={s.tonightHeroScrim} pointerEvents="none">
+          <View style={[s.tonightHeroScrimLayer, { width: "100%", opacity: 0.18 }]} />
+          <View style={[s.tonightHeroScrimLayer, { width: "66%", opacity: 0.26 }]} />
+          <View style={[s.tonightHeroScrimLayer, { width: "40%", opacity: 0.34 }]} />
+        </View>
         <View style={s.tonightHeroText}>
           <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
           <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦！</Text>
@@ -1380,7 +1384,13 @@ const s = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    width: "66%",
+  },
+  tonightHeroScrimLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    backgroundColor: "#FFF8F0",
   },
   tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E" },
   tonightHeroSubtitle: { fontSize: 13, color: "#4A3A2C", marginTop: 2 },
@@ -1494,11 +1504,21 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
   },
   dualCardEmptyTxt: {
     fontSize: 13,
     color: "#9CA3AF",
   },
+  dualCardEmptyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: BRAND,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  dualCardEmptyBtnTxt: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
   // Pending actions card
   pendingCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E8E8E8", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },

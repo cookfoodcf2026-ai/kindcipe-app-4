@@ -37,7 +37,6 @@
     "expo-image-picker": "~17.0.11",
     "expo-in-app-purchases": "^14.5.0",
     "expo-keep-awake": "~15.0.8",
-    "expo-linear-gradient": "57.0.1",
     "expo-linking": "~8.0.12",
     "expo-local-authentication": "~17.0.8",
     "expo-localization": "~17.0.9",
