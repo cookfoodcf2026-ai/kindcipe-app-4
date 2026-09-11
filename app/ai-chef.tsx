@@ -1691,6 +1691,29 @@ export default function AIChefScreen() {
     addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
   };
 
+  // 由 Hero（homepage / ai-chef hero card）觸發：新開一個獨立 session 嚟做 3餸1湯，
+  // 唔會同現有對話撈埋（每次撳 = 乾淨、獨立嘅 3餸1湯）。
+  const startMealFlowInNewSession = () => {
+    const newId = generateId();
+    const newSession: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
+    setSessions(prev => [newSession, ...prev]);
+    setActiveChatId(newId);
+    setMealPrefs(EMPTY_PREFS);
+    setMealResult(null);
+    setRecommendedRecipes([]);
+    setSwappedRecipeNames(new Set());
+    setSessionSeenRecipeNames([]);
+    setMealStep("people");
+    // 直接 append 落新 session（避免 activeChatId 未 flush 而寫錯 session）
+    setSessions(prev => {
+      const idx = prev.findIndex(s => s.id === newId);
+      if (idx === -1) return prev;
+      const updated = { ...prev[idx], messages: [...prev[idx].messages, { role: "assistant" as const, content: "（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）" }] };
+      const next = [...prev]; next[idx] = updated; return next;
+    });
+    scrollToLatestMessage();
+  };
+
   // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（只一次）。
   // 消費後即刻用 setParams 清走 action，避免 param persist 令「之後所有 entry 都當 daily」。
   const heroParams = useLocalSearchParams<{ action?: string }>();
@@ -1702,7 +1725,7 @@ export default function AIChefScreen() {
         if (!autoStartedRef.current) {
           autoStartedRef.current = true;
           isSoupModeRef.current = true;
-          startMealFlow();
+          startMealFlowInNewSession();
           router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
         }
       }
@@ -2087,7 +2110,7 @@ export default function AIChefScreen() {
       case "daily":
         // 3餸1湯流程：一開始就標記為 soup mode，令「直接 AI 生成/食譜庫」都出 4 張卡
         isSoupModeRef.current = true;
-        startMealFlow();
+        startMealFlowInNewSession();
         break;
       case "fridge":
         handleCamera();
