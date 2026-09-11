@@ -1067,7 +1067,10 @@ export default function AIChefScreen() {
     },
     onError: (err: any) => {
       const rawMsg = err?.message || err?.data?.message || "";
-      const msg = rawMsg || "AI 暫時未能回應，請再試。";
+      const isTimeout = /abort|timeout|cancel/i.test(rawMsg);
+      const msg = isTimeout
+        ? "AI 回應超時，請再試一次。"
+        : (rawMsg || "AI 暫時未能回應，請再試。");
       updateMessages(prev => [...prev, { role: "assistant", content: `抱歉，${msg}` }]);
       setAiNextSteps([]);
       setRecommendedRecipes([]);

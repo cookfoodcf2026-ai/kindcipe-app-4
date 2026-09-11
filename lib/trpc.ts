@@ -51,7 +51,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
 }
 
 // ─── 請求逾時設定（毫秒）─────────────────────────────────
-const REQUEST_TIMEOUT_MS = 45_000;
+const REQUEST_TIMEOUT_MS = 90_000;
 
 // ─── Lightweight offline detection (no native module) ─────────
 // Deduplicated: reports offline once, clears on first success.
