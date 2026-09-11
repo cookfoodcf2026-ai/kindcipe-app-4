@@ -397,6 +397,16 @@ const TIME_OPTIONS = [
   { key: "leisure", label: "慢煮/想慢慢煮" },
 ];
 
+// 簡單 name-based dishType 推斷（後端用 LLM 分類 + 儲存 dishType，呢度係卡冇 dishType 時嘅兜底）
+const inferDishTypeFromName = (name: string): string => {
+  const n = String(name || "");
+  if (/湯$|湯水|煲湯|燉湯|老火湯|滾湯|湯羹|濃湯|清湯/.test(n)) return "soup";
+  if (/菜心|芥蘭|通菜|菠菜|生菜|白菜|椰菜|西蘭花|時蔬|素菜|青菜|蔬菜|南瓜|蘿蔔|薯仔|番茄|茄子|青椒|洋蔥|節瓜|勝瓜|苦瓜|西洋菜|瓜|菇|菌|芽|豆芽|豆角|青豆|毛豆|雲耳|木耳/.test(n)) return "vegetable";
+  if (/蒸魚|清蒸|炒蝦|蝦|蟹|鮑魚|魚|帶子|海參|花膠|龍蝦|石斑|魷魚|章魚|墨魚|三文魚|蜆|蠔|豆腐|豆卜|豆干|腐皮|蒸蛋|炒蛋|蛋/.test(n)) return "seafood";
+  if (/排骨|牛|雞|豬|肉|鴨|鵝|羊|腩|雞翼|雞腿|雞髀|肉丸|叉燒|燒肉|豬扒|牛扒|雞扒|豬手|豬腳/.test(n)) return "meat";
+  return "other";
+};
+
 // ─── Helpers ──────────────────────────────────────────────
 
 type ChatSession = {
@@ -746,17 +756,16 @@ export default function AIChefScreen() {
 
   // Build set of recipe names used in last 30 days + 食譜庫已有菜式 + AI 助手過往生成紀錄
   // （A: 已排餐/mealPlanHistory + userRecipes；B: 所有 AI session 歷史）
+  // 唔再將 userRecipes（用戶自己嘅庫）加入 exclude —— 否則 3餸1湯/食譜庫 永遠抽唔到用戶自己嘅自訂/匯入食譜。
+  // 只保留「已排餐 + 過往 AI 提議」做去重，用戶自己嘅庫係候選（會出返）。
   const usedRecipeNames = useMemo(() => {
     const names = new Set<string>();
     (mealPlanHistory || []).forEach((mp: any) => {
       if (mp.recipeName) names.add(String(mp.recipeName).trim());
     });
-    (userRecipes || []).forEach((r: any) => {
-      if (r?.name) names.add(String(r.name).trim());
-    });
     extractAiHistoryRecipeNames(sessions).forEach((n) => names.add(n));
     return [...names];
-  }, [mealPlanHistory, userRecipes, sessions]);
+  }, [mealPlanHistory, sessions]);
 
   const [askingIngredients, setAskingIngredients] = useState(false);
 
@@ -2182,8 +2191,12 @@ export default function AIChefScreen() {
     const sessionAvoidNames = [...usedRecipeNames, ...sessionSeenRecipeNames];
 
     const pickLibraryFallback = () => {
+      const cardDishType = (recipe as any).dishType || inferDishTypeFromName(recipe.name || "");
       const alternatives = [...(userRecipes ?? [])]
-        .filter((r: any) => r.recipeCategory === category && r.name !== recipe.name)
+        .filter((r: any) => {
+          const dt = (r as any)?.dishType || inferDishTypeFromName(String(r.name || ""));
+          return dt === cardDishType && r.name !== recipe.name;
+        })
         .map(normalizeRecipe)
         .filter((r): r is AIRecipe => !!r && isValidRecipe(r));
       return (
@@ -2208,11 +2221,17 @@ export default function AIChefScreen() {
     // 換嘅結果跟「張卡本身嘅來源」：AI 卡 → AI 換；食譜庫卡 → 食譜庫換（來源一致）
     const useAi = recipe.source === "ai";
     const swapFromLibrary = async (): Promise<AIRecipe | null> => {
-      const isSoupCard = !!(recipe as any).soupType || String(recipe.name || "").includes("湯");
-      const kw = isSoupCard ? "湯" : (category && category !== "其他" ? category : "家常菜");
+      // 換要換返「相關」：張卡嘅 dishType（湯→湯、肉→肉…）＋ 原請求 context（hotkey query / 用戶 keyword）
+      const cardDishType = (recipe as any).dishType || inferDishTypeFromName(recipe.name || "");
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      const lastUserText = typeof lastUser?.content === "string" ? lastUser.content : "";
+      const isMealPrompt = /3\s*餸\s*1\s*湯|提供 ?4 個|家常菜。提供/.test(lastUserText);
+      const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
+      const ctxQuery = (hotkeyCtx?.query || hotkeyCtx?.tags?.join(" ") || (isMealPrompt ? "" : lastUserText.trim())).slice(0, 40);
+      const kw = ctxQuery || (cardDishType && cardDishType !== "other" ? cardDishType : "家常菜");
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
-          messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}` }],
+          messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
           mode: "library",
           // 瘦身：7 日去重由後端 cache 負責；前端只排除「其他卡 + 現卡 + 已換過」（sessionAvoidNames 太肥會爆池錯誤 fallback AI）
           excludeNames: [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])],
@@ -2247,6 +2266,7 @@ export default function AIChefScreen() {
         const prompt = [
           `請只生成 1 個可直接煮嘅食譜，作為「${recipe.name}」嘅替代。`,
           `分類要同原本相近：${category}。`,
+          `呢道一定要係「${(recipe as any).dishType || inferDishTypeFromName(recipe.name || "")}」類別（soup=湯、meat=肉、seafood=海鮮、vegetable=菜、other=主食），唔可以變成其他類別。`,
           `食譜名稱唔可以同以下已顯示食譜重複：${otherNames.length > 0 ? otherNames.join("、") : "無"}。`,
           `食材欄每行只寫一種食材，唔好加入功效、備註、口味描述；每個食材都一定要有名字。`,
           `保持家庭日常可煮、步驟完整、繁體中文。`,
