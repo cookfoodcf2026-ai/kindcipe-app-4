@@ -1018,13 +1018,17 @@ export default function AIChefScreen() {
     });
   };
 
+  // 將推薦嘅食譜名 list 出嚟（「記菜名」）：令用戶喺 chat 文字見到推薦咗咩，可以碌返/打名搵返食譜
+  const recipeNameList = (recipes: AIRecipe[] | undefined | null): string => {
+    if (!recipes || recipes.length === 0) return "";
+    return "\n" + recipes.map((r, i) => `${i + 1}. ${(r.name || "").trim()}`).join("\n");
+  };
+
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => {
       console.log('[AI Chef] onSuccess data:', { content: data.content?.slice(0, 100), recipesCount: data.recipes?.length });
       const { mainText, nextSteps } = parseAssistantResponse(data.content ?? "");
-      updateMessages(prev => [...prev, { role: "assistant", content: mainText }]);
-      setAiNextSteps(nextSteps);
-      
+
       // Direct use of recipes from backend（卡片防線：normalize + isValidRecipe 過濾，保證卡一定撳得）
       let recipes = (data.recipes || []).map(normalizeRecipe).filter(isValidRecipe);
 
@@ -1039,6 +1043,10 @@ export default function AIChefScreen() {
 
       // 記低今次睇過嘅菜式名 → 之後排除重複
       recordSeenRecipes(recipes);
+
+      // 「記菜名」：將推薦咗嘅菜名一齊寫入 assistant message，令用戶碌返見到 / 打名搵返
+      updateMessages(prev => [...prev, { role: "assistant", content: mainText + recipeNameList(recipes) }]);
+      setAiNextSteps(nextSteps);
 
       console.log('[AI Chef] Setting recipes:', recipes.length, recipes?.[0]?.name);
       // 只有 meal flow 自己 onSuccess 處理緊嘅 call 先 skip（避免覆蓋佢補好嘅 4 卡）；
@@ -1923,7 +1931,7 @@ export default function AIChefScreen() {
           setChatStarted(true);
           recordSeenRecipes(picked);
           const label = config.search.query || config.search.tags?.join("、") || "呢類";
-          addBotMessage(`我喺食譜庫搵到呢個配合「${label}」嘅食譜：`);
+          addBotMessage(`我喺食譜庫搵到呢個配合「${label}」嘅食譜：` + recipeNameList(picked));
           setLibraryLoading(false);
           return;
         }
@@ -1979,7 +1987,7 @@ export default function AIChefScreen() {
         setRecommendedRecipes(recipesToShow);
         recordSeenRecipes(recipesToShow);
         addUserMessage(`3 餸 1 湯（${prefs.people}人）`);
-        addBotMessage(res?.content || `我喺食譜庫搵到呢套 3 餸 1 湯：`);
+        addBotMessage((res?.content || `我喺食譜庫搵到呢套 3 餸 1 湯：`) + recipeNameList(recipesToShow));
         setLibraryLoading(false);
         return;
       }
@@ -2007,6 +2015,7 @@ export default function AIChefScreen() {
           const safeRecipes = data.recipes.map(normalizeRecipe);
           setMealResult(safeRecipes.slice(0, 4));
           setRecommendedRecipes(safeRecipes.slice(0, 4));
+          updateMessages(prev => [...prev, { role: "assistant", content: "我幫你諗好咗今晚 3 餸 1 湯：" + recipeNameList(safeRecipes.slice(0, 4)) }]);
         }
       },
       onError: () => setMealStep("idle"),
@@ -3077,13 +3086,13 @@ export default function AIChefScreen() {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={() => (
             <>
-              {libraryLoading ? (
+              {libraryLoading || lastChatModeRef.current === "library" ? (
                 <View style={s.msgRow}>
                   <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>
                   <View style={[s.bubbleBot, s.typing]}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <ActivityIndicator size="small" color={BRAND} />
-                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>🔍 正在搵食譜庫...</Text>
+                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>🔍 正在食譜庫中搜尋...</Text>
                     </View>
                   </View>
                 </View>
@@ -3092,8 +3101,8 @@ export default function AIChefScreen() {
                    <View style={s.avatar}><Ionicons name="sparkles" size={16} color={BRAND} /></View>
                    <View style={[s.bubbleBot, s.typing]}>
                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                       <ActivityIndicator size="small" color={BRAND} />
-                       <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>AI 正在回應中...</Text>
+                        <ActivityIndicator size="small" color={BRAND} />
+                        <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>AI 助手正在生成食譜中...</Text>
                      </View>
                      <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>
                        {isSoupModeRef.current || mealStep === "generating"
