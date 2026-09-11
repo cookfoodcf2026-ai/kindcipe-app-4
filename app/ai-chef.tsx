@@ -3086,7 +3086,7 @@ export default function AIChefScreen() {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={() => (
             <>
-              {libraryLoading || lastChatModeRef.current === "library" ? (
+              {libraryLoading || (lastChatModeRef.current === "library" && chatMutation.isPending) ? (
                 <View style={s.msgRow}>
                   <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>
                   <View style={[s.bubbleBot, s.typing]}>
