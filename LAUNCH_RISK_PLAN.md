@@ -77,7 +77,7 @@
 | 項 | 內容 | 狀態 |
 |---|---|---|
 | P0-1 | AI 成本 quota | ✅ 已完成（對話 30/300、自訂 20、匯入 5/300；扣法已確認：llmUsed 先扣，每 request 1 次；weekly menu AI 已 hidden）|
-| P0-2 | library-first 穩定 4 卡 + 更快 | ✅ 已完成（library-first 出 4 卡；AI：maxRetries 1 + maxTokens 2200 → JSON 唔截斷少 retry；source 跟 button：AI→AI 卡、食譜庫→食譜庫卡；library loading footer 完成後自動消失；client timeout 45s→90s + 友善超時提示；Promise.allSettled 一個 slot 死唔拖冧成餐 + LLM 非 JSON 乾淨 error + 友善提示）|
+| P0-2 | library-first 穩定 4 卡 + 更快 | ✅ 已完成（library-first 出 4 卡；AI：maxRetries 1 + maxTokens 1800；meal 生成 2 候選/類型並行 + pickDiverseMeal 一輪揀 4 個多樣化 → 少行 backfill 快返；source 跟 button：AI→AI 卡、食譜庫→食譜庫卡；library loading footer 完成後自動消失；client timeout 45s→90s + 友善超時提示；Promise.allSettled 一個 slot 死唔拖冧成餐 + LLM 非 JSON 乾淨 error + 友善提示）|
 | P0-3 | 分類準確度 | 進展中（ingest LLM 已做 + backfill 218；fuzzy 去重 0.6 + 菜位嚴格真蔬菜）|
 | #4 | 內容填充 | ❌ 未做 |
 | #5 | 去重 UX | ❌ 未做 |
