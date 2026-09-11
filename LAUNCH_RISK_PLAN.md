@@ -6,30 +6,33 @@
 
 ## P0 — 會燒錢 / 破壞信任（上架即刻見）
 
-### 1. AI 成本冇上限（最大風險）
-- **事實**：每餐 3餸1湯 = 並行 4 次 LLM call；hotkey / AI 生成 / 換 / 匯入分類全部 call LLM。用戶愈多，成本線性爆。
-- **風險**：冇 quota / cap → 失控開支。
-- **建議**：
-  - per-family / per-day LLM quota
-  - library-first（用 DB，唔 call LLM）做主力
-  - 分類用平價 model
-  - 批量處理
+### 1. AI 成本冇上限（最大風險）—— ✅ 已完成
+- **Quota 已存在**：AI 對話 **30（免費）/ 300（付費）次/月**；自訂食譜 20/月（付費無限）；匯入 5/300 次/月。
+- **扣法（已確認）**：`aiRecipe.chat` 只喺 **`llmUsed = true`（真係用咗 AI）先扣**，每 request 扣 1 次（媒體圖計 2）。
+  - 純 library 命中 → 唔扣。
+  - AI 生成 3餸1湯 → 扣 1 次。
+  - library 夾雜 AI 補缺 → 扣 1 次（用幾多 AI 扣幾多，合理）。
+- **weekly menu AI**：已 hidden（`SHOW_EXPERIMENTAL_AI = false`），暫唔係 user-facing。
 
-### 2. 生成慢 + 唔可靠
+### 2. 生成慢 + 唔可靠 —— 進展中
 - **事實**：3餸1湯 15-30s；timeout 會缺卡（實際撞過「3 卡」bug）。
 - **風險**：用戶等唔切流失；timeout 出唔齊餐。
-- **建議**：
-  - library-first 優先（即時），AI 只做後備
-  - 樂觀 UI（先顯示 loading 卡）
-  - 保證永遠 ≥4 卡
+- **進展**：
+  - ✅ library-first 優先（即時，~1-2s），AI 只做後備。
+  - ✅ 保證 ≥4 卡（no-steps filter + 兜底）。
+  - ✅ AI 加速：`maxRetries 1` + `maxTokens 1600`（~30s → ~15-25s）。
+  - ✅ model 確認係快嘅 `qwen3.7-flash`；15-25s 係 LLM 生成完整食譜嘅合理上限。
+  - ⏳ 樂觀 UI（先顯示 loading 卡）未做。
 
-### 3. 分類準確度（任意 / 多語言用戶內容）
+### 3. 分類準確度（任意 / 多語言用戶內容）—— 進展中
 - **事實**：蠔油 bug；而家用 LLM-at-ingest。
 - **風險**：LLM 都會錯；Instagram 匯入嘅亂名菜式。
-- **建議**：
-  - ingest 時 LLM classify（已做）
-  - 用戶可改 dishType
-  - regex 兜底
+- **進展**：
+  - ✅ ingest 時 LLM classify（匯入/自訂/AI save 自動判 dishType + 儲存）。
+  - ✅ 已 backfill 218 條（177 custom + 41 official）。
+  - ✅ 修正 veg 誤判（菜名含蔬菜字優先過蛋白 tag）。
+  - ✅ AI 去重：fuzzy（threshold 0.6）+ 更大排除名單 + 近似提示；菜位嚴格真蔬菜（清淡、唔配肉、重試一次）。
+  - ⏳ 用戶可改 dishType（recipe-editor 已有）；regex 兜底已存在。
 
 ---
 
@@ -73,9 +76,9 @@
 ## 未做清單
 | 項 | 內容 | 狀態 |
 |---|---|---|
-| P0-1 | AI 成本 quota | ✅ 已完成（對話 30/300、自訂 20、匯入 5/300；weekly menu AI 已 hidden）|
-| P0-2 | library-first 穩定 4 卡 + 更快 | 進展中（3餸1湯 AI：maxRetries 1 + maxTokens 1600，rules 不變；library-first 已出 4 卡）|
-| P0-3 | 分類準確度 | 部分（ingest LLM 已做，兜底未完善）|
+| P0-1 | AI 成本 quota | ✅ 已完成（對話 30/300、自訂 20、匯入 5/300；扣法已確認：llmUsed 先扣，每 request 1 次；weekly menu AI 已 hidden）|
+| P0-2 | library-first 穩定 4 卡 + 更快 | 進展中（library-first 已出 4 卡；AI：maxRetries 1 + maxTokens 1600 → ~15-25s；樂觀 UI 未做）|
+| P0-3 | 分類準確度 | 進展中（ingest LLM 已做 + backfill 218；fuzzy 去重 0.6 + 菜位嚴格真蔬菜）|
 | #4 | 內容填充 | ❌ 未做 |
 | #5 | 去重 UX | ❌ 未做 |
 | #6 | Scale infra | ❌ 未做 |
