@@ -78,7 +78,7 @@
 |---|---|---|
 | P0-1 | AI 成本 quota | ✅ 已完成（對話 30/300、自訂 20、匯入 5/300；扣法已確認：llmUsed 先扣，每 request 1 次；weekly menu AI 已 hidden）|
 | P0-2 | library-first 穩定 4 卡 + 更快 | ✅ 已完成（library-first 出 4 卡；AI：maxRetries 1 + maxTokens 1800；meal 生成 2 候選/類型並行 + pickDiverseMeal 一輪揀「每類型一個」嘅多樣化（湯+肉+海鮮+菜，唔會雙海鮮/漏菜，缺類型交返 backfill 補）；parallel 唔再 drop 到 0 → 唔行 16s 順序 fallback；source 跟 button：AI→AI 卡、食譜庫→食譜庫卡；client timeout 45s→90s + 友善超時提示；Promise.allSettled 一個 slot 死唔拖冧成餐 + LLM 非 JSON 乾淨 error + 友善提示）|
-| P0-3 | 分類準確度 | 進展中（ingest LLM 已做 + backfill 218；fuzzy 去重 0.6 + 菜位嚴格真蔬菜）|
+| P0-3 | 分類準確度 | 進展中（ingest LLM 已做 + backfill 218；fuzzy 去重 0.6 + 菜位嚴格真蔬菜；AI meal 每個 slot 見晒「出過嘅菜/湯」+ 撞重複 retry 出新 → 湯水同餸都唔重複、有新意）|
 | #4 | 內容填充 | ❌ 未做 |
 | #5 | 去重 UX | ❌ 未做 |
 | #6 | Scale infra | ❌ 未做 |
