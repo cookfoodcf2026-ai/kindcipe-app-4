@@ -1725,24 +1725,25 @@ export default function AIChefScreen() {
     scrollToLatestMessage();
   };
 
-  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（只一次）。
+  // 由 Frontpage Hero 帶 `?action=daily` 跳入 → 自動開始 3 餸 1 湯問卷（每次撳 = 新獨立 session）。
   // 消費後即刻用 setParams 清走 action，避免 param persist 令「之後所有 entry 都當 daily」。
+  // 1) 等 `loaded` 先開新 session，避免同 session-load effect 競賽而覆蓋新 session；
+  // 2) 追蹤「上次已處理嘅 action」，當 heroAction 變返唔係 daily 就 reset → 下次 daily 再觸發。
   const heroParams = useLocalSearchParams<{ action?: string }>();
   const heroAction = Array.isArray(heroParams.action) ? heroParams.action[0] : heroParams.action;
-  const autoStartedRef = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (heroAction === "daily") {
-        if (!autoStartedRef.current) {
-          autoStartedRef.current = true;
-          isSoupModeRef.current = true;
-          startMealFlowInNewSession();
-          router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
-        }
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [heroAction])
-  );
+  const lastHandledActionRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!loaded) return;
+    if (heroAction === "daily" && lastHandledActionRef.current !== "daily") {
+      lastHandledActionRef.current = "daily";
+      isSoupModeRef.current = true;
+      startMealFlowInNewSession();
+      router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
+    } else if (heroAction !== "daily") {
+      lastHandledActionRef.current = undefined; // reset：下次新 daily 再觸發
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, heroAction]);
 
   const askMealQuestion = (step: MealPlanStep) => {
     const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
