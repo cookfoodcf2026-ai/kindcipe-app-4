@@ -183,7 +183,6 @@ export default function RecipesPage() {
   };
 
   const handleQuickPlanRecipe = (recipe: { id: string; name: string; image?: string; ingredients?: any[] } | null) => {
-    console.log("Quick plan:", recipe);
   };
 
   const handleNavigateToRecipe = (item: any) => {

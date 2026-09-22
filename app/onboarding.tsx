@@ -412,13 +412,13 @@ export default function OnboardingScreen(
                       </View>
                       <View style={styles.uiWeekRow}>
                         {[
-                          { d: "一", meal: "湯" },
-                          { d: "二", meal: "魚" },
-                          { d: "三", meal: "3餸1湯", active: true },
-                          { d: "四", meal: "菜" },
-                          { d: "五", meal: "肉" },
-                          { d: "六", meal: "外出" },
-                          { d: "日", meal: "湯" },
+                          { d: t("一" as any), meal: t("湯" as any) },
+                          { d: t("二" as any), meal: t("魚" as any) },
+                          { d: t("三" as any), meal: t("3餸1湯" as any), active: true },
+                          { d: t("四" as any), meal: t("菜" as any) },
+                          { d: t("五" as any), meal: t("肉" as any) },
+                          { d: t("六" as any), meal: t("外出" as any) },
+                          { d: t("日" as any), meal: t("湯" as any) },
                         ].map((x) => (
                           <View key={x.d} style={[styles.uiDay, x.active && styles.uiDayActive]}>
                             <Text style={[styles.uiDayText, x.active && styles.uiDayTextActive]}>{x.d}</Text>

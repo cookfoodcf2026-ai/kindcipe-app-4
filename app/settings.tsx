@@ -278,12 +278,12 @@ export default function SettingsScreen() {
               {user.role && (
                 <View style={styles.roleBadge}>
                   <Text style={styles.roleText}>
-                    {familyRole === "owner" ? "廚房主人"
-                     : familyRole === "admin" ? "廚房管理員"
-                     : familyRole === "helper" ? "幫手"
-                     : familyRole === "member" ? "家庭成員"
-                     : user.role === "admin" ? "管理員"
-                     : "家庭成員"}
+                    {familyRole === "owner" ? t("廚房主人" as any)
+                     : familyRole === "admin" ? t("廚房管理員" as any)
+                     : familyRole === "helper" ? t("幫手" as any)
+                     : familyRole === "member" ? t("家庭成員" as any)
+                     : user.role === "admin" ? t("管理員" as any)
+                     : t("家庭成員" as any)}
                   </Text>
                 </View>
               )}
@@ -491,7 +491,7 @@ export default function SettingsScreen() {
                                 <Text style={[styles.usageTableCell, styles.usageTableMember]}>
                                   {member.name}
                                   <Text style={styles.usageTableMemberRole}>
-                                    {member.familyRole === "owner" ? " · 主人" : member.familyRole === "admin" ? " · 管理員" : member.familyRole === "helper" ? " · 幫手" : " · 成員"}
+                                    {member.familyRole === "owner" ? t(" · 主人" as any) : member.familyRole === "admin" ? t(" · 管理員" as any) : member.familyRole === "helper" ? t(" · 幫手" as any) : t(" · 成員" as any)}
                                   </Text>
                                 </Text>
                                 <Text style={styles.usageTableValue}>{member.aiChat}</Text>

@@ -319,7 +319,7 @@ export default function PriceCompareModal({
                     {hasMore && (
                       <TouchableOpacity onPress={() => setShowAllSupermarkets(v => !v)} style={{ marginHorizontal: 20, marginTop: 6, paddingVertical: 6 }}>
                         <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", textAlign: "center" }}>
-                          {showAllSupermarkets ? "收起" : `顯示全部 ${sortedPrices.length} 間超市`}
+                          {showAllSupermarkets ? t("收起" as any) : `${t("顯示全部" as any)} ${sortedPrices.length} ${t("間超市" as any)}`}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -373,7 +373,7 @@ export default function PriceCompareModal({
             {/* Platform redirect buttons - horizontal scroll */}
             <View style={{ marginBottom: 14 }}>
               <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>
-                {priceResults.length > 0 ? "其他平台搜尋" : "直接前往平台搜尋"}
+                {priceResults.length > 0 ? t("其他平台搜尋" as any) : t("直接前往平台搜尋" as any)}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
                 {REDIRECT_PLATFORMS.map(p => (
@@ -411,8 +411,8 @@ export default function PriceCompareModal({
             <View style={s.disclaimer}>
               <Text style={s.disclaimerTxt}>
                 {priceResults.length > 0
-                  ? "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。"
-                  : "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。"}
+                  ? t("格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。" as any)
+                  : t("消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。" as any)}
               </Text>
             </View>
           </ScrollView>

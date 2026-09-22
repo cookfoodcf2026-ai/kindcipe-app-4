@@ -985,7 +985,7 @@ export default function ShoppingTab() {
 
           {isBought && item.boughtByName && (
             <Text style={styles.itemBoughtBy}>
-              {item.boughtByName} · {item.boughtAt ? formatTimeAgo(item.boughtAt) : "剛剛"}
+              {item.boughtByName} · {item.boughtAt ? formatTimeAgo(item.boughtAt) : t("剛剛" as any)}
             </Text>
           )}
           {isPending && !isAdmin && (
@@ -1491,7 +1491,7 @@ export default function ShoppingTab() {
                 <View key={item.id} style={styles.priceSummaryRow}>
                   <Text style={styles.priceSummaryName}>{item.name}</Text>
                   <Text style={styles.priceSummaryPrice}>
-                    {item.estimatedPrice ? `$${item.estimatedPrice}` : "未定價"}
+                    {item.estimatedPrice ? `$${item.estimatedPrice}` : t("未定價" as any)}
                   </Text>
                 </View>
               ))}

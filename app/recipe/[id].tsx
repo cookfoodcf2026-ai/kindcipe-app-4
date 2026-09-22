@@ -358,7 +358,6 @@ export default function RecipeDetailScreen() {
         }
       });
     } catch {
-      console.log("[Timer Sound] Expo Go native module not available, fallback to Haptics/Toast");
     }
   };
   
@@ -377,7 +376,6 @@ export default function RecipeDetailScreen() {
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 100);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 200);
     } catch {
-      console.log("[Haptics] Not available in Expo Go");
     }
     
     // 3. Toast 提示
@@ -806,7 +804,7 @@ export default function RecipeDetailScreen() {
       if (result.warning && result.hasConflict) {
         const isEatOutConflict = result.warning.includes("外出");
         Alert.alert(
-          isEatOutConflict ? "衝突提示" : "重複食譜提示",
+          isEatOutConflict ? t("衝突提示" as any) : t("重複食譜提示" as any),
           result.warning,
           [
             { text: t("取消" as any), style: "cancel", onPress: () => {
@@ -1022,7 +1020,7 @@ export default function RecipeDetailScreen() {
                 // 處理食材 - 使用 adjustedQty (已調整份量)
                 const ingText = adjustedIngredients
                   .map((i: any) => {
-                    const name = i.name ?? "未知食材";
+                    const name = i.name ?? t("未知食材" as any);
                     const qty = i.adjustedQty ?? i.quantity ?? "";
                     const unit = i.unit ?? "";
                     return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
@@ -1045,7 +1043,7 @@ export default function RecipeDetailScreen() {
                 
                 // 組合完整分享文字
                 const shareText = [
-                  `🍽️ ${recipe?.name ?? "食譜"}`,
+                  `🍽️ ${recipe?.name ?? t("食譜" as any)}`,
                   (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
                   recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
@@ -1078,7 +1076,7 @@ export default function RecipeDetailScreen() {
                 // 處理食材 - 使用 adjustedQty (已調整份量)
                 const ingText = adjustedIngredients
                   .map((i: any) => {
-                    const name = i.name ?? "未知食材";
+                    const name = i.name ?? t("未知食材" as any);
                     const qty = i.adjustedQty ?? i.quantity ?? "";
                     const unit = i.unit ?? "";
                     return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
@@ -1101,7 +1099,7 @@ export default function RecipeDetailScreen() {
                 
                 // 組合完整複製文字
                 const copyText = [
-                  `🍽️ ${recipe?.name ?? "食譜"}`,
+                  `🍽️ ${recipe?.name ?? t("食譜" as any)}`,
                   (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
                   recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
@@ -1418,7 +1416,7 @@ export default function RecipeDetailScreen() {
                     onPress={async () => {
                       const ingText = adjustedIngredients
                         .map((i: any) => {
-                          const name = i.name ?? "未知食材";
+                          const name = i.name ?? t("未知食材" as any);
                           const qty = i.adjustedQty ?? i.quantity ?? "";
                           const unit = i.unit ?? "";
                           return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
@@ -1571,7 +1569,7 @@ export default function RecipeDetailScreen() {
 
                           {/* Step image */}
                           {stepImage && (
-                            <Image source={{ uri: stepImage }} style={{ width: "100%", height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" onError={() => console.log('[RecipeDetail] Step image load failed, step', i + 1)} />
+                            <Image source={{ uri: stepImage }} style={{ width: "100%", height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" onError={() => {}} />
                           )}
 
                           {/* Tip — purple box */}
@@ -1880,7 +1878,7 @@ export default function RecipeDetailScreen() {
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-                      {shoppingItemsByName[kw] ? "更新購物清單價格" : "儲存並加入購物清單"}
+                      {shoppingItemsByName[kw] ? t("更新購物清單價格" as any) : t("儲存並加入購物清單" as any)}
                     </Text>
                   )}
                 </TouchableOpacity>

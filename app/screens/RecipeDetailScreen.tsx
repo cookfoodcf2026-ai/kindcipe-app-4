@@ -119,7 +119,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
               height: '100%',
               resizeMode: 'cover',
             }}
-            onError={() => console.log('[RecipeDetailScreen] Image load failed:', recipe.title)}
+            onError={() => {}}
           />
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.xl, backgroundColor: colors.primary.navy }}>

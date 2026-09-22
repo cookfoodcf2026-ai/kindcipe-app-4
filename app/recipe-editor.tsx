@@ -623,7 +623,7 @@ const scrollToFocused = useCallback((e: any) => {
     // 全新／草稿 → Instagram 式「儲存草稿？」
     Alert.alert(
       "儲存草稿？",
-      isComplete ? "內容完整，可先儲存為草稿，之後隨時發佈。" : "未完成嘅食譜會保存為草稿，之後可繼續編輯。",
+      isComplete ? t("內容完整，可先儲存為草稿，之後隨時發佈。" as any) : t("未完成嘅食譜會保存為草稿，之後可繼續編輯。" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         { text: t("放棄" as any), style: "destructive", onPress: () => leave(opts) },
@@ -924,7 +924,7 @@ const scrollToFocused = useCallback((e: any) => {
                   <TouchableOpacity style={st.stepCameraBtn} onPress={() => pickStepImage(idx)}>
                     <Ionicons name="camera-outline" size={14} color={step.imageUri ? BRAND : SUB} />
                     <Text style={[st.stepCameraTxt, step.imageUri && { color: BRAND }]}>
-                      {step.imageUri ? "已上載" : "教學圖片"}
+                      {step.imageUri ? t("已上載" as any) : t("教學圖片" as any)}
                     </Text>
                   </TouchableOpacity>
                   <View style={{ flex: 1 }} />

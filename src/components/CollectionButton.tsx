@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TouchableOpacity, StyleSheet, View, Text, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import { useTranslation } from "react-i18next";
 
 interface CollectionButtonProps {
   recipeId: string;
@@ -18,6 +19,7 @@ export function CollectionButton({
   size = "medium",
   showLabel = false,
 }: CollectionButtonProps) {
+  const { t } = useTranslation();
   const [isCollected, setIsCollected] = useState(initialCollected);
   const [isPending, setIsPending] = useState(false);
 
@@ -62,7 +64,7 @@ export function CollectionButton({
       )}
       {showLabel && (
         <Text style={[s.label, { fontSize: size === "small" ? 12 : 14 }]}>
-          {isCollected ? "已收藏" : "收藏"}
+          {isCollected ? t("已收藏" as any) : t("收藏" as any)}
         </Text>
       )}
     </TouchableOpacity>

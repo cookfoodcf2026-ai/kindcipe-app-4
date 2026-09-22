@@ -219,7 +219,7 @@ export default function PantryScreen() {
               style={{ flex: 1, fontSize: 13, color: TEXT }}
               value={searchQ}
               onChangeText={setSearchQ}
-              placeholder={`搜尋${activeTab === "food" ? "食品" : "用品"}...`}
+              placeholder={`${t("搜尋" as any)}${activeTab === "food" ? t("食品" as any) : t("用品" as any)}...`}
               placeholderTextColor={SUB}
             />
             {searchQ ? (
@@ -345,7 +345,7 @@ export default function PantryScreen() {
             <View style={{ alignItems: "center", paddingVertical: 40 }}>
               <Ionicons name="cube-outline" size={36} color={HINT} />
               <Text style={{ fontSize: 13, color: SUB, fontWeight: "500", marginTop: 8 }}>
-                {searchQ ? `找不到「${searchQ}」` : `${activeTab === "food" ? "食品倉" : "用品倉"}暫無記錄`}
+                {searchQ ? `${t("找不到" as any)}「${searchQ}」` : `${activeTab === "food" ? t("食品倉" as any) : t("用品倉" as any)}${t("暫無記錄" as any)}`}
               </Text>
               <Text style={{ fontSize: 11, color: HINT, marginTop: 4 }}>{t("pantry.tapAddHint")}</Text>
             </View>

@@ -24,7 +24,6 @@ const BORDER = "#E0EAF4";
 
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) {
-    console.log('formatDate: null/undefined input', d);
     return "未定";
   }
   const date = typeof d === "string" ? new Date(d) : d;
@@ -39,7 +38,6 @@ function formatDate(d: Date | string | null | undefined): string {
   const day = date.getDate();
   const year = date.getFullYear();
   
-  console.log('formatDate debug:', { input: d, month, day, year, dateObj: date });
   
   // 如果 month 或 day 係 NaN，返回預設值
   if (isNaN(month) || isNaN(day)) {

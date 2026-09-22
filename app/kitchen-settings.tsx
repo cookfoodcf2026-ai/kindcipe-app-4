@@ -309,7 +309,7 @@ export default function KitchenSettingsScreen() {
                           {item.name}
                         </Text>
                         <Text style={s.kitchenMeta}>
-                          {ROLE_LABEL[item.role] ?? item.role} · {item.memberCount ?? 0} 位成員
+                          {t(ROLE_LABEL[item.role] as any) ?? item.role} · {item.memberCount ?? 0} 位成員
                         </Text>
                       </View>
                       {isActive && <Ionicons name="checkmark-circle" size={20} color={BRAND} />}
@@ -411,7 +411,7 @@ export default function KitchenSettingsScreen() {
                       {m.name || m.nickname || "成員"}
                       {isSelf ? <Text style={{ color: SUB, fontSize: 11 }}>{t("kitchen.you")}</Text> : null}
                     </Text>
-                    <Text style={s.memberRole}>{ROLE_LABEL[m.familyRole] ?? m.familyRole}</Text>
+                    <Text style={s.memberRole}>{t(ROLE_LABEL[m.familyRole] as any) ?? m.familyRole}</Text>
                   </View>
                   {isAdmin && !isSelf && (
                     <View style={{ flexDirection: "row", gap: 4 }}>
@@ -469,7 +469,7 @@ export default function KitchenSettingsScreen() {
                   onPress={() => handleChangeRole(changingRole.userId, role)}
                 >
                   <Text style={[s.roleOptionText, changingRole.role === role && s.roleOptionTextActive]}>
-                    {ROLE_LABEL[role] ?? role}
+                    {t(ROLE_LABEL[role] as any) ?? role}
                   </Text>
                   {changingRole.role === role && <Ionicons name="checkmark" size={20} color={BRAND} />}
                 </TouchableOpacity>

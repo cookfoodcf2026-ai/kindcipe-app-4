@@ -69,7 +69,7 @@ export default function ShoppingTemplatesScreen() {
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const [peopleCount, setPeopleCount] = useState(4); // 預設 4 人
   const [planDate, setPlanDate] = useState<string | null>(DateUtil.todayISO());
-  const planDateLabel = planDate ?? "未設定";
+  const planDateLabel = planDate ?? t("未設定" as any);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [quantityOverrides, setQuantityOverrides] = useState<Record<string, number>>({});
   const [unitOverrides, setUnitOverrides] = useState<Record<string, string>>({});
@@ -166,7 +166,7 @@ export default function ShoppingTemplatesScreen() {
       setShowSaveListModal(false);
       setSavedListName("");
     } catch (e) {
-      Alert.alert("儲存失敗", e instanceof Error ? friendlyError(e) : "未知錯誤");
+      Alert.alert(t("儲存失敗" as any), e instanceof Error ? friendlyError(e) : t("未知錯誤" as any));
     }
   };
   
@@ -1096,7 +1096,7 @@ export default function ShoppingTemplatesScreen() {
                                 >
                                   <Ionicons name="pricetag-outline" size={14} color={BRAND} />
                                   <Text style={s.priceBtnText}>
-                                    {estimatedPrice ? `$${estimatedPrice}` : "價錢"}
+                                    {estimatedPrice ? `$${estimatedPrice}` : t("價錢" as any)}
                                   </Text>
                                 </TouchableOpacity>
                               </View>

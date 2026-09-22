@@ -274,12 +274,10 @@ const normalizeRecipe = (r: any): AIRecipe => {
   // Fallback: if ingredients/steps are empty but we have description, try to extract
   if (normalized.ingredients.length === 0 && r.description) {
     // Try to extract ingredients from description (simple fallback)
-    console.log(`[normalizeRecipe] No ingredients found, description: ${r.description?.slice(0, 100)}`);
   }
   if (normalized.steps.length === 0 && r.description) {
     // Use description as a single step (better than nothing)
     normalized.steps = [r.description];
-    console.log(`[normalizeRecipe] Using description as step`);
   }
   
   return normalized;
@@ -1043,7 +1041,6 @@ export default function AIChefScreen() {
 
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => {
-      console.log('[AI Chef] onSuccess data:', { content: data.content?.slice(0, 100), recipesCount: data.recipes?.length });
       const { mainText, nextSteps } = parseAssistantResponse(data.content ?? "");
 
       // Direct use of recipes from backend（卡片防線：normalize + isValidRecipe 過濾，保證卡一定撳得）
@@ -1052,9 +1049,7 @@ export default function AIChefScreen() {
       // Fallback: if no recipes but content looks like recipe, try to parse from text
       if (recipes.length === 0 && typeof data.content === "string") {
         if (data.content.includes("食材") || data.content.includes("步驟") || data.content.includes("食譜")) {
-          console.log('[AI Chef] No recipes from backend, trying tryParseRecipes fallback');
           recipes = tryParseRecipes(data.content).map(normalizeRecipe).filter(isValidRecipe);
-          console.log('[AI Chef] tryParseRecipes found:', recipes.length);
         }
       }
 
@@ -1065,7 +1060,6 @@ export default function AIChefScreen() {
       updateMessages(prev => [...prev, { role: "assistant", content: mainText + recipeNameList(recipes) }]);
       setAiNextSteps(nextSteps);
 
-      console.log('[AI Chef] Setting recipes:', recipes.length, recipes?.[0]?.name);
       // 只有 meal flow 自己 onSuccess 處理緊嘅 call 先 skip（避免覆蓋佢補好嘅 4 卡）；
       // meal 場景撳「AI 生成/食譜庫」（requestInstantRecipes）要靠呢度 set 卡，唔能 skip
       if (mealSelfHandledRef.current) {
@@ -1086,7 +1080,7 @@ export default function AIChefScreen() {
       const rawMsg = friendlyError(err) || err?.data?.message || "";
       const isTransient = /abort|timeout|cancel|JSON Parse error|Unexpected character|Parse error|非 JSON|LLM 回覆格式異常/i.test(rawMsg);
       const msg = isTransient
-        ? "AI 暫時未有回應，請再試一次。"
+        ? t("AI 暫時未有回應，請再試一次。" as any)
         : (rawMsg || "AI 暫時未能回應，請再試。");
       updateMessages(prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
       setAiNextSteps([]);
@@ -1387,7 +1381,7 @@ export default function AIChefScreen() {
         const warningText = result.warning ?? "";
         const isEatOutConflict = warningText.includes("外出");
         Alert.alert(
-          isEatOutConflict ? "衝突提示" : "重複食譜提示",
+          isEatOutConflict ? t("衝突提示" as any) : t("重複食譜提示" as any),
           warningText,
           [
             { text: t("取消" as any), style: "cancel", onPress: () => {
@@ -1414,7 +1408,6 @@ export default function AIChefScreen() {
     onSuccess: async () => {
       try {
         await invalidateMealPlanAndCart();
-        console.log("[AI 助手] Batch meal plan invalidate successful");
         showToast("✅ 已批量加入排餐");
       } catch (e) {
         console.error("[AI 助手] Batch meal plan invalidate failed:", e);
@@ -1508,7 +1501,7 @@ export default function AIChefScreen() {
           // 相對路徑（/r2-storage/…）要補返後端 base，否則手機 Image 拎唔到
           if (imageUrl.startsWith("/")) imageUrl = `${API_BASE_URL}${imageUrl}`;
         } catch (e: any) {
-          Alert.alert("上傳失敗", friendlyError(e) ?? "請重試");
+          Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
           uploadingRef.current = false;
           return;
         } finally {
@@ -1555,7 +1548,6 @@ export default function AIChefScreen() {
               .map(normalizeRecipe)
               .filter(isValidRecipe);
             if (libraryRecipes.length > 0) {
-              console.log(`[AI 助手] Camera found ${libraryRecipes.length} library recipes, ingredients: ${ingredients.join("、")}`);
               updateMessages(prev => [...prev, imageMsg]);
               setRecommendedRecipes(libraryRecipes);
               recordSeenRecipes(libraryRecipes);
@@ -1565,7 +1557,6 @@ export default function AIChefScreen() {
               return;
             }
           }
-          console.log("[AI 助手] Camera library search found 0, falling back to AI");
         } catch (e) {
           console.error("[AI 助手] Camera recognize/search failed:", e);
         }
@@ -1581,7 +1572,7 @@ export default function AIChefScreen() {
         scrollToEnd();
       } catch (e: any) {
         console.error("[AI 助手] image upload/send failed:", e);
-        Alert.alert("上傳失敗", friendlyError(e) ?? "請重試");
+        Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
       }
     };
 
@@ -1946,7 +1937,6 @@ export default function AIChefScreen() {
         if (libraryRecipes.length > 0) {
           // 後端已做 7 日去重 + fresh 優先（+ rank：快手揀最短時間）
           const picked = libraryRecipes.slice(0, 1);
-          console.log(`[AI 助手] Hot key "${id}" found ${libraryRecipes.length} library recipes`);
           addUserMessage(t(config.aiPrompt as any));
           setRecommendedRecipes(picked);
           setChatStarted(true);
@@ -1956,7 +1946,6 @@ export default function AIChefScreen() {
           setLibraryLoading(false);
           return;
         }
-        console.log(`[AI 助手] Hot key "${id}" found 0 library recipes, falling back to AI`);
       } catch (e) {
         console.error(`[AI 助手] Hot key library search failed:`, e);
       }
@@ -2001,7 +1990,6 @@ export default function AIChefScreen() {
         .map(normalizeRecipe)
         .filter(isValidRecipe);
       if (libraryRecipes.length >= 4) {
-        console.log(`[AI 助手] Meal flow structured found ${libraryRecipes.length} library recipes`);
         setMealStep("result");
         const recipesToShow = libraryRecipes.slice(0, 4);
         setMealResult(recipesToShow);
@@ -2012,7 +2000,6 @@ export default function AIChefScreen() {
         setLibraryLoading(false);
         return;
       }
-      console.log(`[AI 助手] Meal flow structured found ${libraryRecipes.length}, need 4, falling back to AI`);
     } catch (e) {
       console.error("[AI 助手] Meal flow structured failed:", e);
     }
@@ -2075,7 +2062,6 @@ export default function AIChefScreen() {
           .map(normalizeRecipe)
           .filter(isValidRecipe);
         if (libraryRecipes.length > 0) {
-          console.log(`[AI 助手] Pantry found ${libraryRecipes.length} library recipes`);
           addUserMessage(searchPrompt);
           setRecommendedRecipes(libraryRecipes);
           recordSeenRecipes(libraryRecipes);
@@ -2083,7 +2069,6 @@ export default function AIChefScreen() {
           setLibraryLoading(false);
           return;
         }
-        console.log("[AI 助手] Pantry library search found 0, falling back to AI");
       } catch (e) {
         console.error("[AI 助手] Pantry library search failed:", e);
       }
@@ -2616,7 +2601,6 @@ export default function AIChefScreen() {
     const text = contentToText(lastBot.content);
     const parsed = tryParseRecipes(text).map(normalizeRecipe).filter(isValidRecipe);
     if (parsed.length > 0) {
-      console.log('[AI Chef] Convert to card (frontend):', parsed.length, parsed[0]?.name);
       setRecommendedRecipes(parsed);
       setChatStarted(true);
       recordSeenRecipes(parsed);
@@ -2752,7 +2736,7 @@ export default function AIChefScreen() {
             <>
               {typeof item.content !== "string" && item.content.map((block, idx) =>
                 block.type === "image_url" ? (
-                  <Image key={idx} source={{ uri: block.image_url.url }} style={s.msgImage} resizeMode="cover" onError={() => console.log('[AI Chef] Image load failed')} />
+                  <Image key={idx} source={{ uri: block.image_url.url }} style={s.msgImage} resizeMode="cover" onError={() => {}} />
                 ) : (
                   <Text key={idx} style={[s.bubbleTxt, isUser && { color: "#fff" }]} selectable>{t(block.text as any)}</Text>
                 )

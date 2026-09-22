@@ -108,12 +108,12 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
   const dinnerRows: { icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }[] = [];
 
   if (hasConflict) {
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: "今天" });
-    dinnerRows.push({ icon: "alert-circle-outline", iconColor: "#DC2626", text: mealName(todayDinnerPlan), badge: "需確認", badgeKind: "conflict" });
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: t("今天" as any) });
+    dinnerRows.push({ icon: "alert-circle-outline", iconColor: "#DC2626", text: mealName(todayDinnerPlan), badge: t("需確認" as any), badgeKind: "conflict" });
   } else if (isTodayEatOut) {
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: "今天" });
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: t("今天" as any) });
   } else if (todayDinnerPlan) {
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(todayDinnerPlan), badge: "今天" });
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(todayDinnerPlan), badge: t("今天" as any) });
   }
 
   confirmedDinners.forEach((m: any, idx: number) => {
@@ -622,7 +622,7 @@ export default function RecipesTab() {
         const shouldKeep = await new Promise<boolean>((resolve) => {
           const isEatOutConflict = result.warning?.includes("外出");
           Alert.alert(
-            isEatOutConflict ? "衝突提示" : "重複食譜提示",
+            isEatOutConflict ? t("衝突提示" as any) : t("重複食譜提示" as any),
             result.warning,
             [
               { text: t("取消" as any), style: "cancel", onPress: () => resolve(false) },
@@ -1139,9 +1139,9 @@ export default function RecipesTab() {
                 <Text style={s.emptyTitle}>{t("home.searchError")}</Text>
                 <Text style={s.emptySub}>
                   {searchError?.message?.includes("SQL") || searchError?.message?.includes("搜尋失敗")
-                    ? "系統搜尋時遇到問題，請稍後再試" :
+                    ? t("系統搜尋時遇到問題，請稍後再試" as any) :
                     searchError?.message?.includes("UNAUTHORIZED") || searchError?.message?.includes("login") || searchError?.message?.includes("登入")
-                    ? "請重新登入後再試" :
+                    ? t("請重新登入後再試" as any) :
                     searchError?.message || "請稍後再試"}
                 </Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => refetchSearch()}>

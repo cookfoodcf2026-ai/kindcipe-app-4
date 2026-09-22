@@ -423,7 +423,7 @@ export default function AdminScreen() {
                   <View key={recipe.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: CARD, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1.5, borderColor: BORDER }}>
                     <Text style={{ width: 24, fontSize: 12, color: HINT, fontWeight: "600", textAlign: "center" as any }}>{idx + 1}</Text>
                     {recipe.image ? (
-                      <Image source={{ uri: recipe.image }} style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: "#F1F5F9" }} onError={() => console.log('[Admin] Image load failed:', recipe.name)} />
+                      <Image source={{ uri: recipe.image }} style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: "#F1F5F9" }} onError={() => {}} />
                     ) : (
                       <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
                         <Ionicons name="restaurant-outline" size={20} color={HINT} />
@@ -464,7 +464,7 @@ export default function AdminScreen() {
                         }}
                       >
                         <Text style={{ fontSize: 10, fontWeight: "700", color: recipe.sourceType === "kol" ? "#F59E0B" : SUB }}>
-                          {recipe.sourceType === "kol" ? "KOL" : "標記 KOL"}
+                          {recipe.sourceType === "kol" ? "KOL" : t("標記 KOL" as any)}
                         </Text>
                       </TouchableOpacity>
                       {deleteConfirm === recipe.id ? (

@@ -152,13 +152,10 @@ export default function ImportScreen() {
     const isCDNUrl = recipe.thumbnailUrl?.includes('cdninstagram.com') || recipe.thumbnailUrl?.includes('scontent.');
     
     if (hasBackendUrl && !isCDNUrl) {
-      console.log("[initEditFromParsed] Using backend URL:", (recipe.thumbnailUrl || recipe.image).substring(0, 80));
       setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
     } else if (recipe.image && !recipe.thumbnailUrl) {
-      console.log("[initEditFromParsed] Setting image:", recipe.image.substring(0, 80));
       setRecipeImageUri(recipe.image);
     } else {
-      console.log("[initEditFromParsed] Keeping CDN URL (temporary)");
     }
   };
 
@@ -310,8 +307,6 @@ export default function ImportScreen() {
     onSuccess: (data) => {
       isParsingRef.current = false;
       stopParseProgress();
-      console.log("[parseUrlMutation.onSuccess] parseReason:", data.parseReason);
-      console.log("[parseUrlMutation.onSuccess] thumbnailUrl:", data.thumbnailUrl?.substring(0, 80));
       if (data.parseReason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
@@ -450,14 +445,14 @@ export default function ImportScreen() {
 
   function getPlatformHelp(platform: string): string {
     const tips: Record<string, string> = {
-      "Instagram": "• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe",
-      "YouTube": "• 確保影片描述區有食材清單\n• 某些食譜影片只用口述，建議截圖\n• 可複製影片描述文字用文字貼上",
-      "小紅書": "• 小紅書限制了自動讀取，請改用「貼上文字」功能\n• 複製筆記中的文字貼上即可解析\n• 或截圖上傳帖子關鍵內容",
-      "Threads": "• Threads 帖子內容可透過連結直接讀取\n• 確保帖子包含完整食材和步驟\n• 如內文較短，建議複製文字貼上解析",
-      "Facebook": "• 確認帖子有文字版的食材步驟\n• 部分食譜以圖片/影片為主無法解析\n• 試試截圖上傳或複製文字",
-      "TikTok/抖音": "• 確認影片描述有食材清單\n• 部分影片僅展示製作過程\n• 建議截圖關鍵畫面後上傳",
+      "Instagram": t("• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe" as any),
+      "YouTube": t("• 確保影片描述區有食材清單\n• 某些食譜影片只用口述，建議截圖\n• 可複製影片描述文字用文字貼上" as any),
+      "小紅書": t("• 小紅書限制了自動讀取，請改用「貼上文字」功能\n• 複製筆記中的文字貼上即可解析\n• 或截圖上傳帖子關鍵內容" as any),
+      "Threads": t("• Threads 帖子內容可透過連結直接讀取\n• 確保帖子包含完整食材和步驟\n• 如內文較短，建議複製文字貼上解析" as any),
+      "Facebook": t("• 確認帖子有文字版的食材步驟\n• 部分食譜以圖片/影片為主無法解析\n• 試試截圖上傳或複製文字" as any),
+      "TikTok/抖音": t("• 確認影片描述有食材清單\n• 部分影片僅展示製作過程\n• 建議截圖關鍵畫面後上傳" as any),
     };
-    return tips[platform] || "• 確認連結包含完整食譜內容\n• 試試截圖上傳\n• 或複製文字貼上解析";
+    return tips[platform] || t("• 確認連結包含完整食譜內容\n• 試試截圖上傳\n• 或複製文字貼上解析" as any);
   }
 
   // Validate URL format
@@ -479,13 +474,11 @@ export default function ImportScreen() {
       const shortcode = shortcodeMatch?.[1];
       
       if (!shortcode) {
-        console.log("[Instagram Thumbnail] No shortcode found");
         return undefined;
       }
       
       // Strategy 1: Instagram /media endpoint (returns JSON with direct image URL)
       try {
-        console.log("[Instagram Thumbnail] Trying /media endpoint:", shortcode);
         const mediaController = new AbortController();
         const mediaTimeout = setTimeout(() => mediaController.abort(), 8000);
         const mediaResp = await fetch(
@@ -522,17 +515,14 @@ export default function ImportScreen() {
           }
           
           if (imageUrl) {
-            console.log("[Instagram Thumbnail] Found via /media:", imageUrl.substring(0, 80));
             return imageUrl;
           }
         }
       } catch (mediaErr) {
-        console.log("[Instagram Thumbnail] /media endpoint failed:", mediaErr);
         // Continue to fallback
       }
       
       // Strategy 2: Fallback to og:image meta tag
-      console.log("[Instagram Thumbnail] Fallback: fetching HTML");
       const htmlController = new AbortController();
       const htmlTimeout = setTimeout(() => htmlController.abort(), 8000);
       const resp = await fetch(cleanUrl, {
@@ -544,7 +534,6 @@ export default function ImportScreen() {
       });
       clearTimeout(htmlTimeout);
       if (!resp.ok) {
-        console.log("[Instagram Thumbnail] HTTP error:", resp.status);
         return undefined;
       }
       const html = await resp.text();
@@ -554,14 +543,11 @@ export default function ImportScreen() {
                           html.match(/content="([^"]+)"\s+property="og:image"/);
       if (ogImageMatch && ogImageMatch[1]) {
         const decodedUrl = ogImageMatch[1].replace(/&amp;/g, "&");
-        console.log("[Instagram Thumbnail] Found via og:image:", decodedUrl.substring(0, 80));
         return decodedUrl;
       }
       
-      console.log("[Instagram Thumbnail] No thumbnail found");
       return undefined;
     } catch (e: any) {
-      console.log("[Instagram Thumbnail] Extraction error:", friendlyError(e) || e);
       return undefined;
     }
   }
@@ -587,9 +573,7 @@ export default function ImportScreen() {
           // Display immediately (temporary CDN URL)
           setRecipeImageUri(extractedUrl);
           clientThumbnail = extractedUrl;
-          console.log("[Instagram Thumbnail] Got URL, displaying immediately");
         } else {
-          console.log("[Instagram Thumbnail] Extraction failed, using backend fallback");
         }
       }
       // Reset imageError before parsing
@@ -604,7 +588,6 @@ export default function ImportScreen() {
   const handlePaste = async () => {
     try {
       const content = await Clipboard.getStringAsync();
-      console.log("[handlePaste] Clipboard content:", content ? content.substring(0, 100) : "empty");
       if (content) {
         setUniversalInput(content);
         const platform = detectPlatform(content.trim());
@@ -679,16 +662,10 @@ export default function ImportScreen() {
     setStep("parsing");
     startParseProgress();
     try {
-      console.log("[handleConfirmScreenshot] Uploading image:", {
-        base64Length: pendingScreenshot.base64?.length || 0,
-        mimeType: pendingScreenshot.mimeType,
-        uri: pendingScreenshot.uri,
-      });
       const uploadResult = await uploadImageMutation.mutateAsync({
         base64: pendingScreenshot.base64,
         mimeType: pendingScreenshot.mimeType,
       });
-      console.log("[handleConfirmScreenshot] Upload result:", uploadResult);
       try {
         await parseImageMutation.mutateAsync({ storageKey: uploadResult.key });
         // parseImageMutation.onSuccess will handle the result
@@ -711,7 +688,7 @@ export default function ImportScreen() {
       setErrorMsg(
         isNoContent
           ? friendlyError(e)
-          : "無法分析這張圖片的食譜內容。\n\n可能原因：\n• 食物特徵不明顯（太遠/太模糊/只拍表面）\n• 圖片缺少可識別的食材或步驟文字"
+          : t("無法分析這張圖片的食譜內容。\n\n可能原因：\n• 食物特徵不明顯（太遠/太模糊/只拍表面）\n• 圖片缺少可識別的食材或步驟文字" as any)
       );
       setFailedInput(null);
       setStep("failed");
@@ -852,8 +829,8 @@ export default function ImportScreen() {
         <Text style={styles.parsingTitle}>{t("importRecipe.parsing")}</Text>
         <Text style={styles.parsingSubtitle}>
           {parseStepIndex < PARSE_STEPS.length - 1
-            ? "通常需要 10-30 秒，請耐心等候"
-            : "即將完成..."}
+            ? t("通常需要 10-30 秒，請耐心等候" as any)
+            : t("即將完成..." as any)}
         </Text>
         <View style={styles.parsingSteps}>
           {PARSE_STEPS.map((s, i) => {
@@ -1049,7 +1026,7 @@ export default function ImportScreen() {
                     <TouchableOpacity style={es.stepCameraBtn} onPress={() => pickStepImage(idx)}>
                       <Ionicons name="camera-outline" size={14} color={step.imageUri ? "#013E77" : "#9CA3AF"} />
                       <Text style={[es.stepCameraTxt, step.imageUri && { color: "#013E77" }]}>
-                        {step.imageUri ? "已上載" : "教學圖片"}
+                        {step.imageUri ? t("已上載" as any) : t("教學圖片" as any)}
                       </Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1 }} />

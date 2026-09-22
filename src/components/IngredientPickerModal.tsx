@@ -119,10 +119,6 @@ export default function IngredientPickerModal({
   // 修復 2: useEffect 確保 visible 為 true 時，第一時間校正 date
   useEffect(() => {
     if (visible && normalizedDefaultDate) {
-      console.log("[IngredientPickerModal] Correcting date:", {
-        from: date,
-        to: normalizedDefaultDate,
-      });
       setDate(normalizedDefaultDate);
     }
   }, [visible, normalizedDefaultDate]);
@@ -130,18 +126,6 @@ export default function IngredientPickerModal({
   // 診斷日誌
   useEffect(() => {
     if (visible) {
-      console.log("[IngredientPickerModal] Props:", {
-        mealDate,
-        defaultBuyDate,
-        defaultDate,
-        effectiveMealDate,
-        effectiveBuyDate,
-        maxDate,
-        today,
-        normalizedDefaultDate,
-        date,
-        visible,
-      });
     }
   }, [mealDate, defaultBuyDate, defaultDate, effectiveMealDate, effectiveBuyDate, maxDate, today, normalizedDefaultDate, date, visible]);
 
@@ -261,7 +245,7 @@ export default function IngredientPickerModal({
   const multiRecipe = recipes.length > 1;
   const modalTitle = title || (multiRecipe
     ? `加入食材到購物清單（${recipes.length} 個食譜）`
-    : "加入食材到購物清單");
+    : t("加入食材到購物清單" as any));
 
   // 日期標籤 Helper：解析食譜嘅日期同餐別
   const formatMealPlanDateBadge = useMemo(() => {
@@ -284,10 +268,10 @@ export default function IngredientPickerModal({
     
     const formatMealType = (type: string) => {
       const map: Record<string, string> = {
-        breakfast: "早餐",
-        lunch: "午餐",
-        dinner: "晚餐",
-        snack: "小食",
+        breakfast: t("早餐" as any),
+        lunch: t("午餐" as any),
+        dinner: t("晚餐" as any),
+        snack: t("小食" as any),
       };
       return map[type] || type;
     };
@@ -360,10 +344,6 @@ export default function IngredientPickerModal({
               <PlanDatePicker 
                 value={date}
                 onChange={(newDate) => {
-                  console.log("[PlanDatePicker] Date changed:", {
-                    oldValue: date,
-                    newValue: newDate,
-                  });
                   setDate(newDate);
                   onDateChange?.(newDate);
                 }}
@@ -450,11 +430,11 @@ export default function IngredientPickerModal({
               )}
               <Text style={[s.confirmTxt, (confirmItems.length === 0 || loading) && s.confirmTxtDisabled]}>
                 {loading
-                  ? "加入中..."
+                  ? t("加入中..." as any)
                   : confirmItems.length > 0
                   ? `加入 ${confirmItems.length} 項食材`
                   : alreadyAddedKeys && alreadyAddedKeys.size > 0
-                  ? "全部已加入購物清單"
+                  ? t("全部已加入購物清單" as any)
                   : t("picker.skipCount", { n: totalIngredients })}
               </Text>
             </TouchableOpacity>

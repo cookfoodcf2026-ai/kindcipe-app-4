@@ -26,6 +26,14 @@ const ALLOW_SUBSTR = [
   "CATEGORY_KEY", "UNIT_KEY", "INGREDIENT_GROUP", "PAX", "unitKey",
   // data values (tags / ingredient names / categories / cuisines) — not display strings
   "add(", "name:", "difficulty:", "city:", "recipeCategory", "\"中菜\"", "\"西餐\"", "\"甜品\"", "\"日式\"", "\"韓式\"", "\"東南亞\"",
+  // data values stored/sent (units, difficulty, categories, query params, LLM prompts)
+  "setDifficulty", "unit: ing.unit", "otherTitle", "prefs.time", "hasKids", "hasElderly",
+  "const unit =", "const difficulty =", "reason:", "cat = item.category", "const kw = ctxQuery",
+  "otherNames.join", "planDate", "mealTypeLabel", "const name =", "regeneratePrompt", "const msg =", "ROLE_LABEL",
+  // role-label map values (data; rendered via t() at the call site)
+  'owner: "', 'admin: "', 'helper: "', 'member: "',
+  // regenerate prompts (sent to the model, not rendered)
+  "請再提供一組新的建議", "請隨機提供一組新食譜", "請從食譜庫再提供一組唔同嘅建議",
   // LLM prompt / message payloads (data sent to the model, not rendered)
   "content:", "aiPrompt", "role: \"user\"", "role: \"system\"", "role: \"assistant\"", "messages:",
   // keyword-matching data arrays (not display)

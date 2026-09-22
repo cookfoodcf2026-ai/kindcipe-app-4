@@ -128,7 +128,7 @@ export default function LoginScreen() {
         ]);
       } else {
         const msg = mode === "register" ? (friendlyError(err) || "建立帳號失敗，請稍後再試") : (friendlyError(err) || "電郵或密碼錯誤");
-        Alert.alert(mode === "register" ? "註冊失敗" : "登入失敗", msg);
+        Alert.alert(mode === "register" ? t("註冊失敗" as any) : t("登入失敗" as any), msg);
       }
     } finally {
       setIsLoading(false);
@@ -344,7 +344,7 @@ export default function LoginScreen() {
               <TextInput
                 testID="login-password"
                 style={[styles.input, { flex: 1 }]}
-                placeholder={mode === "register" ? "密碼（至少 8 個字元）" : "密碼"}
+                placeholder={mode === "register" ? t("密碼（至少 8 個字元）" as any) : t("密碼" as any)}
                 placeholderTextColor="#9CA3AF"
                 value={password}
                 onChangeText={setPassword}
@@ -379,7 +379,7 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : null}
               <Text style={styles.submitBtnText}>
-                {mode === "register" ? "建立帳號" : "登入"}
+                {mode === "register" ? t("建立帳號" as any) : t("登入" as any)}
               </Text>
             </TouchableOpacity>
 
