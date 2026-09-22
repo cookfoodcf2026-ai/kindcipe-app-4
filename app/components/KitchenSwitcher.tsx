@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, TouchableOpacity, Modal, FlatList, StyleSheet,
 } from "react-native";
@@ -9,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 const BRAND = "#013E77";
 
 export default function KitchenSwitcher() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { activeFamily, activeFamilyId, families, switchFamily, isAuthenticated } = useAuth();
   const [showSheet, setShowSheet] = useState(false);
@@ -51,7 +53,7 @@ export default function KitchenSwitcher() {
           />
           <View style={s.sheet}>
             <View style={s.handle} />
-            <Text style={s.sheetTitle}>切換廚房</Text>
+            <Text style={s.sheetTitle}>{t("switcher.title")}</Text>
 
             <FlatList
               data={families}
@@ -87,7 +89,7 @@ export default function KitchenSwitcher() {
               }}
               ListEmptyComponent={
                 <View style={s.empty}>
-                  <Text style={s.emptyText}>尚未加入任何廚房</Text>
+                  <Text style={s.emptyText}>{t("kitchen.noKitchen")}</Text>
                 </View>
               }
             />
@@ -100,7 +102,7 @@ export default function KitchenSwitcher() {
               }}
             >
               <Ionicons name="add-circle-outline" size={18} color={BRAND} />
-              <Text style={s.createBtnText}>建立或加入廚房</Text>
+              <Text style={s.createBtnText}>{t("settings.createOrJoinKitchen")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={s.manageBtn}
@@ -110,7 +112,7 @@ export default function KitchenSwitcher() {
               }}
             >
               <Ionicons name="settings-outline" size={18} color={BRAND} />
-              <Text style={s.manageBtnText}>管理廚房</Text>
+              <Text style={s.manageBtnText}>{t("settings.manageKitchen")}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -8,22 +8,28 @@
  * - 家庭管理入口
  * - 登出
  */
-import {
+ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, Switch
+  Alert, Switch, TextInput, Image
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from 'expo-web-browser';
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import { enumT } from "@/lib/i18nEnums";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
 import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
+import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
+import { getMealReminderSetting, saveMealReminderSetting, applyMealReminder, type MealReminderSetting } from "@/lib/notifications";
 import PaywallModal from "@/components/PaywallModal";
 import { ChatBubbleIcon } from "@/src/components/icons";
+import { getHintsDisabled, setHintsDisabled } from "@/src/components/HintBanner";
+import { getAppLogo } from "@/lib/logo";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -42,6 +48,8 @@ function formatYearMonthLabel(yearMonth: string): string {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const utils = trpc.useUtils();
+  const { t } = useTranslation();
   const { user, isAuthenticated, logout, familyRole, activeFamily, families } = useAuth();
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -66,6 +74,34 @@ export default function SettingsScreen() {
     ]);
   };
 
+  // 刪除帳戶（Apple 5.1.1(v) / Google Play 要求 app 內提供）
+  const deleteAccountM = trpc.auth.deleteAccount.useMutation({
+    onSuccess: async () => {
+      await clearAuthToken();
+      await AsyncStorage.removeItem(FAMILY_ID_KEY);
+      await utils.invalidate();
+      await utils.auth.me.invalidate();
+      router.replace("/login");
+      Alert.alert("已刪除", "帳戶已永久刪除。");
+    },
+    onError: (e) => Alert.alert("刪除失敗", e.message),
+  });
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "刪除帳戶",
+      "呢個操作會永久刪除你嘅帳戶同所有資料（食譜、排餐、購物清單、訂閱等），無法復原。確定要刪除嗎？",
+      [
+        { text: "取消", style: "cancel" },
+        {
+          text: "永久刪除",
+          style: "destructive",
+          onPress: () => deleteAccountM.mutate(),
+        },
+      ],
+    );
+  };
+
   const currentLang = LANGUAGES.find((l) => l.code === selectedLang) || LANGUAGES[0];
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -84,6 +120,100 @@ export default function SettingsScreen() {
     await setBiometricEnabled(value);
     setBiometricOn(value);
   };
+
+  // ─── Meal reminder (self-set time + frequency) ─────────────────────────────
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderHour, setReminderHour] = useState(17);
+  const [reminderMinute, setReminderMinute] = useState(0);
+  const [reminderWeekdays, setReminderWeekdays] = useState<number[]>([]);
+  const [reminderTimeText, setReminderTimeText] = useState("");
+  const [loadedTimeLabel, setLoadedTimeLabel] = useState("");
+  const [hintsEnabled, setHintsEnabled] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const disabled = await getHintsDisabled();
+      setHintsEnabled(!disabled);
+    })();
+  }, []);
+
+  const handleToggleHints = async (value: boolean) => {
+    setHintsEnabled(value);
+    await setHintsDisabled(!value);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const s = await getMealReminderSetting();
+      setReminderEnabled(s.enabled);
+      setReminderHour(s.hour);
+      setReminderMinute(s.minute);
+      setReminderWeekdays(s.weekdays);
+      setLoadedTimeLabel(`${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`);
+    })();
+  }, []);
+
+  const reminderSetting = (): MealReminderSetting => ({
+    enabled: reminderEnabled,
+    hour: reminderHour,
+    minute: reminderMinute,
+    weekdays: reminderWeekdays,
+  });
+
+  const commitReminder = async (next: MealReminderSetting) => {
+    setReminderEnabled(next.enabled);
+    setReminderHour(next.hour);
+    setReminderMinute(next.minute);
+    setReminderWeekdays(next.weekdays);
+    await saveMealReminderSetting(next);
+    const ok = await applyMealReminder(next);
+    if (next.enabled && !ok) {
+      Alert.alert("通知權限", "未能取得通知權限，提醒未開啟。請到系統設定開啟通知。", [
+        { text: "確定" },
+      ]);
+      setReminderEnabled(false);
+      await saveMealReminderSetting({ ...next, enabled: false });
+    }
+  };
+
+  const handleToggleReminder = async (value: boolean) => {
+    await commitReminder({ ...reminderSetting(), enabled: value });
+  };
+
+  const handleReminderTimeChange = (text: string) => {
+    const digits = text.replace(/\D/g, "").slice(0, 4);
+    const masked = digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    setReminderTimeText(masked);
+  };
+
+  const applyReminderTimeText = () => {
+    const m = reminderTimeText.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) {
+      Alert.alert("時間格式", "請輸入 HH:MM（例如 19:30）", [{ text: "確定" }]);
+      return;
+    }
+    const hour = Math.min(23, Math.max(0, Number(m[1])));
+    const minute = Math.min(59, Math.max(0, Number(m[2])));
+    setReminderTimeText(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+    setLoadedTimeLabel(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+    void commitReminder({ ...reminderSetting(), hour, minute });
+  };
+
+  const toggleReminderWeekday = (jsDay: number) => {
+    const has = reminderWeekdays.includes(jsDay);
+    const next = has ? reminderWeekdays.filter(d => d !== jsDay) : [...reminderWeekdays, jsDay].sort((a, b) => a - b);
+    void commitReminder({ ...reminderSetting(), weekdays: next });
+  };
+
+  const weekdayLabels: { jsDay: number; label: string }[] = [
+    { jsDay: 1, label: enumT.weekday(1) },
+    { jsDay: 2, label: enumT.weekday(2) },
+    { jsDay: 3, label: enumT.weekday(3) },
+    { jsDay: 4, label: enumT.weekday(4) },
+    { jsDay: 5, label: enumT.weekday(5) },
+    { jsDay: 6, label: enumT.weekday(6) },
+    { jsDay: 0, label: enumT.weekday(0) },
+  ];
 
   const [showPaywall, setShowPaywall] = useState(false);
   const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
@@ -115,8 +245,8 @@ export default function SettingsScreen() {
         : 0;
       return { label: `試用中（剩餘 ${daysLeft} 天）`, color: "#F59E0B", isPaid: true, daysLeft };
     }
-    if (sub.status === "active") return { label: "家庭版（已訂閱）", color: "#16A34A", isPaid: true, daysLeft: 0 };
-    if (sub.status === "expired") return { label: "訂閱已到期", color: "#EF4444", isPaid: false, daysLeft: 0 };
+    if (sub.status === "active") return { label: t("settings.subActive"), color: "#16A34A", isPaid: true, daysLeft: 0 };
+    if (sub.status === "expired") return { label: t("settings.subExpired"), color: "#EF4444", isPaid: false, daysLeft: 0 };
     return { label: "免費版", color: "#6B7280", isPaid: false, daysLeft: 0 };
   };
   const subInfo = getSubscriptionLabel();
@@ -126,13 +256,13 @@ export default function SettingsScreen() {
       {/* 頭部 */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
+          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>設定</Text>
+        <Text style={styles.headerTitle}>{t("settings.title")}</Text>
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* 用戶資料 */}
         {isAuthenticated && user ? (
           <View style={styles.profileCard}>
@@ -142,7 +272,7 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user.name || "用戶"}</Text>
+              <Text style={styles.profileName}>{user.name || t("dyn.user")}</Text>
               <Text style={styles.profileEmail}>{user.email || ""}</Text>
               {user.role && (
                 <View style={styles.roleBadge}>
@@ -164,32 +294,32 @@ export default function SettingsScreen() {
             onPress={() => router.push("/login")}
           >
             <Ionicons name="person-circle-outline" size={48} color="#013E77" />
-            <Text style={styles.loginCardTitle}>未登入</Text>
-            <Text style={styles.loginCardSubtitle}>點擊登入以使用完整功能</Text>
+            <Text style={styles.loginCardTitle}>{t("settings.notLoggedIn")}</Text>
+            <Text style={styles.loginCardSubtitle}>{t("settings.loginPrompt")}</Text>
           </TouchableOpacity>
         )}
 
         {/* 廚房狀態 */}
         {isAuthenticated && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>廚房</Text>
+            <Text style={styles.sectionTitle}>{t("settings.kitchen")}</Text>
             <View style={styles.kitchenCard}>
               <View style={styles.kitchenCardHeader}>
                 <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}> 
                   <Ionicons name="home-outline" size={20} color="#013E77" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.kitchenName}>{activeFamily?.name || "未加入廚房"}</Text>
+                  <Text style={styles.kitchenName}>{activeFamily?.name || t("settings.notInKitchen")}</Text>
                   <Text style={styles.kitchenSub}>
                     {hasFamily
-                      ? `你而家只屬於一個廚房 · ${familyRole === "owner" ? "廚房主人" : familyRole === "admin" ? "廚房管理員" : familyRole === "helper" ? "幫手" : "家庭成員"}`
-                      : "建立或加入廚房後可同步排餐與購物清單"}
+                      ? t("settings.onlyOneKitchen", { role: t(`settings.role_${familyRole || "member"}` as any) })
+                      : t("settings.kitchenSyncHint")}
                   </Text>
                 </View>
               </View>
               <View style={styles.kitchenActions}>
                 <TouchableOpacity style={styles.kitchenPrimaryBtn} onPress={() => router.push("/kitchen-settings")}>
-                  <Text style={styles.kitchenPrimaryBtnText}>{hasFamily ? "管理廚房" : "建立或加入廚房"}</Text>
+                  <Text style={styles.kitchenPrimaryBtnText}>{hasFamily ? t("settings.manageKitchen") : t("settings.createOrJoinKitchen")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -200,7 +330,7 @@ export default function SettingsScreen() {
         {isAuthenticated && subInfo && (
           <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}> 
             <View style={styles.subCardLeft}>
-              <Text style={styles.subCardTitle}>訂閱狀態</Text>
+              <Text style={styles.subCardTitle}>{t("settings.subscriptionStatus")}</Text>
               <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{subInfo.label}</Text>
             </View>
             {!subInfo.isPaid && (
@@ -208,7 +338,7 @@ export default function SettingsScreen() {
                 style={styles.upgradeSmallBtn}
                 onPress={() => setShowPaywall(true)}
               >
-                <Text style={styles.upgradeSmallBtnText}>升級</Text>
+                <Text style={styles.upgradeSmallBtnText}>{t("settings.upgrade")}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -217,21 +347,21 @@ export default function SettingsScreen() {
         {/* 使用統計 */}
         {isAuthenticated && activeFamily && usage && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>使用統計</Text>
+            <Text style={styles.sectionTitle}>{t("settings.usageStats")}</Text>
             <View style={styles.usageCard}>
               <View style={styles.usageHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.usageTitle}>本月使用</Text>
-                  <Text style={styles.usageSubtitle}>成個廚房共享同一個 quota</Text>
+                  <Text style={styles.usageTitle}>{t("settings.monthUsage")}</Text>
+                  <Text style={styles.usageSubtitle}>{t("settings.kitchenQuota")}</Text>
                 </View>
                 <View style={styles.usageMonthBadge}>
-                  <Text style={styles.usageMonthBadgeText}>本月</Text>
+                  <Text style={styles.usageMonthBadgeText}>{t("settings.thisMonth")}</Text>
                 </View>
               </View>
 
               <View style={styles.usageMetricRow}>
-                <Text style={styles.usageMetricLabel}>AI 對話</Text>
-                <Text style={styles.usageMetricValue}>{usage.aiChat.used}/{usage.aiChat.limit} 次</Text>
+                <Text style={styles.usageMetricLabel}>{t("settings.aiChat")}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${usage.aiChat.limit}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -246,8 +376,8 @@ export default function SettingsScreen() {
               </View>
 
               <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
-                <Text style={styles.usageMetricLabel}>食譜匯入</Text>
-                <Text style={styles.usageMetricValue}>{usage.imports.used}/{usage.imports.limit} 次</Text>
+                <Text style={styles.usageMetricLabel}>{t("settings.recipeImport")}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${usage.imports.limit}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -263,7 +393,7 @@ export default function SettingsScreen() {
 
               <View style={{ height: 12 }} />
 
-              <Text style={styles.usageMemberSectionTitle}>成員用量</Text>
+              <Text style={styles.usageMemberSectionTitle}>{t("settings.memberUsage")}</Text>
               {currentUsageMembers.length > 0 ? (
                 <View style={styles.usageMemberList}>
                   {currentUsageMembers.map((member) => {
@@ -295,7 +425,7 @@ export default function SettingsScreen() {
                   })}
                 </View>
               ) : (
-                <Text style={styles.usageMemberEmpty}>未有成員用量資料</Text>
+                <Text style={styles.usageMemberEmpty}>{t("settings.noMemberUsage")}</Text>
               )}
             </View>
 
@@ -306,8 +436,8 @@ export default function SettingsScreen() {
                 activeOpacity={0.8}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.usageTableToggleTitle}>過去幾個月統計表</Text>
-                  <Text style={styles.usageTableToggleSubtitle}>點一下睇返月度使用數據</Text>
+                  <Text style={styles.usageTableToggleTitle}>{t("settings.monthsTable")}</Text>
+                  <Text style={styles.usageTableToggleSubtitle}>{t("settings.monthsTableSub")}</Text>
                 </View>
                 <Ionicons
                   name={showUsageHistory ? "chevron-up" : "chevron-down"}
@@ -351,9 +481,9 @@ export default function SettingsScreen() {
                         {isExpanded && (
                           <View style={styles.usageMonthMembers}>
                             <View style={styles.usageTableHeader}>
-                              <Text style={[styles.usageTableCell, styles.usageTableMember]}>成員</Text>
+                              <Text style={[styles.usageTableCell, styles.usageTableMember]}>{t("settings.member")}</Text>
                               <Text style={[styles.usageTableCell, styles.usageTableValue]}>AI</Text>
-                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>匯入</Text>
+                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>{t("settings.importLabel")}</Text>
                             </View>
                             {row.members.map((member) => (
                               <View key={`${row.yearMonth}-${member.userId}`} style={styles.usageTableRow}>
@@ -380,7 +510,7 @@ export default function SettingsScreen() {
 
         {/* 語言設定 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>語言</Text>
+          <Text style={styles.sectionTitle}>{t("settings.language")}</Text>
           <TouchableOpacity
             style={styles.settingRow}
             onPress={() => setShowLangPicker(!showLangPicker)}
@@ -389,7 +519,7 @@ export default function SettingsScreen() {
               <View style={styles.settingIcon}>
                 <Ionicons name="language-outline" size={20} color="#013E77" />
               </View>
-              <Text style={styles.settingLabel}>顯示語言</Text>
+              <Text style={styles.settingLabel}>{t("settings.displayLanguage")}</Text>
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>
@@ -440,7 +570,7 @@ export default function SettingsScreen() {
 
         {/* 安全設定 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>安全</Text>
+          <Text style={styles.sectionTitle}>{t("settings.security")}</Text>
           {biometricAvailable && (
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
@@ -448,8 +578,8 @@ export default function SettingsScreen() {
                   <Ionicons name="scan-outline" size={20} color="#013E77" />
                 </View>
                 <View>
-                  <Text style={styles.settingLabel}>Face ID / 指紋解鎖</Text>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>下次開啟 App 時使用生物辨識快速登入</Text>
+                  <Text style={styles.settingLabel}>{t("settings.faceId")}</Text>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>{t("settings.faceIdSub")}</Text>
                 </View>
               </View>
               <Switch
@@ -469,17 +599,91 @@ export default function SettingsScreen() {
                 <Ionicons name="lock-closed-outline" size={20} color="#DC2626" />
               </View>
               <View>
-                <Text style={styles.settingLabel}>改密碼</Text>
-                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>更新登入用密碼</Text>
+                <Text style={styles.settingLabel}>{t("settings.changePassword")}</Text>
+                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>{t("settings.updatePassword")}</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
 
+        {/* 每日提醒 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t("settings.reminder")}</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
+                <Ionicons name="alarm-outline" size={20} color="#EA580C" />
+              </View>
+              <View>
+                <Text style={styles.settingLabel}>{t("settings.dailyReminder")}</Text>
+                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>
+                  {reminderEnabled ? t("settings.reminderOn") : t("settings.reminderOff")}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={reminderEnabled}
+              onValueChange={handleToggleReminder}
+              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
+              thumbColor={reminderEnabled ? "#013E77" : "#F9FAFB"}
+            />
+          </View>
+
+          {reminderEnabled && (
+            <>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6B7280", marginTop: 16, marginBottom: 8 }}>{t("settings.reminderTime")}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#D1D5DB", backgroundColor: "#F9FAFB" }}>
+                  <Ionicons name="time-outline" size={18} color="#013E77" />
+                  <TextInput
+                    value={reminderTimeText}
+                    onChangeText={handleReminderTimeChange}
+                    placeholder="HH:MM"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    onSubmitEditing={applyReminderTimeText}
+                    style={{ flex: 1, fontSize: 16, fontWeight: "800", color: "#013E77" }}
+                  />
+                </View>
+                <TouchableOpacity
+                  onPress={applyReminderTimeText}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: "#013E77", alignItems: "center" }}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}>{t("settings.apply")}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>{t("settings.reminderHint", { time: loadedTimeLabel || "--:--" })}</Text>
+
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6B7280", marginTop: 16, marginBottom: 8 }}>{t("settings.repeat")}</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => { void commitReminder({ ...reminderSetting(), weekdays: [] }); }}
+                  style={[chipStyle, reminderWeekdays.length === 0 && chipActive]}
+                >
+                  <Text style={[chipTxt, reminderWeekdays.length === 0 && chipTxtActive]}>{t("settings.daily")}</Text>
+                </TouchableOpacity>
+                {weekdayLabels.map((d) => {
+                  const active = reminderWeekdays.includes(d.jsDay);
+                  return (
+                    <TouchableOpacity
+                      key={d.jsDay}
+                      onPress={() => toggleReminderWeekday(d.jsDay)}
+                      style={[chipStyle, active && chipActive]}
+                    >
+                      <Text style={[chipTxt, active && chipTxtActive]}>{d.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </View>
+
         {/* 功能入口 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>功能</Text>
+          <Text style={styles.sectionTitle}>{t("settings.features")}</Text>
 
           <TouchableOpacity
             style={styles.settingRow}
@@ -489,7 +693,7 @@ export default function SettingsScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
                   <Ionicons name="receipt-outline" size={20} color="#22C55E" />
                 </View>
-                <Text style={styles.settingLabel}>購買記錄</Text>
+                <Text style={styles.settingLabel}>{t("settings.purchaseHistory")}</Text>
               </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -502,7 +706,7 @@ export default function SettingsScreen() {
               <View style={[styles.settingIcon, { backgroundColor: "#F5F3FF" }]}> 
                 <ChatBubbleIcon size={20} color="#013E77" />
               </View>
-              <Text style={styles.settingLabel}>AI 助手</Text>
+              <Text style={styles.settingLabel}>{t("settings.aiChef")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -515,7 +719,7 @@ export default function SettingsScreen() {
               <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
                 <Ionicons name="storefront-outline" size={20} color="#16A34A" />
               </View>
-              <Text style={styles.settingLabel}>街市指南</Text>
+              <Text style={styles.settingLabel}>{t("settings.marketGuide")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -528,7 +732,7 @@ export default function SettingsScreen() {
               <View style={[styles.settingIcon, { backgroundColor: "#FEF9C3" }]}>
                 <Ionicons name="create-outline" size={20} color="#CA8A04" />
               </View>
-              <Text style={styles.settingLabel}>新增自訂食譜</Text>
+              <Text style={styles.settingLabel}>{t("settings.addCustomRecipe")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -543,23 +747,42 @@ export default function SettingsScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: "#EFF6FF" }]}>
                   <Ionicons name="server-outline" size={20} color="#3B82F6" />
                 </View>
-                <Text style={styles.settingLabel}>管理員面板</Text>
+                <Text style={styles.settingLabel}>{t("settings.adminPanel")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
             </TouchableOpacity>
           )}
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FFFBEB" }]}>
+                <Ionicons name="bulb-outline" size={20} color="#D97706" />
+              </View>
+              <Text style={styles.settingLabel}>{t("settings.hintToggle")}</Text>
+            </View>
+            <Switch
+              value={hintsEnabled}
+              onValueChange={handleToggleHints}
+              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
+              thumbColor={hintsEnabled ? "#013E77" : "#F9FAFB"}
+            />
+          </View>
         </View>
 
         {/* 關於 */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>關於</Text>
+          <Text style={styles.sectionTitle}>{t("settings.about")}</Text>
+
+          <View style={styles.aboutLogoWrap}>
+            <Image source={getAppLogo()} style={styles.aboutLogo} resizeMode="contain" />
+          </View>
 
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
                 <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
               </View>
-              <Text style={styles.settingLabel}>版本</Text>
+              <Text style={styles.settingLabel}>{t("settings.version")}</Text>
             </View>
             <Text style={styles.settingValue}>1.0.0</Text>
           </View>
@@ -576,7 +799,7 @@ export default function SettingsScreen() {
               <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#6B7280" />
               </View>
-              <Text style={styles.settingLabel}>私隱政策</Text>
+              <Text style={styles.settingLabel}>{t("settings.privacyPolicy")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
@@ -590,7 +813,18 @@ export default function SettingsScreen() {
               onPress={handleLogout}
             >
               <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text style={styles.logoutBtnText}>登出</Text>
+              <Text style={styles.logoutBtnText}>{t("settings.logout")}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.logoutBtn, { marginTop: 12, borderColor: "#FECACA" }]}
+              onPress={handleDeleteAccount}
+              disabled={deleteAccountM.isPending}
+            >
+              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+              <Text style={[styles.logoutBtnText, { color: "#DC2626" }]}>
+                {deleteAccountM.isPending ? t("settings.deleting") : t("settings.deleteAccount")}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -609,15 +843,15 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#FAF8F5" },
 
   header: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#FAF8F5",
     flexDirection: "row", alignItems: "center",
     paddingTop: 12, paddingBottom: 14, paddingHorizontal: 16,
   },
   backBtn: { padding: 4 },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: "#fff" },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
 
   // 用戶資料
   profileCard: {
@@ -652,6 +886,8 @@ const styles = StyleSheet.create({
   // 設定區塊
   section: { marginHorizontal: 16, marginBottom: 16 },
   sectionTitle: { fontSize: 12, fontWeight: "700", color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 },
+  aboutLogoWrap: { alignItems: "center", paddingVertical: 20 },
+  aboutLogo: { width: 120, height: 120, resizeMode: "contain" },
 
   settingRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -860,3 +1096,19 @@ const styles = StyleSheet.create({
   },
   logoutBtnText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },
 });
+
+const chipStyle = {
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  paddingHorizontal: 14,
+  paddingVertical: 9,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: "#D1D5DB",
+  backgroundColor: "#F9FAFB",
+  minWidth: 52,
+};
+const chipActive = { backgroundColor: "#013E77", borderColor: "#013E77" };
+const chipTxt = { fontSize: 14, fontWeight: "700" as const, color: "#4B5563" };
+const chipTxtActive = { color: "#fff" };

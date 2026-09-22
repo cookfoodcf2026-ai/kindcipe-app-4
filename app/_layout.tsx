@@ -20,6 +20,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import { I18nextProvider } from "react-i18next";
 import { initLanguage } from "@/lib/i18n";
 import KitchenSwitcher from "@/app/components/KitchenSwitcher";
@@ -127,6 +128,7 @@ function OfflineBanner() {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const segments = useSegments();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
@@ -388,8 +390,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
               <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="scan-outline" size={40} color="#013E77" />
               </View>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>解鎖 Kindcipe</Text>
-              <Text style={{ fontSize: 14, color: "#9CA3AF" }}>使用 Face ID 或指紋快速登入</Text>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("lock.unlock")}</Text>
+              <Text style={{ fontSize: 14, color: "#9CA3AF" }}>{t("lock.unlockHint")}</Text>
               <ActivityIndicator color="#013E77" size="large" style={{ marginTop: 12 }} />
             </View>
           ) : (
@@ -409,8 +411,37 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
-  useEffect(() => { initLanguage(); }, []);
+  const [langReady, setLangReady] = useState(false);
+  useEffect(() => { initLanguage().then(() => setLangReady(true)).catch(() => setLangReady(true)); }, []);
+  const router = useRouter();
 
+  // Meal reminder: re-apply on launch + handle notification tap → home tab
+  useEffect(() => {
+    let sub: { remove: () => void } | null = null;
+    (async () => {
+      try {
+        // Dynamic import: avoids running expo-notifications module init at root
+        // load (before the native module is ready), which can throw on cold start.
+        const [{ getMealReminderSetting, applyMealReminder }, Notifications] = await Promise.all([
+          import("@/lib/notifications"),
+          import("expo-notifications"),
+        ]);
+        const setting = await getMealReminderSetting();
+        if (setting.enabled) await applyMealReminder(setting);
+        sub = Notifications.addNotificationResponseReceivedListener((resp: any) => {
+          const route = resp?.notification?.request?.content?.data?.route;
+          if (typeof route === "string" && route.startsWith("/")) {
+            router.push(route as any);
+          }
+        });
+      } catch (e) {
+        console.warn("[MealReminder] setup skipped:", e);
+      }
+    })();
+    return () => { sub?.remove(); };
+  }, []);
+
+  if (!langReady) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary fallback={<CrashScreen />}>

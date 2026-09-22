@@ -151,12 +151,20 @@ export default function PaywallModal({
             </View>
             <View style={styles.divider} />
             <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>家庭版年費（省 20%）</Text>
+              <View style={styles.pricingLabelRow}>
+                <Text style={styles.pricingLabel}>家庭版年費（最抵）</Text>
+                <View style={styles.mostPopularBadge}>
+                  <Text style={styles.mostPopularText}>80% 僱主選擇</Text>
+                </View>
+              </View>
               <View style={styles.pricingRight}>
-                <Text style={styles.price}>HK$288</Text>
-                <Text style={styles.pricePer}>/年</Text>
+                <View style={styles.priceWrap}>
+                  <Text style={styles.priceStrike}>HK$360</Text>
+                  <Text style={styles.price}>HK$288</Text>
+                  <Text style={styles.pricePer}>/年</Text>
+                </View>
                 <View style={styles.saveBadge}>
-                  <Text style={styles.saveText}>省 HK$72</Text>
+                  <Text style={styles.saveText}>立省 20% · ≈HK$24/月</Text>
                 </View>
               </View>
             </View>
@@ -207,7 +215,7 @@ export default function PaywallModal({
             {isPurchasing === 'yearly' ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（省 20%）</Text>
+              <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（最抵，80% 僱主選擇）</Text>
             )}
           </TouchableOpacity>
 
@@ -296,9 +304,35 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#013E77",
   },
+  priceStrike: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    textDecorationLine: "line-through",
+    marginRight: 6,
+  },
+  priceWrap: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
   pricePer: {
     fontSize: 13,
     color: "#6B7280",
+  },
+  pricingLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  mostPopularBadge: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  mostPopularText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#B45309",
   },
   saveBadge: {
     backgroundColor: "#DCFCE7",

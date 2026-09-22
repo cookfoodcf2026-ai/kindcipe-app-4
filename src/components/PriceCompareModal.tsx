@@ -4,6 +4,7 @@
  * 資料來源：消委會「網上價格一覽通」(priceWatchRouter.search)
  */
 import { useState, useEffect, useMemo, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Modal, Linking, TextInput, Platform,
@@ -37,6 +38,7 @@ export interface PriceCompareFooterContext {
 interface Props {
   visible: boolean;
   keyword: string;
+  keywordEn?: string;
   onClose: () => void;
   showKeywordEditor?: boolean;
   staleTime?: number;
@@ -46,11 +48,13 @@ interface Props {
 export default function PriceCompareModal({
   visible,
   keyword,
+  keywordEn,
   onClose,
   showKeywordEditor = true,
   staleTime = 1000 * 60 * 60 * 6,
   renderFooter,
 }: Props) {
+  const { t } = useTranslation();
   const [editablePriceKw, setEditablePriceKw] = useState("");
   const [appliedKw, setAppliedKw] = useState(keyword);
   const [selectedResultIdx, setSelectedResultIdx] = useState(0);
@@ -70,7 +74,7 @@ export default function PriceCompareModal({
   const cleanPriceKw = useMemo(() => cleanIngredientName(appliedKw), [appliedKw]);
   const isFreshIng = useMemo(() => isFreshIngredient(appliedKw), [appliedKw]);
   const priceQ = trpc.priceWatch.search.useQuery(
-    { keyword: cleanPriceKw },
+    { keyword: cleanPriceKw, keywordEn: keywordEn || undefined },
     { enabled: visible && !!cleanPriceKw && !isFreshIng, staleTime }
   );
   const priceResults = useMemo(() => filterPriceResults(priceQ.data ?? [], cleanPriceKw), [priceQ.data, cleanPriceKw]);
@@ -114,10 +118,10 @@ export default function PriceCompareModal({
             {/* Header */}
             <View style={s.sheetHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={s.sheetTitle}>各平台比價</Text>
+                <Text style={s.sheetTitle}>{t("price.title")}</Text>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND, marginTop: 2 }}>{keyword}</Text>
                 {cleanPriceKw !== keyword && (
-                  <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>搜尋關鍵字：「{cleanPriceKw}」</Text>
+                  <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>{t("dyn.searchKeyword", { kw: cleanPriceKw })}</Text>
                 )}
               </View>
               <TouchableOpacity onPress={handleClose}>
@@ -128,11 +132,11 @@ export default function PriceCompareModal({
             {/* Editable keyword */}
             {showKeywordEditor && (
               <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
-                <Text style={{ fontSize: 10, color: SUB, marginBottom: 4 }}>編輯搜尋關鍵字</Text>
+                <Text style={{ fontSize: 10, color: SUB, marginBottom: 4 }}>{t("price.editKeyword")}</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TextInput
                     style={{ flex: 1, backgroundColor: "#F5F5F5", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: TEXT, borderWidth: 1, borderColor: "#E8E8E8" }}
-                    placeholder="例如：雞湯 罐頭"
+                    placeholder={t("price.keywordPlaceholder")}
                     placeholderTextColor={SUB}
                     value={editablePriceKw}
                     onChangeText={setEditablePriceKw}
@@ -144,7 +148,7 @@ export default function PriceCompareModal({
                       if (kw) { setAppliedKw(kw); setSelectedResultIdx(0); setShowAllResults(false); setShowAllSupermarkets(false); }
                     }}
                   >
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>搜尋</Text>
+                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{t("price.search")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -154,7 +158,7 @@ export default function PriceCompareModal({
             {isFreshIng && (
               <View style={s.priceNotice}>
                 <Ionicons name="leaf-outline" size={13} color={GREEN} />
-                <Text style={s.priceNoticeTxt}>新鮮食材建議到街市或超市比價，消委會格價未涵蓋此類商品</Text>
+                <Text style={s.priceNoticeTxt}>{t("price.freshNotice")}</Text>
               </View>
             )}
 
@@ -162,7 +166,7 @@ export default function PriceCompareModal({
             {!isFreshIng && priceQ.isLoading && (
               <View style={s.priceNotice}>
                 <ActivityIndicator size="small" color={BRAND} />
-                <Text style={{ fontSize: 12, color: BRAND }}>正在查詢消委會格價資料…</Text>
+                <Text style={{ fontSize: 12, color: BRAND }}>{t("price.loading")}</Text>
               </View>
             )}
 
@@ -170,9 +174,9 @@ export default function PriceCompareModal({
             {!isFreshIng && priceQ.isError && (
               <View style={[s.priceNotice, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
                 <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
-                <Text style={{ fontSize: 12, color: "#DC2626", flex: 1 }}>無法載入消委會格價資料</Text>
+                <Text style={{ fontSize: 12, color: "#DC2626", flex: 1 }}>{t("price.loadFailed")}</Text>
                 <TouchableOpacity onPress={() => priceQ.refetch()}>
-                  <Text style={{ fontSize: 11, color: "#DC2626", fontWeight: "700" }}>重試</Text>
+                  <Text style={{ fontSize: 11, color: "#DC2626", fontWeight: "700" }}>{t("price.retry")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -180,7 +184,7 @@ export default function PriceCompareModal({
             {/* No results */}
             {!isFreshIng && !priceQ.isLoading && !priceQ.isError && priceResults.length === 0 && (
               <View style={[s.priceNotice, { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" }]}>
-                <Text style={{ fontSize: 12, color: SUB }}>消委會格價中未找到「{cleanPriceKw}」，可直接前往各平台搜尋</Text>
+                <Text style={{ fontSize: 12, color: SUB }}>{t("dyn.ccNotFound", { kw: cleanPriceKw })}</Text>
               </View>
             )}
 
@@ -195,7 +199,7 @@ export default function PriceCompareModal({
                         <Text style={{ fontSize: 22 }}>🏆</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, color: "#16A34A", fontWeight: "800" }}>最抵格價</Text>
+                        <Text style={{ fontSize: 12, color: "#16A34A", fontWeight: "800" }}>{t("price.bestPrice")}</Text>
                         <Text style={{ fontSize: 15, fontWeight: "800", color: TEXT }} numberOfLines={1}>{summaryCheapest.supermarketName}</Text>
                       </View>
                       <Text style={{ fontSize: 24, fontWeight: "900", color: "#16A34A" }}>HK${lowestPrice.toFixed(1)}</Text>
@@ -210,7 +214,7 @@ export default function PriceCompareModal({
 
                 {/* CC data badge */}
                 <View style={s.ccBadge}>
-                  <Text style={s.ccBadgeTxt}>消委會數據 · 今日更新</Text>
+                  <Text style={s.ccBadgeTxt}>{t("price.ccData")}</Text>
                 </View>
 
                 {/* Product selector — multiple results */}
@@ -218,7 +222,7 @@ export default function PriceCompareModal({
                   <View style={{ marginBottom: 10 }}>
                     <TouchableOpacity style={s.productSelector} onPress={() => setShowAllResults(v => !v)}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, color: SUB }}>產品規格</Text>
+                        <Text style={{ fontSize: 10, color: SUB }}>{t("price.specs")}</Text>
                         <Text style={{ fontSize: 12, fontWeight: "700", color: TEXT }} numberOfLines={1}>
                           {selectedResult?.brand ? `${selectedResult.brand} ` : ""}{selectedResult?.name}
                         </Text>
@@ -260,7 +264,7 @@ export default function PriceCompareModal({
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                 {isCheapest && (
                                   <View style={{ backgroundColor: "#DCFCE7", borderRadius: 20, paddingHorizontal: 6, paddingVertical: 1 }}>
-                                    <Text style={{ fontSize: 9, fontWeight: "700", color: "#15803D" }}>最便宜</Text>
+                                    <Text style={{ fontSize: 9, fontWeight: "700", color: "#15803D" }}>{t("price.cheapest")}</Text>
                                   </View>
                                 )}
                                 {rMin !== null && (
@@ -289,7 +293,7 @@ export default function PriceCompareModal({
                 {/* Supermarket prices - top 3 */}
                 {top3.length > 0 && (
                   <View style={{ marginBottom: 12 }}>
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>超市格價</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>{t("misc.supermarketCompare")}</Text>
                     {top3.map((p: any, idx: number) => {
                       const st = SM_STYLE[p.supermarketCode] ?? { color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", logo: "?" };
                       const isLowest = idx === 0;
@@ -298,7 +302,7 @@ export default function PriceCompareModal({
                           {isLowest && (
                             <View style={s.lowestBadge}>
                               <Ionicons name="checkmark-outline" size={10} color="#fff" />
-                              <Text style={s.lowestBadgeTxt}>最低格價</Text>
+                              <Text style={s.lowestBadgeTxt}>{t("misc.lowestPrice")}</Text>
                             </View>
                           )}
                           <View style={[s.smLogo, { backgroundColor: "#fff" }]}>
@@ -342,7 +346,7 @@ export default function PriceCompareModal({
             {/* Special offers */}
             {!isFreshIng && selectedResult?.offers && selectedResult.offers.length > 0 && (
               <View style={{ marginBottom: 14 }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 6 }}>特別優惠</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 6 }}>{t("misc.specialOffer")}</Text>
                 {selectedResult.offers.map((o: any, i: number) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", marginBottom: 4, paddingHorizontal: 12, paddingVertical: 8 }}>
                     <Ionicons name="pricetag-outline" size={12} color="#92400E" />
@@ -383,7 +387,7 @@ export default function PriceCompareModal({
                     </View>
                     <Text style={{ fontSize: 12, fontWeight: "800", color: TEXT, marginTop: 6 }} numberOfLines={1}>{p.name}</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BRAND, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8 }}>
-                      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>搜尋</Text>
+                      <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{t("price.search")}</Text>
                       <Ionicons name="open-outline" size={11} color="#fff" />
                     </View>
                   </TouchableOpacity>
@@ -397,8 +401,8 @@ export default function PriceCompareModal({
                 <Ionicons name="business-outline" size={18} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: "800", color: BRAND }}>消委會格價網查詢</Text>
-                <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>Consumer Council · 網上價格一覽通</Text>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: BRAND }}>{t("misc.ccPriceWatch")}</Text>
+                <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>{t("misc.ccPriceWatchSub")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={BRAND} />
             </TouchableOpacity>

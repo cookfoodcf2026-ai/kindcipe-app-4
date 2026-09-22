@@ -5,6 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import type { CategoryDef } from "@/lib/category-storage";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { getRecipeLocalImage } from "@/lib/recipe-local-images";
+import { getBilingualName } from "@/lib/bilingual";
+import { useTranslation } from "react-i18next";
+import { useEnum } from "@/lib/i18nEnums";
 import { resolveImageUrl } from "@/lib/trpc";
 
 const BRAND = "#013E77";
@@ -20,14 +23,15 @@ interface RecipeCardProps {
   tags: string[];
   activeTagFilters: string[];
   setActiveTagFilters: (tags: string[] | ((prev: string[]) => string[])) => void;
-  setQuickPlanRecipe: (recipe: { id: string; name: string; image?: string; ingredients?: any[] } | null) => void;
+  setQuickPlanRecipe: (recipe: { id: string; name: string; nameEn?: string; nameFil?: string; nameId?: string; image?: string; ingredients?: any[] } | null) => void;
   navigateToRecipe: (item: any) => void;
   onPress?: () => void;
   /** 是否顯示快速排餐按鈕（日曆 icon）。設為 true 可重新啟用此功能。 */
   showQuickPlan?: boolean;
 }
 
-export default function RecipeCard({
+export default function RecipeCard(
+  {
   item,
   category,
   isUser,
@@ -40,6 +44,8 @@ export default function RecipeCard({
   onPress,
   showQuickPlan = false, // 預設隱藏快速排餐按鈕
 }: RecipeCardProps) {
+  const { t } = useTranslation();
+  const enu = useEnum();
   const { height: screenHeight } = useWindowDimensions();
   const imageRatio = getRecipeCardImageRatio(screenHeight);
   const catColor = category ? getCategoryColor(category.key) : getCategoryColor("其他");
@@ -84,8 +90,8 @@ export default function RecipeCard({
         : (
           <View style={[s.cardImg, { height: CARD_WIDTH * imageRatio }, s.cardImgPH, { backgroundColor: catColor.bg }]}> 
             <View style={s.textCoverContent}>
-              <Text style={s.textCoverTitle} numberOfLines={3}>{item.name}</Text>
-              <Text style={s.textCoverSub}>{isAIGenerated ? "AI 生成" : isUser ? "我的" : "官方食譜"}</Text>
+              <Text style={s.textCoverTitle} numberOfLines={3}>{getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).primary}</Text>
+              <Text style={s.textCoverSub}>{isAIGenerated ? t("dyn.aiGen") : isUser ? t("card.mine") : t("dyn.officialRecipe")}</Text>
             </View>
           </View>
         )
@@ -95,7 +101,7 @@ export default function RecipeCard({
       <View style={s.cardBadges}>
         {isUser && (
           <View style={s.sourceBadge}>
-            <Text style={s.sourceBadgeTxt}>我的</Text>
+            <Text style={s.sourceBadgeTxt}>{t("card.mine")}</Text>
           </View>
         )}
         {isAIGenerated && (
@@ -105,7 +111,7 @@ export default function RecipeCard({
         )}
         {Boolean(item.isAd || item.isSponsored || item.sponsored || item.promoted || item.ad) && (
           <View style={s.hotBadge}>
-            <Text style={s.hotBadgeTxt}>🔥 熱門</Text>
+            <Text style={s.hotBadgeTxt}>{t("card.hot")}</Text>
           </View>
         )}
       </View>
@@ -116,7 +122,7 @@ export default function RecipeCard({
           style={s.cardPlanBtn}
           onPress={(e) => {
             e.stopPropagation();
-            setQuickPlanRecipe({ id: item.id, name: item.name, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
+            setQuickPlanRecipe({ id: item.id, name: item.name, nameEn: item.nameEn, nameFil: item.nameFil, nameId: item.nameId, image: item.thumbnailUrl || item.image, ingredients: item.ingredients });
           }}
           activeOpacity={0.7}
         >
@@ -126,26 +132,29 @@ export default function RecipeCard({
 
       {/* ── Card Info ── */}
       <View style={s.cardInfo}>
-        <Text style={s.cardName} numberOfLines={2}>{item.name}</Text>
-        {item.nameEn ? <Text style={s.cardNameEn} numberOfLines={1}>{item.nameEn}</Text> : null}
+        <Text style={s.cardName} numberOfLines={2}>{getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).primary}</Text>
+        {(() => { const sec = getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).secondary; return sec ? <Text style={s.cardNameEn} numberOfLines={1}>{sec}</Text> : null; })()}
+        {item.sourceAuthor ? (
+          <Text style={s.cardAuthor} numberOfLines={1}>by {item.sourceAuthor}</Text>
+        ) : null}
         
         <View style={s.cardMeta}>
           {item.cookTime ? (
             <View style={s.cardMetaItem}>
               <Ionicons name="time-outline" size={12} color="#9CA3AF" />
-              <Text style={s.cardMetaTxt}>{item.cookTime}分</Text>
+              <Text style={s.cardMetaTxt}>{item.cookTime}{t("recipe.min")}</Text>
             </View>
           ) : null}
           {item.difficulty ? (
             <View style={s.cardMetaItem}>
               <Ionicons name="flame-outline" size={12} color="#9CA3AF" />
-              <Text style={s.cardMetaTxt}>{item.difficulty}</Text>
+              <Text style={s.cardMetaTxt}>{enu.difficulty(item.difficulty)}</Text>
             </View>
           ) : null}
           {item.servings ? (
             <View style={s.cardMetaItem}>
               <Ionicons name="people-outline" size={12} color="#9CA3AF" />
-              <Text style={s.cardMetaTxt}>{item.servings}人</Text>
+              <Text style={s.cardMetaTxt}>{item.servings}{t("recipe.servingsUnit")}</Text>
             </View>
           ) : null}
           {category?.emoji && (
@@ -341,6 +350,7 @@ const s = StyleSheet.create({
     lineHeight: 16,
     fontStyle: "italic",
   },
+  cardAuthor: { fontSize: 10, color: "#013E77", fontWeight: "600", marginBottom: 6 },
   cardMeta: { 
     flexDirection: "row", 
     alignItems: "center", 

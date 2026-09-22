@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from "react-i18next";
 import { Link, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,6 +8,7 @@ const BG = "#FAFAF8";
 const TEXT = "#1C1C1E";
 
 export default function NotFoundScreen() {
+  const { t } = useTranslation();
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!', headerShown: false }} />
@@ -14,12 +16,12 @@ export default function NotFoundScreen() {
         <View style={styles.iconBox}>
           <Ionicons name="help-circle-outline" size={40} color={BRAND} />
         </View>
-        <Text style={styles.title}>呢個頁面唔存在</Text>
-        <Text style={styles.subtitle}>你訪問嘅頁面已經被移除或者從未存在</Text>
+        <Text style={styles.title}>{t("notFound.title")}</Text>
+        <Text style={styles.subtitle}>{t("notFound.subtitle")}</Text>
         <Link href="/(tabs)" asChild>
           <TouchableOpacity style={styles.button}>
             <Ionicons name="home-outline" size={20} color="#fff" />
-            <Text style={styles.buttonText}>返回首頁</Text>
+            <Text style={styles.buttonText}>{t("notFound.home")}</Text>
           </TouchableOpacity>
         </Link>
       </View>

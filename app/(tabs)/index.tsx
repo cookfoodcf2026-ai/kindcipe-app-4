@@ -14,11 +14,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
+import { getBilingualName } from "@/lib/bilingual";
+import i18n from "@/lib/i18n";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import { useToast } from "@/src/components/Toast";
+import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
+import { useTranslation } from "react-i18next";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import FilterModal from "@/src/components/FilterModal";
@@ -32,7 +36,7 @@ const CARD_GAP = 10;
 const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
 const CARD_IMAGE_RATIO = getRecipeCardImageRatio(Dimensions.get("window").height);
 const BRAND = "#013E77";
-const BG = "#F5F5F5";
+const BG = "#FAF8F5";
 
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
@@ -66,7 +70,7 @@ const INGREDIENT_CATEGORIES = [
 
 const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "電飯煲料理", "家常", "簡單", "素食", "低卡"];
 
-const mealName = (m: any) => m.recipeName || m.name || "未命名食譜";
+const mealName = (m: any) => getBilingualName(m.recipeName || m.name, m.recipeNameEn, m.recipeNameFil, m.recipeNameId).primary || m.recipeName || m.name || "未命名食譜";
 
 // ── Next Dinner Card (shows next dinner within 14 days) ─────────────────────────────────────────────
 function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
@@ -74,6 +78,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
   todayEatOut: boolean;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useTranslation();
   const todayStr = DateUtil.todayISO();
   
   // Query next 14 days of meal plans
@@ -137,7 +142,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
       <View style={s.dualCardHeader}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="moon-outline" size={16} color={BRAND} />
-          <Text style={s.dualCardTitle}>下次晚餐</Text>
+          <Text style={s.dualCardTitle}>{t("home.nextDinner")}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={BRAND} />
       </View>
@@ -158,16 +163,16 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
           ))}
           {moreCount > 0 && (
             <TouchableOpacity style={s.dualCardMoreRow} onPress={() => router.push("/(tabs)/planner" as any)}>
-              <Text style={s.dualCardMoreText}>查看全部 ›</Text>
+              <Text style={s.dualCardMoreText}>{t("home.viewAll")}</Text>
             </TouchableOpacity>
           )}
         </View>
       ) : (
         // No dinner arranged in 14 days
         <View style={s.dualCardEmpty}>
-          <Text style={s.dualCardEmptyTxt}>還沒有安排晚餐</Text>
+          <Text style={s.dualCardEmptyTxt}>{t("home.noDinner")}</Text>
           <TouchableOpacity style={s.dualCardEmptyBtn} onPress={() => router.push("/(tabs)/planner" as any)} activeOpacity={0.8}>
-            <Text style={s.dualCardEmptyBtnTxt}>去排餐 ›</Text>
+            <Text style={s.dualCardEmptyBtnTxt}>{t("home.goPlan")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -179,6 +184,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
 function ShoppingListPreview({ router }: {
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useTranslation();
   const todayStr = DateUtil.todayISO();
   
   // Calculate end date (14 days from today)
@@ -233,7 +239,7 @@ function ShoppingListPreview({ router }: {
       <View style={s.dualCardHeader}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Ionicons name="cart-outline" size={16} color={BRAND} />
-          <Text style={s.dualCardTitle}>購物清單</Text>
+          <Text style={s.dualCardTitle}>{t("shopping.title")}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={BRAND} />
       </View>
@@ -243,7 +249,7 @@ function ShoppingListPreview({ router }: {
           {itemsToShow.map((item: any, idx: number) => (
             <View key={idx} style={s.dualCardRow}>
               <Ionicons name="ellipse-outline" size={12} color="#6B7280" />
-              <Text style={s.dualCardRowText} numberOfLines={1}>{item.name}</Text>
+              <Text style={s.dualCardRowText} numberOfLines={1}>{getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).primary}</Text>
               {/* Only show date label for the first item */}
               {idx === 0 && dateLabel && (
                 <View style={s.dualCardDateBadge}>
@@ -254,15 +260,15 @@ function ShoppingListPreview({ router }: {
           ))}
           {moreCount > 0 && (
             <View style={s.dualCardMoreRow}>
-              <Text style={s.dualCardMoreText}>查看全部 ›</Text>
+              <Text style={s.dualCardMoreText}>{t("home.viewAll")}</Text>
             </View>
           )}
         </View>
       ) : (
         <View style={s.dualCardEmpty}>
-          <Text style={s.dualCardEmptyTxt}>購物清單是空的</Text>
+          <Text style={s.dualCardEmptyTxt}>{t("home.shoppingEmpty")}</Text>
           <TouchableOpacity style={s.dualCardEmptyBtn} onPress={() => router.push("/(tabs)/shopping" as any)} activeOpacity={0.8}>
-            <Text style={s.dualCardEmptyBtnTxt}>去加食材 ›</Text>
+            <Text style={s.dualCardEmptyBtnTxt}>{t("home.addItems")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -272,6 +278,7 @@ function ShoppingListPreview({ router }: {
 
 // ── Tonight Hero Card (primary entry → AI Chef) ───────────────────────
 function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={s.tonightHeroWrap}
@@ -280,7 +287,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
     >
       <View style={s.tonightHero}>
         <ExpoImage
-          source={require("../../assets/herocard-v2.jpeg")}
+          source={require("../../assets/herocard-v4.jpeg")}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           contentPosition="right center"
@@ -293,10 +300,10 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
           <View style={[s.tonightHeroScrimLayer, { width: "40%", opacity: 0.55 }]} />
         </View>
         <View style={s.tonightHeroText}>
-          <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>今晚食咩好？😋</Text>
-          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>等我幫你安排你嘅排餐啦</Text>
+          <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t("home.tonight")}</Text>
+          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t("home.heroSubtitle")}</Text>
           <View style={s.tonightHeroCta}>
-            <Text style={s.tonightHeroCtaTxt}>即刻幫我諗</Text>
+            <Text style={s.tonightHeroCtaTxt}>{t("aiChef.heroCta")}</Text>
             <Ionicons name="arrow-forward" size={14} color="#fff" />
           </View>
         </View>
@@ -309,6 +316,7 @@ function PendingActionsCard({ router, isAdmin }: {
   router: ReturnType<typeof useRouter>;
   isAdmin: boolean;
 }) {
+  const { t } = useTranslation();
   const { data: mealPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
     staleTime: 1000 * 30,
     refetchInterval: 30000,
@@ -330,7 +338,7 @@ function PendingActionsCard({ router, isAdmin }: {
     <View style={s.pendingCard}>
       <View style={s.pendingCardHeader}>
         <Ionicons name="clipboard-outline" size={16} color={BRAND} />
-        <Text style={s.pendingCardTitle}>待辦事項</Text>
+        <Text style={s.pendingCardTitle}>{t("home.pendingTitle")}</Text>
       </View>
       {pendingMealPlans > 0 && (
         <TouchableOpacity
@@ -341,7 +349,7 @@ function PendingActionsCard({ router, isAdmin }: {
           <View style={[s.pendingIcon, { backgroundColor: "#FEF3C7" }]}>
             <Ionicons name="restaurant-outline" size={14} color="#D97706" />
           </View>
-          <Text style={s.pendingLabel}>{pendingMealPlans} 個排餐待確認</Text>
+          <Text style={s.pendingLabel}>{t("dyn.pendingMeals", { n: pendingMealPlans })}</Text>
           <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
         </TouchableOpacity>
       )}
@@ -354,7 +362,7 @@ function PendingActionsCard({ router, isAdmin }: {
           <View style={[s.pendingIcon, { backgroundColor: "#DBEAFE" }]}>
             <Ionicons name="cart-outline" size={14} color={BRAND} />
           </View>
-          <Text style={s.pendingLabel}>{pendingShopping} 項購物待確認</Text>
+          <Text style={s.pendingLabel}>{t("dyn.pendingShopping", { n: pendingShopping })}</Text>
           <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
         </TouchableOpacity>
       )}
@@ -367,7 +375,7 @@ function PendingActionsCard({ router, isAdmin }: {
           <View style={[s.pendingIcon, { backgroundColor: "#DCFCE7" }]}>
             <Ionicons name="bag-handle-outline" size={14} color="#16A34A" />
           </View>
-          <Text style={s.pendingLabel}>{unboughtShopping} 項食材待買</Text>
+          <Text style={s.pendingLabel}>{t("dyn.unboughtItems", { n: unboughtShopping })}</Text>
           <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
         </TouchableOpacity>
       )}
@@ -420,6 +428,7 @@ function PremiumUpgradeButton({ onPress, style }: { onPress: () => void; style?:
 export default function RecipesTab() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const { t } = useTranslation();
   const cardImageRatio = getRecipeCardImageRatio(screenHeight);
   const router = useRouter();
   const { initialViewMode } = useLocalSearchParams<{ initialViewMode?: string }>();
@@ -429,9 +438,9 @@ export default function RecipesTab() {
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return "早晨";
-    if (hour < 18) return "午安";
-    return "晚安";
+    if (hour < 12) return i18n.t("home.goodMorning");
+    if (hour < 18) return i18n.t("home.goodAfternoon");
+    return i18n.t("home.goodEvening");
   }, []);
 
   // Scroll-to-top floating button
@@ -514,7 +523,7 @@ export default function RecipesTab() {
     }
   };
 
-  const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; image?: string; ingredients?: any[] } | null>(null);
+  const [quickPlanRecipe, setQuickPlanRecipe] = useState<{ id: string; name: string; nameEn?: string; nameFil?: string; nameId?: string; image?: string; ingredients?: any[] } | null>(null);
   const [quickPlanDate, setQuickPlanDate] = useState<string | null>(DateUtil.todayISO());
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
@@ -588,6 +597,7 @@ export default function RecipesTab() {
 
   const isLoading = searchLoading || loadingUser;
   const { showToast } = useToast();
+  const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const isKolSourceUnsupported = useMemo(() => {
     if (viewMode !== "kol" || !isSearchError) return false;
     const msg = String(searchError?.message ?? "");
@@ -650,7 +660,7 @@ export default function RecipesTab() {
       utils.shopping.list.refetch();
       const count = variables.items.length;
       setPlanPickerRecipe(null);
-      showToast(`✅ ${count} 件食材已加入購物清單`);
+      setShoppingConfirmCount(count);
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
@@ -708,6 +718,16 @@ export default function RecipesTab() {
 
     return pool;
   }, [searchRecipes, viewMode, sortBy, draftIdSet]);
+
+  // P3: 背景預載食譜詳情（getById），令「撳落去」即刻見（避免第一次空白 3 秒）
+  useEffect(() => {
+    if (!utils || filteredRecipes.length === 0) return;
+    // 只預載頭 12 個，避免一次性 network burst
+    const ids = filteredRecipes.slice(0, 12).map((r: any) => String(r.id)).filter((id: string) => id && !id.startsWith("draft"));
+    ids.forEach((id: string) => {
+      void (utils.recipes.getById as any).prefetch({ id });
+    });
+  }, [utils, filteredRecipes]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -802,7 +822,7 @@ export default function RecipesTab() {
         <TextInput
           ref={searchInputRef}
           style={s.searchInput}
-          placeholder="搜尋食譜、食材、標籤"
+          placeholder={t("home.searchPlaceholder")}
           placeholderTextColor="#9CA3AF"
           value={searchQuery}
           onChangeText={(text) => {
@@ -847,9 +867,9 @@ export default function RecipesTab() {
       {showSearchHistory && (
         <View style={s.searchHistoryWrap}>
           <View style={s.searchHistoryHeader}>
-            <Text style={s.searchHistoryTitle}>最近搜尋</Text>
+            <Text style={s.searchHistoryTitle}>{t("home.recentSearch")}</Text>
             <TouchableOpacity onPress={() => { setSearchHistory([]); AsyncStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
-              <Text style={s.searchHistoryClear}>全部清除</Text>
+              <Text style={s.searchHistoryClear}>{t("home.clearAll")}</Text>
             </TouchableOpacity>
           </View>
           <View style={s.searchHistoryList}>
@@ -928,7 +948,7 @@ export default function RecipesTab() {
             {/* Cook Time Token */}
             {filterCookTimeMax !== undefined && (
               <View style={s.smartToken}>
-                <Text style={s.smartTokenTxt}>⏱ {filterCookTimeMax}分鐘內</Text>
+                <Text style={s.smartTokenTxt}>{t("dyn.minutesWithin", { n: filterCookTimeMax })}</Text>
                 <TouchableOpacity onPress={() => setFilterCookTimeMax(undefined)}>
                   <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
@@ -962,12 +982,12 @@ export default function RecipesTab() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
           <View style={s.filterRowLabel}>
             <Ionicons name="pricetag-outline" size={11} color="#9CA3AF" />
-            <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>標籤</Text>
+            <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{t("recipe.tags")}</Text>
           </View>
           {activeTagFilters.length > 0 && (
             <TouchableOpacity style={[s.filterPill, { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]} onPress={() => setActiveTagFilters([])}>
               <Ionicons name="close" size={10} color="#EF4444" />
-              <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "700", marginLeft: 2 }}>清除</Text>
+              <Text style={{ fontSize: 11, color: "#EF4444", fontWeight: "700", marginLeft: 2 }}>{t("home.clear")}</Text>
             </TouchableOpacity>
           )}
           {TOP_TAGS.map(tag => {
@@ -990,7 +1010,7 @@ export default function RecipesTab() {
             style={s.filterPill}
             onPress={() => setShowFilterSheet(true)}
           >
-            <Text style={s.filterPillTxt}>更多 ▼</Text>
+            <Text style={s.filterPillTxt}>{t("home.moreFilter")}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -1001,16 +1021,16 @@ export default function RecipesTab() {
             {isLoading ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <ActivityIndicator size="small" color="#9CA3AF" />
-                <Text style={s.resultSummaryTxt}>正在搜尋...</Text>
+                <Text style={s.resultSummaryTxt}>{t("home.searching")}</Text>
               </View>
             ) : filterSummary ? (
-              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {searchTotal} 個結果</Text>
+              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {t("dyn.resultsCount", { n: searchTotal })}</Text>
             ) : (
-              <Text style={s.resultSummaryTxt}>找到 {searchTotal} 個食譜</Text>
+              <Text style={s.resultSummaryTxt}>{t("home.result", { n: searchTotal })}</Text>
             )}
           </View>
           <TouchableOpacity onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); }}>
-            <Text style={s.resultSummaryClear}>清除篩選</Text>
+            <Text style={s.resultSummaryClear}>{t("home.clearFilters")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1022,16 +1042,16 @@ export default function RecipesTab() {
       <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}> 
         <View style={s.headerTopRow}>
           <View>
-            <Text style={s.headerTitle}>和諧食譜</Text>
-            <Text style={s.headerSub}>{user?.name ? `${greeting}，${user.name.split(" ")[0]}` : "發現美味，規劃每週菜單"}</Text>
+            <Text style={s.headerTitle}>{t("home.title")}</Text>
+            <Text style={s.headerSub}>{user?.name ? t("home.greetingName", { greeting, name: user.name.split(" ")[0] }) : t("home.tagline")}</Text>
           </View>
           <View style={s.headerActions}>
             {!isPaid && <PremiumUpgradeButton onPress={() => setShowPaywall(true)} />}
             <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/import")}> 
-              <Ionicons name="add" size={22} color="#fff" />
+              <Ionicons name="add" size={22} color="#013E77" />
             </TouchableOpacity>
             <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/ai-chef")}> 
-              <Ionicons name="chatbubble-ellipses" size={19} color="#fff" />
+              <Ionicons name="chatbubble-ellipses" size={19} color="#013E77" />
             </TouchableOpacity>
           </View>
         </View>
@@ -1097,16 +1117,16 @@ export default function RecipesTab() {
             {isKolSourceUnsupported ? (
               <>
                 <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>網紅食譜暫時未有內容</Text>
-                <Text style={s.emptySub}>管理員未上架 KOL 食譜，或者內容仍在準備中。</Text>
+                <Text style={s.emptyTitle}>{t("home.kolEmptyTitle")}</Text>
+                <Text style={s.emptySub}>{t("home.kolEmptySub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
-                  <Text style={s.emptyBtnTxt}>返回篩選</Text>
+                  <Text style={s.emptyBtnTxt}>{t("home.backToFilters")}</Text>
                 </TouchableOpacity>
               </>
             ) : isSearchError ? (
               <>
                 <Ionicons name="warning-outline" size={44} color="#EF4444" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>搜尋出錯</Text>
+                <Text style={s.emptyTitle}>{t("home.searchError")}</Text>
                 <Text style={s.emptySub}>
                   {searchError?.message?.includes("SQL") || searchError?.message?.includes("搜尋失敗")
                     ? "系統搜尋時遇到問題，請稍後再試" :
@@ -1115,48 +1135,48 @@ export default function RecipesTab() {
                     searchError?.message || "請稍後再試"}
                 </Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => refetchSearch()}>
-                  <Text style={s.emptyBtnTxt}>重試</Text>
+                  <Text style={s.emptyBtnTxt}>{t("home.retry")}</Text>
                 </TouchableOpacity>
               </>
             ) : hasFilterTokens ? (
               <>
                 <Ionicons name="search-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>找不到符合嘅食譜</Text>
-                <Text style={s.emptySub}>試下清除篩選或者揀其他分類</Text>
+                <Text style={s.emptyTitle}>{t("home.noMatchTitle")}</Text>
+                <Text style={s.emptySub}>{t("home.noMatchSub")}</Text>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
                   <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); }}>
-                    <Text style={s.emptySuggestChipTxt}>清除篩選</Text>
+                    <Text style={s.emptySuggestChipTxt}>{t("home.clearFilters")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["quick30"]); }}>
-                    <Text style={s.emptySuggestChipTxt}> 快手30 分鐘</Text>
+                    <Text style={s.emptySuggestChipTxt}> {t("home.quick30")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.emptySuggestChip} onPress={() => { setSearchQuery(""); setActivePopularChips(["light"]); }}>
-                    <Text style={s.emptySuggestChipTxt}> 清淡少油</Text>
+                    <Text style={s.emptySuggestChipTxt}> {t("home.lightOil")}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : viewMode === "kol" ? (
               <>
                 <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>網紅食譜暫時未有內容</Text>
-                <Text style={s.emptySub}>Admin 未上架 KOL 食譜，或者內容仍在準備中。</Text>
+                <Text style={s.emptyTitle}>{t("home.kolEmptyTitle")}</Text>
+                <Text style={s.emptySub}>{t("home.kolEmptySub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
-                  <Text style={s.emptyBtnTxt}>返回篩選</Text>
+                  <Text style={s.emptyBtnTxt}>{t("home.backToFilters")}</Text>
                 </TouchableOpacity>
               </>
             ) : viewMode === "user" ? (
               <>
                 <Ionicons name="flame-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>還沒有食譜</Text>
-                <Text style={s.emptySub}>從 Instagram、YouTube 匯入你喜歡的食譜</Text>
+                <Text style={s.emptyTitle}>{t("home.noRecipesTitle")}</Text>
+                <Text style={s.emptySub}>{t("home.noRecipesSub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
-                  <Text style={s.emptyBtnTxt}>+ 篩選食譜</Text>
+                  <Text style={s.emptyBtnTxt}>{t("home.filterRecipes")}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
                 <Ionicons name="book-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
-                <Text style={s.emptyTitle}>暫無食譜</Text>
+                <Text style={s.emptyTitle}>{t("home.noRecipesShort")}</Text>
               </>
             )}
           </View>
@@ -1221,7 +1241,7 @@ export default function RecipesTab() {
             <View style={s.planHandle} />
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>加入排餐</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("recipe.addToPlan")}</Text>
                 <Text style={{ fontSize: 13, color: "#9CA3AF", marginTop: 2 }} numberOfLines={1}>{quickPlanRecipe?.name}</Text>
               </View>
               <TouchableOpacity onPress={() => setQuickPlanRecipe(null)}>
@@ -1229,18 +1249,18 @@ export default function RecipesTab() {
               </TouchableOpacity>
             </View>
 
-            <Text style={s.planLabel}>選擇日期</Text>
+            <Text style={s.planLabel}>{t("recipe.selectDate")}</Text>
             <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
             {quickPlanDate && (
               <TouchableOpacity 
                 onPress={() => setQuickPlanDate(null)} 
                 style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
               >
-                <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
               </TouchableOpacity>
             )}
 
-            <Text style={s.planLabel}>餐次</Text>
+            <Text style={s.planLabel}>{t("recipe.mealType")}</Text>
             <View style={s.planMealRow}>
               {[{ id: "breakfast", label: "早餐", icon: "sunny-outline" as const }, { id: "lunch", label: "午餐", icon: "partly-sunny-outline" as const }, { id: "dinner", label: "晚餐", icon: "moon-outline" as const }, { id: "snack", label: "小食", icon: "cafe-outline" as const }].map(m => (
                 <TouchableOpacity key={m.id} style={[s.planMealChip, quickPlanMeal === m.id && s.planMealChipActive]} onPress={() => setQuickPlanMeal(m.id)}>
@@ -1258,13 +1278,13 @@ export default function RecipesTab() {
                   Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
                   return;
                 }
-                addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });
+                addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeNameEn: quickPlanRecipe.nameEn, recipeNameFil: quickPlanRecipe.nameFil, recipeNameId: quickPlanRecipe.nameId, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });
               }}
               disabled={addMealM.isPending}
             >
               {addMealM.isPending
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Ionicons name="calendar-outline" size={18} color="#fff" /><Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>確認加入排餐</Text></>
+                : <><Ionicons name="calendar-outline" size={18} color="#fff" /><Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>{t("home.confirmAddPlan")}</Text></>
               }
             </TouchableOpacity>
           </View>
@@ -1309,6 +1329,13 @@ export default function RecipesTab() {
         feature="generic"
         trialDaysLeft={sub?.trialEndsAt ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000)) : undefined}
       />
+
+      <ShoppingAddConfirm
+        visible={shoppingConfirmCount !== null}
+        count={shoppingConfirmCount ?? 0}
+        onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
+        onClose={() => setShoppingConfirmCount(null)}
+      />
     </View>
   );
 }
@@ -1318,7 +1345,7 @@ const s = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16, paddingBottom: 12,
-    backgroundColor: BRAND,
+    backgroundColor: BG,
   },
   headerTopRow: {
     flexDirection: "row",
@@ -1332,9 +1359,9 @@ const s = StyleSheet.create({
     gap: 8,
     marginLeft: "auto",
   },
-  headerTitle: { fontSize: 15, fontWeight: "700", color: "rgba(255,255,255,0.85)", letterSpacing: 0.5 },
-  headerSub: { fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1 },
-  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 15, fontWeight: "800", color: "#1A1A1A", letterSpacing: 0.5 },
+  headerSub: { fontSize: 11, color: "#6B7280", marginTop: 1 },
+  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
 
   // Tonight menu card
   summaryCard: {
@@ -1552,14 +1579,14 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.28)",
-    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "#FDE68A",
+    backgroundColor: "#FEF3C7",
   },
   upgradeBarText: {
     fontSize: 13,
     textAlign: "center",
     fontWeight: "800",
-    color: "#FDE68A",
+    color: "#B45309",
     letterSpacing: 0.1,
   },
 

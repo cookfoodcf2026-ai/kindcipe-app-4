@@ -8,6 +8,8 @@ import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import { useTranslation } from "react-i18next";
+import { getBilingualName } from "@/lib/bilingual";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { useToast } from "@/src/components/Toast";
@@ -38,6 +40,7 @@ const CAT_META: Record<string, { bg: string; border: string; label: string; emoj
 };
 
 export default function PantryScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -55,6 +58,22 @@ export default function PantryScreen() {
 
   const { data: pantryData = [], isLoading } = trpc.pantry.list.useQuery(undefined, { enabled: !!user });
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, { enabled: !!user });
+  const { data: commonIngredients = [] } = (trpc as any).commonIngredient.list.useQuery(undefined, { staleTime: 1000 * 60 * 60 * 24, retry: 2 });
+  const pantryIngLookup = useMemo(() => {
+    const byName = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const norm = (x: string) => x.replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim();
+    for (const ing of commonIngredients) {
+      const rec = { en: ing.nameEn ?? undefined, fil: ing.nameFil ?? undefined, id: ing.nameId ?? undefined };
+      if (ing.nameZh) byName.set(norm(ing.nameZh), rec);
+      if (ing.nameYue) byName.set(norm(ing.nameYue), rec);
+      if (ing.nameEn) byName.set(String(ing.nameEn).toLowerCase(), rec);
+    }
+    return byName;
+  }, [commonIngredients]);
+  const biName = (name: string) => {
+    const rec = pantryIngLookup.get(String(name).replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim()) || pantryIngLookup.get(String(name).toLowerCase());
+    return getBilingualName(name, rec?.en, rec?.fil, rec?.id);
+  };
   const boughtItems = useMemo(() => shoppingItems.filter((i: any) => i.status === "bought"), [shoppingItems]);
 
   const addItemM = trpc.pantry.add.useMutation({
@@ -164,7 +183,7 @@ export default function PantryScreen() {
                 style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99 }}
                 onPress={() => { setNewName(""); setNewCategory(allCats[0] || "其他"); setNewQty(""); setNewUnit(""); setShowAddModal(true); }}
               >
-                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>+ 新增</Text>
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{t("pantry.add")}</Text>
               </TouchableOpacity>
             </View>
           ),
@@ -215,11 +234,11 @@ export default function PantryScreen() {
           <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 16, backgroundColor: "#DCFCE7", borderWidth: 1.5, borderColor: "#86EFAC", flexDirection: "row", alignItems: "center", gap: 10 }}>
             <Ionicons name="cube-outline" size={18} color="#15803D" />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803D" }}>購物清單有 {boughtItems.length} 件已買商品</Text>
-              <Text style={{ fontSize: 10, color: "#166534", marginTop: 1 }}>{boughtItems.slice(0, 3).map((i: any) => i.name).join("、")}{boughtItems.length > 3 ? `等${boughtItems.length}件` : ""}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#15803D" }}>{t("dyn.shoppingHasBought", { n: boughtItems.length })}</Text>
+              <Text style={{ fontSize: 10, color: "#166534", marginTop: 1 }}>{boughtItems.slice(0, 3).map((i: any) => i.name).join("、")}{boughtItems.length > 3 ? t("dyn.etcN", { n: boughtItems.length }) : ""}</Text>
             </View>
             <TouchableOpacity style={{ backgroundColor: "#15803D", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }} onPress={handleImportBought} disabled={addFromShoppingM.isPending}>
-              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{addFromShoppingM.isPending ? "入庫中..." : "一鍵入庫"}</Text>
+              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{addFromShoppingM.isPending ? t("dyn.stocking") : t("dyn.stockIn")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -229,11 +248,11 @@ export default function PantryScreen() {
           <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 16, backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA", flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
             <Ionicons name="ellipse-outline" size={18} color="#EF4444" />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>缺貨 ({outOfStockItems.length} 件)</Text>
-              <Text style={{ fontSize: 10, color: "#991B1B", marginTop: 1 }}>{outOfStockItems.slice(0, 3).map((i: any) => i.name).join("、")}{outOfStockItems.length > 3 ? `等${outOfStockItems.length}件` : ""}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>{t("dyn.outOfStockN", { n: outOfStockItems.length })}</Text>
+              <Text style={{ fontSize: 10, color: "#991B1B", marginTop: 1 }}>{outOfStockItems.slice(0, 3).map((i: any) => i.name).join("、")}{outOfStockItems.length > 3 ? t("dyn.etcN", { n: outOfStockItems.length }) : ""}</Text>
             </View>
             <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${outOfStockItems.length}件缺貨商品加入購物清單`); }}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入購買</Text>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{t("pantry.addToPurchase")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -243,11 +262,11 @@ export default function PantryScreen() {
           <View style={{ marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 16, backgroundColor: "#E8F0FA", borderWidth: 1.5, borderColor: "#7BAFD4", flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
             <Ionicons name="alert-circle-outline" size={18} color={BRAND} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>即將耗盡 ({lowItems.length} 件)</Text>
-              <Text style={{ fontSize: 10, color: "#78350F", marginTop: 1 }}>{lowItems.slice(0, 3).map((i: any) => i.name).join("、")}{lowItems.length > 3 ? `等${lowItems.length}件` : ""}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>{t("dyn.runningLowN", { n: lowItems.length })}</Text>
+              <Text style={{ fontSize: 10, color: "#78350F", marginTop: 1 }}>{lowItems.slice(0, 3).map((i: any) => i.name).join("、")}{lowItems.length > 3 ? t("dyn.etcN", { n: lowItems.length }) : ""}</Text>
             </View>
             <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${lowItems.length}件即將耗盡商品加入購物清單`); }}>
-              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>加入購買</Text>
+              <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{t("pantry.addToPurchase")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -289,15 +308,15 @@ export default function PantryScreen() {
                       </TouchableOpacity>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <Text style={{ fontSize: 13, fontWeight: "700", color: isInStock ? TEXT : SUB }}>{item.name}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: isInStock ? TEXT : SUB }}>{biName(item.name).primary}</Text>
                           {item.isLow && (
                             <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: BRAND }}>即將耗盡</Text>
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: BRAND }}>{t("pantry.runningLow")}</Text>
                             </View>
                           )}
                           {!isInStock && (
                             <View style={{ backgroundColor: "#FEF2F2", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#DC2626" }}>缺貨</Text>
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#DC2626" }}>{t("pantry.outOfStock")}</Text>
                             </View>
                           )}
                         </View>
@@ -310,7 +329,7 @@ export default function PantryScreen() {
                         <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: item.isLow ? "#E8F0FA" : "#EEF4FB", alignItems: "center", justifyContent: "center" }} onPress={() => toggleLowM.mutate({ id: item.id, isLow: !item.isLow })}>
                           <Ionicons name="alert-circle-outline" size={14} color={item.isLow ? BRAND : SUB} />
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", alignItems: "center", justifyContent: "center" }} onPress={() => { Alert.alert("刪除", `確認刪除「${item.name}」？`, [{ text: "取消", style: "cancel" }, { text: "刪除", style: "destructive", onPress: () => deleteItemM.mutate({ id: item.id }) }]); }}>
+                        <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", alignItems: "center", justifyContent: "center" }} onPress={() => { Alert.alert(t("shopping.deleteItem"), t("shopping.confirmDelete", { name: biName(item.name).primary }), [{ text: t("recipe.cancel"), style: "cancel" }, { text: t("shopping.delete"), style: "destructive", onPress: () => deleteItemM.mutate({ id: item.id }) }]); }}>
                           <Ionicons name="trash-outline" size={14} color="#EF4444" />
                         </TouchableOpacity>
                       </View>
@@ -327,7 +346,7 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 13, color: SUB, fontWeight: "500", marginTop: 8 }}>
                 {searchQ ? `找不到「${searchQ}」` : `${activeTab === "food" ? "食品倉" : "用品倉"}暫無記錄`}
               </Text>
-              <Text style={{ fontSize: 11, color: HINT, marginTop: 4 }}>點擊右上角「+ 新增」按鈕</Text>
+              <Text style={{ fontSize: 11, color: HINT, marginTop: 4 }}>{t("pantry.tapAddHint")}</Text>
             </View>
           )}
           <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
@@ -339,20 +358,20 @@ export default function PantryScreen() {
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
             <View style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT }}>加入家中儲備</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT }}>{t("pantry.addToPantry")}</Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)}>
                   <Ionicons name="close" size={22} color={TEXT} />
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>商品名稱</Text>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>{t("pantry.productName")}</Text>
               <TextInput
                 style={{ backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, padding: 10, fontSize: 14, color: TEXT, marginBottom: 12 }}
                 value={newName}
                 onChangeText={setNewName}
-                placeholder="例：雞蛋、米"
+                placeholder={t("pantry.productPlaceholder")}
                 placeholderTextColor={HINT}
               />
-              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>分類</Text>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>{t("shopping.category")}</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 {allCats.map(cat => (
                   <TouchableOpacity
@@ -364,13 +383,13 @@ export default function PantryScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>數量（選填）</Text>
+              <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>{t("pantry.quantityOptional")}</Text>
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
                 <TextInput
                   style={{ flex: 1, backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, padding: 10, fontSize: 14, color: TEXT }}
                   value={newQty}
                   onChangeText={setNewQty}
-                  placeholder="如：2"
+                  placeholder={t("pantry.quantityPlaceholder")}
                   placeholderTextColor={HINT}
                   keyboardType="decimal-pad"
                 />
@@ -389,7 +408,7 @@ export default function PantryScreen() {
                 }}
                 disabled={addItemM.isPending || !newName.trim()}
               >
-                {addItemM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>加入儲備</Text>}
+                {addItemM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>{t("pantry.addToStock")}</Text>}
               </TouchableOpacity>
             </View>
           </View>

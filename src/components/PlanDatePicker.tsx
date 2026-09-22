@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { useTranslation } from "react-i18next";
 
 const BRAND = "#013E77";
 const TEXT = "#1A1A1A";
@@ -47,6 +48,7 @@ export default function PlanDatePicker({
   minDate,
   maxDate,
 }: PlanDatePickerProps) {
+  const { t } = useTranslation();
   const today = DateUtil.todayISO();
   const min = minDate || today;
   const normalizedValue = value && value < min ? min : value;
@@ -165,8 +167,8 @@ export default function PlanDatePicker({
       }
     };
 
-    add("今天", todayVal);
-    add("明天", tomorrowVal);
+    add(t("shopping.today"), todayVal);
+    add(t("shopping.tomorrow"), tomorrowVal);
 
     return items;
   }, [min]);
@@ -312,9 +314,9 @@ export default function PlanDatePicker({
                     if (maxDate && dc.date > maxDate) {
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                       Alert.alert(
-                        "日期超出範圍",
+                        t("picker.dateOutOfRange"),
                         `選擇的日期（${dc.date}）超出允許範圍\n\n最遲可選擇：${maxDate}`,
-                        [{ text: "確定" }]
+                        [{ text: t("planner.ok") }]
                       );
                       return;
                     }

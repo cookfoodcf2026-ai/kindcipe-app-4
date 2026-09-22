@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { CategoryDef } from "@/lib/category-storage";
@@ -54,11 +55,12 @@ export default function FilterModal({
   userCount,
   kolCount,
 }: FilterModalProps) {
+  const { t } = useTranslation();
   const content = (
     <View style={[s.filterSheet, { paddingBottom: Platform.OS === "ios" ? 44 : 24 }]}>
       <View style={s.filterHandle} />
       <View style={s.filterHeader}>
-        <Text style={s.filterTitle}>篩選食譜</Text>
+        <Text style={s.filterTitle}>{t("filter.title")}</Text>
         <TouchableOpacity onPress={onClose}>
           <Ionicons name="close" size={24} color="#1A1A1A" />
         </TouchableOpacity>
@@ -66,7 +68,7 @@ export default function FilterModal({
 
       <ScrollView style={{ maxHeight: "75%" }} showsVerticalScrollIndicator={false}>
         {/* Recipe Source Filter */}
-        <Text style={s.filterLabel}>食譜來源</Text>
+        <Text style={s.filterLabel}>{t("filter.source")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterSourceRow}>
           {[
             { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
@@ -96,7 +98,7 @@ export default function FilterModal({
         </ScrollView>
 
         {/* Category Filter */}
-        <Text style={s.filterLabel}>菜式分類</Text>
+        <Text style={s.filterLabel}>{t("filter.category")}</Text>
         <View style={s.filterCategoryRow}>
           {[ALL_ENTRY, ...categories].map(cat => (
             <TouchableOpacity
@@ -121,7 +123,7 @@ export default function FilterModal({
         </View>
 
         {/* Ingredient Category Filter */}
-        <Text style={s.filterLabel}>食材分類</Text>
+        <Text style={s.filterLabel}>{t("filter.ingredientCategory")}</Text>
         <View style={s.filterIngCatRow}>
           {[
             { key: undefined, label: "全部" },
@@ -150,7 +152,7 @@ export default function FilterModal({
         </View>
 
         {/* Quick Filters (Popular Chips) */}
-        <Text style={s.filterLabel}>快捷篩選</Text>
+        <Text style={s.filterLabel}>{t("filter.quick")}</Text>
         <View style={s.filterQuickRow}>
           {[
             { key: "quick15", label: "⚡ 15 分鐘內" },
@@ -185,7 +187,7 @@ export default function FilterModal({
         </View>
 
         {/* Cook Time Filter */}
-        <Text style={s.filterLabel}>烹調時間</Text>
+        <Text style={s.filterLabel}>{t("filter.cookTime")}</Text>
         <View style={s.filterTimeRow}>
           {[
             { label: "不限", value: undefined },
@@ -212,13 +214,13 @@ export default function FilterModal({
         {/* Tags Filter */}
         {allUserTags.length > 0 && (
           <>
-            <Text style={s.filterLabel}>標籤</Text>
+            <Text style={s.filterLabel}>{t("filter.tags")}</Text>
             <View style={s.filterTagsRow}>
               <TouchableOpacity
                 style={[s.filterTagChip, activeTagFilters.length === 0 && s.filterTagChipActive]}
                 onPress={() => setActiveTagFilters([])}
               >
-                <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>不限</Text>
+                <Text style={[s.filterTagChipTxt, activeTagFilters.length === 0 && s.filterTagChipTxtActive]}>{t("filter.unlimited")}</Text>
               </TouchableOpacity>
               {allUserTags.slice(0, 30).map(tag => {
                 const isActive = activeTagFilters.includes(tag);
@@ -256,13 +258,13 @@ export default function FilterModal({
           }}
         >
           <Ionicons name="refresh-outline" size={18} color="#666" />
-          <Text style={s.filterResetBtnTxt}>重置</Text>
+          <Text style={s.filterResetBtnTxt}>{t("filter.reset")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={s.filterConfirmBtn}
           onPress={onClose}
         >
-          <Text style={s.filterConfirmBtnTxt}>完成</Text>
+          <Text style={s.filterConfirmBtnTxt}>{t("unit.done")}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -7,6 +7,7 @@ import {
   ScrollView, ActivityIndicator, Alert, Image, Modal,
   KeyboardAvoidingView, Platform, Keyboard,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -29,6 +30,7 @@ type EditableStep = { id: number; instruction: string; duration: number; imageUr
 const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
 
 export default function ImportScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
@@ -85,14 +87,14 @@ export default function ImportScreen() {
         onPress={() => setShowPhotoSourceModal(false)}
       >
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>選擇圖片來源</Text>
+          <Text style={styles.modalTitle}>{t("importRecipe.imageSource")}</Text>
           
           <TouchableOpacity
             style={styles.modalOption}
             onPress={() => handlePickImage("camera")}
           >
             <Ionicons name="camera" size={24} color="#013E77" />
-            <Text style={styles.modalOptionText}>拍照</Text>
+            <Text style={styles.modalOptionText}>{t("importRecipe.takePhoto")}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
           
@@ -101,7 +103,7 @@ export default function ImportScreen() {
             onPress={() => handlePickImage("library")}
           >
             <Ionicons name="image" size={24} color="#013E77" />
-            <Text style={styles.modalOptionText}>從相簿選擇</Text>
+            <Text style={styles.modalOptionText}>{t("importRecipe.chooseAlbum")}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
           
@@ -109,7 +111,7 @@ export default function ImportScreen() {
             style={styles.modalCancelBtn}
             onPress={() => setShowPhotoSourceModal(false)}
           >
-            <Text style={styles.modalCancelText}>取消</Text>
+            <Text style={styles.modalCancelText}>{t("recipe.cancel")}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -846,7 +848,7 @@ export default function ImportScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#013E77" />
-        <Text style={styles.parsingTitle}>AI 正在解析食譜...</Text>
+        <Text style={styles.parsingTitle}>{t("importRecipe.parsing")}</Text>
         <Text style={styles.parsingSubtitle}>
           {parseStepIndex < PARSE_STEPS.length - 1
             ? "通常需要 10-30 秒，請耐心等候"
@@ -874,7 +876,7 @@ export default function ImportScreen() {
         </View>
         <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelParsing}>
           <Ionicons name="close-circle-outline" size={16} color="#9CA3AF" />
-          <Text style={styles.cancelBtnText}>取消解析</Text>
+          <Text style={styles.cancelBtnText}>{t("importRecipe.cancelParse")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -890,8 +892,8 @@ export default function ImportScreen() {
           <View style={{ height: insets.top + 8 }} />
           <View style={styles.previewHeader}>
             <Ionicons name="checkmark-circle" size={32} color="#22C55E" />
-            <Text style={styles.previewTitle}>解析成功！</Text>
-            <Text style={styles.previewSubtitle}>請編輯並確認食譜資訊</Text>
+            <Text style={styles.previewTitle}>{t("importRecipe.parseSuccess")}</Text>
+            <Text style={styles.previewSubtitle}>{t("importRecipe.parseSuccessSub")}</Text>
           </View>
 
           {/* Image section */}
@@ -903,37 +905,37 @@ export default function ImportScreen() {
             ) : (
               <View style={es.imagePlaceholder}>
                 <Ionicons name="image-outline" size={40} color="#013E77" />
-                <Text style={es.imagePlaceholderTxt}>點擊上載圖片</Text>
+                <Text style={es.imagePlaceholderTxt}>{t("importRecipe.tapUpload")}</Text>
               </View>
             )}
             <View style={es.imageOverlay}>
               <Ionicons name="camera-outline" size={16} color="#fff" />
-              <Text style={es.imageOverlayTxt}>更換圖片</Text>
+              <Text style={es.imageOverlayTxt}>{t("importRecipe.changeImage")}</Text>
             </View>
           </TouchableOpacity>
 
           {/* Basic Info */}
           <View style={es.card}>
-            <Text style={es.cardTitle}>基本資訊</Text>
+            <Text style={es.cardTitle}>{t("importRecipe.basicInfo")}</Text>
 
-            <Text style={es.label}>食譜名稱</Text>
-            <TextInput style={es.input} value={editName} onChangeText={setEditName} placeholder="食譜名稱" placeholderTextColor="#B0BAC9" />
+            <Text style={es.label}>{t("importRecipe.recipeName")}</Text>
+            <TextInput style={es.input} value={editName} onChangeText={setEditName} placeholder={t("importRecipe.recipeName")} placeholderTextColor="#B0BAC9" />
 
-            <Text style={es.label}>描述</Text>
-            <TextInput style={[es.input, es.multilineInput]} value={editDesc} onChangeText={setEditDesc} placeholder="描述這道菜的特色..." placeholderTextColor="#B0BAC9" multiline numberOfLines={2} />
+            <Text style={es.label}>{t("importRecipe.desc")}</Text>
+            <TextInput style={[es.input, es.multilineInput]} value={editDesc} onChangeText={setEditDesc} placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor="#B0BAC9" multiline numberOfLines={2} />
 
             <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={es.label}>份量 (人)</Text>
+                <Text style={es.label}>{t("importRecipe.servings")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editServings} onChangeText={setEditServings} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={es.label}>時間 (分鐘)</Text>
+                <Text style={es.label}>{t("importRecipe.timeMin")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editCookTime} onChangeText={setEditCookTime} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
             </View>
 
-            <Text style={es.label}>難度</Text>
+            <Text style={es.label}>{t("importRecipe.difficulty")}</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               {["簡單", "中等", "困難"].map(d => (
                 <TouchableOpacity key={d} style={[es.chip, editDifficulty === d && es.chipActive]} onPress={() => setEditDifficulty(d)}>
@@ -942,7 +944,7 @@ export default function ImportScreen() {
               ))}
             </View>
 
-            <Text style={es.label}>分類</Text>
+            <Text style={es.label}>{t("shopping.category")}</Text>
             <View style={es.categoryRow}>
               {["中菜","西餐","日式","韓式","東南亞","甜品","飲品","其他"].map(cat => (
                 <TouchableOpacity key={cat} style={[es.chip, selectedCategory === cat && es.chipActive]} onPress={() => setSelectedCategory(cat)}>
@@ -951,8 +953,8 @@ export default function ImportScreen() {
               ))}
             </View>
 
-            <Text style={[es.label, { marginTop: 14 }]}>標籤</Text>
-            <TextInput style={es.input} value={editTags} onChangeText={setEditTags} placeholder="例：家常菜 快手菜 雞肉" placeholderTextColor="#B0BAC9" />
+            <Text style={[es.label, { marginTop: 14 }]}>{t("filter.tags")}</Text>
+            <TextInput style={es.input} value={editTags} onChangeText={setEditTags} placeholder={t("importRecipe.tagsPlaceholder")} placeholderTextColor="#B0BAC9" />
           </View>
 
           {/* Ingredients */}
@@ -961,10 +963,10 @@ export default function ImportScreen() {
               <View style={[es.cardIcon, { backgroundColor: "#E8F5E9" }]}>
                 <Ionicons name="basket-outline" size={16} color="#4CAF50" />
               </View>
-              <Text style={es.cardTitle}>食材清單 ({editIngredients.filter(i => i.name.trim()).length} 項)</Text>
+              <Text style={es.cardTitle}>{t("recipe.ingredientsCount", { n: editIngredients.filter(i => i.name.trim()).length })}</Text>
               <TouchableOpacity style={es.addBtn} onPress={addIngredient}>
                 <Ionicons name="add" size={13} color="#16A34A" />
-                <Text style={es.addBtnTxt}>新增食材</Text>
+                <Text style={es.addBtnTxt}>{t("importRecipe.addIngredient")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -974,14 +976,14 @@ export default function ImportScreen() {
                   style={[es.ingInput, { flex: 1 }]}
                   value={ing.name}
                   onChangeText={v => updateIngredient(idx, "name", v)}
-                  placeholder="食材名稱"
+                  placeholder={t("party.ingredientNamePlaceholder")}
                   placeholderTextColor="#B0BAC9"
                 />
                 <TextInput
                   style={[es.ingInput, { width: 64, textAlign: "center" }]}
                   value={ing.quantity}
                   onChangeText={v => updateIngredient(idx, "quantity", v)}
-                  placeholder="份量"
+                  placeholder={t("importRecipe.qtyPlaceholder")}
                   placeholderTextColor="#B0BAC9"
                 />
                 <UnitPicker value={ing.unit} onChange={v => updateIngredient(idx, "unit", v)} style={{ width: 64, height: 40 }} />
@@ -1002,10 +1004,10 @@ export default function ImportScreen() {
               <View style={[es.cardIcon, { backgroundColor: "#E8F0FA" }]}>
                 <Ionicons name="restaurant-outline" size={16} color="#013E77" />
               </View>
-              <Text style={es.cardTitle}>烹飪步驟 ({editSteps.filter(s => s.instruction.trim()).length} 步)</Text>
+              <Text style={es.cardTitle}>{t("recipe.stepsCount", { n: editSteps.filter(s => s.instruction.trim()).length })}</Text>
               <TouchableOpacity style={es.addBtn} onPress={addStep}>
                 <Ionicons name="add" size={13} color="#013E77" />
-                <Text style={[es.addBtnTxt, { color: "#013E77" }]}>新增步驟</Text>
+                <Text style={[es.addBtnTxt, { color: "#013E77" }]}>{t("importRecipe.addStep")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -1035,7 +1037,7 @@ export default function ImportScreen() {
                   ) : null}
 
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={{ fontSize: 12, color: "#9CA3AF" }}>時間（分鐘）：</Text>
+                    <Text style={{ fontSize: 12, color: "#9CA3AF" }}>{t("importRecipe.timeMinLabel")}</Text>
                     <TextInput
                       style={[es.ingInput, { width: 64, textAlign: "center" }]}
                       value={String(step.duration || 0)}
@@ -1067,8 +1069,8 @@ export default function ImportScreen() {
           <View style={{ backgroundColor: "#FEF3C7", paddingHorizontal: 16, paddingVertical: 12, marginHorizontal: 16, marginTop: 16, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Ionicons name="information-circle" size={18} color="#F59E0B" />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#92400E" }}>請按下方「儲存到食譜庫」</Text>
-              <Text style={{ fontSize: 11, color: "#92400E", marginTop: 2 }}>儲存後才會出現在「我的食譜」中</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#92400E" }}>{t("importRecipe.saveHint")}</Text>
+              <Text style={{ fontSize: 11, color: "#92400E", marginTop: 2 }}>{t("importRecipe.saveHintSub")}</Text>
             </View>
           </View>
 
@@ -1080,7 +1082,7 @@ export default function ImportScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark" size={22} color="#fff" />
-                  <Text style={es.saveBtnTxt}>儲存到食譜庫</Text>
+                  <Text style={es.saveBtnTxt}>{t("importRecipe.saveToLibrary")}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1094,7 +1096,7 @@ export default function ImportScreen() {
                 ]
               );
             }}>
-              <Text style={styles.retryButtonText}>重新匯入</Text>
+              <Text style={styles.retryButtonText}>{t("importRecipe.reimport")}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -1104,8 +1106,8 @@ export default function ImportScreen() {
           <View style={es.saveOverlay}>
             <View style={es.saveOverlayBox}>
               <ActivityIndicator size="large" color="#013E77" />
-              <Text style={es.saveOverlayTitle}>正在儲存食譜</Text>
-              <Text style={es.saveOverlaySub}>請稍候，不要離開此頁面</Text>
+              <Text style={es.saveOverlayTitle}>{t("importRecipe.saving")}</Text>
+              <Text style={es.saveOverlaySub}>{t("importRecipe.savingSub")}</Text>
               <View style={es.saveStepsList}>
                 {SAVE_STEPS.map((s, i) => {
                   const done = i < saveStepIdx;
@@ -1136,8 +1138,8 @@ export default function ImportScreen() {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="checkmark-circle" size={80} color="#22C55E" />
-        <Text style={styles.successTitle}>食譜已儲存！</Text>
-        <Text style={styles.successSubtitle}>正在跳轉到食譜詳情...</Text>
+        <Text style={styles.successTitle}>{t("importRecipe.saved")}</Text>
+        <Text style={styles.successSubtitle}>{t("importRecipe.savedSub")}</Text>
         {!isOnboarding && (
           <View style={styles.successActions}>
             <TouchableOpacity
@@ -1149,14 +1151,14 @@ export default function ImportScreen() {
               }}
             >
               <Ionicons name="restaurant-outline" size={18} color="#fff" />
-              <Text style={styles.successPrimaryBtnText}>查看食譜</Text>
+              <Text style={styles.successPrimaryBtnText}>{t("importRecipe.viewRecipe")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.successSecondaryBtn}
               onPress={() => { setStep("input"); setParsedRecipe(null); setUniversalInput(""); setPendingScreenshot(null); setFailedInput(null); }}
             >
               <Ionicons name="add-circle-outline" size={18} color="#013E77" />
-              <Text style={styles.successSecondaryBtnText}>繼續匯入</Text>
+              <Text style={styles.successSecondaryBtnText}>{t("importRecipe.continueImport")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1176,7 +1178,7 @@ export default function ImportScreen() {
           <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             <View style={styles.centerContainer}>
               <Ionicons name="alert-circle" size={64} color="#EF4444" />
-              <Text style={styles.failedTitle}>解析失敗</Text>
+              <Text style={styles.failedTitle}>{t("importRecipe.parseFailed")}</Text>
               <Text style={styles.failedMsg}>{errorMsg}</Text>
 
               <View style={styles.failedActions}>
@@ -1211,7 +1213,7 @@ export default function ImportScreen() {
                   }}
                 >
                   <Ionicons name="link-outline" size={18} color="#013E77" />
-                  <Text style={styles.tryTextButtonText}>試另一條連結</Text>
+                  <Text style={styles.tryTextButtonText}>{t("importRecipe.tryAnotherLink")}</Text>
                 </TouchableOpacity>
 
                 {/* 按鈕 3：自訂食譜（最後手段） */}
@@ -1223,7 +1225,7 @@ export default function ImportScreen() {
                   }}
                 >
                   <Ionicons name="create-outline" size={18} color="#013E77" />
-                  <Text style={styles.tryTextButtonText}>自訂食譜</Text>
+                  <Text style={styles.tryTextButtonText}>{t("importRecipe.customRecipe")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1246,10 +1248,10 @@ export default function ImportScreen() {
         {/* Header */}
         <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <TouchableOpacity onPress={() => router.back()} style={{ padding: 4, marginLeft: -4 }}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} style={{ padding: 4, marginLeft: -4 }}>
               <Ionicons name="chevron-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={[styles.pageTitle, { marginBottom: 0 }]}>新增食譜</Text>
+            <Text style={[styles.pageTitle, { marginBottom: 0 }]}>{t("more.addTitle")}</Text>
           </View>
         </View>
 
@@ -1258,7 +1260,7 @@ export default function ImportScreen() {
           <View style={styles.magicClipboardCard}>
             <View style={styles.clipboardHeader}>
               <Ionicons name="sparkles" size={20} color="#013E77" />
-              <Text style={styles.clipboardTitle}>偵測到 {detectedPlatform} 連結</Text>
+              <Text style={styles.clipboardTitle}>{t("dyn.detectedPlatform", { platform: detectedPlatform })}</Text>
             </View>
             <Text style={styles.clipboardUrl} numberOfLines={1}>{clipboardUrl}</Text>
             <TouchableOpacity
@@ -1269,18 +1271,18 @@ export default function ImportScreen() {
               }}
             >
               <Ionicons name="flash" size={20} color="#fff" />
-              <Text style={styles.magicButtonText}>一鍵 AI 匯入此食譜</Text>
+              <Text style={styles.magicButtonText}>{t("importRecipe.magicImport")}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Universal Smart Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>貼上連結或食譜內文</Text>
+          <Text style={styles.inputLabel}>{t("importRecipe.pasteLabel")}</Text>
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.universalInput}
-              placeholder="貼上 IG / YouTube / Threads 連結或食譜文字..."
+              placeholder={t("importRecipe.pastePlaceholder")}
               placeholderTextColor="#9CA3AF"
               value={universalInput}
               onChangeText={setUniversalInput}
@@ -1293,7 +1295,7 @@ export default function ImportScreen() {
             {!universalInput && (
               <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
                 <Ionicons name="document" size={16} color="#013E77" />
-                <Text style={styles.pasteButtonText}>貼上</Text>
+                <Text style={styles.pasteButtonText}>{t("importRecipe.paste")}</Text>
               </TouchableOpacity>
             )}
             {!!universalInput && (
@@ -1312,7 +1314,7 @@ export default function ImportScreen() {
             disabled={!universalInput.trim()}
           >
             <Ionicons name="flash" size={20} color="#fff" />
-            <Text style={styles.parseButtonText}>開始 AI 解析</Text>
+            <Text style={styles.parseButtonText}>{t("importRecipe.startParse")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -1320,15 +1322,15 @@ export default function ImportScreen() {
         {pendingScreenshot && (
           <View style={styles.screenshotSection}>
             <Image source={{ uri: pendingScreenshot.uri }} style={styles.screenshotPreview} resizeMode="cover" />
-            <Text style={styles.previewHint}>確認圖片清晰，包含食材和步驟</Text>
+            <Text style={styles.previewHint}>{t("importRecipe.previewHint")}</Text>
             <View style={styles.screenshotActions}>
               <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
                 <Ionicons name="refresh-outline" size={16} color="#6B7280" />
-                <Text style={styles.screenshotReselectText}>重新選擇</Text>
+                <Text style={styles.screenshotReselectText}>{t("importRecipe.reselect")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.screenshotConfirmBtn} onPress={handleConfirmScreenshot}>
                 <Ionicons name="sparkles" size={16} color="#fff" />
-                <Text style={styles.screenshotConfirmText}>開始解析</Text>
+                <Text style={styles.screenshotConfirmText}>{t("importRecipe.startParse2")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1342,7 +1344,7 @@ export default function ImportScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="image-outline" size={24} color="#013E77" />
-            <Text style={styles.secondaryButtonText}>拍照上傳分析</Text>
+            <Text style={styles.secondaryButtonText}>{t("importRecipe.photoUpload")}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -1351,14 +1353,14 @@ export default function ImportScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="create-outline" size={24} color="#013E77" />
-            <Text style={styles.secondaryButtonText}>自訂食譜</Text>
+            <Text style={styles.secondaryButtonText}>{t("importRecipe.customRecipe")}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Xiaohongshu Tip */}
         <View style={styles.xiaohongshuTip}>
           <Ionicons name="information-circle" size={16} color="#6B7280" />
-          <Text style={styles.xiaohongshuTipText}>小紅書用戶請用：拍照/截圖上傳 或 貼上文字</Text>
+          <Text style={styles.xiaohongshuTipText}>{t("importRecipe.xiaohongshuTip")}</Text>
         </View>
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />

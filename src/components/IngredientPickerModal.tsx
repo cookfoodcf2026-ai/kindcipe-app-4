@@ -7,6 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { categorizeIngredient, isSeasoning } from "@/constants/ingredients";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { useTranslation } from "react-i18next";
+import { enumT } from "@/lib/i18nEnums";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#013E77";
@@ -86,6 +88,7 @@ export default function IngredientPickerModal({
   visible, recipes, title, initialSelected, loading = false, 
   mealDate, defaultBuyDate, defaultDate, onDateChange, showDateSelector = true, maxDate, alreadyAddedKeys, onConfirm, onSkip,
 }: Props) {
+  const { t } = useTranslation();
   const today = DateUtil.todayISO();
   
   // 向後兼容計算：如果無 mealDate 就用 defaultDate
@@ -338,22 +341,22 @@ export default function IngredientPickerModal({
           <View style={s.quickActions}>
             <TouchableOpacity style={s.quickBtn} onPress={selectAllMain}>
               <Ionicons name="checkmark-done" size={14} color={BRAND} />
-              <Text style={s.quickBtnText}>全選主要食材</Text>
+              <Text style={s.quickBtnText}>{t("picker.selectMain")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.quickBtn} onPress={selectAll}>
               <Ionicons name="checkmark" size={14} color={BRAND} />
-              <Text style={s.quickBtnText}>全選</Text>
+              <Text style={s.quickBtnText}>{t("picker.selectAll")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.quickBtn} onPress={deselectAll}>
               <Ionicons name="close" size={14} color={SUB} />
-              <Text style={[s.quickBtnText, { color: SUB }]}>取消</Text>
+              <Text style={[s.quickBtnText, { color: SUB }]}>{t("recipe.cancel")}</Text>
             </TouchableOpacity>
           </View>
 
           {showDateSelector && (
             <View style={s.dateSection}>
               <Ionicons name="calendar-outline" size={16} color={BRAND} />
-              <Text style={s.dateLabel}>購物日期：</Text>
+              <Text style={s.dateLabel}>{t("picker.shoppingDate")}</Text>
               <PlanDatePicker 
                 value={date}
                 onChange={(newDate) => {
@@ -388,11 +391,11 @@ export default function IngredientPickerModal({
                   <View style={s.categoryHeader}>
                     <Text style={s.categoryEmoji}>{CATEGORY_EMOJI[cat] || "📦"}</Text>
                     <Text style={[s.categoryName, isSeasoningGroup && s.seasoningLabel]}>
-                      {cat}
+                      {enumT.category(cat)}
                     </Text>
                     <Text style={s.categoryCount}>{items.length}</Text>
                     {isSeasoningGroup && (
-                      <Text style={s.seasoningHint}>（家中常備，可按需要取消）</Text>
+                      <Text style={s.seasoningHint}>{t("picker.seasoningHint")}</Text>
                     )}
                   </View>
                   {items.map(({ ing, key, recipeName }) => {
@@ -412,7 +415,7 @@ export default function IngredientPickerModal({
                           {ing.name}
                         </Text>
                         {isAdded ? (
-                          <Text style={s.addedTag}>已加入</Text>
+                          <Text style={s.addedTag}>{t("picker.added")}</Text>
                         ) : (
                           <Text style={s.qty}>{formatIngredientDisplay(ing.quantity, ing.unit)}</Text>
                         )}
@@ -452,11 +455,11 @@ export default function IngredientPickerModal({
                   ? `加入 ${confirmItems.length} 項食材`
                   : alreadyAddedKeys && alreadyAddedKeys.size > 0
                   ? "全部已加入購物清單"
-                  : `跳過（共 ${totalIngredients} 項）`}
+                  : t("picker.skipCount", { n: totalIngredients })}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.skipBtn} onPress={onSkip}>
-              <Text style={s.skipTxt}>跳過，不加入購物清單</Text>
+              <Text style={s.skipTxt}>{t("picker.skipHint")}</Text>
             </TouchableOpacity>
           </View>
         </View>

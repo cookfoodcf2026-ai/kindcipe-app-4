@@ -13,6 +13,7 @@ import {
 import type { ComponentType, ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { colors } from "@/app/styles/colors";
 import { theme } from "@/app/styles/theme";
@@ -96,6 +97,7 @@ function ModalSheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
@@ -103,7 +105,7 @@ function ModalSheet({
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{title}</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="關閉" style={styles.closeBtn}>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} style={styles.closeBtn}>
               <XIcon size={18} color={colors.neutral.darkGray} />
             </Pressable>
           </View>
@@ -115,6 +117,7 @@ function ModalSheet({
 }
 
 export default function MoreTab() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -170,88 +173,88 @@ export default function MoreTab() {
 
   const recipeCards = [
     {
-      title: "官方食譜",
-      subtitle: "瀏覽平台精選食譜",
+      title: t("more.officialTitle"),
+      subtitle: t("more.officialSub"),
       Icon: RecipeIcon,
       onPress: () => goToRecipes("official"),
-      accessibilityLabel: "官方食譜，瀏覽平台精選食譜",
+      accessibilityLabel: t("more.officialTitle"),
     },
     {
-      title: "網紅食譜",
-      subtitle: "探索創作者熱門菜式",
+      title: t("more.kolTitle"),
+      subtitle: t("more.kolSub"),
       Icon: StarIcon,
       accent: "copper" as const,
       onPress: () => goToRecipes("kol"),
-      accessibilityLabel: "網紅食譜，探索創作者熱門菜式",
+      accessibilityLabel: t("more.kolTitle"),
     },
     {
-      title: "我的食譜",
-      subtitle: "管理你的自建與匯入食譜",
+      title: t("more.mineTitle"),
+      subtitle: t("more.mineSub"),
       Icon: BookmarkIcon,
       onPress: () => {
         if (!isAuthenticated) {
-          Alert.alert("需要登入", "請先登入後再查看你的食譜。", [{ text: "取消", style: "cancel" }, { text: "登入", onPress: () => router.push("/login") }]);
+          Alert.alert(t("more.needLogin"), t("more.needLoginMsg"), [{ text: t("recipe.cancel"), style: "cancel" }, { text: t("more.login"), onPress: () => router.push("/login") }]);
           return;
         }
         goToRecipes("user");
       },
-      accessibilityLabel: "我的食譜，管理你的自建與匯入食譜",
+      accessibilityLabel: t("more.mineTitle"),
     },
     {
-      title: "新增食譜",
-      subtitle: "貼上連結或手動建立",
+      title: t("more.addTitle"),
+      subtitle: t("more.addSub"),
       Icon: AddIcon,
       onPress: () => setShowAddSheet(true),
-      accessibilityLabel: "新增食譜，貼上連結或手動建立",
+      accessibilityLabel: t("more.addTitle"),
     },
   ];
 
   const smartCards = [
     {
-      title: "AI 助手",
-      subtitle: "AI 助手，解答煮食問題",
+      title: t("more.aiChefTitle"),
+      subtitle: t("more.aiChefSub"),
       Icon: ChatBubbleIcon,
       onPress: () => navigate(() => router.push("/ai-chef")),
-      accessibilityLabel: "AI 助手，解答煮食問題",
+      accessibilityLabel: t("more.aiChefTitle"),
     },
     {
-      title: "今日餐單",
-      subtitle: "查看今日菜式與煮食步驟",
+      title: t("more.todayMenuTitle"),
+      subtitle: t("more.todayMenuSub"),
       Icon: PlannerIcon,
       onPress: () => navigate(() => router.push("/(tabs)/planner")),
-      accessibilityLabel: "今日餐單，查看今日菜式與煮食步驟",
+      accessibilityLabel: t("more.todayMenuTitle"),
     },
   ];
 
   const familyCards = [
     {
-      title: "聚會買餸單",
-      subtitle: "快速整理聚會購買",
+      title: t("more.partyTitle"),
+      subtitle: t("more.partySub"),
       Icon: BasketIcon,
       onPress: () => navigate(() => router.push("/shopping-templates")),
-      accessibilityLabel: "聚會買餸單，快速整理聚會購買",
+      accessibilityLabel: t("more.partyTitle"),
     },
     {
-      title: "管理廚房",
-      subtitle: "管理廚房與成員",
+      title: t("more.manageKitchenTitle"),
+      subtitle: t("more.manageKitchenSub"),
       Icon: HomeIcon,
       onPress: () => navigate(() => router.push("/kitchen-settings")),
-      accessibilityLabel: "管理廚房與成員",
+      accessibilityLabel: t("more.manageKitchenTitle"),
     },
     {
-      title: "購買記錄",
-      subtitle: "查看過往購買內容",
+      title: t("more.purchaseHistoryTitle"),
+      subtitle: t("more.purchaseHistorySub"),
       Icon: ReceiptIcon,
       onPress: () => navigate(() => router.push("/purchase-history")),
-      accessibilityLabel: "購買記錄，查看過往購買內容",
+      accessibilityLabel: t("more.purchaseHistoryTitle"),
     },
     {
-      title: "廚房學堂",
-      subtitle: "學識切、醃、炒、蒸、煮",
+      title: t("more.kitchenClassTitle"),
+      subtitle: t("more.kitchenClassSub"),
       Icon: ChefHatIcon,
       accent: "copper" as const,
       onPress: () => goToComingSoon("廚房學堂", "學識切、醃、炒、蒸、煮", "廚房學堂仍在準備中，之後會提供一步一步的烹飪教學。"),
-      accessibilityLabel: "廚房學堂，學識切、醃、炒、蒸、煮",
+      accessibilityLabel: t("more.kitchenClassTitle"),
     },
   ];
 
@@ -259,8 +262,8 @@ export default function MoreTab() {
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerTextWrap}>
-          <Text style={styles.headerTitle}>更多功能</Text>
-          <Text style={styles.headerSub}>嗨，{greetingName}，今天想煮什麼？</Text>
+          <Text style={styles.headerTitle}>{t("more.title")}</Text>
+          <Text style={styles.headerSub}>{t("more.greeting", { name: greetingName })}</Text>
         </View>
       </View>
 
@@ -277,7 +280,7 @@ export default function MoreTab() {
 
         <View style={styles.content}>
           <View style={styles.sectionBlock}>
-            <SectionHeader title="食譜" />
+            <SectionHeader title={t("more.sectionRecipes")} />
             <View style={styles.grid}>
               {recipeCards.map((item) => (
                 <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
@@ -288,7 +291,7 @@ export default function MoreTab() {
           </View>
 
           <View style={styles.sectionBlock}>
-            <SectionHeader title="智能與靈感" />
+            <SectionHeader title={t("more.sectionSmart")} />
             <View style={styles.grid}>
               {smartCards.map((item) => (
                 <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
@@ -299,7 +302,7 @@ export default function MoreTab() {
           </View>
 
           <View style={styles.sectionBlock}>
-            <SectionHeader title="購買與家庭" />
+            <SectionHeader title={t("more.sectionFamily")} />
             <View style={styles.grid}>
               {familyCards.map((item) => (
                 <View key={item.title} style={[styles.gridCell, { width: cardWidth }]}>
@@ -310,28 +313,28 @@ export default function MoreTab() {
           </View>
 
           <View style={styles.sectionBlock}>
-            <SectionHeader title="帳戶" />
+            <SectionHeader title={t("more.sectionAccount")} />
             <View style={styles.grid}>
               <View style={[styles.gridCell, { width: cardWidth }]}>
                 <FeatureCard
-                  title="設定"
-                  subtitle="語言與帳戶設定"
+                  title={t("more.settingsTitle")}
+                  subtitle={t("more.settingsSub")}
                   Icon={SettingsIcon}
                   onPress={() => navigate(() => router.push("/settings"))}
-                  accessibilityLabel="設定，語言與帳戶設定"
+                  accessibilityLabel={t("more.settingsTitle")}
                 />
               </View>
               <View style={[styles.gridCell, { width: cardWidth }]}>
                 <FeatureCard
-                  title="登出"
-                  subtitle="安全登出目前帳戶"
+                  title={t("more.logout")}
+                  subtitle={t("more.logoutSub")}
                   Icon={LogOutIcon}
                   onPress={() => {
                     setLogoutMsg(null);
                     resetLogout();
                     setShowLogoutSheet(true);
                   }}
-                  accessibilityLabel="登出，安全登出目前帳戶"
+                  accessibilityLabel={t("more.logout")}
                   accent="copper"
                 />
               </View>
@@ -342,7 +345,7 @@ export default function MoreTab() {
 
       <ModalSheet
         visible={showAddSheet}
-        title="新增食譜"
+        title={t("more.addTitle")}
         onClose={() => setShowAddSheet(false)}
       >
         <View style={styles.sheetBody}>
@@ -355,8 +358,8 @@ export default function MoreTab() {
           >
             <ImportIcon size={22} color={colors.primary.navy} />
             <View style={styles.sheetOptionTextWrap}>
-              <Text style={styles.sheetOptionTitle}>匯入和新增食譜</Text>
-              <Text style={styles.sheetOptionSub}>貼上連結、文字或截圖</Text>
+              <Text style={styles.sheetOptionTitle}>{t("more.importRecipe")}</Text>
+              <Text style={styles.sheetOptionSub}>{t("more.importRecipeSub")}</Text>
             </View>
           </Pressable>
 
@@ -369,20 +372,20 @@ export default function MoreTab() {
           >
             <RecipeIcon size={22} color={colors.primary.navy} />
             <View style={styles.sheetOptionTextWrap}>
-              <Text style={styles.sheetOptionTitle}>新增空白食譜</Text>
-              <Text style={styles.sheetOptionSub}>自己慢慢建立食譜內容</Text>
+              <Text style={styles.sheetOptionTitle}>{t("more.newBlank")}</Text>
+              <Text style={styles.sheetOptionSub}>{t("more.newBlankSub")}</Text>
             </View>
           </Pressable>
 
           <Pressable style={styles.sheetCancel} onPress={() => setShowAddSheet(false)}>
-            <Text style={styles.sheetCancelText}>取消</Text>
+            <Text style={styles.sheetCancelText}>{t("recipe.cancel")}</Text>
           </Pressable>
         </View>
       </ModalSheet>
 
       <ModalSheet
         visible={showLogoutSheet}
-        title="確定要登出嗎？"
+        title={t("more.confirmLogout")}
         onClose={() => {
           if (logoutPending) return;
           setLogoutMsg(null);
@@ -390,7 +393,7 @@ export default function MoreTab() {
         }}
       >
         <View style={styles.logoutBody}>
-          <Text style={styles.logoutMsg}>登出後需要重新登入才能使用帳戶功能。</Text>
+          <Text style={styles.logoutMsg}>{t("more.logoutMsg")}</Text>
           {logoutMsg ? <Text style={styles.logoutError}>{logoutMsg}</Text> : null}
 
           <Pressable
@@ -401,7 +404,7 @@ export default function MoreTab() {
             {logoutPending ? (
               <ActivityIndicator color={colors.neutral.white} />
             ) : (
-              <Text style={styles.logoutConfirmText}>登出</Text>
+              <Text style={styles.logoutConfirmText}>{t("more.logout")}</Text>
             )}
           </Pressable>
 
@@ -413,7 +416,7 @@ export default function MoreTab() {
               setShowLogoutSheet(false);
             }}
           >
-            <Text style={styles.sheetCancelText}>取消</Text>
+            <Text style={styles.sheetCancelText}>{t("recipe.cancel")}</Text>
           </Pressable>
         </View>
       </ModalSheet>
@@ -427,7 +430,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary.cream,
   },
   header: {
-    backgroundColor: colors.primary.navy,
+    backgroundColor: colors.primary.cream,
     paddingHorizontal: 20,
     paddingBottom: 22,
     flexDirection: "row",
@@ -440,11 +443,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.h1,
-    color: colors.neutral.white,
+    color: "#1A1A1A",
   },
   headerSub: {
     ...typography.body,
-    color: "rgba(255,255,255,0.82)",
+    color: "#6B7280",
     marginTop: 6,
   },
   scroll: {

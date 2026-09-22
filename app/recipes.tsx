@@ -20,6 +20,7 @@ import RecipeCard from "@/src/components/RecipeCard";
 import FilterModal from "@/src/components/FilterModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
+import { useTranslation } from "react-i18next";
 
 type SourceType = "official" | "kol" | "user" | "all";
 
@@ -50,6 +51,7 @@ const POPULAR_CHIPS = [
 ];
 
 export default function RecipesPage() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams();
   const router = useRouter();
 
@@ -145,26 +147,26 @@ export default function RecipesPage() {
   const getTitle = () => {
     switch (source) {
       case "official":
-        return "🍳 官方食譜";
+        return t("recipes.officialTitle");
       case "kol":
-        return "🌟 網紅食譜";
+        return t("recipes.kolTitle");
       case "user":
-        return "📝 我的食譜";
+        return t("recipes.mineTitle");
       default:
-        return "📖 食譜庫";
+        return t("recipes.libraryTitle");
     }
   };
 
   const getEmptyMessage = () => {
     switch (source) {
       case "official":
-        return "暫無官方食譜";
+        return t("recipes.emptyOfficial");
       case "kol":
-        return "暫無網紅食譜";
+        return t("recipes.emptyKol");
       case "user":
-        return "你還沒有食譜，去新增一個吧！";
+        return t("recipes.emptyMine");
       default:
-        return "暫無食譜";
+        return t("recipes.emptyDefault");
     }
   };
 
@@ -248,7 +250,7 @@ export default function RecipesPage() {
         <TouchableOpacity
           onPress={() => router.back()}
           style={s.backBtn}
-          accessibilityLabel="返回"
+          accessibilityLabel={t("recipes.back")}
         >
           <Ionicons name="arrow-back" size={24} color="#013E77" />
         </TouchableOpacity>
@@ -262,7 +264,7 @@ export default function RecipesPage() {
         <TextInput
           ref={searchInputRef}
           style={s.searchInput}
-          placeholder="搜尋食譜、食材、標籤"
+          placeholder={t("home.searchPlaceholder")}
           placeholderTextColor="#9CA3AF"
           value={searchQuery}
           onChangeText={(text) => {
@@ -307,9 +309,9 @@ export default function RecipesPage() {
       {showSearchHistory && (
         <View style={s.searchHistoryWrap}>
           <View style={s.searchHistoryHeader}>
-            <Text style={s.searchHistoryTitle}>最近搜尋</Text>
+            <Text style={s.searchHistoryTitle}>{t("home.recentSearch")}</Text>
             <TouchableOpacity onPress={() => { setSearchHistory([]); AsyncStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
-              <Text style={s.searchHistoryClear}>全部清除</Text>
+              <Text style={s.searchHistoryClear}>{t("home.clearAll")}</Text>
             </TouchableOpacity>
           </View>
           <View style={s.searchHistoryList}>
@@ -363,7 +365,7 @@ export default function RecipesPage() {
             )}
             {filterCookTimeMax !== undefined && (
               <View style={s.smartToken}>
-                <Text style={s.smartTokenTxt}>⏱ {filterCookTimeMax}分鐘內</Text>
+                <Text style={s.smartTokenTxt}>{t("dyn.minutesWithin", { n: filterCookTimeMax })}</Text>
                 <TouchableOpacity onPress={() => setFilterCookTimeMax(undefined)}>
                   <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
@@ -373,7 +375,7 @@ export default function RecipesPage() {
               const chip = POPULAR_CHIPS.find(c => c.key === chipKey);
               return (
                 <View key={chipKey} style={s.smartToken}>
-                  <Text style={s.smartTokenTxt}>{chip?.label || chipKey}</Text>
+                  <Text style={s.smartTokenTxt}>{t(`chips.${chipKey}` as any) || chip?.label || chipKey}</Text>
                   <TouchableOpacity onPress={() => setActivePopularChips(prev => prev.filter(k => k !== chipKey))}>
                     <Ionicons name="close" size={12} color="#fff" />
                   </TouchableOpacity>
@@ -394,7 +396,7 @@ export default function RecipesPage() {
               setActivePopularChips([]);
               setFilterCookTimeMax(undefined);
             }}>
-              <Text style={s.clearAllTxt}>清除全部</Text>
+              <Text style={s.clearAllTxt}>{t("recipes.clearAllTxt")}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -404,10 +406,10 @@ export default function RecipesPage() {
       {searchRecipes.length > 0 && (
         <View style={s.filterPillsWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterPillsContainer}>
-            {renderFilterPill("全部", source === "all", () => setSource("all"))}
-            {renderFilterPill("官方", source === "official", () => setSource("official"))}
-            {renderFilterPill("網紅", source === "kol", () => setSource("kol"))}
-            {renderFilterPill("我的", source === "user", () => setSource("user"))}
+            {renderFilterPill(t("recipes.filterAll"), source === "all", () => setSource("all"))}
+            {renderFilterPill(t("recipes.filterOfficial"), source === "official", () => setSource("official"))}
+            {renderFilterPill(t("recipes.filterKol"), source === "kol", () => setSource("kol"))}
+            {renderFilterPill(t("recipes.filterMine"), source === "user", () => setSource("user"))}
             
             <View style={s.filterDivider} />
             

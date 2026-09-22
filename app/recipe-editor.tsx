@@ -2,6 +2,7 @@
  * 自訂食譜編輯器 — 新增 / 編輯 用戶自訂食譜
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, Image, Modal, BackHandler,
@@ -71,6 +72,7 @@ type Ingredient = { id: string; name: string; quantity: string; unit: string };
 type Step = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
 
 export default function RecipeEditorScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -715,14 +717,14 @@ const scrollToFocused = useCallback((e: any) => {
             <View style={[st.cardIcon, { backgroundColor: "#FDF2F8" }]}>
               <Ionicons name="camera-outline" size={18} color="#DB2777" />
             </View>
-            <Text style={st.cardTitle}>食譜相片</Text>
+            <Text style={st.cardTitle}>{t("editor.photo")}</Text>
           </View>
           {imageUri && !imageError ? (
             <Image source={{ uri: imageUri }} style={st.recipeImage} onError={() => setImageError(true)} />
           ) : (
             <View style={st.imagePH}>
               <Ionicons name="image-outline" size={48} color="#B0BAC9" />
-              <Text style={st.imagePHTxt}>點擊上載食譜圖片</Text>
+              <Text style={st.imagePHTxt}>{t("editor.tapUploadPhoto")}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -733,27 +735,27 @@ const scrollToFocused = useCallback((e: any) => {
             <View style={[st.cardIcon, { backgroundColor: "#EEF4FB" }]}>
               <Ionicons name="document-text-outline" size={18} color={BRAND} />
             </View>
-            <Text style={st.cardTitle}>食譜資訊</Text>
+            <Text style={st.cardTitle}>{t("editor.recipeInfo")}</Text>
           </View>
 
-          <Text style={st.label}>食譜名稱 *</Text>
+          <Text style={st.label}>{t("editor.recipeNameReq")}</Text>
           <TextInput style={st.input} value={name} onChangeText={setName}
             onFocus={scrollToFocused}
-            placeholder="例：媽媽的秘製紅燒肉" placeholderTextColor={HINT} />
+            placeholder={t("editor.namePlaceholder")} placeholderTextColor={HINT} />
 
-          <Text style={st.label}>描述</Text>
+          <Text style={st.label}>{t("importRecipe.desc")}</Text>
           <TextInput style={[st.input, st.multi]} value={description} onChangeText={setDescription}
             onFocus={scrollToFocused}
-            placeholder="描述這道菜的特色..." placeholderTextColor={HINT} multiline numberOfLines={2} />
+            placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor={HINT} multiline numberOfLines={2} />
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>準備時間 (分鐘)</Text>
+              <Text style={st.label}>{t("editor.prepTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={prepTime}
                 onChangeText={setPrepTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>烹飪時間 (分鐘)</Text>
+              <Text style={st.label}>{t("editor.cookTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={cookTime}
                 onChangeText={setCookTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
@@ -761,12 +763,12 @@ const scrollToFocused = useCallback((e: any) => {
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>份量 (人份)</Text>
+              <Text style={st.label}>{t("editor.servings")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={servings}
                 onChangeText={setServings} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>難度</Text>
+              <Text style={st.label}>{t("importRecipe.difficulty")}</Text>
               <View style={{ flexDirection: "row", gap: 6 }}>
                 {DIFFICULTY_OPTIONS.map(d => (
                   <TouchableOpacity key={d}
@@ -779,7 +781,7 @@ const scrollToFocused = useCallback((e: any) => {
             </View>
           </View>
 
-          <Text style={st.label}>分類</Text>
+          <Text style={st.label}>{t("shopping.category")}</Text>
           <View style={st.catGrid}>
             {CATEGORY_OPTIONS.map(opt => (
               <TouchableOpacity key={opt.key}
@@ -791,7 +793,7 @@ const scrollToFocused = useCallback((e: any) => {
             ))}
           </View>
 
-          <Text style={[st.label, { marginTop: 12 }]}>菜式類型 <Text style={st.hintTxt}>（影響「3 餸 1 湯」配搭）</Text></Text>
+          <Text style={[st.label, { marginTop: 12 }]}>{t("editor.dishType")} <Text style={st.hintTxt}>{t("editor.dishTypeHint")}</Text></Text>
           <View style={st.catGrid}>
             {DISH_TYPE_OPTIONS.map(opt => (
               <TouchableOpacity key={opt.key || "auto"}
@@ -803,11 +805,11 @@ const scrollToFocused = useCallback((e: any) => {
             ))}
           </View>
 
-          <Text style={[st.label, { marginTop: 12 }]}>標籤</Text>
+          <Text style={[st.label, { marginTop: 12 }]}>{t("filter.tags")}</Text>
           <TextInput style={st.input} value={tags} onChangeText={setTags}
             onFocus={scrollToFocused}
-            placeholder="例：家常菜 快手菜 雞肉" placeholderTextColor={HINT} />
-          <Text style={st.tagSuggestLabel}>常用標籤</Text>
+            placeholder={t("importRecipe.tagsPlaceholder")} placeholderTextColor={HINT} />
+          <Text style={st.tagSuggestLabel}>{t("editor.commonTags")}</Text>
           <View style={st.catGrid}>
             {SUGGESTED_TAGS.map(tag => {
               const active = currentTagList.includes(tag);
@@ -821,7 +823,7 @@ const scrollToFocused = useCallback((e: any) => {
             })}
           </View>
 
-          <Text style={[st.label, { marginTop: 16 }]}>來源連結（選填）</Text>
+          <Text style={[st.label, { marginTop: 16 }]}>{t("editor.sourceUrl")}</Text>
           <TextInput style={st.input} value={sourceUrl} onChangeText={setSourceUrl}
             onFocus={scrollToFocused}
             placeholder="例：https://www.instagram.com/reel/xxx 或 YouTube 連結"
@@ -830,7 +832,7 @@ const scrollToFocused = useCallback((e: any) => {
             autoCorrect={false}
             keyboardType="url"
           />
-          <Text style={st.hint}>新增來源連結後，食譜詳情頁將顯示「教學影片 by 作者」</Text>
+          <Text style={st.hint}>{t("editor.sourceUrlHint")}</Text>
         </View>
 
         {/* Ingredients */}
@@ -839,13 +841,13 @@ const scrollToFocused = useCallback((e: any) => {
             <View style={[st.cardIcon, { backgroundColor: "#E8F5E9" }]}>
               <Ionicons name="basket-outline" size={18} color={GREEN} />
             </View>
-            <Text style={st.cardTitle}>食材清單 ({validIngCount} 項)</Text>
+            <Text style={st.cardTitle}>{t("recipe.ingredientsCount", { n: validIngCount })}</Text>
           </View>
 
           <View style={st.ingHdr}>
-            <Text style={[st.ingHdrTxt, { flex: 1 }]}>食材名稱</Text>
-            <Text style={[st.ingHdrTxt, { width: 64, textAlign: "center" }]}>份量</Text>
-            <Text style={[st.ingHdrTxt, { width: 64, textAlign: "center" }]}>單位</Text>
+            <Text style={[st.ingHdrTxt, { flex: 1 }]}>{t("party.ingredientNamePlaceholder")}</Text>
+            <Text style={[st.ingHdrTxt, { width: 64, textAlign: "center" }]}>{t("importRecipe.qtyPlaceholder")}</Text>
+            <Text style={[st.ingHdrTxt, { width: 64, textAlign: "center" }]}>{t("shopping.unit")}</Text>
             <View style={{ width: 32 }} />
           </View>
 
@@ -858,11 +860,11 @@ const scrollToFocused = useCallback((e: any) => {
                   if (ref) ingredientInputRefs.current.set(ing.id, ref);
                   else ingredientInputRefs.current.delete(ing.id);
                 }}
-                placeholder="食材名稱" placeholderTextColor={HINT} />
+                placeholder={t("party.ingredientNamePlaceholder")} placeholderTextColor={HINT} />
               <TextInput style={[st.ingInput, { width: 64, textAlign: "center" }]} value={ing.quantity}
                 onChangeText={v => updateIngredient(idx, "quantity", v)}
                 onFocus={scrollToFocused}
-                placeholder="份量" placeholderTextColor={HINT} />
+                placeholder={t("importRecipe.qtyPlaceholder")} placeholderTextColor={HINT} />
               <UnitPicker value={ing.unit} onChange={v => updateIngredient(idx, "unit", v)}
                 style={{ width: 64, height: 40 }} />
               <TouchableOpacity style={[st.delBtn, ingredients.length <= 1 && st.delDisabled]}
@@ -874,7 +876,7 @@ const scrollToFocused = useCallback((e: any) => {
           ))}
           <TouchableOpacity style={st.addBtn} onPress={addIngredient} activeOpacity={0.85}>
             <Ionicons name="add" size={16} color={GREEN} />
-            <Text style={st.addBtnTxt}>新增食材</Text>
+            <Text style={st.addBtnTxt}>{t("importRecipe.addIngredient")}</Text>
           </TouchableOpacity>
         </View>
         <View style={st.card}>
@@ -882,7 +884,7 @@ const scrollToFocused = useCallback((e: any) => {
             <View style={[st.cardIcon, { backgroundColor: "#E8F0FA" }]}>
               <Ionicons name="list-outline" size={18} color={BRAND} />
             </View>
-            <Text style={st.cardTitle}>烹飪步驟 ({validStepCount} 步)</Text>
+            <Text style={st.cardTitle}>{t("recipe.stepsCount", { n: validStepCount })}</Text>
           </View>
 
           {steps.map((step, idx) => (
@@ -912,7 +914,7 @@ const scrollToFocused = useCallback((e: any) => {
                 ) : null}
 
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ fontSize: 12, color: SUB }}>時間（分鐘）：</Text>
+                  <Text style={{ fontSize: 12, color: SUB }}>{t("importRecipe.timeMinLabel")}</Text>
                   <TextInput style={[st.ingInput, { width: 64, textAlign: "center" }]}
                     value={String(step.duration || 0)}
                     onChangeText={v => updateStep(idx, "duration", parseInt(v) || 0)}
@@ -936,7 +938,7 @@ const scrollToFocused = useCallback((e: any) => {
           ))}
           <TouchableOpacity style={[st.addBtn, st.addBtnStep]} onPress={addStep} activeOpacity={0.85}>
             <Ionicons name="add" size={16} color={BRAND} />
-            <Text style={[st.addBtnTxt, { color: BRAND }]}>新增步驟</Text>
+            <Text style={[st.addBtnTxt, { color: BRAND }]}>{t("importRecipe.addStep")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -949,12 +951,12 @@ const scrollToFocused = useCallback((e: any) => {
             ) : (
               <>
                 <Ionicons name="checkmark" size={22} color="#fff" />
-                <Text style={st.saveBtnTxt}>儲存食譜</Text>
+                <Text style={st.saveBtnTxt}>{t("editor.saveRecipe")}</Text>
               </>
             )}
           </TouchableOpacity>
           <TouchableOpacity style={st.discardBtn} onPress={handleDiscard}>
-            <Text style={st.discardBtnTxt}>放棄</Text>
+            <Text style={st.discardBtnTxt}>{t("editor.discard")}</Text>
           </TouchableOpacity>
         </View>
           </ScrollView>
@@ -965,7 +967,7 @@ const scrollToFocused = useCallback((e: any) => {
           <View style={st.overlay}>
             <View style={st.overlayBox}>
               <ActivityIndicator size="large" color={BRAND} />
-              <Text style={st.overlayTitle}>儲存中</Text>
+              <Text style={st.overlayTitle}>{t("editor.saving")}</Text>
               <View style={st.overlaySteps}>
                 {["驗證資料...", "上載圖片...", "儲存到食譜庫..."].map((s, i) => (
                   <View key={s} style={st.overlayStep}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const BRAND = "#013E77";
 
 export default function ResetPasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
   const resetPasswordM = trpc.auth.resetPassword.useMutation();
@@ -22,22 +24,22 @@ export default function ResetPasswordScreen() {
 
   useEffect(() => {
     if (!token) {
-      Alert.alert("連結無效", "缺少重設 token", [{ text: "返回登入", onPress: () => router.replace("/login") }]);
+      Alert.alert(t("auth.invalidLink"), t("auth.missingToken"), [{ text: t("auth.backToLogin"), onPress: () => router.replace("/login") }]);
     }
   }, [token, router]);
 
   const handleSubmit = async () => {
     if (!token) return;
     if (!newPassword.trim()) {
-      Alert.alert("請輸入新密碼");
+      Alert.alert(t("auth.enterNewPassword"));
       return;
     }
     if (newPassword.length < 8) {
-      Alert.alert("密碼太短", "新密碼至少需要 8 個字元");
+      Alert.alert(t("auth.passwordTooShort"), t("auth.passwordMin"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("密碼不一致", "新密碼與確認密碼不一致");
+      Alert.alert(t("auth.passwordMismatch"), t("auth.passwordMismatchMsg"));
       return;
     }
 
@@ -45,11 +47,11 @@ export default function ResetPasswordScreen() {
       await resetPasswordM.mutateAsync({ token, newPassword, confirmPassword });
       await clearAuthToken();
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
-      Alert.alert("已更新", "密碼已成功重設，請使用新密碼登入。", [
+      Alert.alert(t("auth.updated"), t("auth.resetSuccess"), [
         { text: "返回登入", onPress: () => router.replace("/login") },
       ]);
     } catch (err: any) {
-      Alert.alert("重設失敗", err?.message || "請稍後再試");
+      Alert.alert(t("auth.resetFailed"), err?.message || t("auth.tryLater"));
     }
   };
 
@@ -60,20 +62,20 @@ export default function ResetPasswordScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>重設密碼</Text>
+          <Text style={styles.headerTitle}>{t("auth.resetPwHeader")}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>設定新密碼</Text>
-            <Text style={styles.subtitle}>輸入新密碼兩次確認，完成後即可登入。</Text>
+            <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
+            <Text style={styles.subtitle}>{t("auth.newPasswordSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="key-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="新密碼（至少 8 個字元）"
+                placeholder={t("auth.newPasswordPlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -89,7 +91,7 @@ export default function ResetPasswordScreen() {
               <Ionicons name="checkmark-done-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="確認新密碼"
+                placeholder={t("auth.confirmNewPassword")}
                 placeholderTextColor="#9CA3AF"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -102,7 +104,7 @@ export default function ResetPasswordScreen() {
             </View>
 
             <TouchableOpacity style={[styles.submitBtn, resetPasswordM.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={resetPasswordM.isPending || !token}>
-              {resetPasswordM.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>重設密碼</Text>}
+              {resetPasswordM.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{t("auth.resetPwHeader")}</Text>}
             </TouchableOpacity>
           </View>
         </View>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, Switch, ActivityIndicator, BackHandler,
@@ -24,6 +25,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function KitchenSettingsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
@@ -86,11 +88,11 @@ export default function KitchenSettingsScreen() {
         "你輸入嘅廚房名稱尚未儲存，離開後將不會保存。",
         [
           { text: "取消", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: () => router.back() },
+          { text: "離開", style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
         ]
       );
     } else {
-      router.back();
+      (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
     }
   };
 
@@ -265,24 +267,24 @@ export default function KitchenSettingsScreen() {
       {isRefreshing ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 60 }}>
           <ActivityIndicator size="large" color={BRAND} />
-          <Text style={{ color: SUB, marginTop: 12, fontSize: 14 }}>載入廚房資料中...</Text>
+          <Text style={{ color: SUB, marginTop: 12, fontSize: 14 }}>{t("kitchen.loading")}</Text>
         </View>
       ) : (
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={s.section}>
-          <Text style={s.sectionTitle}>{hasKitchen ? "目前廚房" : "建立或加入廚房"}</Text>
+          <Text style={s.sectionTitle}>{hasKitchen ? t("dyn.currentKitchen") : t("settings.createOrJoinKitchen")}</Text>
           <View style={s.card}>
             {!hasKitchen ? (
               <View style={s.empty}>
                 <Ionicons name="home-outline" size={48} color="#ccc" />
-                <Text style={s.emptyTitle}>尚未加入任何廚房</Text>
-                <Text style={s.emptySub}>建立一個廚房或輸入邀請碼加入</Text>
+                <Text style={s.emptyTitle}>{t("kitchen.noKitchen")}</Text>
+                <Text style={s.emptySub}>{t("kitchen.noKitchenSub")}</Text>
                 <View style={s.emptyActions}>
                   <TouchableOpacity style={s.createBtn} onPress={() => setShowCreateModal(true)}>
-                    <Text style={s.createBtnText}>建立廚房</Text>
+                    <Text style={s.createBtnText}>{t("kitchen.createKitchen")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.joinBtn} onPress={() => setShowJoinModal(true)}>
-                    <Text style={s.joinBtnText}>加入廚房</Text>
+                    <Text style={s.joinBtnText}>{t("kitchen.joinKitchen")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -322,14 +324,14 @@ export default function KitchenSettingsScreen() {
                   onPress={() => setShowCreateModal(true)}
                 >
                   <Ionicons name="add-circle-outline" size={18} color={BRAND} />
-                  <Text style={s.switchActionBtnText}>建立廚房</Text>
+                  <Text style={s.switchActionBtnText}>{t("kitchen.createKitchen")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.switchActionBtn}
                   onPress={() => setShowJoinModal(true)}
                 >
                   <Ionicons name="qr-code-outline" size={18} color={BRAND} />
-                  <Text style={s.switchActionBtnText}>加入廚房</Text>
+                  <Text style={s.switchActionBtnText}>{t("kitchen.joinKitchen")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -337,7 +339,7 @@ export default function KitchenSettingsScreen() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>廚房名稱</Text>
+          <Text style={s.sectionTitle}>{t("kitchen.kitchenName")}</Text>
           <View style={s.card}>
             {editingName ? (
               <View style={{ gap: 10 }}>
@@ -345,23 +347,23 @@ export default function KitchenSettingsScreen() {
                   style={s.input}
                   value={nameInput}
                   onChangeText={setNameInput}
-                  placeholder="輸入廚房名稱"
+                  placeholder={t("kitchen.namePlaceholder")}
                   placeholderTextColor={SUB}
                   autoFocus
                 />
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TouchableOpacity style={s.primaryBtn} onPress={handleRename} disabled={renameM.isPending}>
-                    {renameM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>儲存</Text>}
+                    {renameM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("shopping.save")}</Text>}
                   </TouchableOpacity>
                   <TouchableOpacity style={s.secondaryBtn} onPress={() => setEditingName(false)}>
-                    <Text style={s.secondaryBtnText}>取消</Text>
+                    <Text style={s.secondaryBtnText}>{t("recipe.cancel")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <TouchableOpacity style={s.row} onPress={handleStartRename} disabled={!isAdmin}>
                 <Ionicons name="home-outline" size={20} color={BRAND} />
-                <Text style={s.rowLabel}>{activeFamily?.name ?? "未命名廚房"}</Text>
+                <Text style={s.rowLabel}>{activeFamily?.name ?? t("dyn.unnamedKitchen")}</Text>
                 {isAdmin && <Ionicons name="pencil-outline" size={16} color={SUB} />}
               </TouchableOpacity>
             )}
@@ -369,12 +371,12 @@ export default function KitchenSettingsScreen() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>審批設定</Text>
+          <Text style={s.sectionTitle}>{t("kitchen.approval")}</Text>
           <View style={s.card}>
             <View style={s.rowBetween}>
               <View style={{ flex: 1 }}>
-                <Text style={s.rowLabel}>成員提案需要審批</Text>
-                <Text style={s.rowSub}>開啟後，成員新增的排餐和食材需經管理員確認。確認排餐時會自動確認相關食材。</Text>
+                <Text style={s.rowLabel}>{t("kitchen.approvalLabel")}</Text>
+                <Text style={s.rowSub}>{t("kitchen.approvalSub")}</Text>
               </View>
               <Switch
                 value={settings.approvalRequired !== false}
@@ -389,10 +391,10 @@ export default function KitchenSettingsScreen() {
 
         <View style={s.section}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <Text style={s.sectionTitle}>成員 ({members.length})</Text>
+            <Text style={s.sectionTitle}>{t("dyn.members", { n: members.length })}</Text>
           </View>
           {members.length === 0 ? (
-            <Text style={{ color: SUB, textAlign: "center", padding: 20 }}>暫無成員</Text>
+            <Text style={{ color: SUB, textAlign: "center", padding: 20 }}>{t("kitchen.noMembers")}</Text>
           ) : (
             members.map((m: any) => {
               const isSelf = String(m.userId) === String(user?.id);
@@ -406,7 +408,7 @@ export default function KitchenSettingsScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={s.memberName}>
                       {m.name || m.nickname || "成員"}
-                      {isSelf ? <Text style={{ color: SUB, fontSize: 11 }}>（你）</Text> : null}
+                      {isSelf ? <Text style={{ color: SUB, fontSize: 11 }}>{t("kitchen.you")}</Text> : null}
                     </Text>
                     <Text style={s.memberRole}>{ROLE_LABEL[m.familyRole] ?? m.familyRole}</Text>
                   </View>
@@ -437,12 +439,12 @@ export default function KitchenSettingsScreen() {
 
         {hasKitchen && !isOwner && (
           <View style={s.section}>
-            <Text style={s.sectionTitle}>離開廚房</Text>
+            <Text style={s.sectionTitle}>{t("kitchen.leaveSection")}</Text>
             <TouchableOpacity style={s.leaveCard} onPress={handleLeaveKitchen} disabled={leaveM.isPending}>
               <Ionicons name="exit-outline" size={22} color="#EF4444" />
               <View style={{ flex: 1 }}>
-                <Text style={s.dangerText}>離開此廚房</Text>
-                <Text style={s.dangerSub}>離開後，你仍然可以用同一個帳號加入其他廚房</Text>
+                <Text style={s.dangerText}>{t("kitchen.leaveKitchen")}</Text>
+                <Text style={s.dangerSub}>{t("kitchen.leaveKitchenSub")}</Text>
               </View>
               {leaveM.isPending ? (
                 <ActivityIndicator color="#EF4444" size="small" />
@@ -458,7 +460,7 @@ export default function KitchenSettingsScreen() {
             <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => { setShowRolePicker(false); setChangingRole(null); }} />
             <View style={s.sheet}>
               <View style={s.handle} />
-              <Text style={s.sheetTitle}>變更角色</Text>
+              <Text style={s.sheetTitle}>{t("kitchen.changeRole")}</Text>
               {roleOptions.map((role) => (
                 <TouchableOpacity
                   key={role}
@@ -476,7 +478,7 @@ export default function KitchenSettingsScreen() {
         )}
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>邀請碼</Text>
+          <Text style={s.sectionTitle}>{t("kitchen.inviteCode")}</Text>
           <View style={s.card}>
             <View style={s.rowBetween}>
               <Text style={{ fontSize: 20, fontWeight: "900", color: BRAND, letterSpacing: 3 }}>
@@ -494,7 +496,7 @@ export default function KitchenSettingsScreen() {
                   }}
                 >
                   <Ionicons name="copy-outline" size={16} color={BRAND} />
-                  <Text style={s.secondaryBtnText}>複製</Text>
+                  <Text style={s.secondaryBtnText}>{t("kitchen.copy")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -503,8 +505,8 @@ export default function KitchenSettingsScreen() {
 
         {isOwner && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: "#EF4444" }]}>危險區域</Text>
-            <Text style={{ color: SUB, fontSize: 12, marginBottom: 10 }}>如要離開，請先喺成員列表轉讓主人權限。</Text>
+            <Text style={[s.sectionTitle, { color: "#EF4444" }]}>{t("kitchen.dangerZone")}</Text>
+            <Text style={{ color: SUB, fontSize: 12, marginBottom: 10 }}>{t("kitchen.dangerHint")}</Text>
             <TouchableOpacity
               style={s.dangerCard}
               onPress={handleDissolve}
@@ -512,8 +514,8 @@ export default function KitchenSettingsScreen() {
             >
               <Ionicons name="warning-outline" size={22} color="#EF4444" />
               <View style={{ flex: 1 }}>
-                <Text style={s.dangerText}>解散此廚房</Text>
-                <Text style={s.dangerSub}>所有資料將被永久刪除</Text>
+                <Text style={s.dangerText}>{t("kitchen.dissolve")}</Text>
+                <Text style={s.dangerSub}>{t("kitchen.dissolveSub")}</Text>
               </View>
               {dissolveM.isPending ? (
                 <ActivityIndicator color="#EF4444" size="small" />
@@ -542,11 +544,11 @@ export default function KitchenSettingsScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <View style={s.modalOverlay}>
           <View style={s.modalContainer}>
-            <Text style={s.modalTitle}>建立廚房</Text>
+            <Text style={s.modalTitle}>{t("kitchen.createKitchen")}</Text>
             <TextInput
               ref={createInputRef}
               style={s.modalInput}
-              placeholder="輸入廚房名稱"
+              placeholder={t("kitchen.namePlaceholder")}
               placeholderTextColor="#999"
               value={familyName}
               onChangeText={setFamilyName}
@@ -557,10 +559,10 @@ export default function KitchenSettingsScreen() {
                 onPress={() => createM.mutate({ name: familyName.trim() })}
                 disabled={!familyName.trim() || createM.isPending}
               >
-                {createM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>建立</Text>}
+                {createM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("kitchen.create")}</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <Text style={{ color: "#999", fontSize: 14 }}>取消</Text>
+                <Text style={{ color: "#999", fontSize: 14 }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -582,11 +584,11 @@ export default function KitchenSettingsScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <View style={s.modalOverlay}>
           <View style={s.modalContainer}>
-            <Text style={s.modalTitle}>加入廚房</Text>
+            <Text style={s.modalTitle}>{t("kitchen.joinKitchen")}</Text>
             <TextInput
               ref={joinInputRef}
               style={s.modalInput}
-              placeholder="輸入邀請碼"
+              placeholder={t("kitchen.invitePlaceholder")}
               placeholderTextColor="#999"
               value={inviteCode}
               onChangeText={setInviteCode}
@@ -598,10 +600,10 @@ export default function KitchenSettingsScreen() {
                 onPress={() => joinM.mutate({ inviteCode: inviteCode.trim() })}
                 disabled={!inviteCode.trim() || joinM.isPending}
               >
-                {joinM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>加入</Text>}
+                {joinM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("kitchen.join")}</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowJoinModal(false)}>
-                <Text style={{ color: "#999", fontSize: 14 }}>取消</Text>
+                <Text style={{ color: "#999", fontSize: 14 }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
             </View>
           </View>

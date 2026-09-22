@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, TouchableOpacity, Modal, FlatList, TextInput,
   StyleSheet,
@@ -63,7 +64,9 @@ interface Props {
   style?: any;
 }
 
-export default function UnitPicker({ value, onChange, onUnitChange, quantity, onQuantityChange, style }: Props) {
+export default function UnitPicker(
+  { value, onChange, onUnitChange, quantity, onQuantityChange, style }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const [customUnits, setCustomUnits] = useState<string[]>([]);
@@ -165,9 +168,9 @@ export default function UnitPicker({ value, onChange, onUnitChange, quantity, on
         <View style={s_unit.overlay}>
           <View style={s_unit.sheet}>
             <View style={s_unit.header}>
-              <Text style={s_unit.title}>選擇單位</Text>
+              <Text style={s_unit.title}>{t("unit.title")}</Text>
               <TouchableOpacity onPress={() => setOpen(false)}>
-                <Text style={s_unit.closeBtn}>完成</Text>
+                <Text style={s_unit.closeBtn}>{t("unit.done")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -191,7 +194,7 @@ export default function UnitPicker({ value, onChange, onUnitChange, quantity, on
                     style={s_unit.customInput}
                     value={custom}
                     onChangeText={setCustom}
-                    placeholder="輸入自訂單位…"
+                    placeholder={t("unit.customPlaceholder")}
                     placeholderTextColor="#9CA3AF"
                     returnKeyType="done"
                     onSubmitEditing={handleCustomUnitConfirm}
@@ -201,7 +204,7 @@ export default function UnitPicker({ value, onChange, onUnitChange, quantity, on
                     disabled={!custom.trim()}
                     onPress={handleCustomUnitConfirm}
                   >
-                    <Text style={s_unit.customBtnTxt}>確定</Text>
+                    <Text style={s_unit.customBtnTxt}>{t("unit.confirm")}</Text>
                   </TouchableOpacity>
                 </View>
               )}

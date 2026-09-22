@@ -8,6 +8,8 @@
  */
 
 import * as Localization from 'expo-localization';
+import i18n from '@/lib/i18n';
+import { enumT } from '@/lib/i18nEnums';
 
 /**
  * 獲取用戶時區
@@ -87,11 +89,10 @@ const addDays = (dateStr: string, days: number): string => {
 const formatDateLabel = (dateStr: string): string => {
   const today = todayISO();
   const tomorrow = tomorrowISO();
-  if (dateStr === today) return '今日';
-  if (dateStr === tomorrow) return '聽日';
+  if (dateStr === today) return i18n.t('shopping.today');
+  if (dateStr === tomorrow) return i18n.t('shopping.tomorrow');
   const d = new Date(toDateStr(dateStr));
-  const weekdays = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-  return weekdays[d.getDay()];
+  return enumT.weekday(d.getDay());
 };
 
 /**
@@ -137,8 +138,7 @@ const formatDate = (dateStr: string, locale?: string): string => {
  */
 const getWeekday = (dateStr: string, short = false): string => {
   const d = new Date(toDateStr(dateStr));
-  const locale = Localization.getLocales()[0]?.languageTag || 'zh-HK';
-  return d.toLocaleDateString(locale, { weekday: short ? 'short' : 'long' });
+  return enumT.weekday(d.getDay());
 };
 
 /**
@@ -146,7 +146,7 @@ const getWeekday = (dateStr: string, short = false): string => {
  */
 const formatMonthLabel = (dateStr: string): string => {
   const d = new Date(toDateStr(dateStr));
-  return `${d.getMonth() + 1}月`;
+  return enumT.month(d.getMonth() + 1);
 };
 
 /**

@@ -20,9 +20,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { compressImage } from "@/lib/image-utils";
+import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { enumT } from "@/lib/i18nEnums";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
+import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
+import HintBanner from "@/src/components/HintBanner";
 import AdSlot from "@/src/components/AdSlot";
 import PaywallModal from "@/components/PaywallModal";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
@@ -37,10 +43,12 @@ type BackendMessage = { role: "user" | "assistant"; content: MsgContent };
 type AIRecipe = {
   id?: string;
   name: string; description: string;
+  nameEn?: string; nameFil?: string; nameId?: string;
   cookTime: number; servings: number;
   difficulty: string; recipeCategory?: string;
-  ingredients: { name: string; quantity: string; unit: string; category?: string }[];
-  steps: string[]; tags: string[];
+  ingredients: { name: string; nameEn?: string; nameFil?: string; nameId?: string; quantity: string; unit: string; category?: string }[];
+  steps: string[]; stepsEn?: string[]; stepsFil?: string[]; stepsId?: string[];
+  tags: string[];
   image?: string; thumbnailUrl?: string;
   source?: "official" | "custom" | "ai" | "library";
   officialId?: number;
@@ -146,7 +154,7 @@ const isPlaceholderIngredientName = (name: string) => {
   return PLACEHOLDER_INGREDIENT_NAMES.has(n) || PLACEHOLDER_INGREDIENT_NAMES.has(normalizeRecipeName(n));
 };
 
-const normalizeIngredient = (ing: any): { name: string; quantity: string; unit: string } | null => {
+const normalizeIngredient = (ing: any): { name: string; nameEn?: string; nameFil?: string; nameId?: string; quantity: string; unit: string } | null => {
   const rawName = normalizeIngredientText(ing?.name ?? "");
   const rawQuantity = ing?.quantity != null ? normalizeIngredientText(String(ing.quantity)) : "";
   const rawUnit = ing?.unit != null ? normalizeIngredientText(String(ing.unit)) : "";
@@ -163,6 +171,9 @@ const normalizeIngredient = (ing: any): { name: string; quantity: string; unit: 
     if (!cleanedName || isPlaceholderIngredientName(cleanedName) || isIngredientNoteFragment(cleanedName)) return null;
     return {
       name: cleanedName,
+      nameEn: ing?.nameEn ? String(ing.nameEn) : undefined,
+      nameFil: ing?.nameFil ? String(ing.nameFil) : undefined,
+      nameId: ing?.nameId ? String(ing.nameId) : undefined,
       quantity: nameQtyMatch[2] || rawQuantity,
       unit: nameQtyMatch[3] || rawUnit,
     };
@@ -174,6 +185,9 @@ const normalizeIngredient = (ing: any): { name: string; quantity: string; unit: 
 
   return {
     name: rawName,
+    nameEn: ing?.nameEn ? String(ing.nameEn) : undefined,
+    nameFil: ing?.nameFil ? String(ing.nameFil) : undefined,
+    nameId: ing?.nameId ? String(ing.nameId) : undefined,
     quantity: rawQuantity,
     unit: rawUnit,
   };
@@ -360,27 +374,27 @@ const HOT_KEY_CONFIG: Record<string, {
   quick: {
     search: { cookTimeMax: 30 },
     rank: "shortestTime",
-    aiPrompt: "30 分鐘內搞掂嘅快手家常菜",
+    aiPrompt: "aiChef.hk_quickPrompt",
   },
   healthy: {
     search: { query: "清淡" },
     rank: "default",
-    aiPrompt: "清淡健康嘅家常菜，少油少鹽",
+    aiPrompt: "aiChef.hk_healthyPrompt",
   },
   ricecooker: {
     search: { query: "電飯煲" },
     rank: "default",
-    aiPrompt: "用電飯煲一鍋煮嘅懶人食譜",
+    aiPrompt: "aiChef.hk_ricecookerPrompt",
   },
   kids: {
     search: { tags: ["小朋友"] },
     rank: "default",
-    aiPrompt: "小朋友喜歡食嘅家常菜，口味溫和、少辣",
+    aiPrompt: "aiChef.hk_kidsPrompt",
   },
   guest: {
     search: { query: "宴客" },
     rank: "default",
-    aiPrompt: "宴客/有朋友嚟，體面啲嘅家常大菜",
+    aiPrompt: "aiChef.hk_guestPrompt",
   },
 };
 
@@ -423,9 +437,9 @@ const OLD_CHAT_KEY = (uid: string | number) => `kindcipe_ai_chat_${uid}`;
 const MAX_IMAGES_PER_SESSION = 3;
 
 const LOADING_STEPS = [
-  "思考中...",
-  "正在理解你的需求...",
-  "準備回應...",
+  "aiChef.thinking",
+  "aiChef.loadingStep1",
+  "aiChef.loadingStep2",
 ];
 
 const BRAND = "#013E77";
@@ -648,6 +662,7 @@ function PressScale({ children, onPress, disabled, testID, style }: {
 // ─── Main Component ──────────────────────────────────────
 
 export default function AIChefScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, activeFamily } = useAuth();
@@ -682,7 +697,7 @@ export default function AIChefScreen() {
 
   const activeSession = sessions.find(s => s.id === activeChatId);
   const messages = activeSession?.messages ?? [];
-  const greetingReply = "你好呀！我係 AI 助手，可以幫你搵食譜、規劃餐單、或者睇吓雪櫃有咩食材可以煮。你想煮咩？或者同我講吓你手頭上有咩食材？";
+  const greetingReply = t("aiChef.greeting");
   const isGreetingText = (text: string) => /^(hi|hello|hey|yo|你好|您好|早安|午安|晚安|多謝|謝謝|唔該|thanks|thank you|thx)$/i.test(text.trim());
 
   const [input, setInput] = useState("");
@@ -711,10 +726,11 @@ export default function AIChefScreen() {
   const [aiNextSteps, setAiNextSteps] = useState<string[]>([]);
 
   // ─── Toast notification ────────────────────────────────
-  const [toast, setToast] = useState<{ text: string; visible: boolean }>({ text: "", visible: false });
-  const showToast = (text: string) => {
-    setToast({ text, visible: true });
-    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 2000);
+  const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
+  const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
+  const showToast = (text: string, action?: { label: string; onPress: () => void }, duration = 2000) => {
+    setToast({ text, visible: true, action });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), duration);
   };
 
   // ─── Shopping lists after AI plan ─────────────────────
@@ -1021,7 +1037,7 @@ export default function AIChefScreen() {
   // 將推薦嘅食譜名 list 出嚟（「記菜名」）：令用戶喺 chat 文字見到推薦咗咩，可以碌返/打名搵返食譜
   const recipeNameList = (recipes: AIRecipe[] | undefined | null): string => {
     if (!recipes || recipes.length === 0) return "";
-    return "\n" + recipes.map((r, i) => `${i + 1}. ${(r.name || "").trim()}`).join("\n");
+    return "\n" + recipes.map((r, i) => `${i + 1}. ${getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId).primary}`).join("\n");
   };
 
   const chatMutation = trpc.aiRecipe.chat.useMutation({
@@ -1071,7 +1087,7 @@ export default function AIChefScreen() {
       const msg = isTransient
         ? "AI 暫時未有回應，請再試一次。"
         : (rawMsg || "AI 暫時未能回應，請再試。");
-      updateMessages(prev => [...prev, { role: "assistant", content: `抱歉，${msg}` }]);
+      updateMessages(prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
       setAiNextSteps([]);
       setRecommendedRecipes([]);
       setMealResult(null);
@@ -1349,7 +1365,7 @@ export default function AIChefScreen() {
   };
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
-      const mealTypeLabel = variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食";
+      const mealTypeLabel = enumT.meal(variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食");
       const hasConflict = !!(result.warning && result.hasConflict);
       const continueAfterMealPlan = () => {
         const currentRecipe = planRecipeRef.current ?? planRecipe;
@@ -1412,7 +1428,7 @@ export default function AIChefScreen() {
       setShopRecipes([]);
       setBatchPickerRecipes(null);
       const count = variables.items.length;
-      showToast(`✅ ${count} 件食材已加入購物清單`);
+      setShoppingConfirmCount(count);
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
@@ -1584,7 +1600,7 @@ export default function AIChefScreen() {
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question") => {
     lastChatModeRef.current = sourceMode ?? "";
     noveltyRetryRef.current = false;
-    chatMutation.mutate({ messages: msgs, mode: sourceMode ?? "chat", excludeNames: sessionSeenRecipeNames });
+    chatMutation.mutate({ messages: msgs, mode: sourceMode ?? "chat", excludeNames: sessionSeenRecipeNames, lang: i18n.language });
   };
 
   const resolveShoppingRef = async (r: AIRecipe): Promise<string> => {
@@ -1612,7 +1628,7 @@ export default function AIChefScreen() {
         : "請從食譜庫再提供一組唔同嘅建議，避免同之前建議過嘅菜式重複。";
     const newMsgs: Message[] = [...messages, { role: "user", content: regeneratePrompt }];
     updateMessages(() => newMsgs);
-    chatMutation.mutate({ messages: buildBackendMessages(newMsgs), mode, excludeNames: sessionSeenRecipeNames });
+    chatMutation.mutate({ messages: buildBackendMessages(newMsgs), mode, excludeNames: sessionSeenRecipeNames, lang: i18n.language });
     scrollToEnd();
   };
 
@@ -1640,12 +1656,12 @@ export default function AIChefScreen() {
       ? inMealContext
         ? `家常菜。提供 4 個唔同嘅食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。`
         : activeConfig
-          ? `${activeConfig.aiPrompt}。`
+          ? `${t(activeConfig.aiPrompt as any)}。`
           : `家常菜。提供 1 個唔同嘅食譜。`
       : inMealContext
         ? `提供 4 個唔同嘅家常菜食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。`
         : activeConfig
-          ? `${activeConfig.aiPrompt}。`
+          ? `${t(activeConfig.aiPrompt as any)}。`
           : `提供 1 個唔同嘅家常菜食譜。`;
 
     const newMsg: Message = { role: "user", content: userPrompt };
@@ -1669,6 +1685,7 @@ export default function AIChefScreen() {
       messages: buildBackendMessages(backendMsgs),
       mode: source === "ai" ? "ai" : "library",
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
+      lang: i18n.language,
       search: searchParam as any,
     });
     scrollToEnd();
@@ -1699,7 +1716,7 @@ export default function AIChefScreen() {
     setSwappedRecipeNames(new Set());
     setSessionSeenRecipeNames([]);
     setMealStep("people");
-    addBotMessage("（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）");
+    addBotMessage(t("aiChef.q_people", { n: 1 }));
   };
 
   // 由 Hero（homepage / ai-chef hero card）觸發：新開一個獨立 session 嚟做 3餸1湯，
@@ -1719,7 +1736,7 @@ export default function AIChefScreen() {
     setSessions(prev => {
       const idx = prev.findIndex(s => s.id === newId);
       if (idx === -1) return prev;
-      const updated = { ...prev[idx], messages: [...prev[idx].messages, { role: "assistant" as const, content: "（步驟 1/4）今晚幾多人食？（可直接輸入數字，例如 4）" }] };
+      const updated = { ...prev[idx], messages: [...prev[idx].messages, { role: "assistant" as const, content: t("aiChef.q_people", { n: 1 }) }] };
       const next = [...prev]; next[idx] = updated; return next;
     });
     scrollToLatestMessage();
@@ -1748,19 +1765,18 @@ export default function AIChefScreen() {
   const askMealQuestion = (step: MealPlanStep) => {
     const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
     const stepNum = stepMap[step];
-    const label = stepNum ? `（步驟 ${stepNum}/4）` : "";
     switch (step) {
       case "people":
-        addBotMessage(`${label}今晚幾多人食？（可直接輸入數字，例如 4）`);
+        addBotMessage(t("aiChef.q_people", { n: stepNum }));
         break;
       case "audience":
-        addBotMessage(`${label}有冇小朋友或老人家？（可揀快速選項或自由輸入）`);
+        addBotMessage(t("aiChef.q_kids", { n: stepNum }));
         break;
       case "time":
-        addBotMessage(`${label}想幾耐煮好？（可揀快速選項或自由輸入）`);
+        addBotMessage(t("aiChef.q_time", { n: stepNum }));
         break;
       case "dislike":
-        addBotMessage(`${label}有咩唔食？（可輸入食材或口味，冇就寫「冇」）`);
+        addBotMessage(t("aiChef.q_dislike", { n: stepNum }));
         break;
     }
   };
@@ -1881,7 +1897,7 @@ export default function AIChefScreen() {
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
     mealSelfHandledRef.current = true;
-    chatMutation.mutate({ messages: buildBackendMessages(msgs), mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])] }, {
+    chatMutation.mutate({ messages: buildBackendMessages(msgs), mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -1909,7 +1925,7 @@ export default function AIChefScreen() {
     if (config.search) {
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
-          messages: [{ role: "user", content: config.aiPrompt }],
+          messages: [{ role: "user", content: t(config.aiPrompt as any) }],
           mode: "library",
           search: {
             query: config.search.query,
@@ -1930,7 +1946,7 @@ export default function AIChefScreen() {
           // 後端已做 7 日去重 + fresh 優先（+ rank：快手揀最短時間）
           const picked = libraryRecipes.slice(0, 1);
           console.log(`[AI 助手] Hot key "${id}" found ${libraryRecipes.length} library recipes`);
-          addUserMessage(config.aiPrompt);
+          addUserMessage(t(config.aiPrompt as any));
           setRecommendedRecipes(picked);
           setChatStarted(true);
           recordSeenRecipes(picked);
@@ -1945,7 +1961,7 @@ export default function AIChefScreen() {
       }
     }
     setLibraryLoading(false);
-    const label = config.search?.query || config.search?.tags?.join("、") || config.aiPrompt;
+    const label = config.search?.query || config.search?.tags?.join("、") || t(config.aiPrompt as any);
     addBotMessage(`食譜庫暫時冇配合「${label}」嘅食譜，我用 AI 幫你諗：`);
     // 單菜 AI 生成（唔行 chat，保證 1 卡）；requestInstantRecipes 會用 activeHotKeyRef 個 aiPrompt
     requestInstantRecipes("ai");
@@ -1990,7 +2006,7 @@ export default function AIChefScreen() {
         setMealResult(recipesToShow);
         setRecommendedRecipes(recipesToShow);
         recordSeenRecipes(recipesToShow);
-        addUserMessage(`3 餸 1 湯（${prefs.people}人）`);
+        addUserMessage(`${t("aiChef.userMsg3", { n: prefs.people })}`);
         addBotMessage((res?.content || `我喺食譜庫搵到呢套 3 餸 1 湯：`) + recipeNameList(recipesToShow));
         setLibraryLoading(false);
         return;
@@ -2009,7 +2025,7 @@ export default function AIChefScreen() {
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
     mealSelfHandledRef.current = true;
-    chatMutation.mutate({ messages: buildBackendMessages(fullMsgs), mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])] }, {
+    chatMutation.mutate({ messages: buildBackendMessages(fullMsgs), mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -2019,7 +2035,7 @@ export default function AIChefScreen() {
           const safeRecipes = data.recipes.map(normalizeRecipe);
           setMealResult(safeRecipes.slice(0, 4));
           setRecommendedRecipes(safeRecipes.slice(0, 4));
-          updateMessages(prev => [...prev, { role: "assistant", content: "我幫你諗好咗今晚 3 餸 1 湯：" + recipeNameList(safeRecipes.slice(0, 4)) }]);
+          updateMessages(prev => [...prev, { role: "assistant", content: t("aiChef.replyTonight") + recipeNameList(safeRecipes.slice(0, 4)) }]);
         }
       },
       onError: () => setMealStep("idle"),
@@ -2609,7 +2625,7 @@ export default function AIChefScreen() {
     // 抽唔到 → 用唔顯示嘅指令 call LLM（唔加落 user message，用戶唔會見到）
     const convertPrompt = "請將你剛才嘅建議，用 JSON 格式整理：{\"replyText\":\"...\",\"recipes\":[...]}";
     resetAiNextSteps();
-    chatMutation.mutate({ messages: buildBackendMessages([...messages, { role: "user", content: convertPrompt }]) });
+    chatMutation.mutate({ messages: buildBackendMessages([...messages, { role: "user", content: convertPrompt }]), lang: i18n.language });
     scrollToLatestMessage();
   };
 
@@ -2693,6 +2709,7 @@ export default function AIChefScreen() {
       addPlanM.mutate({
         date: planDate, mealType: planMeal as any,
         recipeId: ref.recipeId, recipeName: planRecipe.name,
+        recipeNameEn: planRecipe.nameEn, recipeNameFil: planRecipe.nameFil, recipeNameId: planRecipe.nameId,
         recipeImage: getRecipeImage(planRecipe),
         autoAddIngredients: false,
       });
@@ -2708,6 +2725,7 @@ export default function AIChefScreen() {
             addPlanM.mutate({
               date: planDate, mealType: planMeal as any,
               recipeId: `user_${savedId}`, recipeName: planRecipe.name,
+              recipeNameEn: planRecipe.nameEn, recipeNameFil: planRecipe.nameFil, recipeNameId: planRecipe.nameId,
               recipeImage: getRecipeImage(planRecipe),
               autoAddIngredients: false,
             });
@@ -2760,7 +2778,7 @@ export default function AIChefScreen() {
                           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                         >
                           <Ionicons name="copy-outline" size={12} color="#6B7280" />
-                          <Text style={s.copyBtnTxt}>複製食譜</Text>
+                          <Text style={s.copyBtnTxt}>{t("aiChef.copyRecipe")}</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -2779,7 +2797,7 @@ export default function AIChefScreen() {
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                   >
                     <Ionicons name="copy-outline" size={12} color="#6B7280" />
-                    <Text style={s.copyBtnTxt}>複製</Text>
+                    <Text style={s.copyBtnTxt}>{t("aiChef.copy")}</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -2803,7 +2821,7 @@ export default function AIChefScreen() {
         <View style={s.greetingRow}>
           <Text style={s.greetingEmoji}>🍳</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.greetingName}>{userName ? `${userName}，你好` : "你好"}</Text>
+            <Text style={s.greetingName}>{userName ? t("aiChef.helloName", { name: userName }) : t("aiChef.hello")}</Text>
           </View>
         </View>
 
@@ -2816,7 +2834,7 @@ export default function AIChefScreen() {
             style={s.heroCard}
           >
             <ExpoImage
-              source={require("../assets/herocard-v2.jpeg")}
+              source={require("../assets/herocard-v4.jpeg")}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               contentPosition="right center"
@@ -2829,9 +2847,9 @@ export default function AIChefScreen() {
               <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.55 }]} />
             </View>
             <View style={s.heroCardContent}>
-              <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{hero.label}</Text>
+              <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t(`aiChef.qa_${hero.id}Label` as any)}</Text>
               <View style={s.heroCardCta}>
-                <Text style={s.heroCardCtaTxt}>即刻幫我諗</Text>
+                <Text style={s.heroCardCtaTxt}>{t("aiChef.heroCta")}</Text>
                 <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </View>
             </View>
@@ -2851,13 +2869,13 @@ export default function AIChefScreen() {
               <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
                 <Ionicons name={a.icon as any} size={22} color={a.color} />
               </View>
-              <Text style={s.toolBtnTxt}>{a.label}</Text>
+              <Text style={s.toolBtnTxt}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
             </PressScale>
           ))}
         </View>
 
         {/* Scenario cards — horizontal scroll */}
-        <Text style={s.scenarioLabel}>或者按場景揀</Text>
+        <Text style={s.scenarioLabel}>{t("aiChef.scenarioLabel")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenarioRow}>
           {scenarios.map((a) => (
               <PressScale
@@ -2877,7 +2895,7 @@ export default function AIChefScreen() {
                 <View style={s.scenarioCardScrim} />
                 <View style={s.scenarioCardContent}>
                   <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
-                  <Text style={s.scenarioCardTitle} numberOfLines={1}>{a.label}</Text>
+                  <Text style={s.scenarioCardTitle} numberOfLines={1}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
                   <Text style={s.scenarioCardSub} numberOfLines={1}>{a.subtitle}</Text>
                 </View>
               </PressScale>
@@ -2914,7 +2932,7 @@ export default function AIChefScreen() {
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={[s.hotKeyChip, { backgroundColor: "#7C3AED" }]} onPress={() => handleSkipMealQuestions()} disabled={chatMutation.isPending}>
-            <Text style={[s.hotKeyChipTxt, { color: "#fff" }]}>✨ 直接 AI 生成</Text>
+            <Text style={[s.hotKeyChipTxt, { color: "#fff" }]}>{t("aiChef.directAi")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -2941,7 +2959,7 @@ export default function AIChefScreen() {
             <View style={[d.drawerHead, { paddingTop: Math.max(insets.top, 8) + 8 }]}>
               <TouchableOpacity onPress={handleNewChat} style={d.drawerNewBtn}>
                 <Ionicons name="add" size={18} color="#fff" />
-                <Text style={d.drawerNewTxt}>新對話</Text>
+                <Text style={d.drawerNewTxt}>{t("aiChef.newChat")}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowSessions(false)} style={s.headerBtn}>
                 <Ionicons name="close" size={20} color={BRAND} />
@@ -2954,7 +2972,7 @@ export default function AIChefScreen() {
                 style={d.searchInput}
                 value={sessionSearch}
                 onChangeText={setSessionSearch}
-                placeholder="搜尋對話"
+                placeholder={t("aiChef.searchChat")}
                 placeholderTextColor={HINT}
               />
               {sessionSearch.length > 0 && (
@@ -2964,12 +2982,12 @@ export default function AIChefScreen() {
               )}
             </View>
 
-            <Text style={d.sectionTitle}>對話記錄</Text>
+            <Text style={d.sectionTitle}>{t("aiChef.chatHistory")}</Text>
 
             {sessions.length === 0 ? (
-              <View style={d.emptyRow}><Text style={d.emptyTxt}>未有對話記錄</Text></View>
+              <View style={d.emptyRow}><Text style={d.emptyTxt}>{t("aiChef.noChats")}</Text></View>
             ) : displaySessions.length === 0 ? (
-              <View style={d.emptyRow}><Text style={d.emptyTxt}>沒有符合的對話</Text></View>
+              <View style={d.emptyRow}><Text style={d.emptyTxt}>{t("aiChef.noMatchingChats")}</Text></View>
             ) : (
               <FlatList
                 data={displaySessions}
@@ -3016,7 +3034,7 @@ export default function AIChefScreen() {
   return (
     <>
       <Stack.Screen options={{
-        title: "AI 助手",
+        title: t("aiChef.title"),
         headerShown: true,
         headerBackTitle: '',
         headerStyle: { backgroundColor: BG }, headerTintColor: BRAND,
@@ -3071,6 +3089,12 @@ export default function AIChefScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         <View style={s.root}> 
+        <HintBanner
+          hintId="ai_chef_meal"
+          icon="bulb"
+          title={t("misc.aiChefNudgeTitle")}
+          body={t("misc.aiChefNudgeBody")}
+        />
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -3096,7 +3120,7 @@ export default function AIChefScreen() {
                   <View style={[s.bubbleBot, s.typing]}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <ActivityIndicator size="small" color={BRAND} />
-                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>🔍 正在食譜庫中搜尋...</Text>
+                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>{t("aiChef.searchingLibrary")}</Text>
                     </View>
                   </View>
                 </View>
@@ -3106,12 +3130,12 @@ export default function AIChefScreen() {
                    <View style={[s.bubbleBot, s.typing]}>
                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                         <ActivityIndicator size="small" color={BRAND} />
-                        <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>AI 助手正在生成食譜中...</Text>
+                        <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>{t("aiChef.generating")}</Text>
                      </View>
                      <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>
                        {isSoupModeRef.current || mealStep === "generating"
-                          ? `3 餸 1 湯生成中，請耐心等候...`
-                         : LOADING_STEPS[loadingStep]}
+                          ? t("aiChef.generating3")
+                         : t(LOADING_STEPS[loadingStep] as any)}
                      </Text>
                    </View>
                  </View>
@@ -3119,7 +3143,7 @@ export default function AIChefScreen() {
               {recommendedRecipes.length > 0 && !chatMutation.isPending && (
                 <View style={s.recBar}>
                   <View style={s.recHead}>
-                    <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? "今晚 3 餸 1 湯" : "轉換其他食譜："}</Text>
+                    <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? t("aiChef.sectionTonight") : t("aiChef.swapOther")}</Text>
                     {mealResult && (
                       <View style={s.recBatch}>
                         <TouchableOpacity
@@ -3130,10 +3154,10 @@ export default function AIChefScreen() {
                           {batchPlanBusy ? (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                               <ActivityIndicator size="small" color="#fff" />
-                              <Text style={s.batchShopTxt}>加入中...</Text>
+                              <Text style={s.batchShopTxt}>{t("aiChef.adding")}</Text>
                             </View>
                           ) : (
-                            <Text style={s.batchShopTxt}>全部加入排餐</Text>
+                            <Text style={s.batchShopTxt}>{t("aiChef.addAllToPlan")}</Text>
                           )}
                         </TouchableOpacity>
                       </View>
@@ -3145,12 +3169,12 @@ export default function AIChefScreen() {
                         <View style={s.recCardHeader}>
                           <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                             <Ionicons name="restaurant-outline" size={14} color={BRAND} />
-                            <Text style={s.recCardDiff}>{r.recipeCategory || "其他"}</Text>
+                            <Text style={s.recCardDiff}>{enumT.category(r.recipeCategory || "其他")}</Text>
                             <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
-                            <Text style={s.recCardDiff}>{r.difficulty}</Text>
+                            <Text style={s.recCardDiff}>{enumT.difficulty(r.difficulty)}</Text>
                           </View>
                           <View style={[s.recCardSourceBadge, r.source === "ai" ? s.recCardSourceAI : s.recCardSourceLibrary]}>
-                            <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : "食譜庫"}</Text>
+                            <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : t("aiChef.library")}</Text>
                           </View>
                         </View>
                         {(() => {
@@ -3163,12 +3187,17 @@ export default function AIChefScreen() {
                           ) : null;
                         })()}
                         <View style={s.recCardBody} testID={`recipe-card-content-${i}`}>
-                          <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>{r.name}</Text>
+                          <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>
+                            {(() => { const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.primary; })()}
+                          </Text>
+                          {(() => { const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.secondary ? (
+                            <Text style={s.recCardNameEn} numberOfLines={1}>{bn.secondary}</Text>
+                          ) : null; })()}
                           <View style={s.recCardMeta}>
-                            <Text style={s.recCardMetaTxt}>{r.cookTime}分</Text>
-                            <Text style={s.recCardMetaTxt}>{r.servings}人</Text>
-                            <Text style={s.recCardMetaTxt}>{getValidIngredients(r.ingredients).length}食材</Text>
-                            <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]} testID={`recipe-card-steps-count-${i}`}>{(r.steps || []).length}步驟</Text>
+                            <Text style={s.recCardMetaTxt}>{r.cookTime}{t("aiChef.unitMin")}</Text>
+                            <Text style={s.recCardMetaTxt}>{r.servings}{t("aiChef.unitServing")}</Text>
+                            <Text style={s.recCardMetaTxt}>{getValidIngredients(r.ingredients).length}{t("aiChef.unitIngredients")}</Text>
+                            <Text style={[s.recCardMetaTxt, { color: (r.steps || []).length > 0 ? GREEN : SUB }]} testID={`recipe-card-steps-count-${i}`}>{(r.steps || []).length}{t("aiChef.unitSteps")}</Text>
                           </View>
                           <View style={s.recCardTags} testID={`recipe-card-tags-${i}`}>
                             {(r.tags || []).slice(0, 4).map((tag, tagIdx) => (
@@ -3185,32 +3214,33 @@ export default function AIChefScreen() {
                           >
                             <Ionicons name={expandedCard === i ? "chevron-up" : "chevron-down"} size={13} color={BRAND} />
                             <Text style={s.recCardIngredientsToggleTxt}>
-                              {expandedCard === i ? "收起食材" : `睇食材 (${getValidIngredients(r.ingredients).length})`}
+                              {expandedCard === i ? t("aiChef.collapseIngredients") : t("aiChef.viewIngredients", { n: getValidIngredients(r.ingredients).length })}
                             </Text>
                           </TouchableOpacity>
                           {expandedCard === i && (
                             <View style={s.recCardIngList} testID={`recipe-card-ingredients-${i}`}>
                               {getValidIngredients(r.ingredients).slice(0, 5).map((ing, ingIdx) => (
-                                <View key={ingIdx} style={s.recCardIngRow}>
-                                  <View style={s.recCardIngDot} />
-                                  <Text style={s.recCardIngTxt}>
-                                    {ing.name}
-                                    {ing.quantity ? ` ${ing.quantity}` : ""}
-                                    {ing.unit ? ` ${ing.unit}` : ""}
-                                  </Text>
-                                </View>
+                                  <View key={ingIdx} style={s.recCardIngRow}>
+                                    <View style={s.recCardIngDot} />
+                                    <Text style={s.recCardIngTxt}>
+                                      {ing.name}
+                                      {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return bn.secondary ? ` (${bn.secondary})` : ""; })()}
+                                      {ing.quantity ? ` ${ing.quantity}` : ""}
+                                      {ing.unit ? ` ${ing.unit}` : ""}
+                                    </Text>
+                                  </View>
                               ))}
                               {getValidIngredients(r.ingredients).length > 5 && (
-                                <Text style={s.recCardIngMore}>+{getValidIngredients(r.ingredients).length - 5} 項</Text>
+                                <Text style={s.recCardIngMore}>{t("aiChef.moreItems", { n: getValidIngredients(r.ingredients).length - 5 })}</Text>
                               )}
                             </View>
                           )}
                           {/* 步驟內容驗證 */}
                           {r.steps && r.steps.length > 0 && (
                             <View style={{ paddingVertical: 8 }} testID={`recipe-card-steps-content-${i}`}>
-                              <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} 步驟</Text>
+                              <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} {t("aiChef.unitSteps")}</Text>
                               <Text style={{ fontSize: 11, color: TEXT }} numberOfLines={2} testID={`recipe-card-first-step-${i}`}>
-                                {r.steps[0]}
+                                {getLocalizedSteps(r.steps, r.stepsEn, r.stepsFil, r.stepsId)[0]}
                               </Text>
                             </View>
                           )}
@@ -3229,7 +3259,7 @@ export default function AIChefScreen() {
                               }}
                               disabled={!isValidRecipe(r)}
                             >
-                              <Text style={s.btnMealTxt}>加排餐</Text>
+                              <Text style={s.btnMealTxt}>{t("aiChef.addToPlan")}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               testID={`ai-chef-recipe-${i}-favorite`}
@@ -3252,12 +3282,12 @@ export default function AIChefScreen() {
                               {swappingIndex === i ? (
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                   <ActivityIndicator size="small" color={BRAND} />
-                                  <Text style={s.btnSwapTxt}>換中</Text>
+                                  <Text style={s.btnSwapTxt}>{t("aiChef.swapping")}</Text>
                                 </View>
                               ) : (
                                 <>
                                   <Ionicons name="refresh-outline" size={14} color={BRAND} />
-                                  <Text style={s.btnSwapTxt}>換</Text>
+                                  <Text style={s.btnSwapTxt}>{t("aiChef.swap")}</Text>
                                 </>
                               )}
                             </TouchableOpacity>
@@ -3268,13 +3298,13 @@ export default function AIChefScreen() {
                   </ScrollView>
 
                   <View style={{ flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>換成其他食譜：</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>{t("aiChef.swapOther")}</Text>
                     <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
                       <TouchableOpacity style={[s.sourceBtnLib, { flex: 1 }]} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending}>
-                        <Text style={s.sourceBtnTxt}>📚 食譜庫</Text>
+                        <Text style={s.sourceBtnTxt}>{t("aiChef.library")}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }]} onPress={() => handleInstantRecipeAction("ai")} disabled={chatMutation.isPending}>
-                        <Text style={s.sourceBtnTxt}>✨ AI 生成</Text>
+                        <Text style={s.sourceBtnTxt}>{t("aiChef.aiGenerate")}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -3292,7 +3322,7 @@ export default function AIChefScreen() {
           if (!hasRecipe && chips.length === 0) return null;
           return (
             <View style={s.followUpBar}>
-              <Text style={s.followUpLabel}>下一步：</Text>
+              <Text style={s.followUpLabel}>{t("aiChef.nextStep")}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
                 {chips.map((chip, i) => (
                   <TouchableOpacity key={i} style={s.followUpChip} onPress={() => handleNextStep(chip)} disabled={chatMutation.isPending}>
@@ -3305,7 +3335,7 @@ export default function AIChefScreen() {
                     onPress={handleConvertToRecipeCard}
                     disabled={chatMutation.isPending}
                   >
-                    <Text style={[s.followUpTxt, { color: "#fff" }]}>下一步 ➔</Text>
+                    <Text style={[s.followUpTxt, { color: "#fff" }]}>{t("aiChef.next")}</Text>
                   </TouchableOpacity>
                 )}
               </ScrollView>
@@ -3331,10 +3361,10 @@ export default function AIChefScreen() {
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity style={{ flex: 1, backgroundColor: "#7C3AED", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending}>
-                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>📚 食譜庫</Text>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.library")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handleInstantRecipeAction("ai")} disabled={chatMutation.isPending}>
-                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>✨ AI 生成</Text>
+                <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.aiGenerate")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3354,7 +3384,7 @@ export default function AIChefScreen() {
             <TextInput
               testID="ai-chef-input"
               style={s.input} value={input} onChangeText={setInput}
-              placeholder="告訴我你想吃什麼..." placeholderTextColor={HINT}
+              placeholder={t("aiChef.inputPlaceholder")} placeholderTextColor={HINT}
               multiline maxLength={500} returnKeyType="send" onSubmitEditing={handleSend} blurOnSubmit
             />
             <TouchableOpacity testID="ai-chef-send" style={[s.sendBtn, (!input.trim() || chatMutation.isPending) && s.sendOff]} onPress={handleSend} disabled={!input.trim() || chatMutation.isPending}>
@@ -3362,7 +3392,7 @@ export default function AIChefScreen() {
             </TouchableOpacity>
           </View>
           {keyboardH === 0 && (
-            <Text style={s.disclaimer}>AI 助手由 AI 生成內容，可能會出錯，請仔細檢查食材及步驟。</Text>
+            <Text style={s.disclaimer}>{t("aiChef.disclaimer")}</Text>
           )}
         </View>
       ) : null}
@@ -3371,39 +3401,57 @@ export default function AIChefScreen() {
       {toast.visible && (
         <View style={s.toastContainer}>
           <View style={s.toast}>
-            <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-            <Text style={s.toastTxt}>{toast.text}</Text>
+            <View style={s.toastRow}>
+              <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+              <Text style={s.toastTxt}>{toast.text}</Text>
+            </View>
+            {toast.action ? (
+              <TouchableOpacity
+                onPress={() => { toast.action?.onPress(); setToast(prev => ({ ...prev, visible: false })); }}
+                style={s.toastAction}
+                hitSlop={8}
+              >
+                <Text style={s.toastActionTxt}>{toast.action.label}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       )}
+
+      <ShoppingAddConfirm
+        visible={shoppingConfirmCount !== null}
+        count={shoppingConfirmCount ?? 0}
+        onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
+        onClose={() => setShoppingConfirmCount(null)}
+      />
 
       <Modal visible={showPlan} transparent animationType="slide">
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
           <View style={m.handle} />
           <View style={m.head}>
-            <Text style={m.title}>加入排餐</Text>
+            <Text style={m.title}>{t("aiChef.addToPlan")}</Text>
             <TouchableOpacity onPress={() => { setShowPlan(false); setBatchRecipes(null); }}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
           </View>
           {batchRecipes ? (
             <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-              <Text style={[m.rname, { marginBottom: 4 }]}>{batchRecipes.length} 個食譜</Text>
+              <Text style={[m.rname, { marginBottom: 4 }]}>{t("aiChef.recipesCount", { n: batchRecipes.length })}</Text>
               {batchRecipes.map((r: any, i: number) => (
-                <Text key={i} style={[m.previewItem, { color: TEXT }]} numberOfLines={1}>· {r.name}</Text>
+                <Text key={i} style={[m.previewItem, { color: TEXT }]} numberOfLines={1}>· {getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId).primary}</Text>
               ))}
             </View>
           ) : planRecipe ? (
-            <Text style={m.rname} numberOfLines={1}>{planRecipe.name}</Text>
+            <Text style={m.rname} numberOfLines={1}>{getBilingualName(planRecipe.name, planRecipe.nameEn, planRecipe.nameFil, planRecipe.nameId).primary}</Text>
           ) : null}
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.55 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            <Text style={m.label}>餐次</Text>
+            <Text style={m.label}>{t("aiChef.mealTime")}</Text>
             <View style={m.mealRow}>
               {MEAL_TYPES.map(mt => (
                 <TouchableOpacity key={mt.id} style={[m.mealChip, planMeal === mt.id && m.mealChipOn]} onPress={() => setPlanMeal(mt.id)}>
-                  <Text style={[m.mealChipTxt, planMeal === mt.id && { color: "#fff" }]}>{mt.label}</Text>
+                  <Text style={[m.mealChipTxt, planMeal === mt.id && { color: "#fff" }]}>{enumT.meal(mt.label)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={m.label}>日期</Text>
+            <Text style={m.label}>{t("aiChef.date")}</Text>
             <View style={{ width: Dimensions.get("window").width - 32 }}>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={todayISO()} />
               {planDate && (
@@ -3411,38 +3459,38 @@ export default function AIChefScreen() {
                   onPress={() => setPlanDate(null)} 
                   style={{ alignSelf: "flex-end", marginTop: -8 }}
                 >
-                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("aiChef.clearDate")}</Text>
                 </TouchableOpacity>
               )}
             </View>
             {planRecipe && !batchRecipes && (
               <View style={m.preview}>
-                <Text style={m.label}>食材</Text>
+                <Text style={m.label}>{t("aiChef.ingredients")}</Text>
                 {(planRecipe.ingredients || []).slice(0, 5).map((ing, i) => {
                   const n = normalizeIngredient(ing);
                   if (!n) return null;
                   return <Text key={i} style={m.previewItem}>· {n.name} {n.quantity}{n.unit}</Text>;
                 })}
-                {(planRecipe.ingredients || []).length > 5 && <Text style={m.previewMore}>還有 {(planRecipe.ingredients || []).length - 5} 項...</Text>}
+                {(planRecipe.ingredients || []).length > 5 && <Text style={m.previewMore}>{t("aiChef.morePreview", { n: (planRecipe.ingredients || []).length - 5 })}</Text>}
               </View>
             )}
-            {planRecipe && !batchRecipes && (planRecipe.steps || []).length > 0 && (
+            {planRecipe && !batchRecipes && (getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId) || []).length > 0 && (
               <View style={[m.preview, { marginTop: -8 }]}>
-                <Text style={m.label}>烹飪步驟</Text>
-                {(planRecipe.steps || []).slice(0, 4).map((step, i) => (
+                <Text style={m.label}>{t("aiChef.steps")}</Text>
+                {getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId).slice(0, 4).map((step, i) => (
                   <Text key={i} style={m.previewItem}>{i + 1}. {normalizeStep(step)}</Text>
                 ))}
-                {(planRecipe.steps || []).length > 4 && <Text style={m.previewMore}>還有 {(planRecipe.steps || []).length - 4} 步...</Text>}
+                {getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId).length > 4 && <Text style={m.previewMore}>{t("aiChef.moreSteps", { n: getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId).length - 4 })}</Text>}
               </View>
             )}
-            {planRecipe && !batchRecipes && (planRecipe.steps || []).length === 0 && (
+            {planRecipe && !batchRecipes && (getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId) || []).length === 0 && (
               <View style={[m.preview, { marginTop: -8 }]}>
-                <Text style={[m.previewItem, { color: SUB }]}>未有烹飪步驟</Text>
+                <Text style={[m.previewItem, { color: SUB }]}>{t("aiChef.noSteps")}</Text>
               </View>
             )}
             {planRecipe && !batchRecipes && !isValidRecipe(planRecipe) && (
               <View style={[m.preview, { marginTop: 8, backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-                <Text style={[m.previewItem, { color: "#DC2626", fontWeight: "600" }]}>⚠️ 此食譜資料不完整，無法加入排餐</Text>
+                <Text style={[m.previewItem, { color: "#DC2626", fontWeight: "600" }]}>{t("aiChef.incomplete")}</Text>
               </View>
             )}
           </ScrollView>
@@ -3452,11 +3500,11 @@ export default function AIChefScreen() {
             disabled={saveRecipeM.isPending || addPlanM.isPending || addPlanBatchM.isPending || addShoppingM.isPending || !!(planRecipe && !batchRecipes && !isValidRecipe(planRecipe))}
           >
             {(addPlanM.isPending || addPlanBatchM.isPending) ? (
-              <Text style={m.btnTxt}>加入排餐，請稍後...</Text>
+              <Text style={m.btnTxt}>{t("aiChef.addingToPlan")}</Text>
             ) : (saveRecipeM.isPending || addShoppingM.isPending) ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={m.btnTxt}>確認</Text>
+              <Text style={m.btnTxt}>{t("aiChef.confirm")}</Text>
             )}
           </TouchableOpacity>
         </View></View>
@@ -3603,6 +3651,7 @@ const s = StyleSheet.create({
   recCardSourceTxt: { fontSize: 9, fontWeight: "800", color: "#475569" },
   recCardBody: { padding: 10, paddingTop: 4, justifyContent: "space-between" },
   recCardName: { fontSize: 13, fontWeight: "800", color: TEXT, lineHeight: 18, minHeight: 36, marginBottom: 6 },
+  recCardNameEn: { fontSize: 11, color: SUB, lineHeight: 14, marginBottom: 4 },
   recCardMeta: { flexDirection: "row", gap: 8, marginBottom: 8 },
   recCardMetaTxt: { fontSize: 10, color: SUB },
   recCardTags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
@@ -3630,8 +3679,11 @@ const s = StyleSheet.create({
   sendOff: { opacity: 0.4 },
   camBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" },
   toastContainer: { position: "absolute", top: 80, left: 0, right: 0, alignItems: "center", zIndex: 100 },
-  toast: { backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
-  toastTxt: { fontSize: 14, fontWeight: "700", color: TEXT },
+  toast: { backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
+  toastRow: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
+  toastTxt: { fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 },
+  toastAction: { alignSelf: "center", paddingHorizontal: 17, paddingVertical: 9, borderRadius: 10, backgroundColor: "#16A34A", minWidth: 96, alignItems: "center" },
+  toastActionTxt: { fontSize: 18, fontWeight: "800", color: "#fff" },
 
   // Markdown renderer styles
   mdRecipeTitle: { fontSize: 16, fontWeight: "700", color: BRAND, marginTop: 12, marginBottom: 4 },

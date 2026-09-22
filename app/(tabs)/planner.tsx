@@ -25,6 +25,11 @@ import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { useToast } from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import RecipeCard from "@/src/components/RecipeCard";
+import HintBanner from "@/src/components/HintBanner";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { getBilingualName } from "@/lib/bilingual";
+import { enumT } from "@/lib/i18nEnums";
 import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -42,6 +47,8 @@ const MEAL_TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
   dinner: { label: "晚餐", icon: "moon-outline" },
   snack: { label: "小食", icon: "fast-food-outline" },
 };
+
+const mealTypeLabel = (type: string) => i18n.t(`mealPlan.meal_${type}` as any);
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   confirmed: { label: "已確認", color: "#16A34A", bg: "#DCFCE7" },
@@ -77,11 +84,11 @@ const formatDateShort = (d: Date) =>
 
 const formatWeekLabel = (monday: Date, sunday: Date) => {
   const todayMonday = getWeekRange(0).monday;
-  if (monday.getTime() === todayMonday.getTime()) return "本週";
+  if (monday.getTime() === todayMonday.getTime()) return i18n.t("mealPlan.thisWeek");
   const nextMonday = getWeekRange(1).monday;
-  if (monday.getTime() === nextMonday.getTime()) return "下週";
+  if (monday.getTime() === nextMonday.getTime()) return i18n.t("mealPlan.nextWeek");
   const prevMonday = getWeekRange(-1).monday;
-  if (monday.getTime() === prevMonday.getTime()) return "上週";
+  if (monday.getTime() === prevMonday.getTime()) return i18n.t("mealPlan.lastWeek");
   return `${formatDateShort(monday)} - ${formatDateShort(sunday)}`;
 };
 
@@ -149,18 +156,21 @@ function normalizeName(value: any): string {
 }
 
 // Normalize a dishSlot object; empty/invalid slots become real null so backend zod passes
-function toDishSlot(slot: any): { id: string; name: string; image?: string | null; cookTime?: number | null } | null {
+function toDishSlot(slot: any): { id: string; name: string; nameEn?: string; nameFil?: string; nameId?: string; image?: string | null; cookTime?: number | null } | null {
   if (!slot || !slot.id || !slot.name) return null;
-  return { id: slot.id, name: slot.name, image: slot.image ?? null, cookTime: slot.cookTime ?? null };
+  return { id: slot.id, name: slot.name, nameEn: slot.nameEn, nameFil: slot.nameFil, nameId: slot.nameId, image: slot.image ?? null, cookTime: slot.cookTime ?? null };
 }
 
 // Convert a flat weekly_menu row (meatId/meatName/...) into a dishSlot object
-function toDishSlotFromFlat(item: any, slot: string): { id: string; name: string; image?: string | null; cookTime?: number | null } | null {
+function toDishSlotFromFlat(item: any, slot: string): { id: string; name: string; nameEn?: string; nameFil?: string; nameId?: string; image?: string | null; cookTime?: number | null } | null {
   const id = item?.[`${slot}Id`];
   if (!id) return null;
   return {
     id,
     name: item?.[`${slot}Name`] ?? "",
+    nameEn: item?.[`${slot}NameEn`],
+    nameFil: item?.[`${slot}NameFil`],
+    nameId: item?.[`${slot}NameId`],
     image: item?.[`${slot}Image`] ?? null,
     cookTime: item?.[`${slot}CookTime`] ?? null,
   };
@@ -207,6 +217,7 @@ const getRecipeIngredientText = (recipe: any) => {
 
 export default function PlannerTab() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const router = useRouter();
   const { openRecommend } = useLocalSearchParams<{ openRecommend?: string }>();
   const [weekOffset, setWeekOffset] = useState(0);
@@ -947,6 +958,9 @@ export default function PlannerTab() {
           mealType: addMealType as "breakfast" | "lunch" | "dinner" | "snack",
           recipeId: `${prefix}${recipe.id}`,
           recipeName: recipe.name,
+          recipeNameEn: recipe.nameEn,
+          recipeNameFil: recipe.nameFil,
+          recipeNameId: recipe.nameId,
           recipeImage: recipe.thumbnailUrl || recipe.image || undefined,
           autoAddIngredients: false,
         });
@@ -1335,24 +1349,29 @@ export default function PlannerTab() {
             <View style={styles.mealTop}>
               <View style={[styles.mealTypeBadge, { flexDirection: "row", alignItems: "center", gap: 2 }]}>
                 <Ionicons name={mConfig.icon as any} size={9} color="#013E77" />
-                <Text style={styles.mealTypeText}>{mConfig.label}</Text>
+                <Text style={styles.mealTypeText}>{mealTypeLabel(mp.mealType)}</Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: sConfig.bg }]}>
                 <Text style={[styles.statusText, { color: sConfig.color }]}>
-                  {sConfig.label}
+                  {t(`planner.status_${mp.status}` as any)}
                 </Text>
               </View>
             </View>
             <Text style={styles.mealName} numberOfLines={1}>
-              {mp.recipeName}
+              {getBilingualName(mp.recipeName, mp.recipeNameEn, mp.recipeNameFil, mp.recipeNameId).primary}
             </Text>
+            {getBilingualName(mp.recipeName, mp.recipeNameEn, mp.recipeNameFil, mp.recipeNameId).secondary ? (
+              <Text style={styles.mealNameEn} numberOfLines={1}>
+                {getBilingualName(mp.recipeName, mp.recipeNameEn, mp.recipeNameFil, mp.recipeNameId).secondary}
+              </Text>
+            ) : null}
             {/* Show shopping cart status indicator */}
             {!isTemplate && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                 {hasShoppingItem ? (
                   <>
                     <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                    <Text style={{ fontSize: 9, color: "#10B981", fontWeight: "600" }}>已加入購物車</Text>
+                    <Text style={{ fontSize: 9, color: "#10B981", fontWeight: "600" }}>{t("planner.addedToCart")}</Text>
                   </>
                 ) : (
                   <TouchableOpacity
@@ -1361,7 +1380,7 @@ export default function PlannerTab() {
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                   >
                     <Ionicons name="alert-circle" size={12} color="#F59E0B" />
-                    <Text style={{ fontSize: 10, color: "#F59E0B", fontWeight: "600" }}>未加入購物車（點此加入）</Text>
+                    <Text style={{ fontSize: 10, color: "#F59E0B", fontWeight: "600" }}>{t("planner.notAddedCart")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1369,10 +1388,10 @@ export default function PlannerTab() {
             {isTemplate ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                 <Ionicons name="cart-outline" size={10} color="#FF8C00" />
-                <Text style={{ fontSize: 9, color: "#FF8C00", fontWeight: "700" }}>點擊開啟 🛒 買餸食材清單</Text>
+                <Text style={{ fontSize: 9, color: "#FF8C00", fontWeight: "700" }}>{t("planner.openShoppingList")}</Text>
               </View>
             ) : mp.proposedByName ? (
-              <Text style={styles.mealProposer}>由 {mp.proposedByName} 提案</Text>
+              <Text style={styles.mealProposer}>{t("planner.proposedBy", { name: mp.proposedByName })}</Text>
             ) : null}
           </View>
           <TouchableOpacity
@@ -1398,7 +1417,7 @@ export default function PlannerTab() {
                 onPress={() => handleConfirmMeal(mp)}
               >
                 <Ionicons name="checkmark" size={10} color="#16A34A" />
-                <Text style={styles.confirmBtnText}>確認</Text>
+                <Text style={styles.confirmBtnText}>{t("aiChef.confirm")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.rejectBtn}
@@ -1414,7 +1433,7 @@ export default function PlannerTab() {
                 }}
               >
                 <Ionicons name="close" size={10} color="#DC2626" />
-                <Text style={styles.rejectBtnText}>拒絕</Text>
+                <Text style={styles.rejectBtnText}>{t("planner.reject")}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1451,12 +1470,12 @@ export default function PlannerTab() {
         <View style={styles.dayHeader}>
           <View style={styles.dayHeaderLeft}>
             <Text style={[styles.dayName, today && styles.dayNameToday]}>
-              {DAY_NAMES[day.date.getDay()]}
+              {enumT.weekday(day.date.getDay())}
             </Text>
             <Text style={[styles.dayDate, today && styles.dayDateToday]}>
               {formatDateShort(day.date)}
             </Text>
-            {today && <View style={styles.todayBadge}><Text style={styles.todayText}>今天</Text></View>}
+            {today && <View style={styles.todayBadge}><Text style={styles.todayText}>{i18n.t("common.today")}</Text></View>}
           </View>
           <View style={styles.dayHeaderRight}>
             <TouchableOpacity
@@ -1474,7 +1493,7 @@ export default function PlannerTab() {
                 <>
                   <Ionicons name="restaurant-outline" size={11} color={eatOutDateSet.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
                   <Text style={[styles.eatOutTxt, eatOutDateSet.has(day.dateStr) && styles.eatOutTxtActive]}>
-                    外出
+                    {t("planner.eatOutShort")}
                   </Text>
                 </>
               )}
@@ -1482,17 +1501,17 @@ export default function PlannerTab() {
             {dayMeals.length > 0 ? (
               <View style={[styles.countBadge, { backgroundColor: allConfirmed ? "#DCFCE7" : "#E8F0FE" }]}>
                 <Text style={[styles.countText, { color: allConfirmed ? "#16A34A" : "#013E77" }]}>
-                  {dayMeals.length} 餐
+                  {t("planner.mealCount", { n: dayMeals.length })}
                 </Text>
               </View>
             ) : eatOutDateSet.has(day.dateStr) ? (
               <View style={styles.eatOutBadge}>
-                <Text style={styles.eatOutBadgeTxt}>外出用餐</Text>
+                <Text style={styles.eatOutBadgeTxt}>{t("planner.eatOut")}</Text>
               </View>
             ) : (
               <View style={styles.emptyMealContainer}>
                 <Ionicons name="restaurant-outline" size={12} color="#D1D5DB" />
-                <Text style={styles.emptyMealText}>未安排</Text>
+                <Text style={styles.emptyMealText}>{t("planner.notPlanned")}</Text>
               </View>
             )}
             <Text style={styles.expandArrow}>{isExpanded ? "▲" : "▼"}</Text>
@@ -1504,8 +1523,8 @@ export default function PlannerTab() {
             {dayMeals.length === 0 && (
               <View style={styles.dayBodyEmpty}>
                 <Ionicons name="restaurant-outline" size={28} color="#E5E7EB" />
-                <Text style={styles.dayBodyEmptyText}>尚未安排餐點</Text>
-                <Text style={styles.dayBodyEmptySub}>點擊下方按鈕加入</Text>
+                <Text style={styles.dayBodyEmptyText}>{t("planner.noMealPlanned")}</Text>
+                <Text style={styles.dayBodyEmptySub}>{t("planner.tapToAdd")}</Text>
               </View>
             )}
             {dayMeals.map(renderMealItem)}
@@ -1521,7 +1540,7 @@ export default function PlannerTab() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                       <Ionicons name={cfg.icon as any} size={11} color="#013E77" />
                       <Text style={styles.addMealBtnText}>
-                        + {cfg.label}
+                        + {mealTypeLabel(mt)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1537,22 +1556,29 @@ export default function PlannerTab() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.headerTitle}>排餐計劃</Text>
+        <Text style={styles.headerTitle}>{t("mealPlan.title")}</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={() => router.push("/import")}
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            <Ionicons name="add" size={22} color="#013E77" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={() => router.push("/ai-chef")}
           >
-            <Ionicons name="chatbubble-ellipses" size={19} color="#fff" />
+            <Ionicons name="chatbubble-ellipses" size={19} color="#013E77" />
           </TouchableOpacity>
         </View>
       </View>
+
+      <HintBanner
+        hintId="meal_plan_shop"
+        icon="list"
+        title={t("planner.menuReadyTitle")}
+        body={t("planner.menuReadyBody")}
+      />
 
       <View style={styles.weekNav}>
         <TouchableOpacity
@@ -1573,7 +1599,7 @@ export default function PlannerTab() {
           }}
         >
           <Ionicons name="today-outline" size={14} color="#013E77" />
-          <Text style={styles.todayNavTxt}>今天</Text>
+          <Text style={styles.todayNavTxt}>{i18n.t("common.today")}</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
           <Text style={styles.weekLabel}>
@@ -1609,8 +1635,8 @@ export default function PlannerTab() {
             <Ionicons name="sparkles" size={17} color="#7C3AED" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.aiRecommendTitle}>✨ AI 智能晚餐推薦</Text>
-            <Text style={styles.aiRecommendSub}>一鍵智能生成本週「三菜一湯」，套用至日常排餐</Text>
+            <Text style={styles.aiRecommendTitle}>{t("planner.aiDinnerTitle")}</Text>
+            <Text style={styles.aiRecommendSub}>{t("planner.aiDinnerSub")}</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
@@ -1619,7 +1645,7 @@ export default function PlannerTab() {
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <Text style={{ color: "#999", fontSize: 14 }}>載入中...</Text>
+          <Text style={{ color: "#999", fontSize: 14 }}>{t("planner.loading")}</Text>
         </View>
       ) : (
         <FlatList
@@ -1656,7 +1682,7 @@ export default function PlannerTab() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>選擇食譜</Text>
+              <Text style={styles.modalTitle}>{t("planner.selectRecipe")}</Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <Ionicons name="close-outline" size={18} color="#999" />
               </TouchableOpacity>
@@ -1666,7 +1692,7 @@ export default function PlannerTab() {
               <Ionicons name="search" size={17} color="#9CA3AF" />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="搜尋食譜..."
+                placeholder={t("planner.searchRecipePlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={pickerSearch}
                 onChangeText={setPickerSearch}
@@ -1844,7 +1870,7 @@ export default function PlannerTab() {
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
               <View>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>改排餐日期</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.changeMealDate")}</Text>
                 <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
                   {moveMealPlanTarget ? moveMealPlanTarget.recipeName : ""}
                 </Text>
@@ -1859,7 +1885,7 @@ export default function PlannerTab() {
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>新排餐日期</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>{t("planner.newMealDate")}</Text>
               <PlanDatePicker
                 value={moveMealPlanDate || (moveMealPlanTarget?.date ?? toISODate(new Date()))}
                 onChange={setMoveMealPlanDate}
@@ -1877,7 +1903,7 @@ export default function PlannerTab() {
                     setPendingMoveDateSave(null);
                   }}
                 >
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>取消</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>{t("recipe.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
@@ -1904,7 +1930,7 @@ export default function PlannerTab() {
                   }}
                   disabled={updateMealDateM.isPending}
                 >
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{updateMealDateM.isPending ? "儲存中..." : "儲存"}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{updateMealDateM.isPending ? t("dyn.saving") : t("shopping.save")}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1918,7 +1944,7 @@ export default function PlannerTab() {
             <View style={{ alignItems: "center", marginBottom: 10 }}>
               <View style={{ width: 40, height: 4, borderRadius: 999, backgroundColor: "#E5E7EB" }} />
             </View>
-            <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>設定購物日期</Text>
+            <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.setShoppingDate")}</Text>
             <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
               共 {relatedShoppingItems.length} 項，購物日期唔可以遲過排餐日
             </Text>
@@ -1983,13 +2009,13 @@ export default function PlannerTab() {
                 style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center" }}
                 onPress={cancelSyncDateModal}
               >
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>取消</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
                 onPress={confirmSyncDateModal}
               >
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>確定</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{t("planner.ok")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2009,8 +2035,8 @@ export default function PlannerTab() {
                   <Ionicons name="sparkles" size={14} color="#fff" />
                 </View>
                 <View>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A" }}>本週 AI 晚餐推薦搭配</Text>
-                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{formatDateShort(monday)} - {formatDateShort(sunday)} · 均衡膳食結構（三菜一湯）</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.weekAiTitle")}</Text>
+                  <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{t("dyn.balancedMeal", { range: `${formatDateShort(monday)} - ${formatDateShort(sunday)}` })}</Text>
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -2019,7 +2045,7 @@ export default function PlannerTab() {
                   onPress={() => { setShowSmartRecommend(false); setShowAISuggest(true); }}
                 >
                   <Ionicons name="sparkles" size={11} color="#fff" />
-                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>AI 生成</Text>
+                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{t("aiChef.aiGenerate")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setShowSmartRecommend(false)} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
                   <Ionicons name="close" size={16} color="#6B7280" />
@@ -2053,7 +2079,7 @@ export default function PlannerTab() {
                 {/* Info summary */}
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <Text style={{ fontSize: 12, fontWeight: "800", color: "#4B5563" }}>
-                    {DAY_LABELS[recommendCurrentDay]} 晚餐推薦搭配：
+                    {enumT.weekday(recommendCurrentDay)} 晚餐推薦搭配：
                   </Text>
                   <Text style={{ fontSize: 10, color: "#9CA3AF" }}>
                     {getDateForDow(startDate, recommendCurrentDay)}
@@ -2143,7 +2169,7 @@ export default function PlannerTab() {
                           >
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
                               <Ionicons name={hasDish ? "swap-horizontal" : "add"} size={13} color="#6B7280" />
-                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#6B7280" }}>換</Text>
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#6B7280" }}>{t("planner.swapShort")}</Text>
                             </View>
                           </TouchableOpacity>
                         </View>
@@ -2161,7 +2187,7 @@ export default function PlannerTab() {
                 style={{ flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E8F0FE", alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
                 onPress={() => handleApplyToday(recommendItemsByDay[recommendCurrentDay])}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>✅ 套用本日 ({DAY_SHORT[recommendCurrentDay]})</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>{t("dyn.applyToday", { day: enumT.weekday(recommendCurrentDay) })}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2283,6 +2309,7 @@ function RecipeDetailModal({
   onAddToShopping: () => void;
   isAdding: boolean;
 }) {
+  const { t } = useTranslation();
   const imageSource = useMemo(() => {
     if (!recipe) return null;
     const img = recipe.thumbnailUrl || recipe.image;
@@ -2330,18 +2357,18 @@ function RecipeDetailModal({
             {/* Meta Row */}
             <View style={{ flexDirection: "row", justifyContent: "space-around", padding: 12, borderBottomWidth: 1, borderBottomColor: "#F0E8DC", backgroundColor: "#FFFFFF" }}>
               <View style={{ alignItems: "center" }}>
-                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>⏱ 烹飪時間</Text>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.cookTime || 20} 分鐘</Text>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>{t("planner.cookTimeLabel")}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{t("dyn.minutes", { n: recipe.cookTime || 20 })}</Text>
               </View>
               <View style={{ width: 1, backgroundColor: "#F0E8DC" }} />
               <View style={{ alignItems: "center" }}>
-                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>👥 分量</Text>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.servings || 2} 人份</Text>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>{t("planner.servingsLabel")}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{t("dyn.servingsN", { n: recipe.servings || 2 })}</Text>
               </View>
               <View style={{ width: 1, backgroundColor: "#F0E8DC" }} />
               <View style={{ alignItems: "center" }}>
-                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>🔥 難易度</Text>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{recipe.difficulty || "簡單"}</Text>
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>{t("planner.difficultyLabel")}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#1A1A1A" }}>{enumT.difficulty(recipe.difficulty || "簡單")}</Text>
               </View>
             </View>
 
@@ -2349,7 +2376,7 @@ function RecipeDetailModal({
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
                 <Ionicons name="leaf" size={16} color="#16A34A" />
-                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>🥬 需要食材</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.needIngredients")}</Text>
               </View>
               <View style={{ backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1.5, borderColor: "#F0E8DC", paddingHorizontal: 12, paddingVertical: 6 }}>
                 {Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 ? (
@@ -2360,7 +2387,7 @@ function RecipeDetailModal({
                     </View>
                   ))
                 ) : (
-                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>暫無食材資訊</Text>
+                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>{t("planner.noIngredientInfo")}</Text>
                 )}
               </View>
             </View>
@@ -2369,7 +2396,7 @@ function RecipeDetailModal({
             <View style={{ paddingHorizontal: 16 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
                 <Ionicons name="restaurant" size={16} color="#FF8C00" />
-                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>🍳 烹飪步驟</Text>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.stepsLabel")}</Text>
               </View>
               <View style={{ gap: 10 }}>
                 {stepsList.length > 0 ? (
@@ -2382,7 +2409,7 @@ function RecipeDetailModal({
                     </View>
                   ))
                 ) : (
-                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>暫無步驟資訊</Text>
+                  <Text style={{ fontSize: 12, color: "#9CA3AF", paddingVertical: 6 }}>{t("planner.noStepInfo")}</Text>
                 )}
               </View>
             </View>
@@ -2394,14 +2421,14 @@ function RecipeDetailModal({
               onPress={onClose} 
               style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
             >
-              <Text style={{ color: "#6B7280", fontSize: 14, fontWeight: "700" }}>取消</Text>
+              <Text style={{ color: "#6B7280", fontSize: 14, fontWeight: "700" }}>{t("recipe.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={onAddToShopping} 
               disabled={isAdding}
               style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#10B981", alignItems: "center" }}
             >
-              <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800" }}>加入購物車</Text>
+              <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800" }}>{t("planner.addToCart")}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={onAddToPlan} 
@@ -2411,7 +2438,7 @@ function RecipeDetailModal({
               {isAdding ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800" }}>加入排餐</Text>
+                <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "800" }}>{t("recipe.addToPlan")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -2429,6 +2456,7 @@ function SlotPickerModal({
   dayOfWeek: number; slotType: SlotType; officialRecipes: any[]; userRecipes: any[];
   onSelect: (recipe: any) => void; onClose: () => void; isPending: boolean;
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<"library" | "ai">("library");
@@ -2456,7 +2484,7 @@ function SlotPickerModal({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "75%", minHeight: "50%" }}>
         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{DAY_LABELS[dayOfWeek]}{meta.label}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{enumT.weekday(dayOfWeek)}{meta.label}</Text>
             <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
               <Ionicons name="close" size={14} color="#6B7280" />
             </TouchableOpacity>
@@ -2468,13 +2496,13 @@ function SlotPickerModal({
               style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: mode === "library" ? "#7C3AED" : "#F3F4F6", alignItems: "center" }}
               onPress={() => setMode("library")}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: mode === "library" ? "#fff" : "#6B7280" }}>📚 食譜庫</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: mode === "library" ? "#fff" : "#6B7280" }}>{t("aiChef.library")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={{ flex: 1, paddingVertical: 8, borderRadius: 10, backgroundColor: mode === "ai" ? "#7C3AED" : "#F3F4F6", alignItems: "center" }}
               onPress={() => setMode("ai")}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: mode === "ai" ? "#fff" : "#6B7280" }}>🤖 AI 生成</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: mode === "ai" ? "#fff" : "#6B7280" }}>🤖 {t("aiChef.aiGenerate")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -2485,13 +2513,13 @@ function SlotPickerModal({
                 style={{ flex: 1, fontSize: 13, color: "#1A1A1A" }}
                 value={search}
                 onChangeText={setSearch}
-                placeholder={`搜尋${meta.label}食譜...`}
+                placeholder={t("planner.searchRecipe", { label: meta.label })}
                 placeholderTextColor="#9CA3AF"
               />
             </View>
           ) : (
             <View>
-              <Text style={{ fontSize: 11, color: "#6B7280", marginBottom: 6 }}>想要咩風格？（可選）</Text>
+              <Text style={{ fontSize: 11, color: "#6B7280", marginBottom: 6 }}>{t("planner.stylePrompt")}</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                 {aiStyleOptions.map(style => (
                   <TouchableOpacity
@@ -2517,7 +2545,7 @@ function SlotPickerModal({
                 }}
               >
                 <Ionicons name="sparkles" size={14} color="#fff" />
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff", marginTop: 2 }}>去 AI 助手生成</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff", marginTop: 2 }}>{t("planner.goAiChef")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2532,8 +2560,8 @@ function SlotPickerModal({
             contentContainerStyle={filtered.length === 0 ? { flexGrow: 1 } : undefined}
             ListEmptyComponent={(
               <View style={{ flex: 1, padding: 32, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 12, color: "#9CA3AF" }}>食譜庫中暫無{meta.label}食譜</Text>
-                <Text style={{ fontSize: 11, color: "#B0BAC9", marginTop: 4 }}>請先在食譜庫加入相關食譜</Text>
+                <Text style={{ fontSize: 12, color: "#9CA3AF" }}>{t("dyn.noLibraryRecipe", { label: enumT.category(meta.label) })}</Text>
+                <Text style={{ fontSize: 11, color: "#B0BAC9", marginTop: 4 }}>{t("planner.addRecipesFirst")}</Text>
               </View>
             )}
             renderItem={({ item: recipe }) => (
@@ -2555,7 +2583,7 @@ function SlotPickerModal({
                 })()}
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>{recipe.name}</Text>
-                  {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}分鐘</Text>}
+                  {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}{t("recipe.min")}</Text>}
                 </View>
                 {isPending && <ActivityIndicator size="small" color="#013E77" />}
               </TouchableOpacity>
@@ -2568,8 +2596,8 @@ function SlotPickerModal({
             <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(124,58,237,0.13)", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
               <Ionicons name="sparkles" size={28} color="#7C3AED" />
             </View>
-            <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A", marginBottom: 4 }}>AI 生成{meta.label}</Text>
-            <Text style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center" }}>選擇風格後，AI 會為你生成 3 個選項</Text>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A", marginBottom: 4 }}>{t("dyn.aiGenLabel", { label: enumT.category(meta.label) })}</Text>
+            <Text style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center" }}>{t("planner.pickStyle")}</Text>
           </View>
         )}
         </View>
@@ -2588,6 +2616,7 @@ function AISuggestModalRN({
   startDate: string;
   setDayM: any;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [suggestedDays, setSuggestedDays] = useState<any[] | null>(null);
   const [reasoning, setReasoning] = useState("");
@@ -2726,8 +2755,8 @@ function AISuggestModalRN({
                     <Ionicons name="sparkles" size={16} color="#fff" />
                   </View>
                   <View>
-                    <Text style={{ fontSize: 15, fontWeight: "900", color: "#1A1A1A" }}>AI 智能週餐推薦</Text>
-                    <Text style={{ fontSize: 10, color: "#9CA3AF" }}>先完成今日，再慢慢微調本週</Text>
+                    <Text style={{ fontSize: 15, fontWeight: "900", color: "#1A1A1A" }}>{t("planner.aiWeekTitle")}</Text>
+                    <Text style={{ fontSize: 10, color: "#9CA3AF" }}>{t("planner.aiWeekSub")}</Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
@@ -2742,8 +2771,8 @@ function AISuggestModalRN({
                   <View style={{ width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(124,58,237,0.13)", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
                     <Ionicons name="sparkles" size={28} color="#7C3AED" />
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A", marginBottom: 8 }}>AI 正在自動生成本週晚餐</Text>
-                  <Text style={{ fontSize: 12, color: "#6B7280", textAlign: "center", marginBottom: 24 }}>生成完成後，你可以逐日微調，再一鍵發布</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "800", color: "#1A1A1A", marginBottom: 8 }}>{t("planner.aiGeneratingWeek")}</Text>
+                  <Text style={{ fontSize: 12, color: "#6B7280", textAlign: "center", marginBottom: 24 }}>{t("planner.aiGeneratingSub")}</Text>
                   <TouchableOpacity
                     style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#7C3AED", paddingHorizontal: 28, paddingVertical: 12, borderRadius: 14 }}
                     onPress={() => {
@@ -2752,7 +2781,7 @@ function AISuggestModalRN({
                     }}
                   >
                     <Ionicons name="sparkles" size={16} color="#fff" />
-                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>AI 生成</Text>
+                    <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{t("aiChef.aiGenerate")}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2760,8 +2789,8 @@ function AISuggestModalRN({
               {aiSuggestM.isPending && (
                 <View style={{ alignItems: "center", paddingVertical: 48 }}>
                   <ActivityIndicator size="large" color="#7C3AED" />
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginTop: 16 }}>AI 正在分析...</Text>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>正在獲取天氣資料、分析飲食記錄</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#1A1A1A", marginTop: 16 }}>{t("planner.aiAnalyzing")}</Text>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>{t("planner.aiAnalyzingSub")}</Text>
                 </View>
               )}
 
@@ -2795,7 +2824,7 @@ function AISuggestModalRN({
                           }}
                         >
                           <Text style={{ fontSize: 12, fontWeight: "900", color: isActive ? "#fff" : isWeekend ? "#FF8C00" : "#374151" }}>
-                            {DAY_LABELS[day.dayOfWeek]}
+                            {enumT.weekday(day.dayOfWeek)}
                           </Text>
                           <Text style={{ fontSize: 10, marginTop: 2, color: isActive ? "rgba(255,255,255,0.9)" : "#9CA3AF" }}>
                             {getDateForDowShort(weekStart, day.dayOfWeek)}
@@ -2810,7 +2839,7 @@ function AISuggestModalRN({
                       <View style={{ padding: 12, backgroundColor: selectedDayData.dayOfWeek >= 6 ? "#FFF7ED" : "#F8FAFC", borderBottomWidth: 1, borderBottomColor: "#F0E8DC", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <View>
                           <Text style={{ fontSize: 13, fontWeight: "900", color: selectedDayData.dayOfWeek >= 6 ? "#FF8C00" : "#374151" }}>
-                            {DAY_LABELS[selectedDayData.dayOfWeek]}
+                            {enumT.weekday(selectedDayData.dayOfWeek)}
                           </Text>
                           <Text style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{getWeekDayLabel(weekStart, selectedDayData.dayOfWeek)}</Text>
                         </View>
@@ -2818,7 +2847,7 @@ function AISuggestModalRN({
                           onPress={goNextIncomplete}
                           style={{ flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#7C3AED", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}
                         >
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>下一日</Text>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#fff" }}>{t("planner.nextDay")}</Text>
                           <Ionicons name="chevron-forward" size={11} color="#fff" />
                         </TouchableOpacity>
                       </View>
@@ -2851,13 +2880,18 @@ function AISuggestModalRN({
                                 activeOpacity={0.7}
                               >
                                 <Text style={{ fontSize: 12, fontWeight: "700", color: hasValidDish ? "#1A1A1A" : "#9CA3AF" }} numberOfLines={1}>
-                                  {hasValidDish ? dish.name : `${meta.label}（未設定）`}
+                                  {hasValidDish ? getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).primary : `${meta.label}（未設定）`}
                                 </Text>
+                                {hasValidDish && getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).secondary ? (
+                                  <Text style={{ fontSize: 10, color: "#9CA3AF" }} numberOfLines={1}>
+                                    {getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).secondary}
+                                  </Text>
+                                ) : null}
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
                                   {dish?.reason && <Text style={{ fontSize: 9, color: "#9CA3AF" }} numberOfLines={1}><Ionicons name="bulb" size={9} color="#9CA3AF" /> {dish.reason}</Text>}
                                   {isDuplicate && (
                                     <View style={{ backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                      <Text style={{ fontSize: 9, fontWeight: "700", color: "#B45309" }}>本週已用</Text>
+                                      <Text style={{ fontSize: 9, fontWeight: "700", color: "#B45309" }}>{t("planner.usedThisWeek")}</Text>
                                     </View>
                                   )}
                                 </View>
@@ -2867,7 +2901,7 @@ function AISuggestModalRN({
                                   style={{ backgroundColor: hasValidDish ? "#F3F4F6" : "#E0E7FF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 }}
                                   onPress={() => setSwapTarget({ day: selectedDayData.dayOfWeek, slot: slotType })}
                                 >
-                                  <Text style={{ fontSize: 10, fontWeight: "700", color: hasValidDish ? "#6B7280" : "#4338CA" }}>{hasValidDish ? "換" : "選擇"}</Text>
+                                  <Text style={{ fontSize: 10, fontWeight: "700", color: hasValidDish ? "#6B7280" : "#4338CA" }}>{hasValidDish ? t("aiChef.swap") : t("dyn.select")}</Text>
                                 </TouchableOpacity>
                                 {hasValidDish && (
                                   <TouchableOpacity
@@ -2895,7 +2929,7 @@ function AISuggestModalRN({
                   disabled={aiSuggestM.isPending}
                   hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: aiSuggestM.isPending ? "#B0BAC9" : "#6B7280" }}>AI 生成</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: aiSuggestM.isPending ? "#B0BAC9" : "#6B7280" }}>{t("aiChef.aiGenerate")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -2987,6 +3021,7 @@ function SwapPickerRN({
   dayOfWeek: number; slotType: SlotType; officialRecipes: any[]; _currentId: string; currentRecipeName?: string; blockedRecipeNames?: string[];
   onSelect: (dish: any) => void; onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const meta = SLOT_META[slotType];
   const blockedSet = useMemo(() => new Set((blockedRecipeNames || []).map(normalizeName)), [blockedRecipeNames]);
@@ -3009,17 +3044,17 @@ function SwapPickerRN({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
           <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{DAY_LABELS[dayOfWeek]}{meta.label}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{enumT.weekday(dayOfWeek)}{meta.label}</Text>
               <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
                 <Ionicons name="close" size={14} color="#6B7280" />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 8 }}>同週已用的食譜會標示出來，避免你重複揀同一款。</Text>
+            <Text style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 8 }}>{t("planner.usedHint")}</Text>
             <TextInput
               style={{ backgroundColor: "#F3F4F6", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, color: "#1A1A1A" }}
               value={search}
               onChangeText={setSearch}
-              placeholder={`搜尋${meta.label}食譜...`}
+              placeholder={t("planner.searchRecipe", { label: meta.label })}
               placeholderTextColor="#9CA3AF"
             />
           </View>
@@ -3031,7 +3066,7 @@ function SwapPickerRN({
             contentContainerStyle={filtered.length === 0 ? { flexGrow: 1 } : undefined}
             ListEmptyComponent={(
               <View style={{ flex: 1, padding: 32, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 12, color: "#9CA3AF" }}>食譜庫中暫無相關的{meta.label}食譜</Text>
+                <Text style={{ fontSize: 12, color: "#9CA3AF" }}>{t("dyn.noRelatedRecipe", { label: enumT.category(meta.label) })}</Text>
               </View>
             )}
             renderItem={({ item: recipe }) => (
@@ -3058,10 +3093,10 @@ function SwapPickerRN({
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>{recipe.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2, flexWrap: "wrap" }}>
-                    {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}分鐘</Text>}
+                    {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}{t("recipe.min")}</Text>}
                     {recipe.isBlocked && (
                       <View style={{ backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#B45309" }}>本週已用</Text>
+                        <Text style={{ fontSize: 9, fontWeight: "700", color: "#B45309" }}>{t("planner.usedThisWeek")}</Text>
                       </View>
                     )}
                   </View>
@@ -3078,7 +3113,7 @@ function SwapPickerRN({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F5",
   },
   aiRecommendBanner: {
     flexDirection: "row",
@@ -3113,21 +3148,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: "#013E77",
+    backgroundColor: "#FAF8F5",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1A1A1A",
   },
   headerBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3172,14 +3207,14 @@ const styles = StyleSheet.create({
   },
   dayCard: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    marginBottom: 8,
-    padding: 10,
+    borderRadius: 16,
+    marginBottom: 10,
+    padding: 14,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   dayCardToday: {
     borderWidth: 2,
@@ -3265,17 +3300,22 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   mealItem: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 6,
-    marginBottom: 4,
-    padding: 6,
-    borderLeftWidth: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    marginBottom: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   mealImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 68,
+    height: 68,
+    borderRadius: 10,
+    marginRight: 12,
   },
   mealImagePlaceholder: {
     backgroundColor: "#F0F0F0",
@@ -3283,11 +3323,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   mealDeleteBtn: {
-    padding: 8,
+    padding: 10,
     marginLeft: 4,
   },
   mealEditBtn: {
-    padding: 8,
+    padding: 10,
     marginLeft: 8,
   },
   emptyMealContainer: {
@@ -3312,9 +3352,9 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   mealTypeText: {
-    fontSize: 9,
+    fontSize: 11,
     color: "#013E77",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   statusBadge: {
     borderRadius: 4,
@@ -3322,17 +3362,22 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   statusText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: "600",
   },
   mealName: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: "#1A1A1A",
-    marginBottom: 1,
+    marginBottom: 2,
+  },
+  mealNameEn: {
+    fontSize: 12,
+    color: "#8A8A8E",
+    marginBottom: 2,
   },
   mealProposer: {
-    fontSize: 9,
+    fontSize: 11,
     color: "#999",
   },
   mealActions: {

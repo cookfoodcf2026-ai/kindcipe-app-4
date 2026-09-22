@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { colors } from "@/app/styles/colors";
@@ -6,6 +7,7 @@ import { typography } from "@/app/styles/typography";
 import { GridIcon, ChevronLeftIcon } from "@/src/components/icons";
 
 export default function ComingSoonScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ title?: string; subtitle?: string; message?: string }>();
@@ -18,7 +20,7 @@ export default function ComingSoonScreen() {
     <View style={s.root}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[s.topBar, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} accessibilityRole="button" accessibilityLabel="返回">
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={s.backBtn} accessibilityRole="button" accessibilityLabel={t("recipes.back")}>
           <ChevronLeftIcon size={22} color={colors.neutral.white} />
         </TouchableOpacity>
       </View>
@@ -31,8 +33,8 @@ export default function ComingSoonScreen() {
         {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
         <Text style={s.message}>{message}</Text>
 
-        <TouchableOpacity style={s.cta} onPress={() => router.back()}>
-          <Text style={s.ctaTxt}>返回更多功能</Text>
+        <TouchableOpacity style={s.cta} onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}>
+          <Text style={s.ctaTxt}>{t("misc.backToMore")}</Text>
         </TouchableOpacity>
       </View>
     </View>

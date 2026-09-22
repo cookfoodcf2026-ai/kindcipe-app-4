@@ -10,11 +10,13 @@ import {
   ActivityIndicator, Alert, ScrollView, TextInput,
   Platform, Image, KeyboardAvoidingView,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
 import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, FAMILY_ID_KEY } from "@/lib/auth";
+import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -25,7 +27,7 @@ const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
 
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
-const BG = "#FFFFFF";
+const BG = "#FAF8F5";
 
 // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
 try {
@@ -39,6 +41,7 @@ try {
 type Mode = "login" | "register" | "admin";
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string }>();
   const [mode, setMode] = useState<Mode>(params.mode === "admin" ? "admin" : "login");
@@ -82,15 +85,15 @@ export default function LoginScreen() {
 
   // ── Email Login / Register ──────────────────────────────────────────────────
   const handleEmailSubmit = async () => {
-    if (!email.trim()) { Alert.alert("請輸入電郵地址"); return; }
+    if (!email.trim()) { Alert.alert(t("auth.enterEmail")); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      Alert.alert("電郵格式不正確", "請輸入有效的電郵地址");
+      Alert.alert(t("auth.invalidEmail"), t("auth.invalidEmailMsg"));
       return;
     }
-    if (!password.trim()) { Alert.alert("請輸入密碼"); return; }
-    if (mode === "register" && !name.trim()) { Alert.alert("請輸入你的名字"); return; }
+    if (!password.trim()) { Alert.alert(t("auth.enterPassword")); return; }
+    if (mode === "register" && !name.trim()) { Alert.alert(t("auth.enterName")); return; }
     if (mode === "register" && password.length < 8) {
-      Alert.alert("密碼太短", "密碼至少需要 8 個字元");
+      Alert.alert(t("auth.passwordTooShort"), t("auth.passwordMin"));
       return;
     }
 
@@ -118,7 +121,7 @@ export default function LoginScreen() {
       }
     } catch (err: any) {
       if (mode === "register" && err?.data?.code === "CONFLICT") {
-        Alert.alert("電郵已被註冊", err.message || "此電郵已被使用，請直接登入", [
+        Alert.alert(t("auth.emailTaken"), err.message || t("auth.emailTakenMsg"), [
           { text: "知道了", style: "cancel" },
           { text: "去登入", onPress: () => setMode("login") },
         ]);
@@ -134,7 +137,7 @@ export default function LoginScreen() {
 
   // ── Google Sign In ──────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
-    if (!hasGoogleSignin) { Alert.alert("Google 登入", "請使用電郵登入或更新 App"); return; }
+    if (!hasGoogleSignin) { Alert.alert(t("auth.googleSignin"), t("auth.googleSigninMsg")); return; }
     setIsLoading(true);
     setLoadingType("google");
     try {
@@ -162,7 +165,7 @@ export default function LoginScreen() {
         console.error("Google login error:", err);
       }
       if (err.code !== "SIGN_IN_CANCELLED" && err.code !== "12501") {
-        Alert.alert("Google 登入失敗", "請稍後再試");
+        Alert.alert(t("auth.googleFailed"), t("auth.tryLater"));
       }
     } finally {
       setIsLoading(false);
@@ -172,7 +175,7 @@ export default function LoginScreen() {
 
   // ── Apple Sign In ───────────────────────────────────────────────────────────
   const handleAppleSignIn = async () => {
-    if (!hasAppleAuth) { Alert.alert("Apple 登入", "請使用電郵登入或更新 App"); return; }
+    if (!hasAppleAuth) { Alert.alert(t("auth.appleSignin"), t("auth.googleSigninMsg")); return; }
     setIsLoading(true);
     setLoadingType("apple");
     try {
@@ -205,7 +208,7 @@ export default function LoginScreen() {
         console.error("Apple login error:", err);
       }
       if (err.code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Apple 登入失敗", "請稍後再試");
+        Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));
       }
     } finally {
       setIsLoading(false);
@@ -227,10 +230,10 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoSection}>
             <Image
-              source={require("../assets/logo-full.png")}
+              source={getAppLogo()}
               style={{ width: 192, height: 192, resizeMode: "contain" }}
             />
-            <Text style={styles.tagline}>— 家人的食譜筆記 ・ 家庭的味道 —</Text>
+            <Text style={styles.tagline}>{t("auth.tagline")}</Text>
           </View>
 
           {/* Mode Toggle */}
@@ -252,15 +255,54 @@ export default function LoginScreen() {
                   建立帳號
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeBtn, mode === "admin" && styles.modeBtnActive]}
-                onPress={() => setMode("admin")}
-              >
-                <Text style={[styles.modeBtnText, mode === "admin" && styles.modeBtnTextActive]}>
-                  管理員
-                </Text>
-              </TouchableOpacity>
           </View>
+
+          {/* Social Login First */}
+          {mode !== "admin" && (
+            <>
+              <View style={styles.socialSection}>
+                <View>
+                  {Platform.OS === "ios" && (
+                    <TouchableOpacity
+                      style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
+                      onPress={handleAppleSignIn}
+                      disabled={isLoading}
+                      activeOpacity={0.85}
+                    >
+                      {isLoading && loadingType === "apple" ? (
+                        <ActivityIndicator color={BRAND} size="small" />
+                      ) : (
+                        <Ionicons name="logo-apple" size={20} color={BRAND} />
+                      )}
+                      <Text style={styles.socialBtnText}>{t("auth.appleLogin")}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View>
+                  <TouchableOpacity
+                    style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
+                    onPress={handleGoogleSignIn}
+                    disabled={isLoading}
+                    activeOpacity={0.85}
+                  >
+                    {isLoading && loadingType === "google" ? (
+                      <ActivityIndicator color="#DB4437" size="small" />
+                    ) : (
+                      <Ionicons name="logo-google" size={20} color="#DB4437" />
+                    )}
+                    <Text style={styles.socialBtnText}>{t("auth.googleLogin")}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>{t("auth.orEmail")}</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
+          )}
 
           {/* Email Form */}
           <View style={styles.form}>
@@ -270,7 +312,7 @@ export default function LoginScreen() {
                 <TextInput
                   testID="login-name"
                   style={styles.input}
-                  placeholder="你的名字"
+                  placeholder={t("auth.namePlaceholder")}
                   placeholderTextColor="#9CA3AF"
                   value={name}
                   onChangeText={setName}
@@ -285,7 +327,7 @@ export default function LoginScreen() {
               <TextInput
                 testID="login-email"
                 style={styles.input}
-                placeholder="電郵地址"
+                placeholder={t("auth.emailPlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={email}
                 onChangeText={setEmail}
@@ -321,7 +363,7 @@ export default function LoginScreen() {
 
             {mode === "login" && (
               <TouchableOpacity style={styles.forgotRow} onPress={() => router.push("/forgot-password")}>
-                <Text style={styles.forgotText}>忘記密碼？</Text>
+                <Text style={styles.forgotText}>{t("auth.forgotPassword")}</Text>
               </TouchableOpacity>
             )}
 
@@ -341,61 +383,23 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {mode === "admin" && (
-              <Text style={styles.adminHint}>管理員登入後會直接進入管理面板。</Text>
+              <Text style={styles.adminHint}>{t("auth.adminHint")}</Text>
             )}
           </View>
 
-          {mode !== "admin" && (
-            <>
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>或使用以下方式</Text>
-                <View style={styles.dividerLine} />
-              </View>
+          <Text style={styles.disclaimer}>
+            登入即表示你同意我們的服務條款及私隱政策
+          </Text>
 
-              {/* Social Buttons */}
-              <View style={styles.socialSection}>
-                <View>
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
-                      onPress={handleAppleSignIn}
-                      disabled={isLoading}
-                      activeOpacity={0.85}
-                    >
-                      {isLoading && loadingType === "apple" ? (
-                        <ActivityIndicator color={BRAND} size="small" />
-                      ) : (
-                        <Ionicons name="logo-apple" size={20} color={BRAND} />
-                      )}
-                      <Text style={styles.socialBtnText}>使用 Apple 登入</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <View>
-                  <TouchableOpacity
-                    style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
-                    onPress={handleGoogleSignIn}
-                    disabled={isLoading}
-                    activeOpacity={0.85}
-                  >
-                    {isLoading && loadingType === "google" ? (
-                      <ActivityIndicator color="#DB4437" size="small" />
-                    ) : (
-                      <Ionicons name="logo-google" size={20} color="#DB4437" />
-                    )}
-                    <Text style={styles.socialBtnText}>使用 Google 登入</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <Text style={styles.disclaimer}>
-                登入即表示你同意我們的服務條款及私隱政策
-              </Text>
-            </>
-          )}
+          {/* 管理員通道（微型連結） */}
+          <TouchableOpacity
+            onPress={() => setMode(mode === "admin" ? "login" : "admin")}
+            style={{ marginTop: 16, alignItems: "center", paddingVertical: 6 }}
+          >
+            <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "underline" }}>
+              管理員通道
+            </Text>
+          </TouchableOpacity>
 
           {/* 開發用：重置 App 資料 */}
           <TouchableOpacity
@@ -420,8 +424,8 @@ export default function LoginScreen() {
               <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="scan-outline" size={32} color="#013E77" />
               </View>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>啟用 Face ID 解鎖？</Text>
-              <Text style={{ fontSize: 14, color: "#9CA3AF", textAlign: "center" }}>下次開啟 App 時可使用 Face ID 或指紋快速登入，不需再輸入密碼</Text>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("auth.enableFaceId")}</Text>
+              <Text style={{ fontSize: 14, color: "#9CA3AF", textAlign: "center" }}>{t("auth.faceIdMsg")}</Text>
             </View>
             <TouchableOpacity
               style={{ backgroundColor: "#013E77", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
@@ -430,14 +434,14 @@ export default function LoginScreen() {
                 setShowBiometricPrompt(false);
               }}
             >
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>啟用</Text>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "800" }}>{t("auth.enable")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={{ paddingVertical: 10, alignItems: "center" }}
               onPress={() => setShowBiometricPrompt(false)}
               testID="biometric-skip"
             >
-              <Text style={{ fontSize: 14, color: "#9CA3AF", fontWeight: "600" }}>暫時不要</Text>
+              <Text style={{ fontSize: 14, color: "#9CA3AF", fontWeight: "600" }}>{t("auth.notNow")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -448,7 +452,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 40, paddingBottom: 32 },
+  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 52, paddingBottom: 32 },
 
   // Logo
   logoSection: { alignItems: "center", marginBottom: 28 },

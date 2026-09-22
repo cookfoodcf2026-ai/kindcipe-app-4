@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const BRAND = "#013E77";
 
 export default function ChangePasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const changePasswordM = trpc.auth.changePassword.useMutation();
@@ -24,15 +26,15 @@ export default function ChangePasswordScreen() {
 
   const handleSubmit = async () => {
     if (!newPassword.trim()) {
-      Alert.alert("請輸入新密碼");
+      Alert.alert(t("auth.enterNewPassword"));
       return;
     }
     if (newPassword.length < 8) {
-      Alert.alert("密碼太短", "新密碼至少需要 8 個字元");
+      Alert.alert(t("auth.passwordTooShort"), t("auth.passwordMin"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("密碼不一致", "新密碼與確認密碼不一致");
+      Alert.alert(t("auth.passwordMismatch"), t("auth.passwordMismatchMsg"));
       return;
     }
 
@@ -44,9 +46,9 @@ export default function ChangePasswordScreen() {
       });
       await clearAuthToken();
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
-      Alert.alert("已更新", "密碼已成功更新，請重新登入", [{ text: "知道了", onPress: () => router.replace("/login") }]);
+      Alert.alert(t("auth.updated"), t("auth.changeSuccess"), [{ text: t("auth.gotIt"), onPress: () => router.replace("/login") }]);
     } catch (err: any) {
-      Alert.alert("更新失敗", err?.message || "請稍後再試");
+      Alert.alert(t("auth.changeFailed"), err?.message || t("auth.tryLater"));
     }
   };
 
@@ -57,13 +59,13 @@ export default function ChangePasswordScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>改密碼</Text>
+          <Text style={styles.headerTitle}>{t("auth.changePwHeader")}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>更新登入密碼</Text>
+            <Text style={styles.title}>{t("auth.changePwTitle")}</Text>
             <Text style={styles.subtitle}>
               {user?.email ? `帳號：${user.email}` : "如你已設定密碼，請輸入舊密碼；否則可直接設定新密碼。"}
             </Text>
@@ -72,7 +74,7 @@ export default function ChangePasswordScreen() {
               <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="舊密碼（如有）"
+                placeholder={t("auth.oldPasswordPlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
@@ -88,7 +90,7 @@ export default function ChangePasswordScreen() {
               <Ionicons name="key-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="新密碼（至少 8 個字元）"
+                placeholder={t("auth.newPasswordPlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={newPassword}
                 onChangeText={setNewPassword}
@@ -104,7 +106,7 @@ export default function ChangePasswordScreen() {
               <Ionicons name="checkmark-done-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="確認新密碼"
+                placeholder={t("auth.confirmNewPassword")}
                 placeholderTextColor="#9CA3AF"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -121,7 +123,7 @@ export default function ChangePasswordScreen() {
               onPress={handleSubmit}
               disabled={changePasswordM.isPending}
             >
-              {changePasswordM.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>更新密碼</Text>}
+              {changePasswordM.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{t("auth.updatePasswordBtn")}</Text>}
             </TouchableOpacity>
           </View>
         </View>

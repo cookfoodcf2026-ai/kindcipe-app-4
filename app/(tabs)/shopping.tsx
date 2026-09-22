@@ -8,14 +8,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { trpc } from "@/lib/trpc";
-import { useMemo, useState, useCallback, useEffect, useRef, Fragment } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, Fragment, memo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
+import { getBilingualName } from "@/lib/bilingual";
+import { enumT } from "@/lib/i18nEnums";
+import i18n from "@/lib/i18n";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
+import HintBanner from "@/src/components/HintBanner";
 import { DateUtil } from "@/src/lib/DateUtil";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -95,34 +100,32 @@ const formatPlannedDate = (dateStr: string) => {
   const mondayISO = DateUtil.getThisMondayISO();
   const sundayISO = DateUtil.getThisSundayISO();
 
-  if (dateStr === today) return "今日";
-  if (dateStr === tomorrow) return "聽日";
+  if (dateStr === today) return i18n.t("shopping.today");
+  if (dateStr === tomorrow) return i18n.t("shopping.tomorrow");
 
   // 利用時間戳直接算天數差
   const targetTime = new Date(dateStr + "T00:00:00").getTime();
   const todayTime = new Date(today + "T00:00:00").getTime();
   const diffDays = Math.round((targetTime - todayTime) / (1000 * 60 * 60 * 24));
-
-  const weekdayStr = DateUtil.getWeekday(dateStr, true);
-  const pureDay = weekdayStr.replace("週", ""); // 提取「六」
+  const day = new Date(dateStr + "T00:00:00").getDay();
 
   // 過去的日期
   if (diffDays < 0) {
-    return `過去 (${dateStr.slice(5).replace("-", "/")})`;
+    return i18n.t("shopping.past", { date: dateStr.slice(5).replace("-", "/") });
   }
 
   // 本週內：用 ISO 字串範圍比較（避免時區問題）
   if (dateStr >= mondayISO && dateStr <= sundayISO) {
-    return `週${pureDay}`;  // 「週六」
+    return enumT.weekday(day);
   }
 
   // 下週內
   if (diffDays > 0 && diffDays < 14) {
-    return `下週${pureDay}`;  // 「下週六」
+    return i18n.t("shopping.nextWeekDay", { day: enumT.weekday(day) });
   }
 
   // 超過兩週
-  return `${weekdayStr} (${dateStr.slice(5).replace("-", "/")})`;
+  return `${enumT.weekday(day)} (${dateStr.slice(5).replace("-", "/")})`;
 };
 
 const formatDateCard = (dateStr: string) => {
@@ -140,8 +143,8 @@ const formatDateCard = (dateStr: string) => {
   
   const weekday = DateUtil.getWeekday(dateStr, true);
   let suffix = "";
-  if (isToday) suffix = "·今";
-  else if (isTomorrow) suffix = "·明";
+  if (isToday) suffix = i18n.t("shopping.todayShort");
+  else if (isTomorrow) suffix = i18n.t("shopping.tomorrowShort");
   return { day: safeDay, weekday: `${weekday}${suffix}`, isToday, isTomorrow };
 };
 
@@ -168,6 +171,7 @@ type SwipeDeleteWrapperProps = {
 };
 
 function SwipeDeleteWrapper({ onDelete, disabled, children }: SwipeDeleteWrapperProps) {
+  const { t } = useTranslation();
   const swipeableRef = useRef<Swipeable>(null);
 
   const handleDeletePress = () => {
@@ -182,7 +186,7 @@ function SwipeDeleteWrapper({ onDelete, disabled, children }: SwipeDeleteWrapper
         onPress={handleDeletePress}
       >
         <Ionicons name="trash-outline" size={24} color="#fff" />
-        <Text style={styles.swipeDeleteTxt}>刪除</Text>
+        <Text style={styles.swipeDeleteTxt}>{t("shopping.delete")}</Text>
       </TouchableOpacity>
     );
   };
@@ -204,12 +208,72 @@ function SwipeDeleteWrapper({ onDelete, disabled, children }: SwipeDeleteWrapper
   );
 }
 
+// memoized 分類卡：expanded state 完全 local（每個分類自己管）
+// → toggle 只 re-render 張卡自己，唔使等成個 screen 重算（箭咀即時反應）
+const CategoryCard = memo(function CategoryCard({ cat, catItems, onAdd, renderItem }: {
+  cat: string;
+  catItems: any[];
+  onAdd: (category?: string) => void;
+  renderItem: (item: any) => ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(true);
+  const isHouseholdCat = isHousehold(cat);
+  const emoji = CATEGORY_EMOJI[cat] || (isHouseholdCat ? "🧴" : "📦");
+  const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS["其他"];
+  const boughtCnt = catItems.filter((i) => i.status === "bought").length;
+  const totalCnt = catItems.length;
+
+  return (
+    <View style={[styles.categoryCard, isHouseholdCat && { backgroundColor: colors.bg, borderColor: colors.border }]}>
+      <TouchableOpacity
+        style={styles.categoryHeader}
+        onPress={() => setExpanded((e) => !e)}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        delayPressIn={0}
+        onPressIn={() => {}}
+      >
+        <View style={styles.categoryHeaderLeft}>
+          <Text style={styles.categoryEmoji}>{emoji}</Text>
+          <Text style={[styles.categoryName, isHouseholdCat && { color: colors.text }]}>{enumT.category(cat)}</Text>
+          <Text style={styles.categoryProgress}>{boughtCnt}/{totalCnt} {t("shopping.bought")}</Text>
+        </View>
+        <View style={styles.categoryHeaderRight}>
+          <View style={[styles.categoryBadge, { backgroundColor: colors.badge }]}>
+            <Text style={styles.categoryBadgeText}>{totalCnt}</Text>
+          </View>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color="#9CA3AF" />
+        </View>
+      </TouchableOpacity>
+
+      {expanded && catItems.map((item: any) => (
+        <Fragment key={item.id}>
+          {renderItem(item)}
+        </Fragment>
+      ))}
+
+      {expanded && (
+        <TouchableOpacity
+          style={[styles.categoryAddBtn, isHouseholdCat && { borderTopColor: colors.border }]}
+          onPress={() => onAdd(cat)}
+        >
+          <Ionicons name="add-outline" size={16} color={isHouseholdCat ? colors.text : "#013E77"} />
+          <Text style={[styles.categoryAddBtnText, isHouseholdCat && { color: colors.text }]}>
+            {t("shopping.manualAdd")}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
 export default function ShoppingTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const { height: screenHeight } = useWindowDimensions();
   const modalMaxHeight = screenHeight * 0.65;
-
   const dateCardsScrollRef = useRef<ScrollView>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -224,7 +288,6 @@ export default function ShoppingTab() {
   });
   const [visibleMonth, setVisibleMonth] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [refreshing, setRefreshing] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -246,6 +309,7 @@ export default function ShoppingTab() {
 
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
+  const [priceKwEn, setPriceKwEn] = useState("");
 
   const [showSavePrice, setShowSavePrice] = useState(false);
   const [savePriceItem, setSavePriceItem] = useState<any>(null);
@@ -304,6 +368,41 @@ export default function ShoppingTab() {
 
   // Use offline fallback when API returns empty (backend not deployed or API down)
   const ingredientsForSuggestions = commonIngredients.length > 0 ? commonIngredients : OFFLINE_FALLBACK;
+
+  // Lookup bilingual names from common ingredients (by nameEn or Chinese name)
+  const ingredientBilingual = useMemo(() => {
+    const byEn = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const byName = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const normalize = (s: string) => s.replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim();
+    for (const ing of ingredientsForSuggestions) {
+      const rec = { en: ing.nameEn ?? undefined, fil: ing.nameFil ?? undefined, id: ing.nameId ?? undefined };
+      if (ing.nameEn) byEn.set(String(ing.nameEn).toLowerCase(), rec);
+      if (ing.nameZh) byName.set(normalize(ing.nameZh), rec);
+      if (ing.nameYue) byName.set(normalize(ing.nameYue), rec);
+    }
+    const byNameSorted = [...byName.entries()].sort((a, b) => b[0].length - a[0].length);
+    // 精確 → 包住（食譜變體名如「番茄」對 common「番茄」）→ 長度最短包住，防誤判
+    const resolveByChinese = (q: string) => {
+      if (!q) return undefined;
+      const nq = normalize(q);
+      if (byName.has(nq)) return byName.get(nq);
+      let best: { en?: string; fil?: string; id?: string } | undefined;
+      for (const [k, rec] of byNameSorted) {
+        if (k.length < 2) continue;
+        if (nq.includes(k) || k.includes(nq)) {
+          if (!best || k.length < (best as any)._len) { best = rec; (best as any)._len = k.length; }
+        }
+      }
+      return best;
+    };
+    const resolveByEn = (q: string) => (q ? byEn.get(String(q).toLowerCase()) : undefined);
+    return { resolveByEn, resolveByChinese };
+  }, [ingredientsForSuggestions]);
+
+  const biName = useCallback((item: any) => {
+    const lookup = (item.nameEn && ingredientBilingual.resolveByEn(item.nameEn)) || ingredientBilingual.resolveByChinese(item.name);
+    return getBilingualName(item.name, item.nameEn || lookup?.en, item.nameFil || lookup?.fil, item.nameId || lookup?.id);
+  }, [ingredientBilingual]);
 
   const [selectedCommonIngredientId, setSelectedCommonIngredientId] = useState<number | null>(null);
   const addModalScrollRef = useRef<ScrollView>(null);
@@ -732,9 +831,9 @@ export default function ShoppingTab() {
 
   const handleDelete = useCallback(
     (item: any) => {
-      Alert.alert("刪除項目", `確定要刪除「${item.name}」？`, [
-        { text: "取消", style: "cancel" },
-        { text: "刪除", style: "destructive", onPress: () => deleteItemM.mutate({ id: item.id }) },
+      Alert.alert(t("shopping.deleteItem"), t("shopping.confirmDelete", { name: biName(item).primary }), [
+        { text: t("recipe.cancel"), style: "cancel" },
+        { text: t("shopping.delete"), style: "destructive", onPress: () => deleteItemM.mutate({ id: item.id }) },
       ]);
     },
     [deleteItemM],
@@ -774,10 +873,6 @@ export default function ShoppingTab() {
     });
   }, [editItem, editName, editQty, editUnit, editPlannedDate, editBudgetPrice, updateItemM, getLinkedMealPlanDate]);
 
-  const toggleCategoryExpand = useCallback((cat: string) => {
-    setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
-  }, []);
-
   const handleDateCardTap = useCallback((date: string) => {
     if (selectedDate === date) {
       setSelectedDate(null);
@@ -811,6 +906,11 @@ export default function ShoppingTab() {
 
   const renderItem = (item: any) => {
     const isBought = item.status === "bought";
+    const lookup = (item.nameEn && ingredientBilingual.resolveByEn(item.nameEn)) || ingredientBilingual.resolveByChinese(item.name);
+    const en = item.nameEn || lookup?.en;
+    const fil = item.nameFil || lookup?.fil;
+    const id = item.nameId || lookup?.id;
+    const bn = getBilingualName(item.name, en, fil, id);
     const isPending = item.status === "pending";
     const isProcessing = toggleBoughtM.isPending || deleteItemM.isPending;
 
@@ -829,32 +929,36 @@ export default function ShoppingTab() {
         <View style={styles.itemContent}>
           <View style={styles.itemNameRow}>
             <Text style={[styles.itemName, isBought && styles.itemNameBought, isPending && styles.itemNamePending]}>
-              {item.name}
+              {bn.primary}
             </Text>
-            {item.fromRecipeName && (
-              item.fromRecipeId ? (
+            {!!bn.secondary && bn.secondary !== bn.primary && (
+              <Text style={styles.itemNameEn}>{bn.secondary}</Text>
+            )}
+            {item.fromRecipeName && (() => {
+              const rn = getBilingualName(item.fromRecipeName, item.fromRecipeNameEn, item.fromRecipeNameFil, item.fromRecipeNameId);
+              return item.fromRecipeId ? (
                 <TouchableOpacity
                   style={styles.recipeTag}
                   onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.fromRecipeId } } as any)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.recipeTagText}>{item.fromRecipeName}</Text>
+                  <Text style={styles.recipeTagText}>{rn.primary}</Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.recipeTagNeutral}>
-                  <Text style={styles.recipeTagTextNeutral} numberOfLines={1}>{item.fromRecipeName} · AI 建議</Text>
+                  <Text style={styles.recipeTagTextNeutral} numberOfLines={1}>{rn.primary} · {t("shopping.aiSuggested")}</Text>
                 </View>
-              )
-            )}
+              );
+            })()}
           </View>
           <View style={styles.itemMetaRow}>
             {/* 左側資訊區 (flex: 1) */}
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {(item.quantity || item.unit) && (
-                <Text style={styles.itemQty}>{item.quantity || ""}{item.unit ? ` ${item.unit}` : ""}</Text>
+                <Text style={styles.itemQty}>{item.quantity || ""}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>
               )}
               {item.proposedByName && (
-                <Text style={styles.itemProposer}>由 {item.proposedByName} 加入</Text>
+                <Text style={styles.itemProposer}>{t("shopping.addedBy", { name: item.proposedByName })}</Text>
               )}
               {(() => {
                 const mealDate = getLinkedMealPlanDate(item);
@@ -870,9 +974,9 @@ export default function ShoppingTab() {
                 ) : null;
               })()}
               {item.lastPrice != null ? (
-                <Text style={styles.itemPrice}>{isBought ? "購買" : "實際"} HK${item.lastPrice}</Text>
+                <Text style={styles.itemPrice}>{isBought ? t("dyn.purchase") : t("dyn.actual")} HK${item.lastPrice}</Text>
               ) : item.estimatedPrice != null ? (
-                <Text style={styles.itemPrice}>預算 HK${item.estimatedPrice}</Text>
+                <Text style={styles.itemPrice}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
               ) : null}
             </View>
             
@@ -881,20 +985,20 @@ export default function ShoppingTab() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" }}>
                 <TouchableOpacity
                   style={styles.compareBtn}
-                  onPress={() => { setPriceKw(item.name); setShowPrice(true); }}
+                  onPress={() => { setPriceKw(item.name); setPriceKwEn(item.nameEn || ""); setShowPrice(true); }}
                 >
                   <Ionicons name="search-outline" size={13} color="#013E77" />
-                  <Text style={styles.compareBtnText}>格價</Text>
+                  <Text style={styles.compareBtnText}>{t("shopping.comparePrice")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.moreBtn}
                   onPress={() => {
-                    Alert.alert(item.name, "選擇操作", [
-                      { text: "取消", style: "cancel" },
-                      { text: "編輯", onPress: () => openBudgetEdit(item) },
-                      { text: "預計價格", onPress: () => openBudgetEdit(item) },
-                      { text: "格價", onPress: () => { setPriceKw(item.name); setShowPrice(true); } },
-                      { text: "刪除", style: "destructive", onPress: () => handleDelete(item) },
+                    Alert.alert(biName(item).primary, t("shopping.chooseAction"), [
+                      { text: t("recipe.cancel"), style: "cancel" },
+                      { text: t("shopping.editItem"), onPress: () => openBudgetEdit(item) },
+                      { text: t("shopping.estPrice"), onPress: () => openBudgetEdit(item) },
+                      { text: t("shopping.comparePrice"), onPress: () => { setPriceKw(item.name); setPriceKwEn(item.nameEn || ""); setShowPrice(true); } },
+                      { text: t("shopping.delete"), style: "destructive", onPress: () => handleDelete(item) },
                     ]);
                   }}
                 >
@@ -910,7 +1014,7 @@ export default function ShoppingTab() {
             </Text>
           )}
           {isPending && !isAdmin && (
-            <Text style={styles.itemPendingTag}>待確認</Text>
+            <Text style={styles.itemPendingTag}>{t("shopping.pendingTag")}</Text>
           )}
 
           {isPending && isAdmin && (
@@ -921,7 +1025,7 @@ export default function ShoppingTab() {
                 disabled={approveItemM.isPending}
               >
                 <Ionicons name="checkmark-outline" size={14} color="#013E77" />
-                <Text style={styles.approveBtnTxt}>確認採購</Text>
+                <Text style={styles.approveBtnTxt}>{t("shopping.approvePurchase")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.rejectBtn}
@@ -929,7 +1033,7 @@ export default function ShoppingTab() {
                 disabled={rejectItemM.isPending}
               >
                 <Ionicons name="close-outline" size={14} color="#EF4444" />
-                <Text style={styles.rejectBtnTxt}>拒絕</Text>
+                <Text style={styles.rejectBtnTxt}>{t("shopping.reject")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -947,64 +1051,12 @@ export default function ShoppingTab() {
     );
   };
 
-  const renderCategoryCard = (cat: string, catItems: any[]) => {
-    const isExpanded = expandedCategories[cat] !== false;
-    const boughtCnt = catItems.filter((i) => i.status === "bought").length;
-    const totalCnt = catItems.length;
-    const isHouseholdCat = isHousehold(cat);
-    const emoji = CATEGORY_EMOJI[cat] || (isHouseholdCat ? "🧴" : "📦");
-    const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS["其他"];
-
-    return (
-      <View key={cat} style={[styles.categoryCard, isHouseholdCat && { backgroundColor: colors.bg, borderColor: colors.border }]}>
-        <TouchableOpacity
-          style={styles.categoryHeader}
-          onPress={() => toggleCategoryExpand(cat)}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          delayPressIn={0}
-          onPressIn={() => {}}
-        >
-          <View style={styles.categoryHeaderLeft}>
-            <Text style={styles.categoryEmoji}>{emoji}</Text>
-            <Text style={[styles.categoryName, isHouseholdCat && { color: colors.text }]}>{cat}</Text>
-            <Text style={styles.categoryProgress}>{boughtCnt}/{totalCnt} 已買</Text>
-          </View>
-          <View style={styles.categoryHeaderRight}>
-            <View style={[styles.categoryBadge, { backgroundColor: colors.badge }]}>
-              <Text style={styles.categoryBadgeText}>{totalCnt}</Text>
-            </View>
-            <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color="#9CA3AF" />
-          </View>
-        </TouchableOpacity>
-
-        {isExpanded && catItems.map((item: any) => (
-          <Fragment key={item.id}>
-            {renderItem(item)}
-          </Fragment>
-        ))}
-
-        {isExpanded && (
-          <TouchableOpacity
-            style={[styles.categoryAddBtn, isHouseholdCat && { borderTopColor: colors.border }]}
-            onPress={() => handleOpenAddModal(cat)}
-          >
-            <Ionicons name="add-outline" size={16} color={isHouseholdCat ? colors.text : "#013E77"} />
-            <Text style={[styles.categoryAddBtnText, isHouseholdCat && { color: colors.text }]}>
-              手動新增{isHouseholdCat ? "生活用品" : "食材"}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  };
-
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>購物清單</Text>
-          <Text style={styles.headerSubtitle}>{filteredUnboughtCount} 項待買</Text>
+          <Text style={styles.headerTitle}>{t("shopping.title")}</Text>
+          <Text style={styles.headerSubtitle}>{t("shopping.pending", { n: filteredUnboughtCount })}</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -1019,11 +1071,18 @@ export default function ShoppingTab() {
         </View>
       </View>
 
+      <HintBanner
+        hintId="shopping_list"
+        icon="cart"
+        title={t("shopping.listTitle")}
+        body={t("shopping.listBody")}
+      />
+
       <View style={styles.typeFilterRow}>
         {[
-          { key: "all" as const, label: "全部", icon: "cart-outline" as const },
-          { key: "food" as const, label: "食材", icon: "restaurant-outline" as const },
-          { key: "household" as const, label: "用品", icon: "cube-outline" as const },
+          { key: "all" as const, label: t("shopping.all"), icon: "cart-outline" as const },
+          { key: "food" as const, label: t("shopping.food"), icon: "restaurant-outline" as const },
+          { key: "household" as const, label: t("shopping.household"), icon: "cube-outline" as const },
         ].map((tab) => {
           let count = 0;
           if (tab.key === "all") count = unboughtCount;
@@ -1047,9 +1106,9 @@ export default function ShoppingTab() {
 
       <View style={styles.dateFilterRow}>
         {[
-          { key: "today" as const, label: "今天" },
-          { key: "tomorrow" as const, label: "明天" },
-          { key: "week" as const, label: "本週" },
+          { key: "today" as const, label: t("shopping.today") },
+          { key: "tomorrow" as const, label: t("shopping.tomorrow") },
+          { key: "week" as const, label: t("shopping.thisWeek") },
         ].map((chip) => (
           <TouchableOpacity
             key={chip.key}
@@ -1101,7 +1160,7 @@ export default function ShoppingTab() {
       {dateCardsData.length > 0 && (
         <View style={styles.dateCardsSection}>
           <View style={styles.dateCardsHeader}>
-            <Text style={styles.dateCardsTitle}>按購買日期</Text>
+            <Text style={styles.dateCardsTitle}>{t("shopping.byDate")}</Text>
           </View>
           <Text style={styles.dateCardsMonth}>{currentMonth}</Text>
           <View style={styles.dateCardsRow}>
@@ -1150,7 +1209,7 @@ export default function ShoppingTab() {
         <Ionicons name="search-outline" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="搜尋食材或用品..."
+          placeholder={t("shopping.searchPlaceholder")}
           placeholderTextColor="#9CA3AF"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -1160,19 +1219,19 @@ export default function ShoppingTab() {
       {isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color="#013E77" />
-          <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 8 }}>載入中...</Text>
+          <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 8 }}>{t("shopping.loading")}</Text>
         </View>
       ) : items.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="cart-outline" size={64} color="#D1D5DB" style={{ marginBottom: 16 }} />
-          <Text style={styles.emptyTitle}>購物清單是空的</Text>
-          <Text style={styles.emptySubtitle}>點擊右上角新增食材</Text>
+          <Text style={styles.emptyTitle}>{t("shopping.emptyTitle")}</Text>
+          <Text style={styles.emptySubtitle}>{t("shopping.emptySub")}</Text>
         </View>
       ) : categoryListData.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="filter-outline" size={48} color="#D1D5DB" style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>沒有符合條件的項目</Text>
-          <Text style={styles.emptySubtitle}>試試調整篩選條件</Text>
+          <Text style={styles.emptyTitle}>{t("shopping.noMatch")}</Text>
+          <Text style={styles.emptySubtitle}>{t("shopping.adjustFilters")}</Text>
         </View>
       ) : (
         <FlatList
@@ -1180,7 +1239,14 @@ export default function ShoppingTab() {
           keyExtractor={(item: any) => `cat_${item.cat}`}
           renderItem={({ item }: { item: any }) => {
             if (item._type === "categoryCard") {
-              return renderCategoryCard(item.cat, item.items);
+              return (
+                <CategoryCard
+                  cat={item.cat}
+                  catItems={item.items}
+                  onAdd={handleOpenAddModal}
+                  renderItem={renderItem}
+                />
+              );
             }
             return null;
           }}
@@ -1193,7 +1259,7 @@ export default function ShoppingTab() {
               <View style={styles.pendingBatchSection}>
                 <View style={styles.pendingBatchHeader}>
                   <Ionicons name="time-outline" size={18} color="#CA8A04" />
-                  <Text style={styles.pendingBatchTitle}>{pendingCount} 個項目待確認</Text>
+                  <Text style={styles.pendingBatchTitle}>{t("dyn.pendingItems", { n: pendingCount })}</Text>
                 </View>
                 <View style={styles.pendingBatchButtons}>
                   <TouchableOpacity
@@ -1202,7 +1268,7 @@ export default function ShoppingTab() {
                     disabled={approveAllM.isPending}
                   >
                     <Ionicons name="checkmark-circle" size={16} color="#013E77" />
-                    <Text style={styles.pendingBatchApproveBtnText}>全部確認</Text>
+                    <Text style={styles.pendingBatchApproveBtnText}>{t("shopping.approveAll")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.pendingBatchRejectBtn}
@@ -1210,7 +1276,7 @@ export default function ShoppingTab() {
                     disabled={rejectAllM.isPending}
                   >
                     <Ionicons name="close-circle" size={16} color="#EF4444" />
-                    <Text style={styles.pendingBatchRejectBtnText}>全部拒絕</Text>
+                    <Text style={styles.pendingBatchRejectBtnText}>{t("shopping.rejectAll")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1230,7 +1296,7 @@ export default function ShoppingTab() {
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>新增{isHousehold(addModalCategory) ? "生活用品" : "食材"}</Text>
+                <Text style={styles.modalTitle}>{isHousehold(addModalCategory) ? t("shopping.addHousehold") : t("shopping.addFood")}</Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)}>
                   <Ionicons name="close-outline" size={20} color="#6B7280" />
                 </TouchableOpacity>
@@ -1243,10 +1309,10 @@ export default function ShoppingTab() {
                 keyboardDismissMode="interactive"
               >
                 <View style={styles.modalBody}>
-                  <Text style={styles.fieldLabel}>名稱 *</Text>
+                  <Text style={styles.fieldLabel}>{t("shopping.nameLabel")}</Text>
                   <TextInput
                     style={styles.fieldInput}
-                    placeholder="e.g. 雞蛋"
+                    placeholder={t("shopping.namePlaceholder")}
                     placeholderTextColor="#9CA3AF"
                     value={newName}
                     onChangeText={(text) => { setNewName(text); setShowNameSuggestions(true); }}
@@ -1276,7 +1342,7 @@ export default function ShoppingTab() {
                             }}
                           >
                             <Text style={styles.suggestionName}>{s.name}</Text>
-                            <Text style={styles.suggestionMeta}>{s.category}{s.unit ? ` · ${s.unit}` : ""}</Text>
+                            <Text style={styles.suggestionMeta}>{enumT.category(s.category)}{s.unit ? ` · ${enumT.unit(s.unit)}` : ""}</Text>
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
@@ -1284,7 +1350,7 @@ export default function ShoppingTab() {
                   )}
                   <View style={styles.qtyRow}>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>數量</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.quantity")}</Text>
                       <TextInput
                         style={styles.fieldInput}
                         placeholder="e.g. 2"
@@ -1294,13 +1360,13 @@ export default function ShoppingTab() {
                       />
                     </View>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>單位</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.unit")}</Text>
                       <UnitPicker value={newUnit} onChange={setNewUnit} style={{ width: "100%", height: 42 }} />
                     </View>
                   </View>
                   <View style={styles.qtyRow}>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>預算價格 ($)</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.budgetPrice")}</Text>
                       <TextInput
                         style={styles.fieldInput}
                         placeholder="e.g. 20"
@@ -1311,17 +1377,17 @@ export default function ShoppingTab() {
                       />
                     </View>
                   </View>
-                  <Text style={styles.fieldLabel}>預計購買日期</Text>
+                  <Text style={styles.fieldLabel}>{t("shopping.plannedDate")}</Text>
                   <PlanDatePicker
                     value={newPlannedDate || DateUtil.todayISO()}
                     onChange={(iso) => setNewPlannedDate(iso)}
                   />
                   {newPlannedDate && (
                     <TouchableOpacity onPress={() => setNewPlannedDate(null)} style={{ alignSelf: "flex-end", marginTop: -8 }}>
-                      <Text style={styles.datePickerClear}>清除日期</Text>
+                      <Text style={styles.datePickerClear}>{t("recipe.clearDate")}</Text>
                     </TouchableOpacity>
                   )}
-                  <Text style={styles.fieldLabel}>分類</Text>
+                  <Text style={styles.fieldLabel}>{t("shopping.category")}</Text>
                   <View style={styles.categoryRow}>
                     {DEFAULT_CATEGORIES.map((cat) => (
                       <TouchableOpacity
@@ -1330,7 +1396,7 @@ export default function ShoppingTab() {
                         onPress={() => setNewCategory(cat)}
                       >
                         <Text style={[styles.categoryChipText, newCategory === cat && styles.categoryChipTextActive]}>
-                          {CATEGORY_EMOJI[cat] || ""} {cat}
+                          {CATEGORY_EMOJI[cat] || ""} {enumT.category(cat)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -1340,7 +1406,7 @@ export default function ShoppingTab() {
                     onPress={handleAdd}
                     disabled={!newName.trim()}
                   >
-                    <Text style={styles.submitBtnText}>加入購物清單</Text>
+                    <Text style={styles.submitBtnText}>{t("shopping.addToShoppingList")}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -1358,7 +1424,7 @@ export default function ShoppingTab() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>編輯項目</Text>
+                <Text style={styles.modalTitle}>{t("shopping.editItem")}</Text>
                 <TouchableOpacity onPress={() => setShowEditModal(false)}>
                   <Ionicons name="close-outline" size={20} color="#6B7280" />
                 </TouchableOpacity>
@@ -1370,10 +1436,10 @@ export default function ShoppingTab() {
                 keyboardDismissMode="interactive"
               >
                 <View style={styles.modalBody}>
-                  <Text style={styles.fieldLabel}>名稱 *</Text>
+                  <Text style={styles.fieldLabel}>{t("shopping.nameLabel")}</Text>
                   <TextInput
                     style={styles.fieldInput}
-                    placeholder="名稱"
+                    placeholder={t("shopping.nameShort")}
                     placeholderTextColor="#9CA3AF"
                     value={editName}
                     onChangeText={setEditName}
@@ -1381,24 +1447,24 @@ export default function ShoppingTab() {
                   />
                   <View style={styles.qtyRow}>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>數量</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.quantity")}</Text>
                       <TextInput
                         style={styles.fieldInput}
-                        placeholder="數量"
+                        placeholder={t("shopping.quantity")}
                         placeholderTextColor="#9CA3AF"
                         value={editQty}
                         onChangeText={setEditQty}
                       />
                     </View>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>單位</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.unit")}</Text>
                       <UnitPicker value={editUnit} onChange={setEditUnit} style={{ width: "100%", height: 42 }} />
                     </View>
                     <View style={styles.qtyField}>
-                      <Text style={styles.fieldLabel}>預算價格</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.budgetPriceShort")}</Text>
                       <TextInput
                         style={styles.fieldInput}
-                        placeholder="預算價格"
+                        placeholder={t("shopping.budgetPriceShort")}
                         placeholderTextColor="#9CA3AF"
                         value={editBudgetPrice}
                         onChangeText={setEditBudgetPrice}
@@ -1406,7 +1472,7 @@ export default function ShoppingTab() {
                       />
                     </View>
                   </View>
-                  <Text style={styles.fieldLabel}>預計購買日期</Text>
+                  <Text style={styles.fieldLabel}>{t("shopping.plannedDate")}</Text>
                   {editItem?.fromMealPlanId && getLinkedMealPlanDate(editItem) && (
                     <Text style={{ fontSize: 11, color: "#92400E", marginBottom: 6 }}>
                       ⚠️ 呢件食材來自排餐，最遲可選購物日：{getLinkedMealPlanDate(editItem)}
@@ -1419,7 +1485,7 @@ export default function ShoppingTab() {
                   />
                   {editPlannedDate && (
                     <TouchableOpacity onPress={() => setEditPlannedDate(null)} style={{ alignSelf: "flex-end", marginTop: -8 }}>
-                      <Text style={styles.datePickerClear}>清除日期</Text>
+                      <Text style={styles.datePickerClear}>{t("recipe.clearDate")}</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -1427,7 +1493,7 @@ export default function ShoppingTab() {
                     onPress={handleSaveEdit}
                     disabled={!editName.trim()}
                   >
-                    <Text style={styles.submitBtnText}>儲存</Text>
+                    <Text style={styles.submitBtnText}>{t("shopping.save")}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -1440,7 +1506,7 @@ export default function ShoppingTab() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>參考價格</Text>
+              <Text style={styles.modalTitle}>{t("shopping.refPrice")}</Text>
               <TouchableOpacity onPress={() => setShowPriceSummary(false)}>
                 <Ionicons name="close-outline" size={20} color="#6B7280" />
               </TouchableOpacity>
@@ -1455,7 +1521,7 @@ export default function ShoppingTab() {
                 </View>
               ))}
               <View style={styles.priceSummaryTotal}>
-                <Text style={styles.priceSummaryTotalLabel}>預算總計</Text>
+                <Text style={styles.priceSummaryTotalLabel}>{t("shopping.budgetTotal")}</Text>
                 <Text style={styles.priceSummaryTotalValue}>
                   ${items.filter(i => i.status !== "bought").reduce((sum: number, i: any) => sum + (i.estimatedPrice || 0), 0)}
                 </Text>
@@ -1474,7 +1540,7 @@ export default function ShoppingTab() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{savePriceMode === "buy" ? "記錄購買價" : "記錄實際價"}</Text>
+                <Text style={styles.modalTitle}>{savePriceMode === "buy" ? t("shopping.recordBuyPrice") : t("shopping.recordActualPrice")}</Text>
                 <TouchableOpacity onPress={() => setShowSavePrice(false)}>
                   <Ionicons name="close-outline" size={20} color="#6B7280" />
                 </TouchableOpacity>
@@ -1489,12 +1555,12 @@ export default function ShoppingTab() {
                     <>
                       <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 4 }}>{savePriceItem.name}</Text>
                       {lastPricesMap[savePriceItem.name]?.price != null && (
-                        <Text style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>上次記錄價格：${lastPricesMap[savePriceItem.name].price}</Text>
+                        <Text style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>{t("recipe.lastPrice", { price: `$${lastPricesMap[savePriceItem.name].price}` })}</Text>
                       )}
-                      <Text style={styles.fieldLabel}>價格 ($)</Text>
+                      <Text style={styles.fieldLabel}>{t("shopping.priceLabel")}</Text>
                       <TextInput
                         style={styles.fieldInput}
-                        placeholder="輸入價格"
+                        placeholder={t("shopping.pricePlaceholder")}
                         placeholderTextColor="#9CA3AF"
                         value={savePriceVal}
                         onChangeText={(text) => { savePriceEditedRef.current = true; setSavePriceVal(text); }}
@@ -1507,7 +1573,7 @@ export default function ShoppingTab() {
                             style={[styles.submitBtn, { flex: 1, backgroundColor: "#E8F0FE" }]}
                             onPress={() => { savePriceEditedRef.current = true; setSavePriceVal(String(lastPricesMap[savePriceItem.name].price)); }}
                           >
-                            <Text style={[styles.submitBtnText, { color: "#013E77" }]}>使用上次價格</Text>
+                            <Text style={[styles.submitBtnText, { color: "#013E77" }]}>{t("shopping.useLastPrice")}</Text>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
@@ -1519,8 +1585,8 @@ export default function ShoppingTab() {
                             setSavePriceItem(null);
                             setSavePriceVal("");
                             Alert.alert(
-                              savePriceMode === "buy" ? "已購買" : "已記錄",
-                              savePriceMode === "buy" ? "價格已儲存，項目已標記為已購買" : "價格已儲存"
+                              savePriceMode === "buy" ? t("shopping.bought") : t("shopping.recordActualPrice"),
+                              savePriceMode === "buy" ? t("shopping.purchasedRecorded") : t("shopping.priceSaved")
                             );
                             savePriceM.mutate({
                               itemId: savePriceItem.id,
@@ -1533,7 +1599,7 @@ export default function ShoppingTab() {
                             });
                           }}
                         >
-                          <Text style={styles.submitBtnText}>儲存</Text>
+                          <Text style={styles.submitBtnText}>{t("shopping.save")}</Text>
                         </TouchableOpacity>
                       </View>
                     </>
@@ -1548,7 +1614,8 @@ export default function ShoppingTab() {
       <PriceCompareModal
         visible={showPrice}
         keyword={priceKw}
-        onClose={() => { setShowPrice(false); setPriceKw(""); }}
+        keywordEn={priceKwEn}
+        onClose={() => { setShowPrice(false); setPriceKw(""); setPriceKwEn(""); }}
       />
 
     </View>
@@ -1558,7 +1625,7 @@ export default function ShoppingTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FAF8F5",
   },
   header: {
     flexDirection: "row",
@@ -1566,7 +1633,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "#FAF8F5",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
@@ -1943,6 +2010,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1A1A1A",
+  },
+  itemNameEn: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#9CA3AF",
+    marginTop: 1,
   },
   itemNameBought: {
     textDecorationLine: "line-through",

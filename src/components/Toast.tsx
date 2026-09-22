@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 export type ToastType = "success" | "error" | "info";
+
+type ToastAction = { label: string; onPress: () => void };
 
 type ToastProps = {
   visible: boolean;
@@ -11,10 +13,11 @@ type ToastProps = {
   type?: ToastType;
   onHide?: () => void;
   duration?: number;
+  action?: ToastAction;
 };
 
 type ToastContextValue = {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
+  showToast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
   hideToast: () => void;
 };
 
@@ -29,7 +32,7 @@ export function useToast() {
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<{ id: number; visible: boolean; message: string; type: ToastType; duration: number }>({
+  const [toast, setToast] = useState<{ id: number; visible: boolean; message: string; type: ToastType; duration: number; action?: ToastAction }>({
     id: 0,
     visible: false,
     message: "",
@@ -41,13 +44,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToast(prev => ({ ...prev, visible: false }));
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType = "success", duration = 3000) => {
+  const showToast = useCallback((message: string, type: ToastType = "success", duration = 3000, action?: ToastAction) => {
     setToast(prev => ({
       id: prev.id + 1,
       visible: true,
       message,
       type,
       duration,
+      action,
     }));
   }, []);
 
@@ -62,13 +66,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         message={toast.message}
         type={toast.type}
         duration={toast.duration}
+        action={toast.action}
         onHide={hideToast}
       />
     </ToastContext.Provider>
   );
 }
 
-export default function Toast({ visible, message, type = "success", onHide, duration = 3000 }: ToastProps) {
+export default function Toast({ visible, message, type = "success", onHide, duration = 3000, action }: ToastProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-20)).current;
 
@@ -98,8 +103,19 @@ export default function Toast({ visible, message, type = "success", onHide, dura
   return (
     <Animated.View style={[styles.container, { opacity, transform: [{ translateY }] }]}>
       <View style={[styles.toast, { backgroundColor: bgColor }]}>
-        <Ionicons name={icon} size={16} color="#fff" />
-        <Text style={styles.message} numberOfLines={2}>{message}</Text>
+        <View style={styles.row}>
+          <Ionicons name={icon} size={16} color="#fff" />
+          <Text style={styles.message} numberOfLines={2}>{message}</Text>
+        </View>
+        {action ? (
+          <Pressable
+            onPress={() => { action.onPress(); onHide?.(); }}
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
+            hitSlop={8}
+          >
+            <Text style={styles.actionTxt}>{action.label}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </Animated.View>
   );
@@ -113,25 +129,43 @@ const styles = StyleSheet.create({
     right: 16,
     zIndex: 9999,
     alignItems: "center",
-    pointerEvents: "none",
+    pointerEvents: "box-none",
   },
   toast: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    gap: 8,
+    gap: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 6,
   },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "stretch",
+  },
   message: {
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
     flex: 1,
+  },
+  actionBtn: {
+    alignSelf: "center",
+    paddingHorizontal: 17,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    minWidth: 96,
+    alignItems: "center",
+  },
+  actionTxt: {
+    color: "#013E77",
+    fontSize: 18,
+    fontWeight: "800",
   },
 });

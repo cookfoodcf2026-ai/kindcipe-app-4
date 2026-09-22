@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 const BRAND = "#013E77";
 
 export default function ForgotPasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const requestResetM = trpc.auth.requestPasswordReset.useMutation();
   const [email, setEmail] = useState("");
@@ -16,22 +18,22 @@ export default function ForgotPasswordScreen() {
   const handleSubmit = async () => {
     const value = email.trim();
     if (!value) {
-      Alert.alert("請輸入電郵地址");
+      Alert.alert(t("auth.enterEmail"));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      Alert.alert("電郵格式不正確");
+      Alert.alert(t("auth.invalidEmail"));
       return;
     }
 
     setIsLoading(true);
     try {
       await requestResetM.mutateAsync({ email: value });
-      Alert.alert("已送出", "如果此電郵存在，我們已寄出重設密碼連結。", [
+      Alert.alert(t("auth.sent"), t("auth.sentMsg"), [
         { text: "返回登入", onPress: () => router.replace("/login") },
       ]);
     } catch (err: any) {
-      Alert.alert("失敗", err?.message || "請稍後再試");
+      Alert.alert(t("auth.failed"), err?.message || t("auth.tryLater"));
     } finally {
       setIsLoading(false);
     }
@@ -44,20 +46,20 @@ export default function ForgotPasswordScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>忘記密碼</Text>
+          <Text style={styles.headerTitle}>{t("auth.forgotTitle")}</Text>
           <View style={{ width: 32 }} />
         </View>
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>重設登入密碼</Text>
-            <Text style={styles.subtitle}>輸入你註冊用的電郵，我們會寄出重設連結。</Text>
+            <Text style={styles.title}>{t("auth.resetTitle")}</Text>
+            <Text style={styles.subtitle}>{t("auth.resetSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="電郵地址"
+                placeholder={t("auth.emailPlaceholder")}
                 placeholderTextColor="#9CA3AF"
                 value={email}
                 onChangeText={setEmail}
@@ -67,7 +69,7 @@ export default function ForgotPasswordScreen() {
             </View>
 
             <TouchableOpacity style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>寄出重設連結</Text>}
+              {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{t("auth.sendResetLink")}</Text>}
             </TouchableOpacity>
           </View>
         </View>

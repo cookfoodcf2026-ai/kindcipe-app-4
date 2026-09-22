@@ -26,6 +26,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,10 +37,20 @@ const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_
 
 type OnboardingStep = "signin" | "choice" | "create" | "join" | "guide" | "import";
 
-export default function OnboardingScreen() {
+const GUIDE_SLIDES = [
+  { img: require("../assets/slide1.jpg"), title: "今晚食咩？AI 一鍵搞定", caption: "自動配好三餸一湯，唔使再煩", ui: null as string | null },
+  { img: require("../assets/slide2.jpg"), title: "家庭排餐，一目了然", caption: "僱主與工人姐姐即時同步", ui: "mealplan" as string | null },
+  { img: require("../assets/slide3.jpg"), title: "自動生成雙語買餸單", caption: "一鍵 Send 畀姐姐，買餸零錯漏", ui: "shopping" as string | null },
+  { img: require("../assets/slide4.jpg"), title: "家人溝通零時差", caption: "排餐、清單、買餸，一個 App 搞掂", ui: null as string | null },
+];
+
+export default function OnboardingScreen(
+  ) {
   const router = useRouter();
+  const { t } = useTranslation();
   const { logout } = useAuth();
   const [step, setStep] = useState<OnboardingStep>("signin");
+  const [guidePage, setGuidePage] = useState(0);
   const [loading, setLoading] = useState(false);
   
   // 建立廚房表單
@@ -90,7 +102,7 @@ export default function OnboardingScreen() {
       >
         <View style={styles.scannerOverlay}>
           <View style={styles.scannerFrame} />
-          <Text style={styles.scannerText}>掃描邀請 QR Code</Text>
+          <Text style={styles.scannerText}>{t("onboarding.scanQrCode")}</Text>
           <TouchableOpacity
             style={styles.scannerCloseButton}
             onPress={() => { setShowScanner(false); scannedRef.current = false; }}
@@ -108,13 +120,20 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           <Image
-            source={require("../assets/logo-full.png")}
-            style={styles.logoImage}
+            source={getAppLogo()}
+            style={styles.logoImageSmall}
             resizeMode="contain"
           />
-          <Text style={styles.heroTitle} adjustsFontSizeToFit numberOfLines={1}>告別 每日煩惱 「今晚食咩？」</Text>
-          <Text style={styles.heroSubtitle}>AI 智慧排餐 · 家人傭人同步</Text>
-          <Text style={styles.heroDesc}>拒絕每日選擇困難</Text>
+          <View style={styles.heroImageWrap}>
+            <Image
+                    source={require("../assets/onbardingcard-v1.jpeg")}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.heroTitle} adjustsFontSizeToFit numberOfLines={1}>{t("onboarding.heroTitle")}</Text>
+          <Text style={styles.heroSubtitle}>{t("onboarding.heroSubtitle")}</Text>
+          <Text style={styles.heroDesc}>{t("onboarding.heroDesc")}</Text>
         </View>
 
         <View style={styles.buttonContainer}>
@@ -122,13 +141,13 @@ export default function OnboardingScreen() {
             style={styles.primaryBtn}
             onPress={() => setStep("choice")}
           >
-            <Text style={styles.primaryBtnText}>開始使用 Kindcipe</Text>
+            <Text style={styles.primaryBtnText}>{t("onboarding.start")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
             onPress={logout}
           >
-            <Text style={styles.secondaryBtnText}>返回登入</Text>
+            <Text style={styles.secondaryBtnText}>{t("onboarding.backToLogin")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -141,18 +160,18 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep("signin")}>
-            <Text style={styles.backBtn}>← 返回</Text>
+            <Text style={styles.backBtn}>{t("onboarding.back")}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
           <Image
-            source={require("../assets/logo-full.png")}
+            source={getAppLogo()}
             style={styles.logoImageSmall}
             resizeMode="contain"
           />
-          <Text style={styles.title}>開始使用 Kindcipe</Text>
-          <Text style={styles.subtitle}>先建立你的廚房，再邀請家人一起使用</Text>
+          <Text style={styles.title}>{t("onboarding.startTitle")}</Text>
+          <Text style={styles.subtitle}>{t("onboarding.startSubtitle")}</Text>
         </View>
 
         <View style={styles.choiceContainer}>
@@ -165,7 +184,7 @@ export default function OnboardingScreen() {
                 <Text style={styles.choiceIconText}>+</Text>
               </View>
             </View>
-            <Text style={styles.choiceTitle}>建立廚房</Text>
+            <Text style={styles.choiceTitle}>{t("kitchen.createKitchen")}</Text>
             <Text style={styles.choiceDesc}>
               建立你的家庭廚房{"\n"}
               設定廚房名稱，邀請家人加入{"\n"}
@@ -182,7 +201,7 @@ export default function OnboardingScreen() {
                 <Text style={styles.choiceIconTextSecondary}>←</Text>
               </View>
             </View>
-            <Text style={styles.choiceTitle}>加入廚房</Text>
+            <Text style={styles.choiceTitle}>{t("kitchen.joinKitchen")}</Text>
             <Text style={styles.choiceDesc}>
               輸入家人給你的邀請碼{"\n"}
               加入已有廚房，與家人共享{"\n"}
@@ -200,19 +219,19 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep("choice")}>
-            <Text style={styles.backBtn}>← 返回</Text>
+            <Text style={styles.backBtn}>{t("onboarding.back")}</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.formContainer}>
-          <Text style={styles.formTitle}>設定你的廚房</Text>
-          <Text style={styles.formSubtitle}>為你的廚房取個名字吧</Text>
+          <Text style={styles.formTitle}>{t("onboarding.setupKitchen")}</Text>
+          <Text style={styles.formSubtitle}>{t("onboarding.setupKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>廚房名字</Text>
+            <Text style={styles.label}>{t("onboarding.kitchenNameLabel")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="例如：陳家廚房、小豬之家"
+              placeholder={t("onboarding.kitchenNamePlaceholder")}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={kitchenName}
               onChangeText={setKitchenName}
@@ -220,10 +239,10 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>你的名字</Text>
+            <Text style={styles.label}>{t("onboarding.yourName")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="例如：陳太太、小明"
+              placeholder={t("onboarding.yourNamePlaceholder")}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={userName}
               onChangeText={setUserName}
@@ -257,14 +276,14 @@ export default function OnboardingScreen() {
             {loading ? (
               <View style={styles.parseProgressRow}>
                 <ActivityIndicator color="#013E77" size={18} />
-                <Text style={styles.parseProgressText}>建立中...</Text>
+                <Text style={styles.parseProgressText}>{t("onboarding.creating")}</Text>
               </View>
             ) : (
-              <Text style={styles.primaryBtnText}>建立廚房</Text>
+              <Text style={styles.primaryBtnText}>{t("kitchen.createKitchen")}</Text>
             )}
           </TouchableOpacity>
 
-          <Text style={styles.formNote}>建立後可隨時邀請家人加入</Text>
+          <Text style={styles.formNote}>{t("onboarding.formNote")}</Text>
         </ScrollView>
       </SafeAreaView>
     );
@@ -276,19 +295,19 @@ export default function OnboardingScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep("choice")}>
-            <Text style={styles.backBtn}>← 返回</Text>
+            <Text style={styles.backBtn}>{t("onboarding.back")}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>加入家人廚房</Text>
-          <Text style={styles.formSubtitle}>輸入家人給你的邀請碼</Text>
+          <Text style={styles.formTitle}>{t("onboarding.joinFamilyKitchen")}</Text>
+          <Text style={styles.formSubtitle}>{t("onboarding.joinFamilyKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>邀請碼</Text>
+            <Text style={styles.label}>{t("kitchen.inviteCode")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="例如：ABC123"
+              placeholder={t("onboarding.invitePlaceholder")}
               placeholderTextColor="rgba(255,255,255,0.4)"
               value={inviteCode}
               onChangeText={setInviteCode}
@@ -309,7 +328,7 @@ export default function OnboardingScreen() {
               }}
             >
               <Ionicons name="camera-outline" size={18} color="#013E77" />
-              <Text style={styles.scanQrButtonText}>掃描 QR Code</Text>
+              <Text style={styles.scanQrButtonText}>{t("onboarding.scanQrBtn")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -340,14 +359,14 @@ export default function OnboardingScreen() {
             {loading ? (
               <View style={styles.parseProgressRow}>
                 <ActivityIndicator color="#013E77" size={18} />
-                <Text style={styles.parseProgressText}>加入中...</Text>
+                <Text style={styles.parseProgressText}>{t("onboarding.joining")}</Text>
               </View>
             ) : (
-              <Text style={styles.primaryBtnText}>加入廚房</Text>
+              <Text style={styles.primaryBtnText}>{t("kitchen.joinKitchen")}</Text>
             )}
           </TouchableOpacity>
 
-          <Text style={styles.formNote}>邀請碼可以向廚房管理員索取</Text>
+          <Text style={styles.formNote}>{t("onboarding.inviteNote")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -360,75 +379,108 @@ export default function OnboardingScreen() {
         <View style={styles.guideWrap}>
           <View style={styles.guideHeader}>
             <Image
-              source={require("../assets/logo-full.png")}
+              source={getAppLogo()}
               style={styles.guideLogo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>廚房已就緒！</Text>
-            <Text style={styles.subtitle}>以後管理家庭飲食就靠 Kindcipe</Text>
           </View>
 
-          <View style={styles.benefitList}>
-            <View style={styles.benefitCard}>
-              <View style={styles.benefitIconCircle}>
-                <Ionicons name="restaurant-outline" size={20} color="#013E77" />
-              </View>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>告別 每日煩惱 「今晚食咩？」</Text>
-                <Text style={styles.benefitDesc}>AI 智慧排餐，家人傭人同步，拒絕每日選擇困難</Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitCard}>
-              <View style={styles.benefitIconCircle}>
-                <Ionicons name="people-outline" size={20} color="#013E77" />
-              </View>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>家庭資訊零時差</Text>
-                <Text style={styles.benefitDesc}>排餐庫存全家共享，不再為「買咗未？」吵架</Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitCard}>
-              <View style={styles.benefitIconCircle}>
-                <Ionicons name="cart-outline" size={20} color="#013E77" />
-              </View>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>購物清單智慧避雷</Text>
-                <Text style={styles.benefitDesc}>食材缺貨隨手記，全家即時同步，杜絕重複購買</Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitCard}>
-              <View style={styles.benefitIconCircle}>
-                <Ionicons name="phone-portrait-outline" size={20} color="#013E77" />
-              </View>
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>網紅食譜一鍵還原</Text>
-                <Text style={styles.benefitDesc}>IG 美食直接導入，AI 自動拆解步驟與清單</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => router.push("/import?onboarding=true")}
+          {/* Full-bleed 混合式 Carousel：AI 背景 + 覆蓋標題 + (app UI) + 浮動 CTA */}
+          <View style={styles.carouselWrap}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(e) => setGuidePage(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))}
             >
-              <Text style={styles.primaryBtnText}>開始匯入第一個食譜</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={finishOnboarding}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#013E77" size="small" />
-              ) : (
-                <Text style={styles.secondaryBtnText}>跳過，稍後再匯入</Text>
-              )}
-            </TouchableOpacity>
+              {GUIDE_SLIDES.map((slide, i) => (
+                <View key={i} style={styles.slide}>
+                  <Image source={slide.img} style={styles.slideImg} resizeMode="cover" />
+                  <View style={styles.slideScrim} />
+
+                  <View style={styles.slideTop}>
+                    <Text style={styles.slideTitle} numberOfLines={2}>{slide.title}</Text>
+                    <Text style={styles.slideCaption} numberOfLines={2}>{slide.caption}</Text>
+                  </View>
+
+                  {slide.ui === "mealplan" && (
+                    <View style={styles.slideUI}>
+                      <View style={styles.uiCardHeader}>
+                        <Ionicons name="calendar-outline" size={16} color="#013E77" />
+                        <Text style={styles.uiCardTitle}>{t("onboarding.uiWeekMenu")}</Text>
+                      </View>
+                      <View style={styles.uiWeekRow}>
+                        {[
+                          { d: "一", meal: "湯" },
+                          { d: "二", meal: "魚" },
+                          { d: "三", meal: "3餸1湯", active: true },
+                          { d: "四", meal: "菜" },
+                          { d: "五", meal: "肉" },
+                          { d: "六", meal: "外出" },
+                          { d: "日", meal: "湯" },
+                        ].map((x) => (
+                          <View key={x.d} style={[styles.uiDay, x.active && styles.uiDayActive]}>
+                            <Text style={[styles.uiDayText, x.active && styles.uiDayTextActive]}>{x.d}</Text>
+                            <Text style={[styles.uiDayMeal, x.active && styles.uiDayMealActive]} numberOfLines={1}>{x.meal}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {slide.ui === "shopping" && (
+                    <View style={styles.slideUI}>
+                      <View style={styles.uiCardHeader}>
+                        <Ionicons name="cart-outline" size={16} color="#013E77" />
+                        <Text style={styles.uiCardTitle}>{t("onboarding.uiShoppingList")}</Text>
+                      </View>
+                      <View style={styles.uiList}>
+                        {["番茄", "馬鈴薯", "青蔥"].map((it) => (
+                          <View key={it} style={styles.uiItem}>
+                            <View style={styles.uiCheck}><Ionicons name="checkmark" size={12} color="#fff" /></View>
+                            <Text style={styles.uiItemText}>{it}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {i === GUIDE_SLIDES.length - 1 && (
+                    <View style={styles.slideCTA}>
+                      <TouchableOpacity
+                        style={styles.genPill}
+                        activeOpacity={0.85}
+                        onPress={finishOnboarding}
+                        disabled={loading}
+                      >
+                        <View style={styles.genPillIcon}><Ionicons name="sparkles" size={16} color="#fff" /></View>
+                        <Text style={styles.genPillText}>{t("onboarding.startUsing")}</Text>
+                        <Ionicons name="arrow-forward" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.dotsRow}>
+              {GUIDE_SLIDES.map((_, i) => (
+                <View key={i} style={[styles.dot, guidePage === i && styles.dotActive]} />
+              ))}
+            </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.skipBtn}
+            onPress={finishOnboarding}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#9CA3AF" size="small" />
+            ) : (
+              <Text style={styles.skipBtnText}>{t("onboarding.skip")}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -455,7 +507,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAF8F5",
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
@@ -491,6 +543,22 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     marginBottom: 12,
+  },
+  heroImageWrap: {
+    width: "92%",
+    height: 200,
+    borderRadius: 20,
+    overflow: "hidden",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
   },
   heroTitle: {
     fontSize: 32,
@@ -719,6 +787,188 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     lineHeight: 17,
+  },
+  carouselWrap: {
+    flex: 1,
+    justifyContent: "center",
+    marginHorizontal: -20,
+  },
+  slide: {
+    width: Dimensions.get("window").width,
+    height: "100%",
+    borderRadius: 24,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#F5F1EA",
+  },
+  slideImg: {
+    ...StyleSheet.absoluteFillObject,
+    width: undefined,
+    height: undefined,
+  },
+  slideScrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 130,
+    backgroundColor: "rgba(255,251,240,0.55)",
+  },
+  slideTop: {
+    position: "absolute",
+    top: 24,
+    left: 22,
+    right: 22,
+    zIndex: 10,
+  },
+  slideTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#4A3728",
+    lineHeight: 34,
+  },
+  slideCaption: {
+    fontSize: 14,
+    color: "#7A6553",
+    marginTop: 6,
+    fontWeight: "600",
+  },
+  slideUI: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 84,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+    gap: 12,
+    zIndex: 5,
+  },
+  uiCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  uiCardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1A1A1A",
+  },
+  uiWeekRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  uiDay: {
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 5,
+    borderRadius: 8,
+  },
+  uiDayActive: {
+    backgroundColor: "#013E77",
+  },
+  uiDayText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+  },
+  uiDayTextActive: {
+    color: "#fff",
+  },
+  uiDayMeal: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "#9CA3AF",
+  },
+  uiDayMealActive: {
+    color: "#D1D5DB",
+  },
+  uiList: {
+    gap: 8,
+  },
+  uiItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  uiCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: "#16A34A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uiItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  slideCTA: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 22,
+    alignItems: "center",
+    zIndex: 20,
+  },
+  genPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#B96A50",
+    borderRadius: 40,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  genPillIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genPillText: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#D1D5DB",
+  },
+  dotActive: {
+    backgroundColor: "#013E77",
+    width: 20,
+  },
+  skipBtn: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  skipBtnText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   platformContainer: {
     gap: 12,

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 
 // 開關：而家冇第三方廣告，先顯示 Pro promo 佔位。
 // 將來接入 AdMob 時，將呢個 flag 轉做 true，並喺 render 度換成 <BannerAd>。
@@ -14,13 +15,14 @@ type AdSlotProps = {
 // 轉換時淨係改 SHOW_ADS 同埋 AdSlot 入面嘅 render 內容，唔使改 layout。
 export default function AdSlot({ onPressUpgrade }: AdSlotProps) {
   const router = useRouter();
+  const { t } = useTranslation();
 
   if (SHOW_ADS) {
     // TODO(ads): 接入 AdMob BannerAd 之後喺呢度 render。
     // 例如：<BannerAd unitId="ca-app-pub-xxx" size="BANNER" />
     return (
       <View style={s.ad}>
-        <Text style={s.adText}>廣告</Text>
+        <Text style={s.adText}>{t("misc.ad")}</Text>
       </View>
     );
   }
@@ -38,8 +40,8 @@ export default function AdSlot({ onPressUpgrade }: AdSlotProps) {
         <Ionicons name="sparkles" size={18} color="#FFFFFF" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={s.title}>升級 Pro，解鎖無限 AI 排餐</Text>
-        <Text style={s.subtitle}>與家人連繫，連結 AI，免費試用 7 天</Text>
+        <Text style={s.title}>{t("adSlot.upgradeTitle")}</Text>
+        <Text style={s.subtitle}>{t("adSlot.upgradeSubtitle")}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#B45309" />
     </TouchableOpacity>

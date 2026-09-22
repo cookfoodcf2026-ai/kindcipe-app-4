@@ -4,6 +4,7 @@
  * 缺貨 / 即將耗盡 → 一鍵加入購物清單
  */
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert,
@@ -38,6 +39,7 @@ function daysSince(d: Date | string): number {
 }
 
 export default function RestockScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
@@ -177,19 +179,19 @@ export default function RestockScreen() {
             {urgentItems.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 48 }}>
                 <Ionicons name="checkmark-circle" size={48} color="#22C55E" />
-                <Text style={{ fontSize: 16, fontWeight: "700", color: TEXT, marginTop: 12 }}>所有物品庫存充足</Text>
-                <Text style={{ fontSize: 13, color: SUB, marginTop: 4 }}>沒有缺貨或即將耗盡的物品</Text>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: TEXT, marginTop: 12 }}>{t("misc.allStocked")}</Text>
+                <Text style={{ fontSize: 13, color: SUB, marginTop: 4 }}>{t("misc.allStockedSub")}</Text>
               </View>
             ) : (
               <>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <Text style={{ fontSize: 13, color: SUB }}>共 {urgentItems.length} 件需要補貨</Text>
+                  <Text style={{ fontSize: 13, color: SUB }}>{t("dyn.needRestock", { n: urgentItems.length })}</Text>
                   <TouchableOpacity
                     style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E8F0FA", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                     onPress={handleMarkAllRestocked}
                   >
                     <Ionicons name="checkmark-done-outline" size={14} color={BRAND} />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>全部標記有貨</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>{t("misc.markAllInStock")}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -206,7 +208,7 @@ export default function RestockScreen() {
                           <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }}>{item.name}</Text>
                           <View style={{ flexDirection: "row", gap: 6, marginTop: 2 }}>
                             <View style={{ backgroundColor: isOut ? "#FEF2F2" : "#FFFBEB", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                              <Text style={{ fontSize: 10, fontWeight: "700", color: isOut ? "#DC2626" : "#D97706" }}>{isOut ? "缺貨" : "即將耗盡"}</Text>
+                              <Text style={{ fontSize: 10, fontWeight: "700", color: isOut ? "#DC2626" : "#D97706" }}>{isOut ? t("pantry.outOfStock") : t("pantry.runningLow")}</Text>
                             </View>
                             {item.category && <Text style={{ fontSize: 10, color: SUB }}>{item.category}</Text>}
                           </View>
@@ -230,7 +232,7 @@ export default function RestockScreen() {
                       {/* Price comparison panel */}
                       {isExpanded && (
                         <View style={{ padding: 10, backgroundColor: "#FAFAFA", borderTopWidth: 1, borderTopColor: BORDER }}>
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8 }}>搜尋比價</Text>
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("misc.searchCompare")}</Text>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             {SUPERMARKETS.map(sm => (
                               <TouchableOpacity
@@ -240,7 +242,7 @@ export default function RestockScreen() {
                               >
                                 <Ionicons name={sm.icon as any} size={16} color={sm.color} />
                                 <Text style={{ fontSize: 10, fontWeight: "700", color: sm.color, marginTop: 2 }}>{sm.platform.name}</Text>
-                                <Text style={{ fontSize: 9, color: SUB }}>前往搜尋</Text>
+                                <Text style={{ fontSize: 9, color: SUB }}>{t("misc.goSearch")}</Text>
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -248,13 +250,13 @@ export default function RestockScreen() {
                             style={{ marginTop: 8, backgroundColor: "#EEF4FB", borderRadius: 10, paddingVertical: 8, alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
                             onPress={() => { setPriceKw(item.name); setShowPrice(true); }}
                           >
-                            <Text style={{ color: BRAND, fontSize: 12, fontWeight: "700" }}>詳細比價（消委會）</Text>
+                            <Text style={{ color: BRAND, fontSize: 12, fontWeight: "700" }}>{t("misc.detailedCompare")}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={{ marginTop: 8, backgroundColor: BRAND, borderRadius: 10, paddingVertical: 8, alignItems: "center" }}
                             onPress={() => { handleAddToShopping(item.name); setExpandedItem(null); }}
                           >
-                            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入購物清單</Text>
+                            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{t("shopping.addToShoppingList")}</Text>
                           </TouchableOpacity>
                         </View>
                       )}
@@ -270,8 +272,8 @@ export default function RestockScreen() {
             {predictItems.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 48 }}>
                 <Ionicons name="trending-up-outline" size={48} color={HINT} />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12 }}>暫無預測補貨建議</Text>
-                <Text style={{ fontSize: 12, color: HINT, marginTop: 4, textAlign: "center" }}>購買同一商品 2 次後，AI 將預測補貨時機</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12 }}>{t("misc.noRestock")}</Text>
+                <Text style={{ fontSize: 12, color: HINT, marginTop: 4, textAlign: "center" }}>{t("misc.noRestockSub")}</Text>
               </View>
             ) : (
               <>
@@ -286,15 +288,15 @@ export default function RestockScreen() {
                         <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT, marginBottom: 6 }}>{item.name}</Text>
                         <View style={{ flexDirection: "row", gap: 4, marginBottom: 10 }}>
                           <View style={{ backgroundColor: "#EEF4FB", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND }}>買過 {item.count} 次</Text>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND }}>{t("dyn.boughtTimes", { n: item.count })}</Text>
                           </View>
-                          <Text style={{ fontSize: 10, color: SUB }}>{days}天前</Text>
+                          <Text style={{ fontSize: 10, color: SUB }}>{t("dyn.daysAgo", { n: days })}</Text>
                         </View>
                         <TouchableOpacity
                           style={{ backgroundColor: BRAND, borderRadius: 8, paddingVertical: 7, alignItems: "center" }}
                           onPress={() => handleAddToShopping(item.name)}
                         >
-                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>加入購物清單</Text>
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{t("shopping.addToShoppingList")}</Text>
                         </TouchableOpacity>
                       </View>
                     );

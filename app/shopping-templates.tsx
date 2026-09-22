@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, TextInput, Modal, ActivityIndicator, Linking, Platform, KeyboardAvoidingView, Keyboard
@@ -11,6 +12,7 @@ import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { useToast } from "@/src/components/Toast";
+import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import UnitPicker from "@/src/components/UnitPicker";
 import { DateUtil } from "@/src/lib/DateUtil";
@@ -51,6 +53,7 @@ const safeParseArray = <T,>(raw: string): T[] | null => {
 };
 
 export default function ShoppingTemplatesScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -62,6 +65,7 @@ export default function ShoppingTemplatesScreen() {
 
   // 1. 核心狀態
   const [selectedTemplate, setSelectedTemplate] = useState<ShoppingTemplate | null>(null);
+  const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const [peopleCount, setPeopleCount] = useState(4); // 預設 4 人
   const [planDate, setPlanDate] = useState<string | null>(DateUtil.todayISO());
   const planDateLabel = planDate ?? "未設定";
@@ -107,9 +111,9 @@ export default function ShoppingTemplatesScreen() {
 
   // TRPC Mutation
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
-      showToast(`✅ 已將所選食材加入購物車（預定日子：${planDateLabel}）`);
+      setShoppingConfirmCount(variables.items.length);
       setSelectedTemplate(null);
       setSelectedItems(new Set());
       setQuantityOverrides({});
@@ -460,7 +464,7 @@ export default function ShoppingTemplatesScreen() {
     const perPerson = (total / peopleCount).toFixed(1);
     const templateName = selectedTemplate?.name || "打邊爐/BBQ";
     
-    const message = `📣 【和諧食譜】${templateName}開支分攤：\n📅 日期: ${planDateLabel}\n👥 聚會人數: ${peopleCount} 人\n💰 實際總開支: $${total}\n💸 每人分攤: $${perPerson}\n\n唔該晒大家！記得 PayMe / 轉數快比我啦！😘`;
+    const message = `📣 【Kindcipe】${templateName}開支分攤：\n📅 日期: ${planDateLabel}\n👥 聚會人數: ${t("dyn.pax", { n: peopleCount })}\n💰 實際總開支: $${total}\n💸 每人分攤: $${perPerson}\n\n唔該晒大家！記得 PayMe / 轉數快比我啦！😘`;
     
     Alert.alert(
       "AA制分攤計算結果",
@@ -486,7 +490,7 @@ export default function ShoppingTemplatesScreen() {
     if (!selectedTemplate) return;
     const lang = shareLanguage;
     const titleMap = {
-      zh: `📋 【和諧食譜】買餸委派便條`,
+      zh: `📋 【Kindcipe】買餸委派便條`,
       en: `📋 【Kindcipe】Shopping List (English)`,
       id: `📋 【Kindcipe】Daftar Belanja (Indonesian)`,
       ph: `📋 【Kindcipe】Listahan ng Pamimili (Tagalog)`
@@ -551,7 +555,7 @@ export default function ShoppingTemplatesScreen() {
     if (!selectedTemplate) return;
     const lang = shareLanguage;
     const titleMap = {
-      zh: `📋 【和諧食譜】買餸委派便條`,
+      zh: `📋 【Kindcipe】買餸委派便條`,
       en: `📋 【Kindcipe】Shopping List`,
       id: `📋 【Kindcipe】Daftar Belanja`,
       ph: `📋 【Kindcipe】Listahan ng Pamimili`
@@ -709,8 +713,8 @@ export default function ShoppingTemplatesScreen() {
                   <Ionicons name="basket-outline" size={24} color="#fff" />
                 </View>
                 <View>
-                  <Text style={{ fontSize: 20, fontWeight: "900", color: "#fff" }}>聚會買餸單</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>一鍵買齊大時大節聚餐食材</Text>
+                  <Text style={{ fontSize: 20, fontWeight: "900", color: "#fff" }}>{t("party.title")}</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>{t("party.subtitle")}</Text>
                 </View>
               </View>
             </View>
@@ -719,8 +723,8 @@ export default function ShoppingTemplatesScreen() {
             {savedLists.length > 0 && (
               <View style={{ padding: 16, paddingBottom: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "800", color: TEXT }}>💾 已儲存清單</Text>
-                  <Text style={{ fontSize: 12, color: SUB }}>{savedLists.length} 個清單</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "800", color: TEXT }}>{t("party.savedList")}</Text>
+                  <Text style={{ fontSize: 12, color: SUB }}>{t("dyn.nLists", { n: savedLists.length })}</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {savedLists.slice(0, 3).map(list => (
@@ -756,7 +760,7 @@ export default function ShoppingTemplatesScreen() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }}>{list.name}</Text>
-                          <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{list.items.length} 項食材 · {list.people}人</Text>
+                          <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{t("dyn.itemsPeople", { n: list.items.length, p: list.people })}</Text>
                         </View>
                       </View>
                       <TouchableOpacity
@@ -931,14 +935,14 @@ export default function ShoppingTemplatesScreen() {
             {/* 1. 人數 Stepper */}
             <View style={s.controlRow}>
               <View>
-                <Text style={s.controlLabel}>👨‍👩‍👧‍👦 聚會人數</Text>
-                <Text style={s.controlSub}>份量會根據人數精準比例更新</Text>
+                <Text style={s.controlLabel}>{t("party.people")}</Text>
+                <Text style={s.controlSub}>{t("party.peopleSub")}</Text>
               </View>
               <View style={s.stepper}>
                 <TouchableOpacity style={s.stepperBtn} onPress={handleDecrementPeople} disabled={peopleCount <= 1}>
                   <Ionicons name="remove" size={18} color={peopleCount <= 1 ? SUB : BRAND} />
                 </TouchableOpacity>
-                <Text style={s.stepperVal}>{peopleCount} 人</Text>
+                <Text style={s.stepperVal}>{t("dyn.pax", { n: peopleCount })}</Text>
                 <TouchableOpacity style={s.stepperBtn} onPress={handleIncrementPeople} disabled={peopleCount >= 20}>
                   <Ionicons name="add" size={18} color={peopleCount >= 20 ? SUB : BRAND} />
                 </TouchableOpacity>
@@ -950,14 +954,14 @@ export default function ShoppingTemplatesScreen() {
 
             {/* 2. 原生日子選擇器 */}
             <View style={{ marginTop: 12 }}>
-              <Text style={[s.controlLabel, { marginBottom: 8 }]}>📅 聚餐/購買日期</Text>
+              <Text style={[s.controlLabel, { marginBottom: 8 }]}>{t("party.date")}</Text>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
               {planDate && (
                 <TouchableOpacity 
                   onPress={() => setPlanDate(null)} 
                   style={{ alignSelf: "flex-end", marginTop: -8 }}
                 >
-                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -987,7 +991,7 @@ export default function ShoppingTemplatesScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.categoryName}>{category.name}</Text>
-                      <Text style={s.categoryProgress}>已選 {selectedItemsCount + customSelectedCount} / {totalItemsCount + categoryCustomItems.length} 項</Text>
+                      <Text style={s.categoryProgress}>{t("dyn.selectedOf", { a: selectedItemsCount + customSelectedCount, b: totalItemsCount + categoryCustomItems.length })}</Text>
                     </View>
                     
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -995,7 +999,7 @@ export default function ShoppingTemplatesScreen() {
                         style={s.selectAllBtn}
                         onPress={() => toggleCategorySelection(category, !isAllSelected)}
                       >
-                        <Text style={s.selectAllBtnText}>{isAllSelected ? "全消" : "全選"}</Text>
+                        <Text style={s.selectAllBtnText}>{isAllSelected ? t("dyn.deselectAll") : t("picker.selectAll")}</Text>
                       </TouchableOpacity>
                       <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color={SUB} />
                     </View>
@@ -1039,7 +1043,7 @@ export default function ShoppingTemplatesScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>
                                 {item.name}
-                                {item.isOptional && <Text style={{ fontSize: 10, color: SUB, fontWeight: "400" }}> (可選)</Text>}
+                                {item.isOptional && <Text style={{ fontSize: 10, color: SUB, fontWeight: "400" }}>{t("party.optional")}</Text>}
                               </Text>
                             </View>
 
@@ -1142,7 +1146,7 @@ export default function ShoppingTemplatesScreen() {
                           <View style={s.inlineInputRow}>
                             <TextInput
                               style={[s.input, { flex: 2 }]}
-                              placeholder="食材名稱"
+                              placeholder={t("party.ingredientNamePlaceholder")}
                               placeholderTextColor="#999"
                               value={customInputName}
                               onChangeText={(text) => {
@@ -1158,7 +1162,7 @@ export default function ShoppingTemplatesScreen() {
                             />
                           <TextInput
                             style={[s.input, { flex: 0.8, textAlign: "center" }]}
-                            placeholder="數量"
+                            placeholder={t("shopping.quantity")}
                             placeholderTextColor="#999"
                             keyboardType="numeric"
                             value={customInputQty}
@@ -1208,7 +1212,7 @@ export default function ShoppingTemplatesScreen() {
                           }}
                         >
                           <Ionicons name="add" size={14} color={BRAND} />
-                          <Text style={s.addCustomRowText}>新增{category.name}自訂食材...</Text>
+                          <Text style={s.addCustomRowText}>{t("dyn.addCustomCategory", { cat: category.name })}</Text>
                         </TouchableOpacity>
                       )}
 
@@ -1228,8 +1232,8 @@ export default function ShoppingTemplatesScreen() {
                   <Ionicons name="ellipsis-horizontal-outline" size={20} color={BRAND} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.categoryName}>其他</Text>
-                  <Text style={s.categoryProgress}>自訂雜項（飲料、炭、紙巾等）</Text>
+                  <Text style={s.categoryName}>{t("party.otherCat")}</Text>
+                  <Text style={s.categoryProgress}>{t("party.otherCatSub")}</Text>
                 </View>
                 <Ionicons name={expandedCategories.has("other") ? "chevron-up" : "chevron-down"} size={16} color={SUB} />
               </TouchableOpacity>
@@ -1264,7 +1268,7 @@ export default function ShoppingTemplatesScreen() {
                       <View style={s.inlineInputRow}>
                         <TextInput
                           style={[s.input, { flex: 2 }]}
-                          placeholder="自訂雜項/飲料..."
+                          placeholder={t("party.customPlaceholder")}
                           placeholderTextColor="#999"
                           value={customInputName}
                           onChangeText={(text) => {
@@ -1280,7 +1284,7 @@ export default function ShoppingTemplatesScreen() {
                         />
                       <TextInput
                         style={[s.input, { flex: 0.8, textAlign: "center" }]}
-                        placeholder="數量"
+                        placeholder={t("shopping.quantity")}
                         placeholderTextColor="#999"
                         keyboardType="numeric"
                         value={customInputQty}
@@ -1330,7 +1334,7 @@ export default function ShoppingTemplatesScreen() {
                       }}
                     >
                       <Ionicons name="add" size={14} color={BRAND} />
-                      <Text style={s.addCustomRowText}>新增其他雜物 (如飲料、炭、紙巾)...</Text>
+                      <Text style={s.addCustomRowText}>{t("party.addCustom")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1343,10 +1347,10 @@ export default function ShoppingTemplatesScreen() {
         {/* D. 底部懸浮結算列 */}
         <View style={[s.floatingBar, { bottom: Platform.OS === "ios" ? 0 : keyboardH, paddingBottom: keyboardH > 0 ? 12 : Math.max(insets.bottom, 12) }]}>
           <View style={{ flex: 1 }}>
-            <Text style={s.floatingSelectedCount}>已選 {totalSelectedCount} 項食材</Text>
-            <Text style={s.floatingSubtitle}>適合 {peopleCount} 人份量 · {planDateLabel}</Text>
+            <Text style={s.floatingSelectedCount}>{t("dyn.selectedCount", { n: totalSelectedCount })}</Text>
+            <Text style={s.floatingSubtitle}>{t("dyn.suitableFor", { p: peopleCount, date: planDateLabel })}</Text>
             {totalEstimatedPrice > 0 && (
-              <Text style={s.floatingBudget}>💰 預計總開支：${totalEstimatedPrice}</Text>
+              <Text style={s.floatingBudget}>{t("dyn.estimatedTotal", { price: `$${totalEstimatedPrice}` })}</Text>
             )}
           </View>
           <TouchableOpacity
@@ -1359,7 +1363,7 @@ export default function ShoppingTemplatesScreen() {
             ) : (
               <>
                 <Ionicons name="cart-outline" size={18} color="#fff" style={{ marginRight: 4 }} />
-                <Text style={s.floatingCartBtnText}>加入購物車</Text>
+                <Text style={s.floatingCartBtnText}>{t("planner.addToCart")}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1371,17 +1375,17 @@ export default function ShoppingTemplatesScreen() {
           <View style={s.modalOverlay}>
             <View style={s.modalContainer}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>💸 實際購買 AA 制計數機</Text>
+                <Text style={s.modalTitle}>{t("party.aaTitle")}</Text>
                 <TouchableOpacity onPress={() => setShowAASplitModal(false)}>
                   <Ionicons name="close" size={20} color={TEXT} />
                 </TouchableOpacity>
               </View>
               
               <View style={{ padding: 20 }}>
-                <Text style={s.modalInputLabel}>輸入本次買餸實際總開支 ($)：</Text>
+                <Text style={s.modalInputLabel}>{t("party.aaInput")}</Text>
                 <TextInput
                   style={s.modalInput}
-                  placeholder="例如：680"
+                  placeholder={t("party.pricePlaceholder")}
                   placeholderTextColor="#999"
                   keyboardType="numeric"
                   value={actualSpent}
@@ -1390,14 +1394,14 @@ export default function ShoppingTemplatesScreen() {
                 />
                 
                 <View style={s.modalStatsBox}>
-                  <Text style={s.modalStatsText}>👥 分攤人數：{peopleCount} 人</Text>
+                  <Text style={s.modalStatsText}>{t("dyn.splitPeople", { p: peopleCount })}</Text>
                   {parseFloat(actualSpent) > 0 ? (
-                    <Text style={s.modalStatsResult}>💸 每人分攤：${(parseFloat(actualSpent) / peopleCount).toFixed(1)} / 人</Text>
+                    <Text style={s.modalStatsResult}>{t("dyn.perPerson", { price: `$${(parseFloat(actualSpent) / peopleCount).toFixed(1)}` })}</Text>
                   ) : null}
                 </View>
 
                 <TouchableOpacity style={s.modalActionBtn} onPress={handleAASplit}>
-                  <Text style={s.modalActionBtnText}>計算並生成 WhatsApp 訊息</Text>
+                  <Text style={s.modalActionBtnText}>{t("party.aaCalc")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1410,39 +1414,39 @@ export default function ShoppingTemplatesScreen() {
           <View style={s.modalOverlay}>
             <View style={s.modalContainer}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>📲 委派幫手/姐姐買餸</Text>
+                <Text style={s.modalTitle}>{t("party.delegateTitle")}</Text>
                 <TouchableOpacity onPress={() => setShowShareModal(false)}>
                   <Ionicons name="close" size={20} color={TEXT} />
                 </TouchableOpacity>
               </View>
 
               <View style={{ padding: 20 }}>
-                <Text style={s.modalInputLabel}>選擇委派語言：</Text>
+                <Text style={s.modalInputLabel}>{t("party.delegateLang")}</Text>
                 
                 <View style={s.languageGrid}>
                   <TouchableOpacity
                     style={[s.langBtn, shareLanguage === "zh" && s.langBtnActive]}
                     onPress={() => setShareLanguage("zh")}
                   >
-                    <Text style={[s.langBtnText, shareLanguage === "zh" && s.langBtnTextActive]}>🇭🇰 繁中 (家人)</Text>
+                    <Text style={[s.langBtnText, shareLanguage === "zh" && s.langBtnTextActive]}>{t("party.langZh")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.langBtn, shareLanguage === "en" && s.langBtnActive]}
                     onPress={() => setShareLanguage("en")}
                   >
-                    <Text style={[s.langBtnText, shareLanguage === "en" && s.langBtnTextActive]}>🇬🇧 中英雙語 (通用)</Text>
+                    <Text style={[s.langBtnText, shareLanguage === "en" && s.langBtnTextActive]}>{t("party.langEn")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.langBtn, shareLanguage === "id" && s.langBtnActive]}
                     onPress={() => setShareLanguage("id")}
                   >
-                    <Text style={[s.langBtnText, shareLanguage === "id" && s.langBtnTextActive]}>🇮🇩 中印雙語 (印尼)</Text>
+                    <Text style={[s.langBtnText, shareLanguage === "id" && s.langBtnTextActive]}>{t("party.langId")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.langBtn, shareLanguage === "ph" && s.langBtnActive]}
                     onPress={() => setShareLanguage("ph")}
                   >
-                    <Text style={[s.langBtnText, shareLanguage === "ph" && s.langBtnTextActive]}>🇵🇭 中菲雙語 (菲律賓)</Text>
+                    <Text style={[s.langBtnText, shareLanguage === "ph" && s.langBtnTextActive]}>{t("party.langPh")}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1459,7 +1463,7 @@ export default function ShoppingTemplatesScreen() {
                     onPress={handleCopyBilingualList}
                   >
                     <Ionicons name="copy-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={s.modalActionBtnText}>複製清單</Text>
+                    <Text style={s.modalActionBtnText}>{t("party.copyList")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.modalActionBtn, { flex: 1, backgroundColor: "#25D366" }]}
@@ -1487,17 +1491,17 @@ export default function ShoppingTemplatesScreen() {
               >
                 <View style={s.modalContainer}>
                   <View style={s.modalHeader}>
-                    <Text style={s.modalTitle}>💰 輸入預計價錢</Text>
+                    <Text style={s.modalTitle}>{t("party.priceTitle")}</Text>
                     <TouchableOpacity onPress={() => { setShowPriceModal(false); setPriceItem(null); }}>
                       <Ionicons name="close" size={20} color={TEXT} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={{ padding: 20 }}>
-                    <Text style={s.modalInputLabel}>食材：{priceItem?.name}</Text>
+                    <Text style={s.modalInputLabel}>{t("dyn.ingredientLabel", { name: priceItem?.name })}</Text>
                     <TextInput
                       style={s.modalInput}
-                      placeholder="例如：50"
+                      placeholder={t("party.pricePlaceholder")}
                       placeholderTextColor="#999"
                       keyboardType="number-pad"
                       value={priceItem?.price}
@@ -1515,13 +1519,13 @@ export default function ShoppingTemplatesScreen() {
                         style={[s.modalActionBtn, { flex: 1, backgroundColor: "#F3F4F6" }]}
                         onPress={() => { setShowPriceModal(false); setPriceItem(null); }}
                       >
-                        <Text style={[s.modalActionBtnText, { color: SUB }]}>取消</Text>
+                        <Text style={[s.modalActionBtnText, { color: SUB }]}>{t("recipe.cancel")}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.modalActionBtn, { flex: 1, backgroundColor: BRAND }]}
                         onPress={handleSavePrice}
                       >
-                        <Text style={s.modalActionBtnText}>保存</Text>
+                        <Text style={s.modalActionBtnText}>{t("shopping.save")}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1544,17 +1548,17 @@ export default function ShoppingTemplatesScreen() {
               <View style={s.modalOverlay}>
                 <View style={s.modalContainer}>
                   <View style={s.modalHeader}>
-                    <Text style={s.modalTitle}>💾 儲存常用清單</Text>
+                    <Text style={s.modalTitle}>{t("party.saveListTitle")}</Text>
                     <TouchableOpacity onPress={() => setShowSaveListModal(false)}>
                       <Ionicons name="close" size={20} color={TEXT} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={{ padding: 20 }}>
-                    <Text style={s.modalInputLabel}>清單名稱：</Text>
+                    <Text style={s.modalInputLabel}>{t("party.listName")}</Text>
                     <TextInput
                       style={s.modalInput}
-                      placeholder="例如：打邊爐常用清單、BBQ 聚會..."
+                      placeholder={t("party.listNamePlaceholder")}
                       placeholderTextColor="#999"
                       value={savedListName}
                       onChangeText={setSavedListName}
@@ -1565,7 +1569,7 @@ export default function ShoppingTemplatesScreen() {
                     
                     {savedLists.length > 0 && (
                       <>
-                        <Text style={[s.modalInputLabel, { marginTop: 16 }]}>已儲存清單（點擊載入）：</Text>
+                        <Text style={[s.modalInputLabel, { marginTop: 16 }]}>{t("party.savedLists")}</Text>
                         <ScrollView style={{ maxHeight: 200 }}>
                           {savedLists.map(list => (
                             <TouchableOpacity
@@ -1601,7 +1605,7 @@ export default function ShoppingTemplatesScreen() {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                   <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>{list.name}</Text>
-                                  <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{list.items.length} 項食材 · {list.people}人</Text>
+                                  <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{t("dyn.itemsPeople", { n: list.items.length, p: list.people })}</Text>
                                 </View>
                               </View>
                               <TouchableOpacity
@@ -1624,14 +1628,14 @@ export default function ShoppingTemplatesScreen() {
                         style={[s.modalActionBtn, { flex: 1, backgroundColor: "#F3F4F6" }]}
                         onPress={() => setShowSaveListModal(false)}
                       >
-                        <Text style={[s.modalActionBtnText, { color: SUB }]}>取消</Text>
+                        <Text style={[s.modalActionBtnText, { color: SUB }]}>{t("recipe.cancel")}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.modalActionBtn, { flex: 1, backgroundColor: "#16A34A" }]}
                         onPress={saveCurrentList}
                       >
                         <Ionicons name="save-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={s.modalActionBtnText}>儲存清單</Text>
+                        <Text style={s.modalActionBtnText}>{t("party.saveList")}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1642,6 +1646,13 @@ export default function ShoppingTemplatesScreen() {
         </Modal>
 
       </KeyboardAvoidingView>
+
+      <ShoppingAddConfirm
+        visible={shoppingConfirmCount !== null}
+        count={shoppingConfirmCount ?? 0}
+        onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
+        onClose={() => setShoppingConfirmCount(null)}
+      />
     </>
   );
 }

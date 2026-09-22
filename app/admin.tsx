@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
   StyleSheet, ActivityIndicator, Alert, Modal, Image,
@@ -95,12 +96,13 @@ function BarChart({ data, colorMap }: { data: { label: string; count: number }[]
 }
 
 export default function AdminScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const utils = trpc.useUtils();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"recipes" | "analytics" | "pending">("recipes");
+  const [activeTab, setActiveTab] = useState<"recipes" | "analytics" | "pending" | "kol">("recipes");
   const [searchQ, setSearchQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -127,6 +129,40 @@ export default function AdminScreen() {
   const rejectM = trpc.recipes.adminReject.useMutation({
     onSuccess: () => { utils.recipes.adminListPending.invalidate(); Alert.alert("已拒絕申請"); },
     onError: (e) => Alert.alert("失敗", e.message),
+  });
+
+  // ── KOL (網紅食譜) ──
+  const [kolInput, setKolInput] = useState("");
+  const [kolAuthor, setKolAuthor] = useState("");
+  const kolListQ = trpc.recipes.adminListKol.useQuery(undefined, { enabled: isAuthenticated && user?.role === "admin" });
+  const createKolM = trpc.recipes.adminCreateKol.useMutation({
+    onSuccess: (r: any) => { utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate(); Alert.alert("已上架", r?.name ?? ""); },
+    onError: (e) => Alert.alert("上架失敗", e.message),
+  });
+  const createKolBatchM = trpc.recipes.adminCreateKolBatch.useMutation({
+    onSuccess: (r: any) => {
+      utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate();
+      const ok = (r?.results ?? []).filter((x: any) => x.ok).length;
+      const fail = (r?.results ?? []).length - ok;
+      Alert.alert("批量上架完成", `成功 ${ok}，失敗 ${fail}`);
+    },
+    onError: (e) => Alert.alert("批量上架失敗", e.message),
+  });
+  const deleteKolM = trpc.recipes.adminDeleteKol.useMutation({
+    onSuccess: () => { utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate(); },
+    onError: (e) => Alert.alert("刪除失敗", e.message),
+  });
+  const kolLinks = kolInput.split(/[\n\s]+/).map((s) => s.trim()).filter((s) => /^https?:\/\//i.test(s));
+  // KOL whitelist
+  const [creatorEmail, setCreatorEmail] = useState("");
+  const creatorsQ = trpc.recipes.adminListKolCreators.useQuery(undefined, { enabled: isAuthenticated && user?.role === "admin" });
+  const addCreatorM = trpc.recipes.adminAddKolCreator.useMutation({
+    onSuccess: () => { utils.recipes.adminListKolCreators.invalidate(); setCreatorEmail(""); Alert.alert("已加入白名單"); },
+    onError: (e) => Alert.alert("加入失敗", e.message),
+  });
+  const removeCreatorM = trpc.recipes.adminRemoveKolCreator.useMutation({
+    onSuccess: () => { utils.recipes.adminListKolCreators.invalidate(); },
+    onError: (e) => Alert.alert("移除失敗", e.message),
   });
 
   const filtered = useMemo(() => {
@@ -184,8 +220,10 @@ export default function AdminScreen() {
   const handleAdminBack = () => {
     if (showForm) {
       handleCloseForm();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace("/(tabs)");
     }
   };
 
@@ -224,10 +262,10 @@ export default function AdminScreen() {
           <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: BRAND, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
             <Ionicons name="lock-closed" size={26} color="#fff" />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>需要登入</Text>
-          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>請先用管理員帳號登入</Text>
+          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>{t("admin.needLogin")}</Text>
+          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>{t("admin.loginAdmin")}</Text>
           <TouchableOpacity style={{ width: "100%" as any, backgroundColor: BRAND, paddingVertical: 12, borderRadius: 12, alignItems: "center" }} onPress={() => router.replace("/login?mode=admin" as any)}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>去管理員登入</Text>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>{t("admin.goAdminLogin")}</Text>
           </TouchableOpacity>
         </View>
         <Stack.Screen options={{ headerShown: false }} />
@@ -242,10 +280,10 @@ export default function AdminScreen() {
           <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: "#DC2626", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
             <Ionicons name="alert-circle" size={26} color="#fff" />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>無管理權限</Text>
-          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>當前帳號唔係 Admin，無法進入管理後台。</Text>
+          <Text style={{ fontSize: 20, fontWeight: "800", color: "#F1F5F9", marginBottom: 4 }}>{t("admin.noPermission")}</Text>
+          <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 28, textAlign: "center" }}>{t("admin.noPermissionMsg")}</Text>
           <TouchableOpacity style={{ width: "100%" as any, backgroundColor: BRAND, paddingVertical: 12, borderRadius: 12, alignItems: "center" }} onPress={() => router.replace("/login?mode=admin" as any)}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>切換管理員登入</Text>
+            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>{t("admin.switchAdminLogin")}</Text>
           </TouchableOpacity>
         </View>
         <Stack.Screen options={{ headerShown: false }} />
@@ -289,13 +327,14 @@ export default function AdminScreen() {
             { id: "recipes", label: "食譜管理", icon: "book-outline" },
             { id: "analytics", label: "數據分析", icon: "bar-chart-outline" },
             { id: "pending", label: "審核", icon: "checkmark-circle-outline" },
+            { id: "kol", label: "網紅 (KOL)", icon: "star-outline" },
           ] as const).map(tab => {
             const isActive = activeTab === tab.id;
             return (
               <TouchableOpacity
                 key={tab.id}
                 style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 14, paddingHorizontal: 18, borderBottomWidth: 2.5, borderBottomColor: isActive ? BRAND : "transparent" }}
-                onPress={() => setActiveTab(tab.id as "recipes" | "analytics" | "pending")}
+                onPress={() => setActiveTab(tab.id as "recipes" | "analytics" | "pending" | "kol")}
               >
                 <Ionicons name={tab.icon as any} size={15} color={isActive ? BRAND : SUB} />
                 <Text style={{ fontSize: 13, fontWeight: isActive ? "700" : "500", color: isActive ? BRAND : SUB }}>{tab.label}</Text>
@@ -312,7 +351,7 @@ export default function AdminScreen() {
                   style={{ flex: 1, backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER, borderRadius: 12, padding: 10, fontSize: 14, color: TEXT }}
                   value={searchQ}
                   onChangeText={setSearchQ}
-                  placeholder="搜尋食譜名稱..."
+                  placeholder={t("admin.searchPlaceholder")}
                   placeholderTextColor={HINT}
                 />
                 <TouchableOpacity
@@ -323,7 +362,7 @@ export default function AdminScreen() {
                   }}
                 >
                   <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>新增</Text>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>{t("cat.add")}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -331,24 +370,24 @@ export default function AdminScreen() {
                 <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
                   <ScrollView style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: "85%" as any }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                      <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT }}>新增食譜</Text>
+                      <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT }}>{t("more.addTitle")}</Text>
                       <TouchableOpacity onPress={handleCloseForm}>
                         <Ionicons name="close" size={22} color={TEXT} />
                       </TouchableOpacity>
                     </View>
-                    <FF label="菜名" value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="清蒸石斑魚" />
+                    <FF label={t("admin.dishName")} value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder={t("admin.dishName")} />
                     <FF label="菜名(英)" value={form.nameEn} onChange={v => setForm(p => ({ ...p, nameEn: v }))} placeholder="Steamed Grouper" />
-                    <FF label="圖片網址" value={form.image} onChange={v => setForm(p => ({ ...p, image: v }))} placeholder="https://..." />
-                    <FF label="描述" value={form.description} onChange={v => setForm(p => ({ ...p, description: v }))} placeholder="簡短介紹..." multiline />
+                    <FF label={t("admin.imageUrl")} value={form.image} onChange={v => setForm(p => ({ ...p, image: v }))} placeholder="https://..." />
+                    <FF label={t("importRecipe.desc")} value={form.description} onChange={v => setForm(p => ({ ...p, description: v }))} placeholder={t("importRecipe.descPlaceholder")} multiline />
                     <View style={{ flexDirection: "row", gap: 10 }}>
-                      <View style={{ flex: 1 }}><FF label="烹調時間(分)" value={form.cookTime} onChange={v => setForm(p => ({ ...p, cookTime: v }))} keyboardType="numeric" /></View>
-                      <View style={{ flex: 1 }}><FF label="份量(人)" value={form.servings} onChange={v => setForm(p => ({ ...p, servings: v }))} keyboardType="numeric" /></View>
+                      <View style={{ flex: 1 }}><FF label={t("admin.cookTimeMin")} value={form.cookTime} onChange={v => setForm(p => ({ ...p, cookTime: v }))} keyboardType="numeric" /></View>
+                      <View style={{ flex: 1 }}><FF label={t("admin.servingsPax")} value={form.servings} onChange={v => setForm(p => ({ ...p, servings: v }))} keyboardType="numeric" /></View>
                     </View>
-                    <FS label="難度" value={form.difficulty} onChange={v => setForm(p => ({ ...p, difficulty: v }))} options={["簡單", "中等", "困難"]} />
-                    <FS label="分類" value={form.recipeCategory} onChange={v => setForm(p => ({ ...p, recipeCategory: v }))} options={[["中菜", "中菜"], ["西餐", "西餐"], ["日式", "日式"], ["韓式", "韓式"], ["東南亞", "東南亞"], ["甜品", "甜品"], ["飲品", "飲品"], ["其他", "其他"]]} />
-                    <FF label="標籤(逗號分隔)" value={form.tags} onChange={v => setForm(p => ({ ...p, tags: v }))} placeholder="廣東, 家常, 快手" />
-                    <FF label="IG 來源" value={form.reelAuthor} onChange={v => setForm(p => ({ ...p, reelAuthor: v }))} placeholder="@kiuu922" />
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>預算(HK$)</Text>
+                    <FS label={t("importRecipe.difficulty")} value={form.difficulty} onChange={v => setForm(p => ({ ...p, difficulty: v }))} options={["簡單", "中等", "困難"]} />
+                    <FS label={t("shopping.category")} value={form.recipeCategory} onChange={v => setForm(p => ({ ...p, recipeCategory: v }))} options={[["中菜", "中菜"], ["西餐", "西餐"], ["日式", "日式"], ["韓式", "韓式"], ["東南亞", "東南亞"], ["甜品", "甜品"], ["飲品", "飲品"], ["其他", "其他"]]} />
+                    <FF label={t("admin.tagsLabel")} value={form.tags} onChange={v => setForm(p => ({ ...p, tags: v }))} placeholder={t("admin.tagsPlaceholder")} />
+                    <FF label={t("admin.igSource")} value={form.reelAuthor} onChange={v => setForm(p => ({ ...p, reelAuthor: v }))} placeholder="@kiuu922" />
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>{t("admin.budget")}</Text>
                     <TextInput
                       style={{ backgroundColor: "#F8FAFC", borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, padding: 10, fontSize: 14, color: TEXT, marginBottom: 12 }}
                       value={form.estimatedCost}
@@ -364,7 +403,7 @@ export default function AdminScreen() {
                       {createOfficialM.isPending || updateOfficialM.isPending ? (
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
-                        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>保存食譜</Text>
+                        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "800" }}>{t("admin.saveRecipe")}</Text>
                       )}
                     </TouchableOpacity>
                     <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
@@ -375,7 +414,7 @@ export default function AdminScreen() {
               {filtered.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 48 }}>
                   <Ionicons name="search-outline" size={36} color={HINT} />
-                  <Text style={{ fontSize: 14, color: HINT, fontWeight: "600", marginTop: 8 }}>找不到符合的食譜</Text>
+                  <Text style={{ fontSize: 14, color: HINT, fontWeight: "600", marginTop: 8 }}>{t("admin.noMatch")}</Text>
                 </View>
               ) : (
                 filtered.map((recipe: any, idx: number) => (
@@ -390,11 +429,11 @@ export default function AdminScreen() {
                     )}
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }}>{recipe.name}</Text>
-                      <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>⏱ {recipe.cookTime}分 · {recipe.servings}人 · {getMealType(recipe)}</Text>
+                      <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{t("dyn.cookServingsMeal", { cook: recipe.cookTime, serv: recipe.servings, meal: getMealType(recipe) })}</Text>
                       {recipe.sourceType === "kol" && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
                           <Ionicons name="star" size={10} color="#F59E0B" />
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#F59E0B" }}>網紅食譜</Text>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#F59E0B" }}>{t("admin.kolRecipe")}</Text>
                         </View>
                       )}
                     </View>
@@ -429,10 +468,10 @@ export default function AdminScreen() {
                       {deleteConfirm === recipe.id ? (
                         <>
                           <TouchableOpacity style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#EF4444", borderRadius: 8 }} onPress={() => deleteOfficialM.mutate({ id: Number(recipe.id) })}>
-                            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>確認刪除</Text>
+                            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>{t("admin.confirmDelete")}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "#F1F5F9", borderRadius: 8 }} onPress={() => setDeleteConfirm(null)}>
-                            <Text style={{ color: SUB, fontSize: 12 }}>取消</Text>
+                            <Text style={{ color: SUB, fontSize: 12 }}>{t("recipe.cancel")}</Text>
                           </TouchableOpacity>
                         </>
                       ) : (
@@ -452,21 +491,21 @@ export default function AdminScreen() {
               <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
                   <Ionicons name="restaurant-outline" size={16} color={BRAND} />
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>菜式類型分佈</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>{t("admin.dishTypeDist")}</Text>
                 </View>
                 <BarChart data={mealTypeData} colorMap={MEAL_TYPE_COLORS} />
               </View>
               <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
                   <Ionicons name="pricetags-outline" size={16} color="#7C3AED" />
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>細分類分佈</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>{t("admin.subTypeDist")}</Text>
                 </View>
                 <BarChart data={subCatData} colorMap={SUB_CAT_COLORS} />
               </View>
               <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
                   <Ionicons name="trending-up-outline" size={16} color="#16A34A" />
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>總覽統計</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>{t("admin.overviewStats")}</Text>
                 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 } as any}>
                   {[
@@ -497,7 +536,7 @@ export default function AdminScreen() {
               {pendingList.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 48 }}>
                   <Ionicons name="book-outline" size={40} color={HINT} />
-                  <Text style={{ fontSize: 14, color: HINT, fontWeight: "600", marginTop: 8 }}>暫無待審核的食譜</Text>
+                  <Text style={{ fontSize: 14, color: HINT, fontWeight: "600", marginTop: 8 }}>{t("admin.noPending")}</Text>
                 </View>
               ) : (
                 pendingList.map((recipe: any) => (
@@ -508,18 +547,18 @@ export default function AdminScreen() {
                         {recipe.description && <Text style={{ fontSize: 12, color: SUB, marginTop: 2 }}>{recipe.description}</Text>}
                       </View>
                       <View style={{ backgroundColor: "#EEF4FB", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "#C5D9F0" }}>
-                        <Text style={{ fontSize: 10, color: BRAND, fontWeight: "700" }}>待審核</Text>
+                        <Text style={{ fontSize: 10, color: BRAND, fontWeight: "700" }}>{t("admin.pending")}</Text>
                       </View>
                     </View>
                     <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 } as any}>
-                      {recipe.cookTime ? <Text style={{ fontSize: 11, color: SUB }}>⏱ {recipe.cookTime}分</Text> : null}
-                      {recipe.servings ? <View style={{ flexDirection: "row", alignItems: "center", gap: 3 } as any}><Ionicons name="people-outline" size={11} color={SUB} /><Text style={{ fontSize: 11, color: SUB }}> {recipe.servings}人</Text></View> : null}
+                      {recipe.cookTime ? <Text style={{ fontSize: 11, color: SUB }}>{t("dyn.cookMin", { n: recipe.cookTime })}</Text> : null}
+                      {recipe.servings ? <View style={{ flexDirection: "row", alignItems: "center", gap: 3 } as any}><Ionicons name="people-outline" size={11} color={SUB} /><Text style={{ fontSize: 11, color: SUB }}> {t("dyn.pax", { n: recipe.servings })}</Text></View> : null}
                       {recipe.difficulty ? <View style={{ flexDirection: "row", alignItems: "center", gap: 3 } as any}><Ionicons name="restaurant-outline" size={11} color={SUB} /><Text style={{ fontSize: 11, color: SUB }}> {recipe.difficulty}</Text></View> : null}
                     </View>
                     {Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 && (
                       <Text style={{ fontSize: 11, color: SUB, lineHeight: 18 }}>
                         食材：{(recipe.ingredients as any[]).slice(0, 6).map((i: any) => i.name).join("、")}
-                        {recipe.ingredients.length > 6 ? ` 等 ${recipe.ingredients.length} 項` : ""}
+                        {recipe.ingredients.length > 6 ? " " + t("dyn.etcNItems", { n: recipe.ingredients.length }) : ""}
                       </Text>
                     )}
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 12 } as any}>
@@ -529,7 +568,7 @@ export default function AdminScreen() {
                         disabled={rejectM.isPending || approveM.isPending}
                       >
                         <Ionicons name="close-circle-outline" size={14} color="#DC2626" />
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#DC2626" }}>拒絕</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#DC2626" }}>{t("admin.reject")}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={{ flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 10, backgroundColor: "#22C55E" }}
@@ -541,7 +580,7 @@ export default function AdminScreen() {
                         ) : (
                           <>
                             <Ionicons name="checkmark-circle-outline" size={14} color="#fff" />
-                            <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>批准公開</Text>
+                            <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>{t("admin.approve")}</Text>
                           </>
                         )}
                       </TouchableOpacity>
@@ -549,6 +588,85 @@ export default function AdminScreen() {
                   </View>
                 ))
               )}
+            </>
+          )}
+
+          {activeTab === "kol" && (
+            <>
+              <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1.5, borderColor: BORDER }}>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT, marginBottom: 6 }}>{t("admin.kolTitle")}</Text>
+                <Text style={{ fontSize: 11, color: SUB, marginBottom: 8 }}>{t("admin.kolHint")}</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 10, minHeight: 80, fontSize: 13, color: TEXT, textAlignVertical: "top" }}
+                  value={kolInput} onChangeText={setKolInput}
+                  placeholder="https://..." placeholderTextColor={HINT}
+                  multiline autoCapitalize="none" autoCorrect={false}
+                />
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 10, marginTop: 8, fontSize: 13, color: TEXT }}
+                  value={kolAuthor} onChangeText={setKolAuthor}
+                  placeholder={t("admin.kolAuthorPlaceholder")} placeholderTextColor={HINT}
+                />
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 } as any}>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: BRAND, alignItems: "center", opacity: kolLinks.length !== 1 || createKolM.isPending ? 0.5 : 1 }}
+                    disabled={kolLinks.length !== 1 || createKolM.isPending}
+                    onPress={() => createKolM.mutate({ url: kolLinks[0], sourceAuthor: kolAuthor.trim() || undefined })}
+                  >
+                    {createKolM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>{t("admin.kolAdd1")}</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: "#7C3AED", alignItems: "center", opacity: kolLinks.length < 2 || createKolBatchM.isPending ? 0.5 : 1 }}
+                    disabled={kolLinks.length < 2 || createKolBatchM.isPending}
+                    onPress={() => createKolBatchM.mutate({ urls: kolLinks.slice(0, 20), sourceAuthor: kolAuthor.trim() || undefined })}
+                  >
+                    {createKolBatchM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>{t("admin.kolAddBatch", { n: kolLinks.length })}</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: TEXT, marginBottom: 8 }}>{t("admin.kolListed", { n: kolListQ.data?.length ?? 0 })}</Text>
+              {(kolListQ.data ?? []).map((r: any) => (
+                <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: BORDER }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{r.name}</Text>
+                    <Text style={{ fontSize: 11, color: SUB }} numberOfLines={1}>{r.sourceAuthor ? `${r.sourceAuthor} · ` : ""}{r.sourceUrl}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => Alert.alert("刪除", `確定刪除「${r.name}」？`, [{ text: t("recipe.cancel"), style: "cancel" }, { text: t("shopping.delete"), style: "destructive", onPress: () => deleteKolM.mutate({ id: r.id }) }])}>
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1.5, borderColor: BORDER }}>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT, marginBottom: 6 }}>{t("admin.kolWhitelist")}</Text>
+                <Text style={{ fontSize: 11, color: SUB, marginBottom: 8 }}>{t("admin.kolWhitelistHint")}</Text>
+                <View style={{ flexDirection: "row", gap: 8 } as any}>
+                  <TextInput
+                    style={{ flex: 1, borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 10, fontSize: 13, color: TEXT }}
+                    value={creatorEmail} onChangeText={setCreatorEmail}
+                    placeholder={t("admin.kolEmailPlaceholder")} placeholderTextColor={HINT}
+                    autoCapitalize="none" keyboardType="email-address"
+                  />
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 16, justifyContent: "center", borderRadius: 10, backgroundColor: BRAND, opacity: !creatorEmail.includes("@") || addCreatorM.isPending ? 0.5 : 1 }}
+                    disabled={!creatorEmail.includes("@") || addCreatorM.isPending}
+                    onPress={() => addCreatorM.mutate({ email: creatorEmail.trim() })}
+                  >
+                    {addCreatorM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "700" }}>{t("admin.kolAdd")}</Text>}
+                  </TouchableOpacity>
+                </View>
+                {(creatorsQ.data ?? []).map((c: any) => (
+                  <View key={c.userId} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>{c.displayName || c.email}</Text>
+                      <Text style={{ fontSize: 11, color: SUB }}>{c.email}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removeCreatorM.mutate({ userId: c.userId })}>
+                      <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             </>
           )}
         </ScrollView>
@@ -582,6 +700,7 @@ const RECIPE_CUISINE_MAP: Record<string, string> = {
 const OLD_CATEGORIES = new Set(["poultry", "pork", "beef", "seafood", "vegetable", "egg", "carb", "mixed"]);
 
 function MigrateCategoriesCard({ recipes }: { recipes: any[] }) {
+  const { t } = useTranslation();
   const [migrating, setMigrating] = useState(false);
   const utils = trpc.useUtils();
   const updateM = trpc.recipes.adminUpdateOfficial.useMutation();
@@ -621,7 +740,7 @@ function MigrateCategoriesCard({ recipes }: { recipes: any[] }) {
     <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: BORDER }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Ionicons name="git-branch-outline" size={16} color="#7C3AED" />
-        <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>分類遷移工具</Text>
+        <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }}>{t("admin.migrationTool")}</Text>
       </View>
       <Text style={{ fontSize: 12, color: SUB, lineHeight: 18, marginBottom: 12 }}>
         將舊分類（家禽/豬肉/牛肉…）轉換為菜系分類（中菜/西餐/日式…）。
@@ -638,7 +757,7 @@ function MigrateCategoriesCard({ recipes }: { recipes: any[] }) {
           <Ionicons name="flash-outline" size={16} color="#fff" />
         )}
         <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>
-          {migrating ? "遷移中…" : pendingRecipes.length > 0 ? `遷移 ${pendingRecipes.length} 個食譜` : "全部已遷移"}
+          {migrating ? t("dyn.migrating") : pendingRecipes.length > 0 ? t("dyn.migrateN", { n: pendingRecipes.length }) : t("dyn.allMigrated")}
         </Text>
       </TouchableOpacity>
     </View>

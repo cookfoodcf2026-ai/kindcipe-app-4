@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, FlatList, TextInput } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useState, useMemo } from "react";
 import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +14,7 @@ const DISTRICT_EMOJI: Record<string, string> = {
 };
 
 export default function MarketsPage() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -48,7 +50,7 @@ export default function MarketsPage() {
         <View style={styles.searchBar}>
           <TextInput
             style={styles.searchInput}
-            placeholder="搜尋街市名稱或地區..."
+            placeholder={t("misc.marketSearchPlaceholder")}
             placeholderTextColor="#999"
             value={search}
             onChangeText={setSearch}
@@ -64,7 +66,7 @@ export default function MarketsPage() {
           keyExtractor={(d: any) => d.districtZh}
           contentContainerStyle={styles.listContent}
           ListFooterComponent={
-            <Text style={styles.footer}>資料來源：食物環境衞生署</Text>
+            <Text style={styles.footer}>{t("misc.marketDataSource")}</Text>
           }
           renderItem={({ item }: { item: any }) => (
             <View style={styles.districtCard}>

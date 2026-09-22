@@ -32,6 +32,18 @@ npx eslint --max-warnings=0 \
 echo "✅ ESLint passed (zero warnings)"
 echo ""
 
+# Step 4: i18n key completeness (all t() keys present in all 4 locales)
+echo "🌐 Checking i18n key completeness..."
+node scripts/check-i18n-keys.js
+echo "✅ i18n keys passed"
+echo ""
+
+# Step 5: i18n hardcoded-CJK audit (strict — fails on any hardcoded CJK in JSX)
+echo "🌐 Auditing hardcoded CJK in UI (strict)..."
+node scripts/audit-i18n.js --strict
+echo "✅ i18n audit passed"
+echo ""
+
 echo "========================================"
 echo "✅ All CI gates passed!"
 echo "========================================"

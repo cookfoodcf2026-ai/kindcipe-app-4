@@ -3,6 +3,7 @@
  * Main entry now uses `app/recipe/[id].tsx`.
  */
 import React, { useState } from 'react';
+import { useTranslation } from "react-i18next";
 import {
   View,
   Text,
@@ -56,6 +57,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
   onAddToMealPlan,
   onAddToShoppingList,
 }) => {
+  const { t } = useTranslation();
   const [servings, setServings] = useState(recipe.servings);
   const [remarks, setRemarks] = useState(recipe.remarks || '');
   const [isEditingRemarks, setIsEditingRemarks] = useState(false);
@@ -825,7 +827,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
             <TextInput
               value={remarks}
               onChangeText={setRemarks}
-              placeholder="輸入你的筆記..."
+              placeholder={t("misc.notePlaceholder")}
               placeholderTextColor={colors.neutral.mediumGray}
               multiline
               numberOfLines={4}
@@ -887,4 +889,5 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
   );
 };
 
-export default function RecipeDetailRoute() { return null; }
+export default function RecipeDetailRoute() {
+  const { t } = useTranslation(); return null; }

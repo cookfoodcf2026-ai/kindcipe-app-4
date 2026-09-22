@@ -135,7 +135,7 @@ export const Shadow = {
 };
 
 export const Brand = {
-  name: '和諧食譜',
+  name: 'Kindcipe',
   nameEn: 'Kindcipe',
   tagline: '自己的食譜筆記・一家人的味道',
   taglineEn: 'Your Family Recipe Journal',

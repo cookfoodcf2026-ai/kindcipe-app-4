@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, ActivityIndicator, BackHandler,
@@ -19,6 +20,7 @@ const SUB = "#9CA3AF";
 const BORDER = "#E5E7EB";
 
 export default function CategoryManagerScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
@@ -124,11 +126,11 @@ export default function CategoryManagerScreen() {
         "你尚未儲存分類改動，離開後將不會保存。\n\n可以按「儲存」先保存改動。",
         [
           { text: "繼續編輯", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: () => router.back() },
+          { text: "離開", style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
         ]
       );
     } else {
-      router.back();
+      (router.canGoBack() ? router.back() : router.replace("/(tabs)"));
     }
   }, [dirty, showAdd, newLabel, newEmoji, router]);
 
@@ -204,12 +206,12 @@ export default function CategoryManagerScreen() {
         {/* Add form */}
         {showAdd ? (
           <View style={s_cat.addForm}>
-            <Text style={s_cat.addFormTitle}>新增分類</Text>
+            <Text style={s_cat.addFormTitle}>{t("cat.addTitle")}</Text>
             <TextInput
               style={s_cat.input}
               value={newLabel}
               onChangeText={setNewLabel}
-              placeholder="分類名稱（如：烘焙）"
+              placeholder={t("cat.namePlaceholder")}
               placeholderTextColor={SUB}
               returnKeyType="next"
             />
@@ -217,7 +219,7 @@ export default function CategoryManagerScreen() {
               style={s_cat.input}
               value={newEmoji}
               onChangeText={setNewEmoji}
-              placeholder="圖標名稱（如：restaurant-outline）"
+              placeholder={t("cat.iconPlaceholder")}
               placeholderTextColor={SUB}
               returnKeyType="done"
             />
@@ -226,20 +228,20 @@ export default function CategoryManagerScreen() {
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F3F4F6", alignItems: "center" }}
                 onPress={() => setShowAdd(false)}
               >
-                <Text style={{ fontSize: 13, fontWeight: "600", color: SUB }}>取消</Text>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: SUB }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: BRAND, alignItems: "center" }}
                 onPress={handleAdd}
               >
-                <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>新增</Text>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>{t("cat.add")}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <TouchableOpacity style={s_cat.addBtn} onPress={() => setShowAdd(true)}>
             <Ionicons name="add-circle-outline" size={20} color={BRAND} />
-            <Text style={s_cat.addBtnText}>新增分類</Text>
+            <Text style={s_cat.addBtnText}>{t("cat.addTitle")}</Text>
           </TouchableOpacity>
         )}
 
@@ -249,7 +251,7 @@ export default function CategoryManagerScreen() {
             style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center" }}
             onPress={handleReset}
           >
-            <Text style={{ fontSize: 14, fontWeight: "600", color: SUB }}>重設預設</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: SUB }}>{t("cat.reset")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={{ flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: BRAND, alignItems: "center" }}
@@ -259,7 +261,7 @@ export default function CategoryManagerScreen() {
             {saving ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>儲存</Text>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>{t("shopping.save")}</Text>
             )}
           </TouchableOpacity>
         </View>

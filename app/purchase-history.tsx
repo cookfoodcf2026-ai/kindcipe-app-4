@@ -8,6 +8,8 @@ import { useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
+import { useTranslation } from "react-i18next";
+import { getBilingualName } from "@/lib/bilingual";
 import { DateUtil } from "@/src/lib/DateUtil";
 
 const { width: SW } = Dimensions.get("window");
@@ -96,6 +98,7 @@ function cleanItemName(name: string | null | undefined): string {
 }
 
 export default function PurchaseHistoryScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"purchased" | "missed" | "frequent">("purchased");
@@ -112,6 +115,24 @@ export default function PurchaseHistoryScreen() {
   const { data: shoppingItems = [], isLoading: shoppingLoading } = trpc.shopping.list.useQuery(undefined, {
     staleTime: 30000,
   });
+
+  // 食材雙語 lookup（用 commonIngredients cache）
+  const { data: commonIngredients = [] } = (trpc as any).commonIngredient.list.useQuery(undefined, { staleTime: 1000 * 60 * 60 * 24, retry: 2 });
+  const ingLookup = useMemo(() => {
+    const byName = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const norm = (x: string) => x.replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim();
+    for (const ing of commonIngredients) {
+      const rec = { en: ing.nameEn ?? undefined, fil: ing.nameFil ?? undefined, id: ing.nameId ?? undefined };
+      if (ing.nameZh) byName.set(norm(ing.nameZh), rec);
+      if (ing.nameYue) byName.set(norm(ing.nameYue), rec);
+      if (ing.nameEn) byName.set(String(ing.nameEn).toLowerCase(), rec);
+    }
+    return byName;
+  }, [commonIngredients]);
+  const biName = (name: string) => {
+    const rec = ingLookup.get(String(name).replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim()) || ingLookup.get(String(name).toLowerCase());
+    return getBilingualName(name, rec?.en, rec?.fil, rec?.id);
+  };
 
   const utils = trpc.useUtils();
   const searchTerm = searchQuery.trim().toLowerCase();
@@ -323,14 +344,14 @@ export default function PurchaseHistoryScreen() {
     <>
       <Stack.Screen
         options={{
-          title: "購買記錄",
+          title: t("more.purchaseHistoryTitle"),
           headerShown: true,
           headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={{ marginLeft: 4 }}>
               <Ionicons name="chevron-back" size={24} color={TEXT} />
             </TouchableOpacity>
           ),
@@ -342,9 +363,9 @@ export default function PurchaseHistoryScreen() {
           {/* Tabs */}
           <View style={{ flexDirection: "row" }}>
             {[
-              { id: "purchased" as const, label: "已購買", count: filteredHistory.length, icon: "checkmark-circle-outline" as const },
-              { id: "missed" as const, label: "未買遺漏", count: missedItems.length, icon: "alert-circle-outline" as const },
-              { id: "frequent" as const, label: "常見", count: frequentItems.length, icon: "trending-up-outline" as const },
+              { id: "purchased" as const, label: t("purchaseHistory.purchased"), count: filteredHistory.length, icon: "checkmark-circle-outline" as const },
+              { id: "missed" as const, label: t("purchaseHistory.missed"), count: missedItems.length, icon: "alert-circle-outline" as const },
+              { id: "frequent" as const, label: t("purchaseHistory.frequent"), count: frequentItems.length, icon: "trending-up-outline" as const },
             ].map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -367,7 +388,7 @@ export default function PurchaseHistoryScreen() {
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="搜尋商品、類別、用戶"
+                placeholder={t("purchaseHistory.searchPlaceholder")}
                 placeholderTextColor={HINT}
                 style={{ flex: 1, fontSize: 14, color: TEXT, paddingVertical: 0 }}
                 returnKeyType="search"
@@ -380,10 +401,10 @@ export default function PurchaseHistoryScreen() {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
               {([
-                { id: "all", label: "全部" },
-                { id: "7d", label: "7日" },
-                { id: "30d", label: "30日" },
-                { id: "90d", label: "90日" },
+                { id: "all", label: t("purchaseHistory.all") },
+                { id: "7d", label: t("purchaseHistory.d7") },
+                { id: "30d", label: t("purchaseHistory.d30") },
+                { id: "90d", label: t("purchaseHistory.d90") },
               ] as const).map((chip) => {
                 const active = historyRange === chip.id;
                 return (
@@ -416,8 +437,8 @@ export default function PurchaseHistoryScreen() {
               <View style={{ backgroundColor: "#EEF4FB", borderWidth: 1.5, borderColor: "#7BAFD4", borderRadius: 14, padding: 12, marginBottom: 16 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
                   <Ionicons name="trending-up-outline" size={14} color={BRAND} />
-                  <Text style={{ fontSize: 13, fontWeight: "800", color: BRAND }}>智能補貨建議</Text>
-                  <Text style={{ fontSize: 11, color: "#B45309" }}>超過 7 天未購買</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: BRAND }}>{t("purchaseHistory.smartRestock")}</Text>
+                  <Text style={{ fontSize: 11, color: "#B45309" }}>{t("purchaseHistory.over7Days")}</Text>
                 </View>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   {restockSuggestions.map((item: any) => {
@@ -428,11 +449,11 @@ export default function PurchaseHistoryScreen() {
                         style={{ width: (SW - 56) / 2, backgroundColor: CARD, borderWidth: 1.5, borderColor: "#7BAFD4", borderRadius: 12, padding: 10 }}
                         onPress={() => handleRebuy({ ...item, actualPrice: lastPrice })}
                       >
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{item.name}</Text>
-                        <Text style={{ fontSize: 11, color: SUB, marginTop: 4 }}>{daysSince(item.lastBoughtAt)} 天未買</Text>
-                        {lastPrice != null ? <Text style={{ fontSize: 11, color: BRAND, marginTop: 4 }}>上次 HK${lastPrice}</Text> : null}
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{biName(item.name).primary}</Text>
+                        <Text style={{ fontSize: 11, color: SUB, marginTop: 4 }}>{t("dyn.daysNotBought", { n: daysSince(item.lastBoughtAt) })}</Text>
+                        {lastPrice != null ? <Text style={{ fontSize: 11, color: BRAND, marginTop: 4 }}>{t("dyn.lastHK", { price: lastPrice })}</Text> : null}
                         <View style={{ marginTop: 8, backgroundColor: BRAND, borderRadius: 8, paddingVertical: 6, alignItems: "center" }}>
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>再買</Text>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{t("purchaseHistory.rebuy")}</Text>
                         </View>
                       </TouchableOpacity>
                     );
@@ -444,8 +465,8 @@ export default function PurchaseHistoryScreen() {
             {consolidatedPurchased.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 48 }}>
                 <Ionicons name="clipboard-outline" size={40} color="#E5D5C5" />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12, marginBottom: 6 }}>暫無符合記錄</Text>
-                <Text style={{ fontSize: 13, color: HINT, textAlign: "center" }}>調整搜尋條件或時間範圍試試</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12, marginBottom: 6 }}>{t("purchaseHistory.noMatch")}</Text>
+                <Text style={{ fontSize: 13, color: HINT, textAlign: "center" }}>{t("purchaseHistory.adjustSearch")}</Text>
               </View>
             ) : (
               consolidatedPurchased.map(({ date, items }) => (
@@ -454,7 +475,7 @@ export default function PurchaseHistoryScreen() {
                     <Ionicons name="calendar-outline" size={14} color={BRAND} />
                     <Text style={{ fontSize: 15, fontWeight: "800", color: TEXT }}>{date}</Text>
                     <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>{items.length} 項</Text>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>{t("dyn.nItems", { n: items.length })}</Text>
                     </View>
                   </View>
                     <View style={{ backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
@@ -479,7 +500,7 @@ export default function PurchaseHistoryScreen() {
                             </TouchableOpacity>
                             <View style={{ flex: 1, minWidth: 0 }}>
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 }} numberOfLines={1}>{cleanItemName(item.name)}</Text>
+                                <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 }} numberOfLines={1}>{biName(cleanItemName(item.name)).primary}</Text>
                                 {(item.userName || item.boughtByUser || item.boughtByName) && (
                                   <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
                                     <Text style={{ fontSize: 9, fontWeight: "700", color: BRAND }}>{item.userName || item.boughtByUser || item.boughtByName}</Text>
@@ -501,7 +522,7 @@ export default function PurchaseHistoryScreen() {
                                 ) : hasActual ? (
                                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>HK${item.actualPrice}</Text>
                                 ) : hasBudget ? (
-                                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>預算 HK${item.estimatedPrice}</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
                                 ) : null}
                                 <Text style={{ fontSize: 12, color: SUB }}>{formatTimeAgo(item.boughtAt)}</Text>
                               </View>
@@ -525,15 +546,15 @@ export default function PurchaseHistoryScreen() {
             {missedItems.length === 0 ? (
               <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
                 <Ionicons name="checkmark-circle-outline" size={64} color="#16A34A" />
-                <Text style={{ fontSize: 16, fontWeight: "800", color: "#16A34A", marginTop: 16, marginBottom: 6 }}>太棒了！沒有遺漏的計劃項目 🎉</Text>
-                <Text style={{ fontSize: 14, color: HINT, textAlign: "center" }}>所有計劃購買的項目都已處理</Text>
+                <Text style={{ fontSize: 16, fontWeight: "800", color: "#16A34A", marginTop: 16, marginBottom: 6 }}>{t("purchaseHistory.allDone")}</Text>
+                <Text style={{ fontSize: 14, color: HINT, textAlign: "center" }}>{t("purchaseHistory.allDoneSub")}</Text>
               </View>
             ) : (
               <View>
                 <View style={{ backgroundColor: "#FEF3C7", borderWidth: 1.5, borderColor: "#F59E0B", borderRadius: 12, padding: 10, marginBottom: 12 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Ionicons name="information-circle-outline" size={18} color="#B45309" />
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#92400E", flex: 1 }}>以下項目計劃購買日期已過去，但尚未標記為購買</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#92400E", flex: 1 }}>{t("purchaseHistory.pastDue")}</Text>
                     <TouchableOpacity
                       style={{ backgroundColor: "#F59E0B", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
                       onPress={() => {
@@ -554,7 +575,7 @@ export default function PurchaseHistoryScreen() {
                         );
                       }}
                     >
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>全部移至今日 ({missedItems.length}) →</Text>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{t("dyn.moveAllToday", { n: missedItems.length })}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -591,7 +612,7 @@ export default function PurchaseHistoryScreen() {
                       <Ionicons name="calendar-outline" size={14} color="#DC2626" />
                       <Text style={{ fontSize: 15, fontWeight: "800", color: "#111827" }}>{date}</Text>
                       <View style={{ backgroundColor: "#FEE2E2", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#DC2626" }}>{items.length} 項</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#DC2626" }}>{t("dyn.nItems", { n: items.length })}</Text>
                       </View>
                     </View>
                     {items.map((item: any, idx: number) => (
@@ -600,14 +621,14 @@ export default function PurchaseHistoryScreen() {
                           <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{cleanItemName(item.name)}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{biName(cleanItemName(item.name)).primary}</Text>
                           <View style={{ flexDirection: "row", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
-                            <Text style={{ fontSize: 12, color: "#DC2626" }}>計劃：{item.plannedDate ? formatDate(item.plannedDate) : "未定"}</Text>
+                            <Text style={{ fontSize: 12, color: "#DC2626" }}>{t("dyn.planned", { date: item.plannedDate ? formatDate(item.plannedDate) : t("dyn.undecided") })}</Text>
                             {(item.quantity || item.unit) && <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>}
                             {item.estimatedPrice != null ? (
-                              <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>預算 HK${item.estimatedPrice}</Text>
+                              <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
                             ) : (
-                              <Text style={{ fontSize: 11, color: "#D1D5DB" }}>未設預算</Text>
+                              <Text style={{ fontSize: 11, color: "#D1D5DB" }}>{t("purchaseHistory.noBudget")}</Text>
                             )}
                           </View>
                         </View>
@@ -616,7 +637,7 @@ export default function PurchaseHistoryScreen() {
                           onPress={() => moveToTodayM.mutate({ id: item.id, plannedDate: DateUtil.todayISO() })}
                         >
                           <Ionicons name="calendar-outline" size={14} color="#fff" />
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>移至今日</Text>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{t("purchaseHistory.moveToToday")}</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -630,12 +651,12 @@ export default function PurchaseHistoryScreen() {
             {frequentItems.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 48 }}>
                 <Ionicons name="trending-up-outline" size={40} color="#E5D5C5" />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12 }}>暫無常買商品</Text>
-                <Text style={{ fontSize: 12, color: "#C4B5A5", marginTop: 6, textAlign: "center" }}>購買同一商品 2 次或以上後，將顯示在這裡</Text>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: SUB, marginTop: 12 }}>{t("purchaseHistory.noCommon")}</Text>
+                <Text style={{ fontSize: 12, color: "#C4B5A5", marginTop: 6, textAlign: "center" }}>{t("purchaseHistory.commonHint")}</Text>
               </View>
             ) : (
               <>
-                <Text style={{ fontSize: 12, color: SUB, marginBottom: 12 }}>按購買次數排列，點擊可預填購物清單</Text>
+                <Text style={{ fontSize: 12, color: SUB, marginBottom: 12 }}>{t("purchaseHistory.commonSort")}</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                   {frequentItems.map((item: any, idx: number) => {
                     const days = daysSince(item.lastBoughtAt);
@@ -656,21 +677,21 @@ export default function PurchaseHistoryScreen() {
                           </View>
                         <View style={{ flexDirection: "row", gap: 4, marginBottom: 10 }}>
                           <View style={{ backgroundColor: "#E8F0FA", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>買過 {item.count} 次</Text>
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: BRAND }}>{t("dyn.boughtTimes", { n: item.count })}</Text>
                           </View>
-                          <Text style={{ fontSize: 11, color: SUB }}>{days === 0 ? "今天" : `${days}天前`}</Text>
+                          <Text style={{ fontSize: 11, color: SUB }}>{days === 0 ? t("shopping.today") : t("dyn.daysAgo", { n: days })}</Text>
                         </View>
                         <View style={{ flexDirection: "row", gap: 4, marginBottom: 8 }}>
-                          <Text style={{ fontSize: 11, color: SUB }}>購買 {item.count} 次</Text>
+                          <Text style={{ fontSize: 11, color: SUB }}>{t("dyn.purchaseTimes", { n: item.count })}</Text>
                           {lastPrice != null && (
                             <>
                               <Text style={{ fontSize: 11, color: SUB }}>·</Text>
-                              <Text style={{ fontSize: 11, fontWeight: "600", color: "#013E77" }}>平均 HK${Math.round(lastPrice)}</Text>
+                              <Text style={{ fontSize: 11, fontWeight: "600", color: "#013E77" }}>{t("dyn.avgHK", { price: Math.round(lastPrice) })}</Text>
                             </>
                           )}
                         </View>
                         <View style={{ backgroundColor: BRAND, borderRadius: 8, paddingVertical: 7, alignItems: "center" }}>
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>再買</Text>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{t("purchaseHistory.rebuy")}</Text>
                         </View>
                       </TouchableOpacity>
                     );
@@ -692,18 +713,18 @@ export default function PurchaseHistoryScreen() {
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
             <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
               <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT, textAlign: "center" }}>編輯購買</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: TEXT, textAlign: "center" }}>{t("purchaseHistory.editPurchase")}</Text>
               </View>
               <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 20 }}>
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>商品名稱</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("purchaseHistory.productName")}</Text>
                   <Text style={{ fontSize: 15, fontWeight: "600", color: TEXT }}>{editPurchaseItem?.name}</Text>
                 </View>
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>購買價格 (HK$)</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("purchaseHistory.purchasePrice")}</Text>
                   <TextInput
                     style={{ backgroundColor: "#F9FAFB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: "600", color: TEXT, borderWidth: 1, borderColor: BORDER }}
-                    placeholder="輸入價格"
+                    placeholder={t("shopping.pricePlaceholder")}
                     placeholderTextColor="#9CA3AF"
                     value={editPurchasePrice}
                     onChangeText={setEditPurchasePrice}
@@ -711,10 +732,10 @@ export default function PurchaseHistoryScreen() {
                   />
                 </View>
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>數量</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("shopping.quantity")}</Text>
                   <TextInput
                     style={{ backgroundColor: "#F9FAFB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontWeight: "600", color: TEXT, borderWidth: 1, borderColor: BORDER }}
-                    placeholder="輸入數量"
+                    placeholder={t("purchaseHistory.quantityPlaceholder")}
                     placeholderTextColor="#9CA3AF"
                     value={editPurchaseQty}
                     onChangeText={setEditPurchaseQty}
@@ -731,14 +752,14 @@ export default function PurchaseHistoryScreen() {
                     setEditPurchaseQty("");
                   }}
                 >
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: TEXT }}>取消</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: TEXT }}>{t("recipe.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ flex: 1, backgroundColor: BRAND, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
                   onPress={handleSaveEditPurchase}
                   disabled={saveEditPurchaseM.isPending}
                 >
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>儲存</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{t("shopping.save")}</Text>
                 </TouchableOpacity>
               </View>
             </View>

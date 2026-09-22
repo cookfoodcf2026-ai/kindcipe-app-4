@@ -32,8 +32,12 @@ import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
+import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERM_LIST } from "@/lib/cookingTerms";
+import { getBilingualName, getLocalizedSteps, getLocalizedDescription } from "@/lib/bilingual";
+import { useTranslation } from "react-i18next";
+import { enumT } from "@/lib/i18nEnums";
 import CookingTermTooltip from "@/app/components/CookingTermTooltip";
 import { DateUtil } from "@/src/lib/DateUtil";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
@@ -109,6 +113,7 @@ function formatMealDate(dateStr: string): string {
 
 // ── Per-step timer component ────────────────────────────────────────
 function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number, onTimerEnd?: () => void }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<"idle" | "input" | "counting">("idle");
   const [totalSec, setTotalSec] = useState(defaultSeconds);
   const [remaining, setRemaining] = useState(defaultSeconds);
@@ -181,7 +186,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
           onPress={() => setMode("input")}
         >
           <Ionicons name="timer-outline" size={12} color={SUB} />
-          <Text style={s.timerIdleTxt}>設定計時</Text>
+          <Text style={s.timerIdleTxt}>{t("recipe.setTimer")}</Text>
         </TouchableOpacity>
       );
     }
@@ -191,7 +196,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
         onPress={() => { setMode("counting"); setRunning(true); }}
       >
         <Ionicons name="timer-outline" size={12} color={BRAND} />
-        <Text style={s.timerIdleActiveTxt}>{Math.round(totalSec / 60)} 分鐘 · 開始計時</Text>
+        <Text style={s.timerIdleActiveTxt}>{t("dyn.minStartTimer", { n: Math.round(totalSec / 60) })}</Text>
       </TouchableOpacity>
     );
   }
@@ -201,7 +206,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
     return (
       <View style={s.timerInput}>
         <Ionicons name="timer-outline" size={13} color={BRAND} />
-        <Text style={s.timerInputLabel}>計時：</Text>
+        <Text style={s.timerInputLabel}>{t("recipe.timer")}</Text>
         <TextInput
           style={s.timerNumInput}
           value={inputMin}
@@ -211,7 +216,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
           placeholderTextColor={HINT}
           maxLength={2}
         />
-        <Text style={s.timerInputLabel}>分</Text>
+        <Text style={s.timerInputLabel}>{t("recipe.min")}</Text>
         <TextInput
           style={s.timerNumInput}
           value={inputSec}
@@ -221,12 +226,12 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
           placeholderTextColor={HINT}
           maxLength={2}
         />
-        <Text style={s.timerInputLabel}>秒</Text>
+        <Text style={s.timerInputLabel}>{t("recipe.sec")}</Text>
         <TouchableOpacity style={s.timerStartBtn} onPress={handleConfirm}>
-          <Text style={s.timerStartBtnTxt}>開始</Text>
+          <Text style={s.timerStartBtnTxt}>{t("recipe.start")}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setMode("idle")}>
-          <Text style={{ fontSize: 12, color: SUB }}>取消</Text>
+          <Text style={{ fontSize: 12, color: SUB }}>{t("recipe.cancel")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -241,7 +246,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
         {isDone ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <Ionicons name="notifications-outline" size={14} color="#EA580C" />
-            <Text style={[s.timerDisplay, { color: "#EA580C" }]}>時間到！</Text>
+            <Text style={[s.timerDisplay, { color: "#EA580C" }]}>{t("recipe.timeUp")}</Text>
           </View>
         ) : fmt(remaining)}
       </Text>
@@ -253,7 +258,7 @@ function StepTimer({ defaultSeconds = 0, onTimerEnd }: { defaultSeconds?: number
       <View style={{ flexDirection: "row", gap: 4, marginLeft: "auto" as any }}>
         {isDone ? (
           <TouchableOpacity style={s.timerStopBtn} onPress={() => { setRunning(false); handleReset(); }}>
-            <Text style={s.timerStopBtnTxt}>停止</Text>
+            <Text style={s.timerStopBtnTxt}>{t("recipe.stop")}</Text>
           </TouchableOpacity>
         ) : running ? (
           <TouchableOpacity style={s.timerControlBtn} onPress={() => setRunning(false)}>
@@ -288,6 +293,7 @@ const MEAL_TYPES = [
 ];
 
 export default function RecipeDetailScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
@@ -331,7 +337,8 @@ export default function RecipeDetailScreen() {
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [, setPlanPickerShoppingDate] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info" }>({ visible: false, message: "", type: "success" });
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info"; action?: { label: string; onPress: () => void } }>({ visible: false, message: "", type: "success" });
+  const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const playTimerEndSound = async () => {
     try {
       const { Audio } = await import("expo-av");
@@ -416,6 +423,36 @@ export default function RecipeDetailScreen() {
   const recipeQ = trpc.recipes.getById.useQuery({ id: id! }, { enabled: !!id });
   const recipe = recipeQ.data;
   const recipeStringId = id ?? "";
+
+  // KOL whitelist submission
+  const kolCreatorQ = (trpc as any).recipes.isKolCreator.useQuery(undefined, { enabled: isAuthenticated });
+  const submitKolM = (trpc as any).recipes.submitToKol.useMutation({
+    onSuccess: () => showToast("已提交到網紅頁 🎉"),
+    onError: (e: any) => showToast(e?.message || "提交失敗", "error"),
+  });
+
+  // Common ingredients for bilingual ingredient-name lookup
+  const { data: commonIngredients = [] } = (trpc as any).commonIngredient.list.useQuery(undefined, {
+    staleTime: 1000 * 60 * 60 * 24,
+    retry: 2,
+  });
+  const ingredientBilingual = useMemo(() => {
+    const byEn = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const byName = new Map<string, { en?: string; fil?: string; id?: string }>();
+    const normalize = (s: string) => s.replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim();
+    for (const ing of commonIngredients) {
+      const rec = { en: ing.nameEn ?? undefined, fil: ing.nameFil ?? undefined, id: ing.nameId ?? undefined };
+      if (ing.nameEn) byEn.set(String(ing.nameEn).toLowerCase(), rec);
+      if (ing.nameZh) byName.set(normalize(ing.nameZh), rec);
+      if (ing.nameYue) byName.set(normalize(ing.nameYue), rec);
+    }
+    const resolve = (q: string) => {
+      if (!q) return undefined;
+      const nq = normalize(q);
+      return byName.get(nq) || byEn.get(nq.toLowerCase());
+    };
+    return { resolve };
+  }, [commonIngredients]);
   
   // 查詢呢個食譜係咪已經有排餐（未來 30 日）
   const mealPlansQ = trpc.mealPlan.listByDateRange.useQuery(
@@ -476,12 +513,15 @@ export default function RecipeDetailScreen() {
 
   // 呢個食譜喺購物清單入面嘅項目（by plannedDate 分組）
   const recipeShopping = useMemo(() => {
+    const today = toISODate(new Date());
     const items = (shoppingListQ.data ?? []).filter(
       (i: any) =>
         (i.fromRecipeId === recipeStringId ||
           // 兜底：只有冇帶 fromRecipeId 嘅 item 先用食譜名 match（避免新食譜繼承舊食譜嘅項目）
           (!i.fromRecipeId && recipe?.name && i.fromRecipeName === recipe.name)) &&
-        i.status !== "bought"
+        i.status !== "bought" &&
+        // 只顯示而家/未來嘅項目，排除過去日期（購物記錄留返 shopping tab）
+        (!i.plannedDate || String(i.plannedDate).trim() === "" || String(i.plannedDate) >= today)
     );
     const groups: { date: string; items: any[] }[] = [];
     const map = new Map<string, any[]>();
@@ -595,7 +635,7 @@ export default function RecipeDetailScreen() {
   };
 
   const ingredients = useMemo<any[]>(() => recipe?.ingredients ?? [], [recipe?.ingredients]);
-  const steps = useMemo<any[]>(() => recipe?.steps ?? [], [recipe?.steps]);
+  const steps = useMemo<any[]>(() => getLocalizedSteps(recipe?.steps, recipe?.stepsEn, recipe?.stepsFil, recipe?.stepsId) ?? [], [recipe?.steps, recipe?.stepsEn, recipe?.stepsFil, recipe?.stepsId]);
 
   const allIngNames = useMemo(() => {
     const names = new Set<string>();
@@ -793,12 +833,7 @@ export default function RecipeDetailScreen() {
       setPlanPickerRecipe(null);
       setPlanPickerShoppingDate(null);
       const count = variables.items.length;
-      const dateLabel = variables.plannedDate ? formatMealDate(variables.plannedDate) : "";
-      setToast({ 
-        visible: true, 
-        message: `✅ ${count} 件食材已加入購物清單${dateLabel ? `，購買日：${dateLabel}` : ""}`, 
-        type: "success" 
-      });
+      setShoppingConfirmCount(count);
       void Promise.all([
         utils.shopping.list.invalidate(),
         utils.mealPlan.listByDateRange.invalidate(),
@@ -909,7 +944,7 @@ export default function RecipeDetailScreen() {
     return (
       <View style={s.center}>
         <ActivityIndicator color={BRAND} size="large" />
-        <Text style={{ fontSize: 14, color: SUB, marginTop: 12 }}>載入食譜中...</Text>
+        <Text style={{ fontSize: 14, color: SUB, marginTop: 12 }}>{t("recipe.loading")}</Text>
       </View>
     );
   }
@@ -918,9 +953,9 @@ export default function RecipeDetailScreen() {
     return (
       <View style={s.center}>
         <Ionicons name="alert-circle-outline" size={52} color={HINT} />
-        <Text style={{ fontSize: 15, color: SUB, marginTop: 8 }}>找不到食譜</Text>
+        <Text style={{ fontSize: 15, color: SUB, marginTop: 8 }}>{t("recipe.notFound")}</Text>
         <TouchableOpacity style={s.backBtnSolid} onPress={() => router.back()}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>返回</Text>
+          <Text style={{ color: "#fff", fontWeight: "700" }}>{t("recipe.back")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1010,10 +1045,10 @@ export default function RecipeDetailScreen() {
                 // 組合完整分享文字
                 const shareText = [
                   `🍽️ ${recipe?.name ?? "食譜"}`,
-                  (recipe as any).description ? `📝 ${(recipe as any).description}` : "",
+                  (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
-                  recipe?.cookTime ? `⏱️ ${recipe.cookTime} 分鐘` : "",
-                  `👥 ${effectiveServings} 人份`,
+                  recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
+                  `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
                   (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
                   "",
                   `🛒 食材清單：`,
@@ -1066,10 +1101,10 @@ export default function RecipeDetailScreen() {
                 // 組合完整複製文字
                 const copyText = [
                   `🍽️ ${recipe?.name ?? "食譜"}`,
-                  (recipe as any).description ? `📝 ${(recipe as any).description}` : "",
+                  (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
-                  recipe?.cookTime ? `⏱️ ${recipe.cookTime} 分鐘` : "",
-                  `👥 ${effectiveServings} 人份`,
+                  recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
+                  `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
                   (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
                   "",
                   `🛒 食材清單：`,
@@ -1104,21 +1139,21 @@ export default function RecipeDetailScreen() {
               {(recipe as any).source === "official" && (
                 <View style={s.officialBadge}>
                   <Ionicons name="sparkles" size={11} color="#F59E0B" />
-                  <Text style={s.officialTxt}>官方 AI 食譜</Text>
+                  <Text style={s.officialTxt}>{t("recipe.officialAi")}</Text>
                 </View>
               )}
-              <Text style={s.heroTitle}>{recipe.name}</Text>
+              <Text style={s.heroTitle}>{getBilingualName(recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary}</Text>
               <View style={s.heroMeta}>
                 {(recipe.cookTime ?? 0) > 0 && (
                   <View style={s.metaChip}>
                     <Ionicons name="time-outline" size={12} color="#fff" />
-                    <Text style={s.metaChipTxt}>{recipe.cookTime} 分鐘</Text>
+                    <Text style={s.metaChipTxt}>{t("dyn.minutes", { n: recipe.cookTime })}</Text>
                   </View>
                 )}
                 {(recipe.servings ?? 0) > 0 && (
                   <View style={s.metaChip}>
                     <Ionicons name="people-outline" size={12} color="#fff" />
-                    <Text style={s.metaChipTxt}>{effectiveServings} 人份</Text>
+                    <Text style={s.metaChipTxt}>{t("dyn.servingsN", { n: effectiveServings })}</Text>
                   </View>
                 )}
                 {(recipe as any).difficulty && (
@@ -1139,22 +1174,22 @@ export default function RecipeDetailScreen() {
               <View style={[s.sourceIcon, { backgroundColor: sourceAction.bg }]}>
                 <Ionicons name={sourceAction.icon} size={14} color="#fff" />
               </View>
-              <Text style={s.sourceText}>教學影片 by {sourceAuthor}</Text>
-              <Text style={s.sourceLink}>查看 →</Text>
+              <Text style={s.sourceText}>{t("recipe.videoBy", { author: sourceAuthor })}</Text>
+              <Text style={s.sourceLink}>{t("recipe.view")}</Text>
             </TouchableOpacity>
           )}
 
           <View style={{ paddingHorizontal: 16 }}>
 
             {/* ── Description ── */}
-            {(recipe as any).description ? (
+            {getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId) ? (
               <View style={s.descriptionCard}>
                 <Text 
                   selectable 
                   selectionColor={TEXT_SELECTION_COLOR}
                   style={s.description}
                 >
-                  {(recipe as any).description}
+                  {getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}
                 </Text>
               </View>
             ) : null}
@@ -1163,8 +1198,8 @@ export default function RecipeDetailScreen() {
             {(recipe.servings ?? 0) > 0 && (
               <View style={s.scalerCard}>
                 <View style={s.scalerLeft}>
-                  <Text style={s.scalerTitle}>份量調整</Text>
-                  <Text style={s.scalerSub}>食材用量自動換算</Text>
+                  <Text style={s.scalerTitle}>{t("recipe.scaleTitle")}</Text>
+                  <Text style={s.scalerSub}>{t("recipe.scaleSub")}</Text>
                 </View>
                 <View style={s.scalerControls}>
                   <TouchableOpacity style={s.scalerBtn} onPress={() => setServings(Math.max(1, effectiveServings - 1))}>
@@ -1172,7 +1207,7 @@ export default function RecipeDetailScreen() {
                   </TouchableOpacity>
                   <View style={s.scalerCount}>
                     <Text style={s.scalerNum}>{effectiveServings}</Text>
-                    <Text style={s.scalerLabel}>人份</Text>
+                    <Text style={s.scalerLabel}>{t("recipe.servingsUnit")}</Text>
                   </View>
                   <TouchableOpacity style={s.scalerBtn} onPress={() => setServings(effectiveServings + 1)}>
                     <Text style={s.scalerBtnTxt}>+</Text>
@@ -1188,7 +1223,7 @@ export default function RecipeDetailScreen() {
                 setShowPlan(true);
               }}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
-                <Text style={s.btnPriTxt}>加入排餐</Text>
+                <Text style={s.btnPriTxt}>{t("recipe.addToPlan")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.btnSecondary, addedToCart && s.btnSecondaryDone]} onPress={() => {
                 if (!isAuthenticated) { router.push("/login"); return; }
@@ -1210,7 +1245,7 @@ export default function RecipeDetailScreen() {
                 setShowIngPicker(true);
               }}>
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
-                <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]}>{addedToCart ? "已加入" : "加入購買"}</Text>
+                <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]}>{addedToCart ? t("picker.added") : t("recipe.addToShopping")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.btnAI} onPress={() => { setAIEditPrompt(""); setAIEditResult(null); setAIEditPreview(null); setShowAIEdit(true); }}>
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
@@ -1218,11 +1253,23 @@ export default function RecipeDetailScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* 網紅白名單：提交到網紅頁 */}
+            {kolCreatorQ.data?.isCreator && recipe?.source === "user" && (
+              <TouchableOpacity
+                style={[s.btnSecondary, { marginTop: 10, justifyContent: "center" }]}
+                disabled={submitKolM.isPending}
+                onPress={() => submitKolM.mutate({ recipeId: Number(String(recipe.id).replace("user_", "")) })}
+              >
+                <Ionicons name="star-outline" size={16} color={BRAND} />
+                <Text style={[s.btnSecTxt, { color: BRAND }]}>{submitKolM.isPending ? t("dyn.processing") : "提交到網紅"}</Text>
+              </TouchableOpacity>
+            )}
+
             {/* 已加入購買提示 Banner */}
             {addedToCart && (
               <View style={s.addedBanner}>
                 <Ionicons name="checkmark-circle" size={16} color={GREEN} />
-                <Text style={s.addedBannerText}>已加入購買</Text>
+                <Text style={s.addedBannerText}>{t("recipe.addedToCart")}</Text>
                 {lastAddedShoppingDate && (
                   <>
                     <View style={s.addedBannerDivider} />
@@ -1232,7 +1279,7 @@ export default function RecipeDetailScreen() {
                 )}
                 <TouchableOpacity style={s.addedBannerEdit} onPress={handleModifyShopping}>
                   <Ionicons name="create-outline" size={14} color={BRAND} />
-                  <Text style={s.addedBannerEditText}>修改</Text>
+                  <Text style={s.addedBannerEditText}>{t("recipe.edit")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1242,7 +1289,7 @@ export default function RecipeDetailScreen() {
               <View style={s.mealPlanCard}>
                 <View style={s.mealPlanHeader}>
                   <Ionicons name="calendar-outline" size={16} color={BRAND} />
-                  <Text style={s.mealPlanTitle}>📅 已排餐 ({allRecipeMealPlans.length} 次)</Text>
+                  <Text style={s.mealPlanTitle}>{t("recipe.mealPlanCount", { n: allRecipeMealPlans.length })}</Text>
                 </View>
                 
                 {/* 橫向 ScrollView - Chips 設計（兼任 Date Tab） */}
@@ -1287,7 +1334,7 @@ export default function RecipeDetailScreen() {
                     <Text style={s.shoppingTitle}>
                       🛒 已加入購物清單 ({activeShoppingGroup?.items?.length || 0} 項)
                     </Text>
-                    <Text style={s.hintText}>• 點擊上方日期切換</Text>
+                    <Text style={s.hintText}>{t("recipe.dateHint")}</Text>
                   </View>
                   <Ionicons
                     name={isShoppingExpanded ? "chevron-up" : "chevron-down"}
@@ -1301,8 +1348,8 @@ export default function RecipeDetailScreen() {
                   <View style={s.shopDateGroup}>
                     <View style={s.shopDateRow}>
                       <Ionicons name="calendar-outline" size={12} color="#013E77" />
-                      <Text style={s.shopDateText}>{activeShoppingGroup.date ? formatMealDate(activeShoppingGroup.date) : "未設定日期"}</Text>
-                      <Text style={s.shopDateCount}>{activeShoppingGroup.items.length} 項</Text>
+                      <Text style={s.shopDateText}>{activeShoppingGroup.date ? formatMealDate(activeShoppingGroup.date) : t("dyn.noDate")}</Text>
+                      <Text style={s.shopDateCount}>{t("dyn.nItems", { n: activeShoppingGroup.items.length })}</Text>
                     </View>
                     {activeShoppingGroup.items.map((it: any) => (
                       <View key={it.id} style={s.shopItemRow}>
@@ -1331,7 +1378,7 @@ export default function RecipeDetailScreen() {
               <View style={s.tipsCard}>
                 <View style={s.tipsRow}>
                   <Ionicons name="bulb-outline" size={15} color="#F59E0B" />
-                  <Text style={s.tipsTitle}>主婦貼士</Text>
+                  <Text style={s.tipsTitle}>{t("recipe.tips")}</Text>
                 </View>
                 <Text 
                   selectable 
@@ -1351,7 +1398,7 @@ export default function RecipeDetailScreen() {
                   activeOpacity={0.7}
                 >
                   <Ionicons name="copy-outline" size={12} color="#6B7280" />
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>📋 複製</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>{t("recipe.copy")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1362,7 +1409,7 @@ export default function RecipeDetailScreen() {
                 <View style={s.cardIconBox}>
                   <Ionicons name="basket-outline" size={16} color={GREEN} />
                 </View>
-                <Text style={s.cardTitle}>食材清單 ({adjustedIngredients.length} 項)</Text>
+                <Text style={s.cardTitle}>{t("recipe.ingredientsCount", { n: adjustedIngredients.length })}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <TouchableOpacity
                     style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}
@@ -1382,7 +1429,7 @@ export default function RecipeDetailScreen() {
                     activeOpacity={0.7}
                   >
                     <Ionicons name="copy-outline" size={13} color="#013E77" />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>📋 複製</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>{t("recipe.copy")}</Text>
                   </TouchableOpacity>
                   <Ionicons name={showIngredients ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
                 </View>
@@ -1406,16 +1453,17 @@ export default function RecipeDetailScreen() {
                             
                             style={s.ingName}
                           >
-                            {ing.name}
+                            {(() => { const lu = ingredientBilingual.resolve(ing.name) || (ing.nameEn ? ingredientBilingual.resolve(ing.nameEn) : undefined); const bn = getBilingualName(ing.name, ing.nameEn || lu?.en, ing.nameFil || lu?.fil, ing.nameId || lu?.id); return bn.primary; })()}
                           </Text>
+                          {(() => { const lu = ingredientBilingual.resolve(ing.name) || (ing.nameEn ? ingredientBilingual.resolve(ing.nameEn) : undefined); const bn = getBilingualName(ing.name, ing.nameEn || lu?.en, ing.nameFil || lu?.fil, ing.nameId || lu?.id); return bn.secondary ? (<Text style={s.ingNameEn} selectable>{bn.secondary}</Text>) : null; })()}
                           {ing.category && (
                             <View style={[s.ingCatTag, { backgroundColor: isPackaged ? "#E8F0FA" : "#E8F5E9" }]}>
-                              <Text style={[s.ingCatTxt, { color: isPackaged ? "#012D56" : "#166534" }]}>{ing.category}</Text>
+                              <Text style={[s.ingCatTxt, { color: isPackaged ? "#012D56" : "#166534" }]}>{enumT.category(ing.category)}</Text>
                             </View>
                           )}
                         </View>
                         <Text style={[s.ingQty, isScaled && { color: COPPER, fontWeight: "700" }]}>
-                          {ing.unit === "適量" ? "適量" : `${ing.adjustedQty} ${ing.unit ?? ""}`}
+                          {ing.unit === "適量" ? "適量" : `${ing.adjustedQty} ${enumT.unit(ing.unit)}`}
                         </Text>
                         {recordedPrice !== null && (
                           <View style={s.ingPriceBadge}>
@@ -1429,7 +1477,7 @@ export default function RecipeDetailScreen() {
                           setSavePriceInput(existingPrice ? String(existingPrice) : "");
                           setShowPrice(true);
                         }}>
-                          <Text style={{ fontSize: 10, color: BRAND, fontWeight: "700" }}>比價</Text>
+                          <Text style={{ fontSize: 10, color: BRAND, fontWeight: "700" }}>{t("recipe.compare")}</Text>
                         </TouchableOpacity>
                       </View>
                     );
@@ -1444,7 +1492,7 @@ export default function RecipeDetailScreen() {
                 <View style={[s.cardIconBox, { backgroundColor: "#E8F0FA" }]}>
                   <Ionicons name="restaurant-outline" size={16} color={BRAND} />
                 </View>
-                <Text style={s.cardTitle}>烹飪步驟 ({steps.length} 步)</Text>
+                <Text style={s.cardTitle}>{t("recipe.stepsCount", { n: steps.length })}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <TouchableOpacity
                     style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }}
@@ -1467,7 +1515,7 @@ export default function RecipeDetailScreen() {
                     activeOpacity={0.7}
                   >
                     <Ionicons name="copy-outline" size={13} color="#013E77" />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>📋 複製</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>{t("recipe.copy")}</Text>
                   </TouchableOpacity>
                   <Ionicons name={showSteps ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
                 </View>
@@ -1502,7 +1550,7 @@ export default function RecipeDetailScreen() {
                             </Text>
                             {isOptional && (
                               <View style={s.optionalBadge}>
-                                <Text style={s.optionalBadgeTxt}>可略過</Text>
+                                <Text style={s.optionalBadgeTxt}>{t("recipe.optional")}</Text>
                               </View>
                             )                            }
                           </View>
@@ -1516,7 +1564,7 @@ export default function RecipeDetailScreen() {
                             activeOpacity={0.7}
                           >
                             <Ionicons name="copy-outline" size={12} color="#6B7280" />
-                            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>📋 複製</Text>
+                            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6B7280" }}>{t("recipe.copy")}</Text>
                           </TouchableOpacity>
 
                           {/* Step image */}
@@ -1557,17 +1605,17 @@ export default function RecipeDetailScreen() {
                 <View style={s.tagsHeader}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Ionicons name="pricetags-outline" size={15} color={BRAND} />
-                    <Text style={s.tagsTitle}>標籤</Text>
+                    <Text style={s.tagsTitle}>{t("recipe.tags")}</Text>
                   </View>
                   {isUserRecipe && isAuthenticated && (
                     <TouchableOpacity style={s.editTagBtn} onPress={() => { setLocalTags(displayTags); setShowTagEditor(true); }}>
                       <Ionicons name="pencil-outline" size={13} color={BRAND} />
-                      <Text style={s.editTagTxt}>編輯</Text>
+                      <Text style={s.editTagTxt}>{t("recipe.edit")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
                 {displayTags.length === 0 ? (
-                  <Text style={{ fontSize: 13, color: HINT, fontStyle: "italic" }}>尚未添加標籤</Text>
+                  <Text style={{ fontSize: 13, color: HINT, fontStyle: "italic" }}>{t("recipe.noTags")}</Text>
                 ) : (
                   <View style={s.tagsRow}>
                     {displayTags.map((tag: string, i: number) => (
@@ -1585,7 +1633,7 @@ export default function RecipeDetailScreen() {
               <View style={s.notesCard}>
                 <View style={s.notesHeader}>
                   <Ionicons name="chatbubble-outline" size={15} color={COPPER} />
-                  <Text style={s.notesTitle}>家庭備註</Text>
+                  <Text style={s.notesTitle}>{t("recipe.notes")}</Text>
                   {(notesQ.data?.length ?? 0) > 0 && (
                     <View style={s.notesBadge}>
                       <Text style={s.notesBadgeTxt}>{notesQ.data!.length}</Text>
@@ -1601,7 +1649,7 @@ export default function RecipeDetailScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                        <Text style={s.noteName}>{note.userName ?? "家庭成員"}</Text>
+                        <Text style={s.noteName}>{note.userName ?? t("dyn.familyMember")}</Text>
                         <Text style={s.noteDate}>{new Date(note.createdAt).toLocaleDateString("zh-HK", { month: "short", day: "numeric" })}</Text>
                       </View>
                       <Text style={s.noteContent}>{note.content}</Text>
@@ -1624,7 +1672,7 @@ export default function RecipeDetailScreen() {
                     style={s.noteInput}
                     value={noteInput}
                     onChangeText={setNoteInput}
-                    placeholder="留下烹飪備註，例如：少鹽、下次加多點蒜…"
+                    placeholder={t("recipe.notePlaceholder")}
                     placeholderTextColor={HINT}
                     multiline
                     maxLength={500}
@@ -1644,7 +1692,7 @@ export default function RecipeDetailScreen() {
                     }
                   </TouchableOpacity>
                 </View>
-                <Text style={s.noteHint}>{noteInput.length}/500 · 僅家庭成員可見</Text>
+                <Text style={s.noteHint}>{t("dyn.noteVisible", { n: noteInput.length })}</Text>
               </View>
             )}
 
@@ -1665,21 +1713,21 @@ export default function RecipeDetailScreen() {
                   onPress={() => router.push({ pathname: "/recipe-editor", params: { id: recipeNumericId } })}
                 >
                   <Ionicons name="create-outline" size={18} color="#fff" />
-                  <Text style={s.editBtnTxt}>編輯食譜</Text>
+                  <Text style={s.editBtnTxt}>{t("recipe.editRecipe")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.deleteBtn}
                   onPress={handleDelete}
                 >
                   <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                  <Text style={s.deleteBtnTxt}>刪除食譜</Text>
+                  <Text style={s.deleteBtnTxt}>{t("recipe.deleteRecipe")}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             {/* ── Disclaimer ── */}
             <View style={s.disclaimerContainer}>
-              <Text style={s.disclaimerText}>圖片及食譜只供參考</Text>
+              <Text style={s.disclaimerText}>{t("recipe.disclaimer")}</Text>
             </View>
           </View>
         </ScrollView>
@@ -1693,22 +1741,22 @@ export default function RecipeDetailScreen() {
             <View style={s.sheet}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
-                <Text style={s.sheetTitle}>加入排餐</Text>
+                <Text style={s.sheetTitle}>{t("recipe.addToPlan")}</Text>
                 <TouchableOpacity onPress={() => setShowPlan(false)}>
                   <Ionicons name="close" size={22} color={TEXT} />
                 </TouchableOpacity>
               </View>
-              <Text style={s.sheetLabel}>選擇日期</Text>
+              <Text style={s.sheetLabel}>{t("recipe.selectDate")}</Text>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
               {planDate && (
                 <TouchableOpacity 
                   onPress={() => setPlanDate(null)} 
                   style={{ alignSelf: "flex-end", marginTop: -8 }}
                 >
-                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
                 </TouchableOpacity>
               )}
-              <Text style={s.sheetLabel}>餐次</Text>
+              <Text style={s.sheetLabel}>{t("recipe.mealType")}</Text>
               <View style={s.mealRow}>
                 {MEAL_TYPES.map(m => (
                   <TouchableOpacity key={m.id} style={[s.mealChip, planMeal === m.id && s.mealChipActive]} onPress={() => setPlanMeal(m.id)}>
@@ -1734,7 +1782,7 @@ export default function RecipeDetailScreen() {
                 }}
                 disabled={addPlanM.isPending}
               >
-                {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>確認加入</Text>}
+                {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>{t("recipe.confirmAdd")}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1761,7 +1809,7 @@ export default function RecipeDetailScreen() {
                 <View style={{ backgroundColor: "#F9FAFB", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", padding: 14 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
                     <Ionicons name="cart-outline" size={14} color={BRAND} />
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>記錄購買價格到購物清單</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: TEXT }}>{t("recipe.recordPrice")}</Text>
                   </View>
 
                 {(() => {
@@ -1773,19 +1821,19 @@ export default function RecipeDetailScreen() {
                       {existingItem?.estimatedPrice && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#EEF4FB", borderRadius: 8 }}>
                           <Ionicons name="information-circle-outline" size={12} color={BRAND} />
-                          <Text style={{ fontSize: 11, color: BRAND }}>購物清單已有價格：${existingItem.estimatedPrice}</Text>
+                          <Text style={{ fontSize: 11, color: BRAND }}>{t("recipe.priceInList", { price: `$${existingItem.estimatedPrice}` })}</Text>
                         </View>
                       )}
                       {lastPrice && !sessionPrice && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#FFFBEB", borderRadius: 8 }}>
                           <Ionicons name="time-outline" size={12} color="#92400E" />
-                          <Text style={{ fontSize: 11, color: "#92400E" }}>上次記錄價格：${lastPrice}</Text>
+                          <Text style={{ fontSize: 11, color: "#92400E" }}>{t("recipe.lastPrice", { price: `$${lastPrice}` })}</Text>
                         </View>
                       )}
                       {sessionPrice && (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6, padding: 8, backgroundColor: "#DCFCE7", borderRadius: 8 }}>
                           <Ionicons name="checkmark-circle-outline" size={12} color="#15803D" />
-                          <Text style={{ fontSize: 11, color: "#15803D", fontWeight: "600" }}>本次已記錄價格：${sessionPrice}</Text>
+                          <Text style={{ fontSize: 11, color: "#15803D", fontWeight: "600" }}>{t("recipe.sessionPrice", { price: `$${sessionPrice}` })}</Text>
                         </View>
                       )}
                     </>
@@ -1793,10 +1841,10 @@ export default function RecipeDetailScreen() {
                 })()}
 
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ fontSize: 12, color: SUB }}>價格</Text>
+                  <Text style={{ fontSize: 12, color: SUB }}>{t("recipe.price")}</Text>
                   <TextInput
                     style={{ flex: 1, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontWeight: "600", color: TEXT }}
-                    placeholder="輸入價格"
+                    placeholder={t("shopping.pricePlaceholder")}
                     placeholderTextColor={SUB}
                     value={savePriceInput}
                     onChangeText={setSavePriceInput}
@@ -1806,7 +1854,7 @@ export default function RecipeDetailScreen() {
                     style={{ backgroundColor: "#E8F0FA", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: "#BFDBFE" }}
                     onPress={handleUseLowestPrice}
                   >
-                    <Text style={{ fontSize: 11, color: BRAND, fontWeight: "700" }}>最低價</Text>
+                    <Text style={{ fontSize: 11, color: BRAND, fontWeight: "700" }}>{t("recipe.lowest")}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -1845,7 +1893,7 @@ export default function RecipeDetailScreen() {
             <View style={s.sheet}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
-                <Text style={s.sheetTitle}>編輯標籤</Text>
+                <Text style={s.sheetTitle}>{t("recipe.editTags")}</Text>
                 <TouchableOpacity onPress={() => setShowTagEditor(false)}>
                   <Ionicons name="close" size={22} color={TEXT} />
                 </TouchableOpacity>
@@ -1862,7 +1910,7 @@ export default function RecipeDetailScreen() {
                 <View style={s.tagInputRow}>
                   <TextInput
                     style={s.tagInput}
-                    placeholder="新增標籤"
+                    placeholder={t("recipe.addTagPlaceholder")}
                     placeholderTextColor={HINT}
                     value={newTag}
                     onChangeText={setNewTag}
@@ -1901,7 +1949,7 @@ export default function RecipeDetailScreen() {
                 }}
                 disabled={updateTagsM.isPending}
               >
-                {updateTagsM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>儲存標籤</Text>}
+                {updateTagsM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>{t("recipe.saveTags")}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1936,7 +1984,7 @@ export default function RecipeDetailScreen() {
                 style={{ backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, fontSize: 14, color: TEXT, borderWidth: 1.5, borderColor: "#DDD6FE", marginBottom: 12, minHeight: 60 }}
                 value={aiEditPrompt}
                 onChangeText={setAIEditPrompt}
-                placeholder="例如：把這個食譜改成素食版..."
+                placeholder={t("recipe.editPromptPlaceholder")}
                 placeholderTextColor={HINT}
                 multiline
               />
@@ -1977,31 +2025,31 @@ export default function RecipeDetailScreen() {
                 disabled={aiEditM.isPending || !aiEditPrompt.trim()}
               >
                 {aiEditM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="sparkles" size={16} color="#fff" />}
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{aiEditM.isPending ? "處理中..." : "開始 AI Edit"}</Text>
+                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{aiEditM.isPending ? t("dyn.processing") : t("dyn.startAiEdit")}</Text>
               </TouchableOpacity>
               {(aiEditResult || aiEditPreview) && (
                 <View style={{ gap: 10 }}>
                   <ScrollView style={{ backgroundColor: "#FAFAFA", borderRadius: 12, padding: 12, maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB" }}>
                     {aiEditPreview ? (
                       <View style={{ gap: 6 }}>
-                        <Text style={{ fontSize: 14, color: TEXT, fontWeight: "800" }}>{aiEditPreview.name}</Text>
+                        <Text style={{ fontSize: 14, color: TEXT, fontWeight: "800" }}>{getBilingualName(aiEditPreview.name, aiEditPreview.nameEn, aiEditPreview.nameFil, aiEditPreview.nameId).primary}</Text>
                         {!!aiEditPreview.description && (
                           <Text style={{ fontSize: 12, color: SUB, lineHeight: 18 }}>{aiEditPreview.description}</Text>
                         )}
                         {(aiEditPreview.ingredients || []).length > 0 && (
                           <>
-                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>食材（{(aiEditPreview.ingredients || []).length}）</Text>
+                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>{t("recipe.ingredientsN", { n: (aiEditPreview.ingredients || []).length })}</Text>
                             {(aiEditPreview.ingredients || []).map((ing: any, ingIdx: number) => (
                               <Text key={ingIdx} style={{ fontSize: 12, color: TEXT, lineHeight: 18 }}>
-                                • {ing.name}{formatIngredientDisplay(ing.quantity, ing.unit) ? ` ${formatIngredientDisplay(ing.quantity, ing.unit)}` : ""}
+                                • {getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary}{formatIngredientDisplay(ing.quantity, ing.unit) ? ` ${formatIngredientDisplay(ing.quantity, ing.unit)}` : ""}
                               </Text>
                             ))}
                           </>
                         )}
                         {(aiEditPreview.steps || []).length > 0 && (
                           <>
-                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>步驟（{(aiEditPreview.steps || []).length}）</Text>
-                            {(aiEditPreview.steps || []).map((s: any, sIdx: number) => {
+                            <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>{t("recipe.stepsN", { n: (aiEditPreview.steps || []).length })}</Text>
+                            {(getLocalizedSteps(aiEditPreview.steps, aiEditPreview.stepsEn, aiEditPreview.stepsFil, aiEditPreview.stepsId) || []).map((s: any, sIdx: number) => {
                               const instruction = typeof s === "string" ? s : (s.instruction ?? "");
                               return (
                                 <Text key={sIdx} style={{ fontSize: 12, color: TEXT, lineHeight: 18 }}>
@@ -2049,7 +2097,7 @@ export default function RecipeDetailScreen() {
                     }}
                     disabled={saveEditedRecipeM.isPending}
                   >
-                    {saveEditedRecipeM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>儲存為我的食譜</Text>}
+                    {saveEditedRecipeM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{t("recipe.saveAsMine")}</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -2063,16 +2111,16 @@ export default function RecipeDetailScreen() {
           <View style={s.overlay}>
             <View style={s.ingPickerSheet}>
               <View style={s.ingPickerHeader}>
-                <Text style={s.ingPickerTitle}>選擇食材加入購物清單</Text>
+                <Text style={s.ingPickerTitle}>{t("recipe.pickIngredients")}</Text>
                 <TouchableOpacity onPress={() => setShowIngPicker(false)}>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: BRAND }}>取消</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: BRAND }}>{t("recipe.cancel")}</Text>
                 </TouchableOpacity>
               </View>
               
               {/* 日期選擇器 - 永遠直接顯示可編輯 */}
               <View style={s.datePickerRow}>
                 <Ionicons name="calendar-outline" size={16} color={SUB} />
-                <Text style={s.datePickerLabel}>購物日期：</Text>
+                <Text style={s.datePickerLabel}>{t("recipe.shoppingDate")}</Text>
                 <PlanDatePicker
                   value={shoppingDate}
                   onChange={setShoppingDate}
@@ -2089,13 +2137,13 @@ export default function RecipeDetailScreen() {
                   onPress={() => setShoppingDate(null)} 
                   style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
                 >
-                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>清除日期</Text>
+                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
                 </TouchableOpacity>
               )}
               {latestMealPlan && (
                 <View style={s.dateHintRow}>
                   <Ionicons name="information-circle-outline" size={12} color={SUB} />
-                  <Text style={s.dateHintText}>已關聯 {latestMealPlan.date} 晚餐，建議購買日為前一日</Text>
+                  <Text style={s.dateHintText}>{t("recipe.linkedDinner", { date: latestMealPlan.date })}</Text>
                 </View>
               )}
               {latestMealPlan && shoppingDate && shoppingDate > latestMealPlan.date && (
@@ -2117,7 +2165,7 @@ export default function RecipeDetailScreen() {
                   setSelectedIngs(newSet);
                 }}>
                   <Ionicons name="checkmark-done" size={14} color={BRAND} />
-                  <Text style={s.quickBtnText}>全選主要食材</Text>
+                  <Text style={s.quickBtnText}>{t("recipe.selectMain")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.quickBtn} onPress={() => {
                   const newSet = new Set<number>();
@@ -2125,23 +2173,23 @@ export default function RecipeDetailScreen() {
                   setSelectedIngs(newSet);
                 }}>
                   <Ionicons name="checkmark" size={14} color={BRAND} />
-                  <Text style={s.quickBtnText}>全選</Text>
+                  <Text style={s.quickBtnText}>{t("recipe.selectAll")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.quickBtn} onPress={() => setSelectedIngs(new Set())}>
                   <Ionicons name="close" size={14} color={SUB} />
-                  <Text style={[s.quickBtnText, { color: SUB }]}>取消</Text>
+                  <Text style={[s.quickBtnText, { color: SUB }]}>{t("recipe.cancel")}</Text>
                 </TouchableOpacity>
               </View>
               <View style={s.seasoningHintRow}>
-                <Text style={s.seasoningHintText}>（調味料如家中常備可不勾）</Text>
-                <Text style={s.seasoningHintText}>勾選的項目將被更新，未勾選的保持原狀</Text>
+                <Text style={s.seasoningHintText}>{t("recipe.seasoningHint1")}</Text>
+                <Text style={s.seasoningHintText}>{t("recipe.seasoningHint2")}</Text>
               </View>
               
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
                 {editIngs.length === 0 ? (
                   <View style={{ paddingVertical: 40, alignItems: "center" }}>
                     <Ionicons name="information-circle-outline" size={48} color={SUB} />
-                    <Text style={{ fontSize: 14, color: SUB, marginTop: 12 }}>沒有食材資料</Text>
+                    <Text style={{ fontSize: 14, color: SUB, marginTop: 12 }}>{t("recipe.noIngredients")}</Text>
                   </View>
                 ) : (
                   editIngs.map((ing: any, i: number) => (
@@ -2305,7 +2353,7 @@ export default function RecipeDetailScreen() {
                   }}
                 >
                   <Text style={s.ingPickerConfirmTxt}>
-                    {selectedIngs.size > 0 ? `加入 ${selectedIngs.size} 項食材` : "關閉"}
+                    {selectedIngs.size > 0 ? t("recipe.addNIngredients", { n: selectedIngs.size }) : t("common.close")}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -2355,7 +2403,15 @@ export default function RecipeDetailScreen() {
           visible={toast.visible}
           message={toast.message}
           type={toast.type}
+          action={toast.action}
           onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+        />
+
+        <ShoppingAddConfirm
+          visible={shoppingConfirmCount !== null}
+          count={shoppingConfirmCount ?? 0}
+          onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
+          onClose={() => setShoppingConfirmCount(null)}
         />
       </View>
     </>
@@ -2517,6 +2573,7 @@ const s = StyleSheet.create({
   ingBorder: { borderBottomWidth: 1, borderBottomColor: "#F9F6F2" },
   ingDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, flexShrink: 0 },
   ingName: { fontSize: 15, fontWeight: "500", color: TEXT, lineHeight: 20 },
+  ingNameEn: { fontSize: 12, color: "#8A8A8E", marginTop: 1 },
   ingCatTag: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginTop: 3 },
   ingCatTxt: { fontSize: 10 },
   ingQty: { fontSize: 13, color: SUB, fontWeight: "600", textAlign: "right" as any },

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from "react-i18next";
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { Icon } from './Icon';
 import { colors } from '../styles/colors';
@@ -16,6 +17,7 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
   onSave,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const [remarks, setRemarks] = useState(initialRemarks);
 
   return (
@@ -62,7 +64,7 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
         <TextInput
           value={remarks}
           onChangeText={setRemarks}
-          placeholder="輸入你的筆記..."
+          placeholder={t("misc.notePlaceholder")}
           placeholderTextColor={colors.neutral.mediumGray}
           multiline
           numberOfLines={4}
@@ -130,4 +132,5 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
   );
 };
 
-export default function RemarksEditorRoute() { return null; }
+export default function RemarksEditorRoute() {
+  const { t } = useTranslation(); return null; }
