@@ -22,6 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 // Check if native modules are available (dev build vs Expo Go)
 import { TurboModuleRegistry } from "react-native";
+import { friendlyError } from "@/lib/errors";
 const hasGoogleSignin = TurboModuleRegistry.get("RNGoogleSignin") != null;
 const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
 
@@ -121,12 +122,12 @@ export default function LoginScreen() {
       }
     } catch (err: any) {
       if (mode === "register" && err?.data?.code === "CONFLICT") {
-        Alert.alert(t("auth.emailTaken"), err.message || t("auth.emailTakenMsg"), [
-          { text: "知道了", style: "cancel" },
-          { text: "去登入", onPress: () => setMode("login") },
+        Alert.alert(t("auth.emailTaken"), friendlyError(err) || t("auth.emailTakenMsg"), [
+          { text: t("知道了" as any), style: "cancel" },
+          { text: t("去登入" as any), onPress: () => setMode("login") },
         ]);
       } else {
-        const msg = mode === "register" ? (err?.message || "建立帳號失敗，請稍後再試") : (err?.message || "電郵或密碼錯誤");
+        const msg = mode === "register" ? (friendlyError(err) || "建立帳號失敗，請稍後再試") : (friendlyError(err) || "電郵或密碼錯誤");
         Alert.alert(mode === "register" ? "註冊失敗" : "登入失敗", msg);
       }
     } finally {

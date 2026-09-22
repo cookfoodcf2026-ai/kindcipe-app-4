@@ -38,6 +38,7 @@ import type { CategoryDef } from "@/lib/category-storage";
 import { DEFAULT_CATEGORIES, loadCustomCategories } from "@/lib/category-storage";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
+import { friendlyError } from "@/lib/errors";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -383,7 +384,7 @@ export default function PlannerTab() {
       utils.weeklyMenu.getWeek.invalidate({ weekStart: startDate });
       showToast("已設定");
     },
-    onError: (e) => Alert.alert("設定失敗", e.message),
+    onError: (e) => Alert.alert("設定失敗", friendlyError(e)),
   });
 
   const [isSettingEatOut, setIsSettingEatOut] = useState<string | null>(null);
@@ -407,7 +408,7 @@ export default function PlannerTab() {
     },
     onError: (e) => {
       let message = "設定外出失敗";
-      if (e.message?.includes("請先加入家庭廚房")) {
+      if (friendlyError(e)?.includes("請先加入家庭廚房")) {
         message = "請先加入家庭廚房才能設定外出";
       } else if (e.data?.code === "FORBIDDEN") {
         message = "權限不足，請聯繫管理員";
@@ -437,7 +438,7 @@ export default function PlannerTab() {
       showToast(message);
     },
     onError: (e) => {
-      showToast(`批量排餐失敗：${e.message}`, "error");
+      showToast(`批量排餐失敗：${friendlyError(e)}`, "error");
     },
   });
 
@@ -504,12 +505,12 @@ export default function PlannerTab() {
         "排餐已記錄！下一步要做什麼？",
         [
           {
-            text: "繼續審視其他日期",
+            text: t("繼續審視其他日期" as any),
             style: "cancel",
             onPress: () => {} // 留在排餐頁
           },
           {
-            text: "去購物清單加食材",
+            text: t("去購物清單加食材" as any),
             onPress: () => {
               if (pickerRecipes.length > 0) {
                 // 本日 4 個餸：同名食材合併（同單位相加）
@@ -551,7 +552,7 @@ export default function PlannerTab() {
       );
     } catch (e: any) {
       console.error("[handleApplyToday] Error:", e);
-      showToast(`套用失敗：${e.message}`, "error");
+      showToast(`套用失敗：${friendlyError(e)}`, "error");
     }
   };
 
@@ -563,13 +564,13 @@ export default function PlannerTab() {
       void invalidateAll();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${e.message}`, "error");
+      showToast(`加入食材失敗：${friendlyError(e)}`, "error");
     },
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: async () => { await invalidateAll(); },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
 
   const addMealM = trpc.mealPlan.add.useMutation({
@@ -587,7 +588,7 @@ export default function PlannerTab() {
           isEatOutConflict ? "衝突提示" : "重複食譜提示",
           result.warning,
           [
-            { text: "取消", style: "cancel", onPress: () => {
+            { text: t("取消" as any), style: "cancel", onPress: () => {
               // Undo: delete the just-created meal plan + its ingredients.
               if (result.newPlanId) {
                 deleteMealM.mutate({ id: result.newPlanId });
@@ -597,7 +598,7 @@ export default function PlannerTab() {
               addMealLockRef.current = false;
             }},
             { 
-              text: "確定", 
+              text: t("確定" as any), 
               onPress: async () => {
                 // 直接執行後續流程
                 await completeAddFlow(result, variables);
@@ -616,7 +617,7 @@ export default function PlannerTab() {
       pendingIngredientsRef.current = null;
       addMealLockRef.current = false;
       setIsAddingMeal(false); // 確保錯誤時都關閉 Loading
-      showToast(`新增失敗：${e.message}`, "error");
+      showToast(`新增失敗：${friendlyError(e)}`, "error");
     },
   });
 
@@ -714,7 +715,7 @@ export default function PlannerTab() {
       console.log("[completeAddFlow] No ingredients, showing Alert");
       setIsAddingMeal(false);
       addMealLockRef.current = false;
-      Alert.alert("✅ 已加入排餐", variables.recipeName, [{ text: "確定" }]);
+      Alert.alert("✅ 已加入排餐", variables.recipeName, [{ text: t("確定" as any) }]);
     }
 
     // 5. 背景靜默刷新
@@ -745,7 +746,7 @@ export default function PlannerTab() {
       setSyncShoppingItems(false);
       setSyncShoppingDate("");
     },
-    onError: (e: any) => Alert.alert("改日期失敗", e.message),
+    onError: (e: any) => Alert.alert("改日期失敗", friendlyError(e)),
   });
 
   const confirmMealM = trpc.mealPlan.confirm.useMutation({
@@ -757,12 +758,12 @@ export default function PlannerTab() {
         setPickerRecipe(conf);
       }
     },
-    onError: (e) => Alert.alert("確認失敗", e.message),
+    onError: (e) => Alert.alert("確認失敗", friendlyError(e)),
   });
 
   const rejectMealM = trpc.mealPlan.reject.useMutation({
     onSuccess: async () => { await invalidateAll(); },
-    onError: (e) => Alert.alert("拒絕失敗", e.message),
+    onError: (e) => Alert.alert("拒絕失敗", friendlyError(e)),
   });
 
   const { familyRole } = useAuth();
@@ -978,9 +979,9 @@ export default function PlannerTab() {
   const handleDeleteMeal = useCallback(
     (mp: any) => {
       Alert.alert("刪除餐點", `確定要刪除「${mp.recipeName}」？`, [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "刪除",
+          text: t("刪除" as any),
           style: "destructive",
           onPress: () => {
             deleteMealM.mutate({ id: mp.id });
@@ -995,9 +996,9 @@ export default function PlannerTab() {
                   "食材仍在購物清單",
                   `「${mp.recipeName}」中有 ${recipeItems.length} 項食材未購買，要一併從購物清單移除嗎？`,
                   [
-                    { text: "保留食材", style: "cancel" },
+                    { text: t("保留食材" as any), style: "cancel" },
                     {
-                      text: "移除食材",
+                      text: t("移除食材" as any),
                       style: "destructive",
                       onPress: () => {
                         recipeItems.forEach((si: any) =>
@@ -1038,9 +1039,9 @@ export default function PlannerTab() {
       "同步購物日期？",
       "呢個排餐已經有相關購物清單，要唔要一齊改購物日期？",
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "保持原有日期",
+          text: t("保持原有日期" as any),
           onPress: () => {
             if (!moveMealPlanTarget || !moveMealPlanDate) return;
             updateMealDateM.mutate({
@@ -1052,7 +1053,7 @@ export default function PlannerTab() {
           },
         },
         {
-          text: "需要更改",
+          text: t("需要更改" as any),
           onPress: () => {
             if (!moveMealPlanTarget || !moveMealPlanDate) return;
             setPendingMoveDateSave({ id: moveMealPlanTarget.id, newDate: moveMealPlanDate });
@@ -1230,7 +1231,7 @@ export default function PlannerTab() {
             `本日已有 ${mealsOnDate.length} 個餐次，設定外出將會刪除當天排餐，確定要繼續嗎？`,
             [
               { 
-                text: "取消", 
+                text: t("取消" as any), 
                 style: "cancel", 
                 onPress: () => {
                   console.log("[EatOut] Cancel clicked");
@@ -1240,7 +1241,7 @@ export default function PlannerTab() {
                 }
               },
               { 
-                text: "確定刪除並外食", 
+                text: t("確定刪除並外食" as any), 
                 style: "destructive", 
                 onPress: () => {
                   console.log("[EatOut] Confirm clicked");
@@ -1423,9 +1424,9 @@ export default function PlannerTab() {
                 style={styles.rejectBtn}
                 onPress={() => {
                   Alert.alert("拒絕餐點", `確定要拒絕「${mp.recipeName}」？`, [
-                    { text: "取消", style: "cancel" },
+                    { text: t("取消" as any), style: "cancel" },
                     {
-                      text: "拒絕",
+                      text: t("拒絕" as any),
                       style: "destructive",
                       onPress: () => rejectMealM.mutate({ id: mp.id }),
                     },
@@ -1975,7 +1976,7 @@ export default function PlannerTab() {
                   }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "700", color: draftSyncShoppingDateMode === opt.key ? "#013E77" : "#374151" }}>
-                    {opt.label}
+                    {t(opt.label as any)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -2118,9 +2119,9 @@ export default function PlannerTab() {
                         >
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{meta.label}</Text>
+                              <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{t(meta.label as any)}</Text>
                               <Text style={{ fontSize: 13, fontWeight: "800", color: hasDish ? "#1A1A1A" : "#9CA3AF", marginTop: 1 }} numberOfLines={1}>
-                                {hasDish ? dishName : `請添加${meta.label}`}
+                                {hasDish ? dishName : `請添加${t(meta.label as any)}`}
                               </Text>
                             </View>
                             {/* Image preview */}
@@ -2136,10 +2137,10 @@ export default function PlannerTab() {
                             <TouchableOpacity
                               style={{ backgroundColor: "#FEE2E2", borderRadius: 6, padding: 6 }}
                               onPress={() => {
-                                Alert.alert("清除", `確定清除本日的「${meta.label}」嗎？`, [
-                                  { text: "取消", style: "cancel" },
+                                Alert.alert("清除", `確定清除本日的「${t(meta.label as any)}」嗎？`, [
+                                  { text: t("取消" as any), style: "cancel" },
                                   {
-                                    text: "清除",
+                                    text: t("清除" as any),
                                     style: "destructive",
                                     onPress: () => {
                                       const dayItem = recommendItemsByDay[recommendCurrentDay];
@@ -2484,7 +2485,7 @@ function SlotPickerModal({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "75%", minHeight: "50%" }}>
         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{enumT.weekday(dayOfWeek)}{meta.label}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
             <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
               <Ionicons name="close" size={14} color="#6B7280" />
             </TouchableOpacity>
@@ -2536,10 +2537,10 @@ function SlotPickerModal({
                 onPress={() => {
                   Alert.alert(
                     "🤖 AI 生成食譜",
-                    `AI 生成功能已移至 AI 助手，你可以：\n\n1. 去 AI 助手輸入「生成 3 個${meta.label}食譜」\n2. 或使用「食譜庫」揀選現有食譜`,
+                    `AI 生成功能已移至 AI 助手，你可以：\n\n1. 去 AI 助手輸入「生成 3 個${t(meta.label as any)}食譜」\n2. 或使用「食譜庫」揀選現有食譜`,
                     [
-                      { text: "取消", style: "cancel" },
-                      { text: "開啟 AI 助手", onPress: () => { router.push("/ai-chef"); onClose(); } }
+                      { text: t("取消" as any), style: "cancel" },
+                      { text: t("開啟 AI 助手" as any), onPress: () => { router.push("/ai-chef"); onClose(); } }
                     ]
                   );
                 }}
@@ -2651,12 +2652,12 @@ function AISuggestModalRN({
     onError: (e) => {
       console.error("[AI Suggest] Error:", e);
       let message = "AI 推薦失敗";
-      if (e.message?.includes("食譜庫")) {
-        message = e.message;
-      } else if (e.message?.includes("權限")) {
+      if (friendlyError(e)?.includes("食譜庫")) {
+        message = friendlyError(e);
+      } else if (friendlyError(e)?.includes("權限")) {
         message = "請先加入家庭廚房或聯繫管理員";
-      } else if (e.message?.includes("AI")) {
-        message = e.message;
+      } else if (friendlyError(e)?.includes("AI")) {
+        message = friendlyError(e);
       }
       Alert.alert("AI 推薦失敗", message);
     },
@@ -2672,11 +2673,11 @@ function AISuggestModalRN({
   const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
     Alert.alert(
       "清空菜式",
-      `確定要清空週${DAY_SHORT[dayOfWeek]}${SLOT_META[slotType].label}？`,
+      `確定要清空週${DAY_SHORT[dayOfWeek]}${t(SLOT_META[slotType].label as any)}？`,
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "清空",
+          text: t("清空" as any),
           style: "destructive",
           onPress: () => {
             setSuggestedDays(prev =>
@@ -2880,7 +2881,7 @@ function AISuggestModalRN({
                                 activeOpacity={0.7}
                               >
                                 <Text style={{ fontSize: 12, fontWeight: "700", color: hasValidDish ? "#1A1A1A" : "#9CA3AF" }} numberOfLines={1}>
-                                  {hasValidDish ? getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).primary : `${meta.label}（未設定）`}
+                                  {hasValidDish ? getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).primary : `${t(meta.label as any)}（未設定）`}
                                 </Text>
                                 {hasValidDish && getBilingualName(dish.name, dish.nameEn, dish.nameFil, dish.nameId).secondary ? (
                                   <Text style={{ fontSize: 10, color: "#9CA3AF" }} numberOfLines={1}>
@@ -2987,7 +2988,7 @@ function AISuggestModalRN({
             }
             handleSwap(swapPreview.day, swapPreview.slot, swapPreview.dish);
             setSwapPreview(null);
-            Alert.alert(`週${DAY_SHORT[swapPreview.day]}${SLOT_META[swapPreview.slot].label} 已更新`);
+            Alert.alert(`週${DAY_SHORT[swapPreview.day]}${t(SLOT_META[swapPreview.slot].label as any)} 已更新`);
           }}
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];
@@ -3044,7 +3045,7 @@ function SwapPickerRN({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
           <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{enumT.weekday(dayOfWeek)}{meta.label}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
               <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
                 <Ionicons name="close" size={14} color="#6B7280" />
               </TouchableOpacity>

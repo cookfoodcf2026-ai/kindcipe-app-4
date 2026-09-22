@@ -25,6 +25,7 @@ import type {
   ShoppingTemplate,
   TemplateCategory,
 } from "@/lib/shopping-templates";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 const BG = "#FFFBF5";
@@ -119,7 +120,7 @@ export default function ShoppingTemplatesScreen() {
       setQuantityOverrides({});
       setCustomItems([]);
     },
-    onError: (e) => showToast(`加入失敗：${e.message}`, "error"),
+    onError: (e) => showToast(`加入失敗：${friendlyError(e)}`, "error"),
   });
   
   // 載入已儲存清單
@@ -165,7 +166,7 @@ export default function ShoppingTemplatesScreen() {
       setShowSaveListModal(false);
       setSavedListName("");
     } catch (e) {
-      Alert.alert("儲存失敗", e instanceof Error ? e.message : "未知錯誤");
+      Alert.alert("儲存失敗", e instanceof Error ? friendlyError(e) : "未知錯誤");
     }
   };
   
@@ -191,9 +192,9 @@ export default function ShoppingTemplatesScreen() {
       "刪除清單",
       "確定要刪除呢個清單？",
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "刪除",
+          text: t("刪除" as any),
           style: "destructive",
           onPress: async () => {
             const updatedLists = savedLists.filter(l => l.id !== listId);
@@ -424,9 +425,9 @@ export default function ShoppingTemplatesScreen() {
       "加入購物車",
       `確定將 ${totalSelectedCount} 項食材加入購物清單嗎？\n預定聚餐日子：${planDateLabel}`,
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "確定",
+          text: t("確定" as any),
           onPress: () => {
             // A. 模板預設食材
             const templateSelectedIds = Array.from(selectedItems).filter(id => !id.startsWith("custom_"));
@@ -470,9 +471,9 @@ export default function ShoppingTemplatesScreen() {
       "AA制分攤計算結果",
       `💰 總金額: $${total}\n👥 人數: ${peopleCount}人\n💸 每人應付: $${perPerson}\n\n已為你自動生成 WhatsApp 分攤訊息！`,
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "複製分攤訊息",
+          text: t("複製分攤訊息" as any),
           onPress: async () => {
             await Clipboard.setStringAsync(message);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -620,7 +621,7 @@ export default function ShoppingTemplatesScreen() {
       Alert.alert(
         "未安裝 WhatsApp",
         "已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App",
-        [{ text: "確定" }]
+        [{ text: t("確定" as any) }]
       );
     }
   };
@@ -673,9 +674,9 @@ export default function ShoppingTemplatesScreen() {
         "確定離開？",
         "你已揀選或修改咗買餸項目，離開後將不會保存。\n\n建議先「儲存清單」，下次可以直接載入重用！",
         [
-          { text: "繼續編輯", style: "cancel" },
-          { text: "儲存清單", onPress: () => setShowSaveListModal(true) },
-          { text: "離開", style: "destructive", onPress: goBack },
+          { text: t("繼續編輯" as any), style: "cancel" },
+          { text: t("儲存清單" as any), onPress: () => setShowSaveListModal(true) },
+          { text: t("離開" as any), style: "destructive", onPress: goBack },
         ]
       );
     } else {
@@ -745,9 +746,9 @@ export default function ShoppingTemplatesScreen() {
                           "載入清單",
                           `載入「${list.name}」會覆蓋當前選擇，確定嗎？`,
                           [
-                            { text: "取消", style: "cancel" },
+                            { text: t("取消" as any), style: "cancel" },
                             {
-                              text: "載入",
+                              text: t("載入" as any),
                               onPress: () => loadSavedList(list)
                             }
                           ]
@@ -789,7 +790,7 @@ export default function ShoppingTemplatesScreen() {
                           "查看所有清單",
                           `你共有 ${savedLists.length} 個已儲存清單`,
                           [
-                            { text: "確定", style: "cancel" }
+                            { text: t("確定" as any), style: "cancel" }
                           ]
                         );
                       }}
@@ -1590,9 +1591,9 @@ export default function ShoppingTemplatesScreen() {
                                   "載入清單",
                                   `載入「${list.name}」會覆蓋當前選擇，確定嗎？`,
                                   [
-                                    { text: "取消", style: "cancel" },
+                                    { text: t("取消" as any), style: "cancel" },
                                     {
-                                      text: "載入",
+                                      text: t("載入" as any),
                                       onPress: () => loadSavedList(list)
                                     }
                                   ]

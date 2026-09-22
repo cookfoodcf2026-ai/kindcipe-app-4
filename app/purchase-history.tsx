@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { useTranslation } from "react-i18next";
 import { getBilingualName } from "@/lib/bilingual";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -263,7 +264,7 @@ export default function PurchaseHistoryScreen() {
       Alert.alert("已移至今日", "項目已更新為今天的購買日期");
     },
     onError: (e: Error) => {
-      Alert.alert("更新失敗", e.message);
+      Alert.alert("更新失敗", friendlyError(e));
     },
   });
 
@@ -274,7 +275,7 @@ export default function PurchaseHistoryScreen() {
       Alert.alert("已全部移至今日", `${missedItems.length} 個項目已更新`);
     },
     onError: (e: Error) => {
-      Alert.alert("批量更新失敗", e.message);
+      Alert.alert("批量更新失敗", friendlyError(e));
     },
   });
 
@@ -296,7 +297,7 @@ export default function PurchaseHistoryScreen() {
     },
     onError: (e: Error) => {
       console.error('[DEBUG] SAVE PRICE ERROR:', e);
-      Alert.alert("更新失敗", e.message || "請檢查網絡連接");
+      Alert.alert("更新失敗", friendlyError(e) || "請檢查網絡連接");
     },
   });
 
@@ -376,7 +377,7 @@ export default function PurchaseHistoryScreen() {
                 >
                   <Ionicons name={tab.icon} size={14} color={isActive ? BRAND : SUB} />
                   <Text style={{ fontSize: 13, fontWeight: isActive ? "800" : "500", color: isActive ? BRAND : SUB }}>
-                    {tab.label} {tab.count > 0 ? `(${tab.count})` : ''}
+                    {t(tab.label as any)} {tab.count > 0 ? `(${tab.count})` : ''}
                   </Text>
                 </TouchableOpacity>
               );
@@ -418,7 +419,7 @@ export default function PurchaseHistoryScreen() {
                       backgroundColor: active ? BRAND : "#EEF4FB",
                     }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: active ? "#fff" : BRAND }}>{chip.label}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: active ? "#fff" : BRAND }}>{t(chip.label as any)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -562,9 +563,9 @@ export default function PurchaseHistoryScreen() {
                           "批量移至今日",
                           `確定要將這 ${missedItems.length} 個項目全部移至今日嗎？`,
                           [
-                            { text: "取消", style: "cancel" },
+                            { text: t("取消" as any), style: "cancel" },
                             {
-                              text: "確定",
+                              text: t("確定" as any),
                               onPress: () => {
                                 missedItems.forEach((item: any) => {
                                   moveToTodayAllM.mutate({ id: item.id, plannedDate: DateUtil.todayISO() });
@@ -601,7 +602,7 @@ export default function PurchaseHistoryScreen() {
                         fontWeight: "700" as const, 
                         color: missedDateRange === chip.key ? "#fff" : "#B45309" 
                       }}>
-                        {chip.label}
+                        {t(chip.label as any)}
                       </Text>
                     </TouchableOpacity>
                   ))}

@@ -35,6 +35,7 @@ import {
   BasketIcon,
   XIcon,
 } from "@/src/components/icons";
+import { friendlyError } from "@/lib/errors";
 
 type FeatureCardProps = {
   title: string;
@@ -167,7 +168,7 @@ export default function MoreTab() {
     try {
       await logoutAsync();
     } catch (e: any) {
-      setLogoutMsg(e?.message || "登出失敗，請再試一次。");
+      setLogoutMsg(friendlyError(e) || "登出失敗，請再試一次。");
     }
   };
 

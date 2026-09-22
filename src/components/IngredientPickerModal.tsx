@@ -318,7 +318,7 @@ export default function IngredientPickerModal({
         <View style={[s.sheet, { height: "80%" }]}>
           <View style={s.header}>
             <View style={{ flex: 1 }}>
-              <Text style={s.title}>{modalTitle}</Text>
+              <Text style={t(s.title as any)}>{modalTitle}</Text>
               {multiRecipe && (
                 <Text style={s.subTitle}>
                   {recipes.map((r) => r.name).join("、")}
@@ -435,7 +435,7 @@ export default function IngredientPickerModal({
                   Alert.alert(
                     "日期無效",
                     `購買日期（${date}）不能遲於排餐日期（${maxDate}）`,
-                    [{ text: "確定" }]
+                    [{ text: t("確定" as any) }]
                   );
                   return;
                 }

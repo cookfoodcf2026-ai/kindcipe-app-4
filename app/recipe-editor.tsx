@@ -19,6 +19,7 @@ import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCa
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -262,7 +263,7 @@ const scrollToFocused = useCallback((e: any) => {
       await invalidateRecipesAndWeekly();
       goToRecipeDetail(data?.id);
     },
-    onError: (e) => { setIsSaving(false); Alert.alert("儲存失敗", e.message); },
+    onError: (e) => { setIsSaving(false); Alert.alert("儲存失敗", friendlyError(e)); },
   });
   const updateM = trpc.recipes.updateUser.useMutation({
     onSuccess: async () => {
@@ -277,7 +278,7 @@ const scrollToFocused = useCallback((e: any) => {
       }
       goToRecipeDetail(hitId);
     },
-    onError: (e) => { setIsSaving(false); Alert.alert("更新失敗", e.message); },
+    onError: (e) => { setIsSaving(false); Alert.alert("更新失敗", friendlyError(e)); },
   });
 
   // 草稿專用 mutations：無導航副作用，由 saveDraftAndLeave 自己控制離開
@@ -355,7 +356,7 @@ const scrollToFocused = useCallback((e: any) => {
   const askImageSource = (kind: "cover" | "step", idx?: number) => {
     const onPick = (source: "camera" | "library") => {
       captureFromSource(source, kind, idx).catch((e: any) => {
-        Alert.alert("無法開啟相機/相簿", e?.message || "請檢查權限設定");
+        Alert.alert("無法開啟相機/相簿", friendlyError(e) || "請檢查權限設定");
       });
     };
     if (Platform.OS === "ios") {
@@ -371,9 +372,9 @@ const scrollToFocused = useCallback((e: any) => {
       );
     } else {
       Alert.alert("加入圖片", "選擇來源", [
-        { text: "📷 影相", onPress: () => onPick("camera") },
-        { text: "🖼 從相簿選擇", onPress: () => onPick("library") },
-        { text: "取消", style: "cancel" },
+        { text: t("📷 影相" as any), onPress: () => onPick("camera") },
+        { text: t("🖼 從相簿選擇" as any), onPress: () => onPick("library") },
+        { text: t("取消" as any), style: "cancel" },
       ]);
     }
   };
@@ -498,7 +499,7 @@ const scrollToFocused = useCallback((e: any) => {
       clearInterval(timer);
       saveTimerRef.current = null;
       setIsSaving(false);
-      Alert.alert("儲存失敗", e?.message || "圖片上傳失敗，請重試");
+      Alert.alert("儲存失敗", friendlyError(e) || "圖片上傳失敗，請重試");
     }
   };
 
@@ -600,7 +601,7 @@ const scrollToFocused = useCallback((e: any) => {
       }
     } catch (e: any) {
       setIsSaving(false);
-      Alert.alert("儲存草稿失敗", e?.message || "請重試");
+      Alert.alert("儲存草稿失敗", friendlyError(e) || "請重試");
       return;
     }
     setIsSaving(false);
@@ -614,8 +615,8 @@ const scrollToFocused = useCallback((e: any) => {
     // 已發佈食譜編輯中途 → 唔會用草稿覆蓋，只問「放棄」
     if (isEditing && !isDraft) {
       Alert.alert("放棄編輯？", "已輸入的內容將不會保存", [
-        { text: "繼續編輯", style: "cancel" },
-        { text: "放棄", style: "destructive", onPress: () => leave(opts) },
+        { text: t("繼續編輯" as any), style: "cancel" },
+        { text: t("放棄" as any), style: "destructive", onPress: () => leave(opts) },
       ]);
       return;
     }
@@ -624,9 +625,9 @@ const scrollToFocused = useCallback((e: any) => {
       "儲存草稿？",
       isComplete ? "內容完整，可先儲存為草稿，之後隨時發佈。" : "未完成嘅食譜會保存為草稿，之後可繼續編輯。",
       [
-        { text: "取消", style: "cancel" },
-        { text: "放棄", style: "destructive", onPress: () => leave(opts) },
-        { text: "儲存草稿", onPress: () => saveDraftAndLeave(opts) },
+        { text: t("取消" as any), style: "cancel" },
+        { text: t("放棄" as any), style: "destructive", onPress: () => leave(opts) },
+        { text: t("儲存草稿" as any), onPress: () => saveDraftAndLeave(opts) },
       ],
     );
   }, [isSaving, hasUnsaved, isComplete, isEditing, isDraft, saveDraftAndLeave, leave]);
@@ -640,7 +641,7 @@ const scrollToFocused = useCallback((e: any) => {
       setAllowLeave(true);
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
   const handleDeleteDraft = useCallback(() => {
     const id = draftId != null ? draftId
@@ -648,8 +649,8 @@ const scrollToFocused = useCallback((e: any) => {
       : null;
     if (id == null) return;
     Alert.alert("刪除草稿？", "草稿刪除後無法復原。", [
-      { text: "取消", style: "cancel" },
-      { text: "刪除", style: "destructive", onPress: () => deleteDraftM.mutate({ id }) },
+      { text: t("取消" as any), style: "cancel" },
+      { text: t("刪除" as any), style: "destructive", onPress: () => deleteDraftM.mutate({ id }) },
     ]);
   }, [draftId, isDraft, editingId, deleteDraftM]);
 
@@ -738,24 +739,24 @@ const scrollToFocused = useCallback((e: any) => {
             <Text style={st.cardTitle}>{t("editor.recipeInfo")}</Text>
           </View>
 
-          <Text style={st.label}>{t("editor.recipeNameReq")}</Text>
+          <Text style={t(st.label as any)}>{t("editor.recipeNameReq")}</Text>
           <TextInput style={st.input} value={name} onChangeText={setName}
             onFocus={scrollToFocused}
             placeholder={t("editor.namePlaceholder")} placeholderTextColor={HINT} />
 
-          <Text style={st.label}>{t("importRecipe.desc")}</Text>
+          <Text style={t(st.label as any)}>{t("importRecipe.desc")}</Text>
           <TextInput style={[st.input, st.multi]} value={description} onChangeText={setDescription}
             onFocus={scrollToFocused}
             placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor={HINT} multiline numberOfLines={2} />
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>{t("editor.prepTime")}</Text>
+              <Text style={t(st.label as any)}>{t("editor.prepTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={prepTime}
                 onChangeText={setPrepTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>{t("editor.cookTime")}</Text>
+              <Text style={t(st.label as any)}>{t("editor.cookTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={cookTime}
                 onChangeText={setCookTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
@@ -763,12 +764,12 @@ const scrollToFocused = useCallback((e: any) => {
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>{t("editor.servings")}</Text>
+              <Text style={t(st.label as any)}>{t("editor.servings")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={servings}
                 onChangeText={setServings} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={st.label}>{t("importRecipe.difficulty")}</Text>
+              <Text style={t(st.label as any)}>{t("importRecipe.difficulty")}</Text>
               <View style={{ flexDirection: "row", gap: 6 }}>
                 {DIFFICULTY_OPTIONS.map(d => (
                   <TouchableOpacity key={d}
@@ -781,14 +782,14 @@ const scrollToFocused = useCallback((e: any) => {
             </View>
           </View>
 
-          <Text style={st.label}>{t("shopping.category")}</Text>
+          <Text style={t(st.label as any)}>{t("shopping.category")}</Text>
           <View style={st.catGrid}>
             {CATEGORY_OPTIONS.map(opt => (
               <TouchableOpacity key={opt.key}
                 style={[st.catChip, category === opt.key && st.catChipActive]}
                 onPress={() => setCategory(opt.key)}>
                 <Ionicons name={opt.icon as any} size={18} color={category === opt.key ? "#fff" : BRAND} />
-                <Text style={[st.catLabel, category === opt.key && st.catLabelActive]}>{opt.label}</Text>
+                <Text style={[st.catLabel, category === opt.key && st.catLabelActive]}>{t(opt.label as any)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -800,7 +801,7 @@ const scrollToFocused = useCallback((e: any) => {
                 style={[st.catChip, dishType === opt.key && st.catChipActive]}
                 onPress={() => setDishType(opt.key)}>
                 <Ionicons name={opt.icon as any} size={18} color={dishType === opt.key ? "#fff" : BRAND} />
-                <Text style={[st.catLabel, dishType === opt.key && st.catLabelActive]}>{opt.label}</Text>
+                <Text style={[st.catLabel, dishType === opt.key && st.catLabelActive]}>{t(opt.label as any)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -832,7 +833,7 @@ const scrollToFocused = useCallback((e: any) => {
             autoCorrect={false}
             keyboardType="url"
           />
-          <Text style={st.hint}>{t("editor.sourceUrlHint")}</Text>
+          <Text style={t(st.hint as any)}>{t("editor.sourceUrlHint")}</Text>
         </View>
 
         {/* Ingredients */}

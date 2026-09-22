@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { trpc } from "@/lib/trpc";
+import { buildIngredientLookup } from "@/lib/ingredientLookup";
 import { useMemo, useState, useCallback, useEffect, useRef, Fragment, memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +23,7 @@ import i18n from "@/lib/i18n";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import HintBanner from "@/src/components/HintBanner";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { friendlyError } from "@/lib/errors";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "待採購", color: "#013E77", bg: "#E8F0FE" },
@@ -258,7 +260,7 @@ const CategoryCard = memo(function CategoryCard({ cat, catItems, onAdd, renderIt
           style={[styles.categoryAddBtn, isHouseholdCat && { borderTopColor: colors.border }]}
           onPress={() => onAdd(cat)}
         >
-          <Ionicons name="add-outline" size={16} color={isHouseholdCat ? colors.text : "#013E77"} />
+          <Ionicons name="add-outline" size={16} color={t(isHouseholdCat ? colors.text : "#013E77" as any)} />
           <Text style={[styles.categoryAddBtnText, isHouseholdCat && { color: colors.text }]}>
             {t("shopping.manualAdd")}
           </Text>
@@ -370,34 +372,7 @@ export default function ShoppingTab() {
   const ingredientsForSuggestions = commonIngredients.length > 0 ? commonIngredients : OFFLINE_FALLBACK;
 
   // Lookup bilingual names from common ingredients (by nameEn or Chinese name)
-  const ingredientBilingual = useMemo(() => {
-    const byEn = new Map<string, { en?: string; fil?: string; id?: string }>();
-    const byName = new Map<string, { en?: string; fil?: string; id?: string }>();
-    const normalize = (s: string) => s.replace(/\s+/g, "").replace(/[，,。．.、()（）【】\[\]《》]/g, "").trim();
-    for (const ing of ingredientsForSuggestions) {
-      const rec = { en: ing.nameEn ?? undefined, fil: ing.nameFil ?? undefined, id: ing.nameId ?? undefined };
-      if (ing.nameEn) byEn.set(String(ing.nameEn).toLowerCase(), rec);
-      if (ing.nameZh) byName.set(normalize(ing.nameZh), rec);
-      if (ing.nameYue) byName.set(normalize(ing.nameYue), rec);
-    }
-    const byNameSorted = [...byName.entries()].sort((a, b) => b[0].length - a[0].length);
-    // 精確 → 包住（食譜變體名如「番茄」對 common「番茄」）→ 長度最短包住，防誤判
-    const resolveByChinese = (q: string) => {
-      if (!q) return undefined;
-      const nq = normalize(q);
-      if (byName.has(nq)) return byName.get(nq);
-      let best: { en?: string; fil?: string; id?: string } | undefined;
-      for (const [k, rec] of byNameSorted) {
-        if (k.length < 2) continue;
-        if (nq.includes(k) || k.includes(nq)) {
-          if (!best || k.length < (best as any)._len) { best = rec; (best as any)._len = k.length; }
-        }
-      }
-      return best;
-    };
-    const resolveByEn = (q: string) => (q ? byEn.get(String(q).toLowerCase()) : undefined);
-    return { resolveByEn, resolveByChinese };
-  }, [ingredientsForSuggestions]);
+  const ingredientBilingual = useMemo(() => buildIngredientLookup(ingredientsForSuggestions), [ingredientsForSuggestions]);
 
   const biName = useCallback((item: any) => {
     const lookup = (item.nameEn && ingredientBilingual.resolveByEn(item.nameEn)) || ingredientBilingual.resolveByChinese(item.name);
@@ -453,14 +428,14 @@ export default function ShoppingTab() {
         utils.purchaseHistory.lastPrices.invalidate(),
         utils.purchaseHistory.frequency.invalidate(),
       ]).catch((err: any) => {
-        console.warn("[shopping.savePrice] post-save sync failed:", err?.message || err);
+        console.warn("[shopping.savePrice] post-save sync failed:", friendlyError(err) || err);
       });
     },
     onError: async (e: Error, variables: any, context: any) => {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("儲存失敗", e.message || "請檢查網絡連接");
+      Alert.alert("儲存失敗", friendlyError(e) || "請檢查網絡連接");
     },
   });
 
@@ -482,7 +457,7 @@ export default function ShoppingTab() {
       });
     },
     onError: (e) => {
-      console.warn("[shopping.add] Error:", e.message);
+      console.warn("[shopping.add] Error:", friendlyError(e));
       // Don't show error to user - the backend will retry with minimal data
       // Just log it for debugging
     },
@@ -507,7 +482,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("操作失敗", e.message);
+      Alert.alert("操作失敗", friendlyError(e));
     },
     onSuccess: () => {
       utils.shopping.list.invalidate();
@@ -519,7 +494,7 @@ export default function ShoppingTab() {
 
   const deleteItemM = trpc.shopping.delete.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
 
   const approveItemM = trpc.shopping.approve.useMutation({
@@ -537,7 +512,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("確認失敗", e.message);
+      Alert.alert("確認失敗", friendlyError(e));
     },
     onSuccess: (_data, variables) => {
       requestNotificationPermission().then((ok) => {
@@ -561,7 +536,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("拒絕失敗", e.message);
+      Alert.alert("拒絕失敗", friendlyError(e));
     },
   });
 
@@ -570,7 +545,7 @@ export default function ShoppingTab() {
       utils.shopping.list.invalidate();
       Alert.alert("全部已確認", "所有待確認項目已確認");
     },
-    onError: (e: Error) => Alert.alert("確認失敗", e.message),
+    onError: (e: Error) => Alert.alert("確認失敗", friendlyError(e)),
   });
 
   const rejectAllM = (trpc as any).shopping.rejectAll.useMutation({
@@ -578,7 +553,7 @@ export default function ShoppingTab() {
       utils.shopping.list.invalidate();
       Alert.alert("全部已拒絕", "所有待確認項目已拒絕");
     },
-    onError: (e: Error) => Alert.alert("拒絕失敗", e.message),
+    onError: (e: Error) => Alert.alert("拒絕失敗", friendlyError(e)),
   });
 
   const updateItemM = trpc.shopping.updateItem.useMutation({
@@ -600,7 +575,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("編輯失敗", e.message);
+      Alert.alert("編輯失敗", friendlyError(e));
     },
     onSuccess: () => {
       utils.shopping.list.invalidate();
@@ -1095,7 +1070,7 @@ export default function ShoppingTab() {
               onPress={() => setActiveTypeFilter(tab.key)}
             >
               <Ionicons name={tab.icon} size={14} color={activeTypeFilter === tab.key ? "#fff" : "#6B7280"} style={{ marginRight: 4 }} />
-              <Text style={[styles.typeFilterTabText, activeTypeFilter === tab.key && styles.typeFilterTabTextActive]}>{tab.label}</Text>
+              <Text style={[styles.typeFilterTabText, activeTypeFilter === tab.key && styles.typeFilterTabTextActive]}>{t(tab.label as any)}</Text>
               <View style={[styles.typeFilterBadge, activeTypeFilter === tab.key && { backgroundColor: "rgba(255,255,255,0.3)" }]}>
                 <Text style={[styles.typeFilterBadgeText, activeTypeFilter === tab.key && { color: "#fff" }]}>{count}</Text>
               </View>
@@ -1152,7 +1127,7 @@ export default function ShoppingTab() {
               }
             }}
           >
-            <Text style={[styles.dateFilterChipText, activeDateFilter === chip.key && styles.dateFilterChipTextActive]}>{chip.label}</Text>
+            <Text style={[styles.dateFilterChipText, activeDateFilter === chip.key && styles.dateFilterChipTextActive]}>{t(chip.label as any)}</Text>
           </TouchableOpacity>
         ))}
       </View>

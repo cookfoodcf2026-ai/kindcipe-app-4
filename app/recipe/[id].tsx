@@ -44,6 +44,7 @@ import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { CollectionButton } from "@/src/components/CollectionButton";
 import { isSeasoning, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
+import { friendlyError } from "@/lib/errors";
 
 export const isValidHttpUrl = (value: unknown): value is string =>
   typeof value === "string" &&
@@ -390,7 +391,7 @@ export default function RecipeDetailScreen() {
       utils.shopping.list.invalidate();
       setToast({ visible: true, message: "已移除排餐", type: "success" });
     },
-    onError: (e: any) => setToast({ visible: true, message: `移除失敗：${e.message}`, type: "error" }),
+    onError: (e: any) => setToast({ visible: true, message: `移除失敗：${friendlyError(e)}`, type: "error" }),
   });
 
   // 返回：若烹飪備註有未送出嘅文字，先提醒用戶
@@ -400,8 +401,8 @@ export default function RecipeDetailScreen() {
         "確定離開？",
         "你輸入嘅烹飪備註尚未送出，離開後將不會保存。",
         [
-          { text: "取消", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: () => router.back() },
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("離開" as any), style: "destructive", onPress: () => router.back() },
         ]
       );
     } else {
@@ -428,7 +429,7 @@ export default function RecipeDetailScreen() {
   const kolCreatorQ = (trpc as any).recipes.isKolCreator.useQuery(undefined, { enabled: isAuthenticated });
   const submitKolM = (trpc as any).recipes.submitToKol.useMutation({
     onSuccess: () => showToast("已提交到網紅頁 🎉"),
-    onError: (e: any) => showToast(e?.message || "提交失敗", "error"),
+    onError: (e: any) => showToast(friendlyError(e) || "提交失敗", "error"),
   });
 
   // Common ingredients for bilingual ingredient-name lookup
@@ -588,7 +589,7 @@ export default function RecipeDetailScreen() {
       }
       Alert.alert("已記錄", "購買價格已儲存到購物清單");
     },
-    onError: (e: any) => Alert.alert("儲存失敗", e.message || "請檢查網絡連接"),
+    onError: (e: any) => Alert.alert("儲存失敗", friendlyError(e) || "請檢查網絡連接"),
   });
 
   const getIngRecordedPrice = (ingName: string): number | null => {
@@ -628,7 +629,7 @@ export default function RecipeDetailScreen() {
             Alert.alert("已記錄", "價格已儲存");
           }
         },
-        onError: (e: any) => Alert.alert("新增失敗", e.message),
+        onError: (e: any) => Alert.alert("新增失敗", friendlyError(e)),
       });
       addM.mutate({ name: ingName, category: category || "其他", unit: unit || "", quantity: quantity || "" });
     }
@@ -693,16 +694,16 @@ export default function RecipeDetailScreen() {
   );
   const addNoteM = trpc.recipeNotes.add.useMutation({
     onSuccess: () => { setNoteInput(""); utils.recipeNotes.list.invalidate({ recipeId: recipeNoteId }); },
-    onError: (e) => Alert.alert("儲存失敗", e.message),
+    onError: (e) => Alert.alert("儲存失敗", friendlyError(e)),
   });
   const deleteNoteM = trpc.recipeNotes.delete.useMutation({
     onSuccess: () => utils.recipeNotes.list.invalidate({ recipeId: recipeNoteId }),
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
 
   // Delete mutations
   const deleteRecipeImageM = trpc.recipes.deleteRecipeImage.useMutation({
-    onError: (e) => console.error("[RecipeDetail] Failed to delete image:", e.message),
+    onError: (e) => console.error("[RecipeDetail] Failed to delete image:", friendlyError(e)),
   });
   const deleteUserM = trpc.recipes.deleteUser.useMutation({
     onSuccess: async () => {
@@ -715,7 +716,7 @@ export default function RecipeDetailScreen() {
       Alert.alert("已刪除", "食譜已從你的食譜庫刪除");
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
   const deleteOfficialM = trpc.recipes.deleteOfficial.useMutation({
     onSuccess: () => {
@@ -728,7 +729,7 @@ export default function RecipeDetailScreen() {
       Alert.alert("已刪除", "官方 AI 食譜已刪除");
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
 
   const handleDelete = () => {
@@ -739,8 +740,8 @@ export default function RecipeDetailScreen() {
         "刪除食譜",
         `確定要刪除「${recipeName}」？此動作無法還原。`,
         [
-          { text: "取消", style: "cancel" },
-          { text: "刪除", style: "destructive", onPress: () => deleteUserM.mutate({ id: recipeNumericId }) },
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("刪除" as any), style: "destructive", onPress: () => deleteUserM.mutate({ id: recipeNumericId }) },
         ]
       );
     } else if (user?.role === "admin") {
@@ -748,8 +749,8 @@ export default function RecipeDetailScreen() {
         "刪除官方 AI 食譜",
         `確定要刪除官方 AI 食譜「${recipeName}」？此動作無法還原。`,
         [
-          { text: "取消", style: "cancel" },
-          { text: "刪除", style: "destructive", onPress: () => deleteOfficialM.mutate({ id: recipeNumericId }) },
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("刪除" as any), style: "destructive", onPress: () => deleteOfficialM.mutate({ id: recipeNumericId }) },
         ]
       );
     }
@@ -762,13 +763,13 @@ export default function RecipeDetailScreen() {
       setLocalTags(data.tags ?? []);
       setShowTagEditor(false);
     },
-    onError: (e: any) => Alert.alert("失敗", e.message),
+    onError: (e: any) => Alert.alert("失敗", friendlyError(e)),
   });
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: (result) => {
       // 檢查排餐是否成功
       if (!result.newPlanId) {
-        Alert.alert("排餐失敗", "請稍後再試", [{ text: "確定" }]);
+        Alert.alert("排餐失敗", "請稍後再試", [{ text: t("確定" as any) }]);
         return;
       }
       
@@ -808,14 +809,14 @@ export default function RecipeDetailScreen() {
           isEatOutConflict ? "衝突提示" : "重複食譜提示",
           result.warning,
           [
-            { text: "取消", style: "cancel", onPress: () => {
+            { text: t("取消" as any), style: "cancel", onPress: () => {
               if (result.newPlanId) {
                 deleteMealM.mutate({ id: result.newPlanId });
               }
               setShowPlan(false);
               utils.mealPlan.listByDateRange.invalidate();
             }},
-            { text: "確定", onPress: () => {
+            { text: t("確定" as any), onPress: () => {
               continueFlow();
             }},
           ]
@@ -825,7 +826,7 @@ export default function RecipeDetailScreen() {
       }
     },
     onError: (e) => {
-      Alert.alert("排餐失敗", e.message, [{ text: "確定" }]);
+      Alert.alert("排餐失敗", friendlyError(e), [{ text: t("確定" as any) }]);
     },
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
@@ -840,12 +841,12 @@ export default function RecipeDetailScreen() {
       ]);
     },
     onError: (e) => {
-      setToast({ visible: true, message: `加入食材失敗：${e.message}`, type: "error" });
+      setToast({ visible: true, message: `加入食材失敗：${friendlyError(e)}`, type: "error" });
     },
   });
   const updateItemM = trpc.shopping.updateItem.useMutation({
     onError: (e) => {
-      setToast({ visible: true, message: `更新失敗：${e.message}`, type: "error" });
+      setToast({ visible: true, message: `更新失敗：${friendlyError(e)}`, type: "error" });
     },
   });
 
@@ -867,7 +868,7 @@ export default function RecipeDetailScreen() {
       setAIEditPreview(data);
       setAIEditResult(null);
     },
-    onError: (e) => Alert.alert("AI Edit 失敗", e.message),
+    onError: (e) => Alert.alert("AI Edit 失敗", friendlyError(e)),
   });
 
   const saveEditedRecipeM = trpc.aiRecipe.saveEditedRecipe.useMutation({
@@ -880,7 +881,7 @@ export default function RecipeDetailScreen() {
       utils.recipes.search.invalidate();
       router.push({ pathname: "/recipe/[id]", params: { id: `user_${data.id}` } });
     },
-    onError: (e) => Alert.alert("儲存失敗", e.message),
+    onError: (e) => Alert.alert("儲存失敗", friendlyError(e)),
   });
 
   useFocusEffect(
@@ -932,9 +933,9 @@ export default function RecipeDetailScreen() {
         {parts.map((p, i) =>
           p.isTerm ? (
             <Text key={i} style={{ color: BRAND, fontWeight: "700" }} onPress={() => setTooltipTerm(p.text)}>
-              {p.text}<Ionicons name="help-circle-outline" size={11} color={BRAND} />
+              {t(p.text as any)}<Ionicons name="help-circle-outline" size={11} color={BRAND} />
             </Text>
-          ) : <Text key={i}>{p.text}</Text>
+          ) : <Text key={i}>{t(p.text as any)}</Text>
         )}
       </Text>
     );
@@ -1126,10 +1127,11 @@ export default function RecipeDetailScreen() {
             <TouchableOpacity
               style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 112 }]}
               onPress={() => {
-                const webappUrl = process.env.EXPO_PUBLIC_WEBAPP_URL || "https://kindcipe.com";
-                const recipeUrl = `${webappUrl}/recipe/${recipe?.id}`;
+                const webappUrl = process.env.EXPO_PUBLIC_WEBAPP_URL;
+                const storeUrl = process.env.EXPO_PUBLIC_STORE_URL || "https://kindcipe.com";
+                const recipeUrl = webappUrl ? `${webappUrl}/recipe/${recipe?.id}` : storeUrl;
                 Clipboard.setStringAsync(recipeUrl);
-                showToast("已複製食譜連結");
+                showToast(t("recipe.copiedLink"));
               }}
             >
               <Ionicons name="link-outline" size={20} color="#013E77" />
@@ -1334,7 +1336,7 @@ export default function RecipeDetailScreen() {
                     <Text style={s.shoppingTitle}>
                       🛒 已加入購物清單 ({activeShoppingGroup?.items?.length || 0} 項)
                     </Text>
-                    <Text style={s.hintText}>{t("recipe.dateHint")}</Text>
+                    <Text style={t(s.hintText as any)}>{t("recipe.dateHint")}</Text>
                   </View>
                   <Ionicons
                     name={isShoppingExpanded ? "chevron-up" : "chevron-down"}
@@ -1700,7 +1702,7 @@ export default function RecipeDetailScreen() {
             {sourceUrl && (
               <TouchableOpacity style={[s.igBtn, { backgroundColor: sourceAction.bg }]} onPress={() => openSourceUrl(sourceUrl)}>
                 <Ionicons name={sourceAction.icon} size={18} color="#fff" />
-                <Text style={s.igBtnTxt}>{sourceAction.label}</Text>
+                <Text style={s.igBtnTxt}>{t(sourceAction.label as any)}</Text>
                 {sourceAuthor && <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>by {sourceAuthor}</Text>}
               </TouchableOpacity>
             )}
@@ -1760,7 +1762,7 @@ export default function RecipeDetailScreen() {
               <View style={s.mealRow}>
                 {MEAL_TYPES.map(m => (
                   <TouchableOpacity key={m.id} style={[s.mealChip, planMeal === m.id && s.mealChipActive]} onPress={() => setPlanMeal(m.id)}>
-                    <Text style={[s.mealChipTxt, planMeal === m.id && { color: "#fff" }]}>{m.label}</Text>
+                    <Text style={[s.mealChipTxt, planMeal === m.id && { color: "#fff" }]}>{t(m.label as any)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1768,7 +1770,7 @@ export default function RecipeDetailScreen() {
                 style={[s.confirmBtn, addPlanM.isPending && { opacity: 0.6 }]}
                 onPress={() => {
                   if (!planDate) {
-                    Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
+                    Alert.alert("日期無效", "請選擇排餐日期", [{ text: t("確定" as any) }]);
                     return;
                   }
                   addPlanM.mutate({
@@ -2236,14 +2238,14 @@ export default function RecipeDetailScreen() {
                   onPress={async () => {
                       // 情況 1 驗證：有排餐時，購買日期不能遲於排餐日
                     if (!shoppingDate) {
-                      Alert.alert("日期無效", "請選擇購物日期", [{ text: "確定" }]);
+                      Alert.alert("日期無效", "請選擇購物日期", [{ text: t("確定" as any) }]);
                       return;
                     }
                     if (latestMealPlan && shoppingDate > latestMealPlan.date) {
                       Alert.alert(
                         "日期無效",
                         `購買日期（${shoppingDate}）不能遲於排餐日期（${latestMealPlan.date}）\n\n建議選擇 ${getDayBefore(latestMealPlan.date)} 或更早的日期`,
-                        [{ text: "確定" }]
+                        [{ text: t("確定" as any) }]
                       );
                       return;
                     }
@@ -2346,7 +2348,7 @@ export default function RecipeDetailScreen() {
                     } catch (e: any) {
                       setToast({
                         visible: true,
-                        message: `修改失敗：${e.message}`,
+                        message: `修改失敗：${friendlyError(e)}`,
                         type: "error",
                       });
                     }
@@ -2401,7 +2403,7 @@ export default function RecipeDetailScreen() {
 
         <Toast
           visible={toast.visible}
-          message={toast.message}
+          message={t(toast.message as any)}
           type={toast.type}
           action={toast.action}
           onHide={() => setToast((prev) => ({ ...prev, visible: false }))}

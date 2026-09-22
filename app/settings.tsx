@@ -30,6 +30,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { ChatBubbleIcon } from "@/src/components/icons";
 import { getHintsDisabled, setHintsDisabled } from "@/src/components/HintBanner";
 import { getAppLogo } from "@/lib/logo";
+import { friendlyError } from "@/lib/errors";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -65,9 +66,9 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     Alert.alert("登出", "確定要登出嗎？", [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "登出",
+        text: t("登出" as any),
         style: "destructive",
         onPress: () => logout(),
       },
@@ -84,7 +85,7 @@ export default function SettingsScreen() {
       router.replace("/login");
       Alert.alert("已刪除", "帳戶已永久刪除。");
     },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
 
   const handleDeleteAccount = () => {
@@ -92,9 +93,9 @@ export default function SettingsScreen() {
       "刪除帳戶",
       "呢個操作會永久刪除你嘅帳戶同所有資料（食譜、排餐、購物清單、訂閱等），無法復原。確定要刪除嗎？",
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "永久刪除",
+          text: t("永久刪除" as any),
           style: "destructive",
           onPress: () => deleteAccountM.mutate(),
         },
@@ -169,7 +170,7 @@ export default function SettingsScreen() {
     const ok = await applyMealReminder(next);
     if (next.enabled && !ok) {
       Alert.alert("通知權限", "未能取得通知權限，提醒未開啟。請到系統設定開啟通知。", [
-        { text: "確定" },
+        { text: t("確定" as any) },
       ]);
       setReminderEnabled(false);
       await saveMealReminderSetting({ ...next, enabled: false });
@@ -189,7 +190,7 @@ export default function SettingsScreen() {
   const applyReminderTimeText = () => {
     const m = reminderTimeText.trim().match(/^(\d{1,2}):(\d{2})$/);
     if (!m) {
-      Alert.alert("時間格式", "請輸入 HH:MM（例如 19:30）", [{ text: "確定" }]);
+      Alert.alert("時間格式", "請輸入 HH:MM（例如 19:30）", [{ text: t("確定" as any) }]);
       return;
     }
     const hour = Math.min(23, Math.max(0, Number(m[1])));
@@ -331,7 +332,7 @@ export default function SettingsScreen() {
           <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}> 
             <View style={styles.subCardLeft}>
               <Text style={styles.subCardTitle}>{t("settings.subscriptionStatus")}</Text>
-              <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{subInfo.label}</Text>
+              <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{t(subInfo.label as any)}</Text>
             </View>
             {!subInfo.isPaid && (
               <TouchableOpacity
@@ -523,7 +524,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>
-                {currentLang.flag} {currentLang.label}
+                {currentLang.flag} {t(currentLang.label as any)}
               </Text>
               <Ionicons
                 name={showLangPicker ? "chevron-up" : "chevron-down"}
@@ -557,7 +558,7 @@ export default function SettingsScreen() {
                       selectedLang === lang.code && styles.langLabelActive,
                     ]}
                   >
-                    {lang.label}
+                    {t(lang.label as any)}
                   </Text>
                   {selectedLang === lang.code && (
                     <Ionicons name="checkmark" size={18} color="#013E77" />
@@ -672,7 +673,7 @@ export default function SettingsScreen() {
                       onPress={() => toggleReminderWeekday(d.jsDay)}
                       style={[chipStyle, active && chipActive]}
                     >
-                      <Text style={[chipTxt, active && chipTxtActive]}>{d.label}</Text>
+                      <Text style={[chipTxt, active && chipTxtActive]}>{t(d.label as any)}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -789,7 +790,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => WebBrowser.openBrowserAsync('https://kindcipe.com/privacy', {
+            onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/privacy/', {
               toolbarColor: '#013E77',
               controlsColor: '#ffffff',
               presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,

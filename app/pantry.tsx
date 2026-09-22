@@ -13,6 +13,7 @@ import { getBilingualName } from "@/lib/bilingual";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { useToast } from "@/src/components/Toast";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -78,11 +79,11 @@ export default function PantryScreen() {
 
   const addItemM = trpc.pantry.add.useMutation({
     onSuccess: () => { utils.pantry.list.invalidate(); setShowAddModal(false); setNewName(""); setNewQty(""); setNewUnit(""); showToast("已加入儲備"); },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
   const deleteItemM = trpc.pantry.delete.useMutation({
     onSuccess: () => utils.pantry.list.invalidate(),
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
   const toggleInStockM = trpc.pantry.toggleInStock.useMutation({
     onSuccess: () => utils.pantry.list.invalidate(),
@@ -92,11 +93,11 @@ export default function PantryScreen() {
   });
   const addFromShoppingM = trpc.pantry.addFromShopping.useMutation({
     onSuccess: (result: any) => { utils.pantry.list.invalidate(); showToast(`已將 ${result.count} 件已買商品入庫`); },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.add.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
 
   const foodItems = useMemo(() => pantryData.filter((i: any) => !HOUSE_CATS.includes(i.category ?? "")), [pantryData]);
@@ -202,7 +203,7 @@ export default function PantryScreen() {
               onPress={() => setActiveTab(tab.key)}
             >
               <Ionicons name={tab.icon} size={13} color={activeTab === tab.key ? "#fff" : "#5A4A3A"} />
-              <Text style={{ fontSize: 13, fontWeight: "700", color: activeTab === tab.key ? "#fff" : "#5A4A3A" }}>{tab.label}</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: activeTab === tab.key ? "#fff" : "#5A4A3A" }}>{t(tab.label as any)}</Text>
               <View style={{ backgroundColor: activeTab === tab.key ? "rgba(255,255,255,0.25)" : "#E5D5C0", borderRadius: 99, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: activeTab === tab.key ? "#fff" : "#5A4A3A" }}>{tab.count}</Text>
               </View>

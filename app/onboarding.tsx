@@ -31,6 +31,7 @@ import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { friendlyError } from "@/lib/errors";
 
 const { width, height } = Dimensions.get("window");
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
@@ -170,8 +171,8 @@ export default function OnboardingScreen(
             style={styles.logoImageSmall}
             resizeMode="contain"
           />
-          <Text style={styles.title}>{t("onboarding.startTitle")}</Text>
-          <Text style={styles.subtitle}>{t("onboarding.startSubtitle")}</Text>
+          <Text style={t(styles.title as any)}>{t("onboarding.startTitle")}</Text>
+          <Text style={t(styles.subtitle as any)}>{t("onboarding.startSubtitle")}</Text>
         </View>
 
         <View style={styles.choiceContainer}>
@@ -228,7 +229,7 @@ export default function OnboardingScreen(
           <Text style={styles.formSubtitle}>{t("onboarding.setupKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>{t("onboarding.kitchenNameLabel")}</Text>
+            <Text style={t(styles.label as any)}>{t("onboarding.kitchenNameLabel")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.kitchenNamePlaceholder")}
@@ -239,7 +240,7 @@ export default function OnboardingScreen(
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>{t("onboarding.yourName")}</Text>
+            <Text style={t(styles.label as any)}>{t("onboarding.yourName")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.yourNamePlaceholder")}
@@ -264,7 +265,7 @@ export default function OnboardingScreen(
                 await apiClient.family.create.mutate({ name: kitchenName, nickname: userName.trim() || undefined });
                 setStep("guide");
               } catch (err: any) {
-                const msg = err?.message || err?.data?.message || "";
+                const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("建立廚房失敗:", err);
                 Alert.alert("建立廚房失敗", msg || "請重試");
               } finally {
@@ -304,7 +305,7 @@ export default function OnboardingScreen(
           <Text style={styles.formSubtitle}>{t("onboarding.joinFamilyKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>{t("kitchen.inviteCode")}</Text>
+            <Text style={t(styles.label as any)}>{t("kitchen.inviteCode")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.invitePlaceholder")}
@@ -347,7 +348,7 @@ export default function OnboardingScreen(
                 await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
                 setStep("guide");
               } catch (err: any) {
-                const msg = err?.message || err?.data?.message || "";
+                const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);
                 Alert.alert("加入廚房失敗", msg || "請重試");
               } finally {
@@ -399,8 +400,8 @@ export default function OnboardingScreen(
                   <View style={styles.slideScrim} />
 
                   <View style={styles.slideTop}>
-                    <Text style={styles.slideTitle} numberOfLines={2}>{slide.title}</Text>
-                    <Text style={styles.slideCaption} numberOfLines={2}>{slide.caption}</Text>
+                    <Text style={styles.slideTitle} numberOfLines={2}>{t(slide.title as any)}</Text>
+                    <Text style={styles.slideCaption} numberOfLines={2}>{t(slide.caption as any)}</Text>
                   </View>
 
                   {slide.ui === "mealplan" && (

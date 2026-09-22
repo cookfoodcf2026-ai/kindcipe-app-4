@@ -265,7 +265,7 @@ export default function PlanDatePicker({
                     normalizedValue === item.iso && s.shortcutChipTxtActive,
                   ]}
                 >
-                {item.label}
+                {t(item.label as any)}
               </Text>
             </TouchableOpacity>
           ))}

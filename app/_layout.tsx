@@ -282,9 +282,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           "偵測到食譜連結",
           `發現 ${platform} 連結，是否立即匯入？`,
           [
-            { text: "取消", style: "cancel" },
+            { text: t("取消" as any), style: "cancel" },
             {
-              text: "匯入食譜",
+              text: t("匯入食譜" as any),
               onPress: () => {
                 AsyncStorage.setItem(
                   "kindcipe_clipboard_hinted",

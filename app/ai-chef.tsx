@@ -34,6 +34,7 @@ import PaywallModal from "@/components/PaywallModal";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore } from "@/src/lib/date";
+import { friendlyError } from "@/lib/errors";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -1082,7 +1083,7 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
     },
     onError: (err: any) => {
-      const rawMsg = err?.message || err?.data?.message || "";
+      const rawMsg = friendlyError(err) || err?.data?.message || "";
       const isTransient = /abort|timeout|cancel|JSON Parse error|Unexpected character|Parse error|非 JSON|LLM 回覆格式異常/i.test(rawMsg);
       const msg = isTransient
         ? "AI 暫時未有回應，請再試一次。"
@@ -1263,9 +1264,9 @@ export default function AIChefScreen() {
 
   const handleDeleteChat = (id: string) => {
     Alert.alert("刪除對話", "確定要刪除這個對話嗎？", [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "刪除", style: "destructive",
+        text: t("刪除" as any), style: "destructive",
         onPress: () => {
           setSessions(prev => {
             const next = prev.filter(s => s.id !== id);
@@ -1389,11 +1390,11 @@ export default function AIChefScreen() {
           isEatOutConflict ? "衝突提示" : "重複食譜提示",
           warningText,
           [
-            { text: "取消", style: "cancel", onPress: () => {
+            { text: t("取消" as any), style: "cancel", onPress: () => {
               if (result.newPlanId) deleteMealM.mutate({ id: result.newPlanId, keepRelatedItems: false });
               showToast("已取消衝突排餐");
             }},
-            { text: "確定", onPress: () => {
+            { text: t("確定" as any), onPress: () => {
               continueAfterMealPlan();
             }},
           ]
@@ -1403,7 +1404,7 @@ export default function AIChefScreen() {
         continueAfterMealPlan();
       }
     },
-    onError: (e) => Alert.alert("加入排餐失敗", e.message),
+    onError: (e) => Alert.alert("加入排餐失敗", friendlyError(e)),
   });
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: async () => { await invalidateMealPlanAndCart(); },
@@ -1420,7 +1421,7 @@ export default function AIChefScreen() {
         showToast("⚠️ 已批量加入排餐，但列表可能需要手動刷新");
       }
     },
-    onError: (e) => Alert.alert("批量加入排餐失敗", e.message),
+    onError: (e) => Alert.alert("批量加入排餐失敗", friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: async (data, variables) => {
@@ -1432,7 +1433,7 @@ export default function AIChefScreen() {
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${e.message}`);
+      showToast(`加入食材失敗：${friendlyError(e)}`);
     },
   });
 
@@ -1507,7 +1508,7 @@ export default function AIChefScreen() {
           // 相對路徑（/r2-storage/…）要補返後端 base，否則手機 Image 拎唔到
           if (imageUrl.startsWith("/")) imageUrl = `${API_BASE_URL}${imageUrl}`;
         } catch (e: any) {
-          Alert.alert("上傳失敗", e?.message ?? "請重試");
+          Alert.alert("上傳失敗", friendlyError(e) ?? "請重試");
           uploadingRef.current = false;
           return;
         } finally {
@@ -1517,7 +1518,7 @@ export default function AIChefScreen() {
         const imageMsg: Message = {
           role: "user",
           content: [
-            { type: "text", text: "我雪櫃有呢啲食材，可以煮咩？" },
+            { type: "text", text: t("我雪櫃有呢啲食材，可以煮咩？" as any) },
             { type: "image_url", image_url: { url: imageUrl } },
           ],
         };
@@ -1530,7 +1531,7 @@ export default function AIChefScreen() {
             {
               role: "user",
               content: [
-                { type: "text", text: "請辨認圖片中嘅食材，逐個列出食材名稱，用頓號分隔，唔好比步驟或食譜。" },
+                { type: "text", text: t("請辨認圖片中嘅食材，逐個列出食材名稱，用頓號分隔，唔好比步驟或食譜。" as any) },
                 { type: "image_url", image_url: { url: imageUrl } },
               ],
             },
@@ -1580,7 +1581,7 @@ export default function AIChefScreen() {
         scrollToEnd();
       } catch (e: any) {
         console.error("[AI 助手] image upload/send failed:", e);
-        Alert.alert("上傳失敗", e?.message ?? "請重試");
+        Alert.alert("上傳失敗", friendlyError(e) ?? "請重試");
       }
     };
 
@@ -1588,9 +1589,9 @@ export default function AIChefScreen() {
       ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, onSelect);
     } else {
       Alert.alert("上傳雪櫃圖片", "選擇來源", [
-        { text: "拍照", onPress: () => onSelect(0) },
-        { text: "從相簿選擇", onPress: () => onSelect(1) },
-        { text: "取消", style: "cancel" },
+        { text: t("拍照" as any), onPress: () => onSelect(0) },
+        { text: t("從相簿選擇" as any), onPress: () => onSelect(1) },
+        { text: t("取消" as any), style: "cancel" },
       ]);
     }
   };
@@ -2203,7 +2204,7 @@ export default function AIChefScreen() {
       setPlanDate(date);
       setShowPlan(true);
     } catch (e: any) {
-      Alert.alert("儲存食譜失敗", e?.message || "請稍後再試");
+      Alert.alert("儲存食譜失敗", friendlyError(e) || "請稍後再試");
     } finally {
       setBatchPlanBusy(false);
     }
@@ -2221,7 +2222,7 @@ export default function AIChefScreen() {
       await ensureSaved(recipe);
       showToast("✅ 已收藏（食譜庫）");
     } catch (e: any) {
-      Alert.alert("收藏失敗", e?.message || "請稍後再試");
+      Alert.alert("收藏失敗", friendlyError(e) || "請稍後再試");
     } finally {
       setFavoritingName("");
     }
@@ -2297,7 +2298,7 @@ export default function AIChefScreen() {
         candidates.find((cand) => !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames])) ??
         null;
       } catch (err: any) {
-        console.error("[handleSwapRecipe] library swap failed:", err?.message || err);
+        console.error("[handleSwapRecipe] library swap failed:", friendlyError(err) || err);
         return null;
       }
     };
@@ -2348,7 +2349,7 @@ export default function AIChefScreen() {
             console.warn("[handleSwapRecipe] All candidates duplicated:", candidates.map(c => c.name));
             return null;
           } catch (err: any) {
-            console.error("[handleSwapRecipe] API call failed:", err?.message || err);
+            console.error("[handleSwapRecipe] API call failed:", friendlyError(err) || err);
             throw err;
           }
         };
@@ -2401,11 +2402,11 @@ export default function AIChefScreen() {
         }
       } catch (e: any) {
         console.error("[handleSwapRecipe] Error:", e);
-        const errorMsg = e?.message || "未知錯誤";
+        const errorMsg = friendlyError(e) || "未知錯誤";
         Alert.alert(
           "換食譜失敗",
           `錯誤：${errorMsg}\n\n請檢查網絡連接，或嘗試再次點擊。`,
-          [{ text: "確定" }]
+          [{ text: t("確定" as any) }]
         );
       } finally {
         setSwappingIndex(null);
@@ -2679,7 +2680,7 @@ export default function AIChefScreen() {
           (result.items ?? []).map((it: any) => it.newPlanId),
         );
       } catch (e: any) {
-        Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+        Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
       }
       return;
     }
@@ -2730,7 +2731,7 @@ export default function AIChefScreen() {
               autoAddIngredients: false,
             });
         } catch (e: any) {
-          Alert.alert("加入排餐失敗", e?.message || "請稍後再試");
+          Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
         }
       })();
     }
@@ -2753,7 +2754,7 @@ export default function AIChefScreen() {
                 block.type === "image_url" ? (
                   <Image key={idx} source={{ uri: block.image_url.url }} style={s.msgImage} resizeMode="cover" onError={() => console.log('[AI Chef] Image load failed')} />
                 ) : (
-                  <Text key={idx} style={[s.bubbleTxt, isUser && { color: "#fff" }]} selectable>{block.text}</Text>
+                  <Text key={idx} style={[s.bubbleTxt, isUser && { color: "#fff" }]} selectable>{t(block.text as any)}</Text>
                 )
               )}
             </>
@@ -2896,7 +2897,7 @@ export default function AIChefScreen() {
                 <View style={s.scenarioCardContent}>
                   <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
                   <Text style={s.scenarioCardTitle} numberOfLines={1}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
-                  <Text style={s.scenarioCardSub} numberOfLines={1}>{a.subtitle}</Text>
+                  <Text style={s.scenarioCardSub} numberOfLines={1}>{t(a.subtitle as any)}</Text>
                 </View>
               </PressScale>
           ))}
@@ -2928,7 +2929,7 @@ export default function AIChefScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
           {options.map((o, i) => (
             <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => handleMealAnswer(o.value)} disabled={chatMutation.isPending}>
-              <Text style={s.hotKeyChipTxt}>{o.label}</Text>
+              <Text style={s.hotKeyChipTxt}>{t(o.label as any)}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={[s.hotKeyChip, { backgroundColor: "#7C3AED" }]} onPress={() => handleSkipMealQuestions()} disabled={chatMutation.isPending}>
@@ -3007,7 +3008,7 @@ export default function AIChefScreen() {
                       activeOpacity={0.7}
                     >
                       <Text style={[d.sessionTitle, isActive && d.sessionTitleActive]} numberOfLines={1}>
-                        {item.title}
+                        {t(item.title as any)}
                       </Text>
                       {preview ? <Text style={d.sessionPreview} numberOfLines={1}>{preview}</Text> : null}
                       <Text style={d.sessionDate}>
@@ -3403,7 +3404,7 @@ export default function AIChefScreen() {
           <View style={s.toast}>
             <View style={s.toastRow}>
               <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-              <Text style={s.toastTxt}>{toast.text}</Text>
+              <Text style={s.toastTxt}>{t(toast.text as any)}</Text>
             </View>
             {toast.action ? (
               <TouchableOpacity
@@ -3411,7 +3412,7 @@ export default function AIChefScreen() {
                 style={s.toastAction}
                 hitSlop={8}
               >
-                <Text style={s.toastActionTxt}>{toast.action.label}</Text>
+                <Text style={s.toastActionTxt}>{t(toast.action.label as any)}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -3429,7 +3430,7 @@ export default function AIChefScreen() {
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
           <View style={m.handle} />
           <View style={m.head}>
-            <Text style={m.title}>{t("aiChef.addToPlan")}</Text>
+            <Text style={t(m.title as any)}>{t("aiChef.addToPlan")}</Text>
             <TouchableOpacity onPress={() => { setShowPlan(false); setBatchRecipes(null); }}><Ionicons name="close" size={22} color={TEXT} /></TouchableOpacity>
           </View>
           {batchRecipes ? (
@@ -3443,7 +3444,7 @@ export default function AIChefScreen() {
             <Text style={m.rname} numberOfLines={1}>{getBilingualName(planRecipe.name, planRecipe.nameEn, planRecipe.nameFil, planRecipe.nameId).primary}</Text>
           ) : null}
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: Dimensions.get("window").height * 0.55 }} contentContainerStyle={{ paddingBottom: 16 }}>
-            <Text style={m.label}>{t("aiChef.mealTime")}</Text>
+            <Text style={t(m.label as any)}>{t("aiChef.mealTime")}</Text>
             <View style={m.mealRow}>
               {MEAL_TYPES.map(mt => (
                 <TouchableOpacity key={mt.id} style={[m.mealChip, planMeal === mt.id && m.mealChipOn]} onPress={() => setPlanMeal(mt.id)}>
@@ -3451,7 +3452,7 @@ export default function AIChefScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={m.label}>{t("aiChef.date")}</Text>
+            <Text style={t(m.label as any)}>{t("aiChef.date")}</Text>
             <View style={{ width: Dimensions.get("window").width - 32 }}>
               <PlanDatePicker value={planDate} onChange={setPlanDate} showShortcuts={true} minDate={todayISO()} />
               {planDate && (
@@ -3465,7 +3466,7 @@ export default function AIChefScreen() {
             </View>
             {planRecipe && !batchRecipes && (
               <View style={m.preview}>
-                <Text style={m.label}>{t("aiChef.ingredients")}</Text>
+                <Text style={t(m.label as any)}>{t("aiChef.ingredients")}</Text>
                 {(planRecipe.ingredients || []).slice(0, 5).map((ing, i) => {
                   const n = normalizeIngredient(ing);
                   if (!n) return null;
@@ -3476,7 +3477,7 @@ export default function AIChefScreen() {
             )}
             {planRecipe && !batchRecipes && (getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId) || []).length > 0 && (
               <View style={[m.preview, { marginTop: -8 }]}>
-                <Text style={m.label}>{t("aiChef.steps")}</Text>
+                <Text style={t(m.label as any)}>{t("aiChef.steps")}</Text>
                 {getLocalizedSteps(planRecipe.steps, planRecipe.stepsEn, planRecipe.stepsFil, planRecipe.stepsId).slice(0, 4).map((step, i) => (
                   <Text key={i} style={m.previewItem}>{i + 1}. {normalizeStep(step)}</Text>
                 ))}

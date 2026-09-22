@@ -29,9 +29,9 @@ export default function ComingSoonScreen() {
         <View style={s.iconWrap}>
           <GridIcon size={28} color={colors.primary.copper} />
         </View>
-        <Text style={s.title}>{title}</Text>
-        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
-        <Text style={s.message}>{message}</Text>
+        <Text style={t(s.title as any)}>{title}</Text>
+        {subtitle ? <Text style={t(s.subtitle as any)}>{subtitle}</Text> : null}
+        <Text style={t(s.message as any)}>{message}</Text>
 
         <TouchableOpacity style={s.cta} onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}>
           <Text style={s.ctaTxt}>{t("misc.backToMore")}</Text>

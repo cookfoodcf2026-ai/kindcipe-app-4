@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { REDIRECT_PLATFORMS, openPlatform } from "@/lib/price";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { useToast } from "@/src/components/Toast";
+import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -58,7 +59,7 @@ export default function RestockScreen() {
       utils.shopping.list.invalidate();
       showToast(`「${variables.name}」已加入購物清單`);
     },
-    onError: (e: any) => Alert.alert("失敗", e.message),
+    onError: (e: any) => Alert.alert("失敗", friendlyError(e)),
   });
 
   const toggleInStockM = trpc.pantry.toggleInStock.useMutation({
@@ -101,9 +102,9 @@ export default function RestockScreen() {
 
   const handleMarkAllRestocked = () => {
     Alert.alert("全部標記為有貨", `確認將 ${urgentItems.length} 件商品標記為有貨？`, [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "確認",
+        text: t("確認" as any),
         onPress: () => {
           urgentItems.forEach(item => {
             setMarkedRestocked(prev => new Set(prev).add(item.id));
@@ -146,7 +147,7 @@ export default function RestockScreen() {
             ].map(stat => (
               <View key={stat.label} style={{ flex: 1, backgroundColor: stat.bg, borderRadius: 12, padding: 10, alignItems: "center" }}>
                 <Text style={{ fontSize: 20, fontWeight: "800", color: stat.color }}>{stat.value}</Text>
-                <Text style={{ fontSize: 10, color: SUB, marginTop: 2 }}>{stat.label}</Text>
+                <Text style={{ fontSize: 10, color: SUB, marginTop: 2 }}>{t(stat.label as any)}</Text>
               </View>
             ))}
           </View>
@@ -163,7 +164,7 @@ export default function RestockScreen() {
                   style={{ flex: 1, paddingVertical: 10, alignItems: "center", borderBottomWidth: 2.5, borderBottomColor: isActive ? BRAND : "transparent" }}
                   onPress={() => setActiveTab(tab.id)}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: isActive ? "800" : "500", color: isActive ? BRAND : SUB }}>{tab.label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: isActive ? "800" : "500", color: isActive ? BRAND : SUB }}>{t(tab.label as any)}</Text>
                 </TouchableOpacity>
               );
             })}

@@ -7,6 +7,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
 import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 
@@ -48,10 +49,10 @@ export default function ResetPasswordScreen() {
       await clearAuthToken();
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
       Alert.alert(t("auth.updated"), t("auth.resetSuccess"), [
-        { text: "返回登入", onPress: () => router.replace("/login") },
+        { text: t("返回登入" as any), onPress: () => router.replace("/login") },
       ]);
     } catch (err: any) {
-      Alert.alert(t("auth.resetFailed"), err?.message || t("auth.tryLater"));
+      Alert.alert(t("auth.resetFailed"), friendlyError(err) || t("auth.tryLater"));
     }
   };
 
@@ -68,8 +69,8 @@ export default function ResetPasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
-            <Text style={styles.subtitle}>{t("auth.newPasswordSubtitle")}</Text>
+            <Text style={t(styles.title as any)}>{t("auth.setNewPassword")}</Text>
+            <Text style={t(styles.subtitle as any)}>{t("auth.newPasswordSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="key-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />

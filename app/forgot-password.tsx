@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 
@@ -30,10 +31,10 @@ export default function ForgotPasswordScreen() {
     try {
       await requestResetM.mutateAsync({ email: value });
       Alert.alert(t("auth.sent"), t("auth.sentMsg"), [
-        { text: "返回登入", onPress: () => router.replace("/login") },
+        { text: t("返回登入" as any), onPress: () => router.replace("/login") },
       ]);
     } catch (err: any) {
-      Alert.alert(t("auth.failed"), err?.message || t("auth.tryLater"));
+      Alert.alert(t("auth.failed"), friendlyError(err) || t("auth.tryLater"));
     } finally {
       setIsLoading(false);
     }
@@ -52,8 +53,8 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>{t("auth.resetTitle")}</Text>
-            <Text style={styles.subtitle}>{t("auth.resetSubtitle")}</Text>
+            <Text style={t(styles.title as any)}>{t("auth.resetTitle")}</Text>
+            <Text style={t(styles.subtitle as any)}>{t("auth.resetSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />

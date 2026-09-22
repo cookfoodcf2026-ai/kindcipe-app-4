@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -54,7 +55,7 @@ export default function KitchenSettingsScreen() {
       const id = String((data as any).id);
       await switchFamily(id);
     },
-    onError: (e) => Alert.alert("建立失敗", e.message),
+    onError: (e) => Alert.alert("建立失敗", friendlyError(e)),
   });
 
   const joinM = trpc.family.join.useMutation({
@@ -66,7 +67,7 @@ export default function KitchenSettingsScreen() {
       const id = String((data as any).family?.id);
       if (id) await switchFamily(id);
     },
-    onError: (e) => Alert.alert("加入失敗", e.message),
+    onError: (e) => Alert.alert("加入失敗", friendlyError(e)),
   });
 
   useEffect(() => {
@@ -87,8 +88,8 @@ export default function KitchenSettingsScreen() {
         "確定離開？",
         "你輸入嘅廚房名稱尚未儲存，離開後將不會保存。",
         [
-          { text: "取消", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("離開" as any), style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
         ]
       );
     } else {
@@ -113,17 +114,17 @@ export default function KitchenSettingsScreen() {
       utils.family.list.invalidate();
       setEditingName(false);
     },
-    onError: (e) => Alert.alert("改名失敗", e.message),
+    onError: (e) => Alert.alert("改名失敗", friendlyError(e)),
   });
 
   const updateRoleM = trpc.family.updateMemberRole.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("修改角色失敗", e.message),
+    onError: (e) => Alert.alert("修改角色失敗", friendlyError(e)),
   });
 
   const transferOwnershipM = trpc.family.transferOwnership.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("轉讓失敗", e.message),
+    onError: (e) => Alert.alert("轉讓失敗", friendlyError(e)),
   });
 
   const leaveM = trpc.family.leave.useMutation({
@@ -133,17 +134,17 @@ export default function KitchenSettingsScreen() {
       await utils.family.get.invalidate();
       router.replace("/(tabs)");
     },
-    onError: (e) => Alert.alert("離開失敗", e.message),
+    onError: (e) => Alert.alert("離開失敗", friendlyError(e)),
   });
 
   const removeMemberM = trpc.family.removeMember.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("移除失敗", e.message),
+    onError: (e) => Alert.alert("移除失敗", friendlyError(e)),
   });
 
   const updateSettingsM = trpc.family.updateSettings.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("更新失敗", e.message),
+    onError: (e) => Alert.alert("更新失敗", friendlyError(e)),
   });
 
   const dissolveM = trpc.family.dissolve.useMutation({
@@ -152,7 +153,7 @@ export default function KitchenSettingsScreen() {
       utils.family.list.invalidate();
       router.replace("/(tabs)");
     },
-    onError: (e) => Alert.alert("解散失敗", e.message),
+    onError: (e) => Alert.alert("解散失敗", friendlyError(e)),
   });
 
   const settings = (activeFamily as any)?.settings ?? { approvalRequired: false };
@@ -190,8 +191,8 @@ export default function KitchenSettingsScreen() {
       "離開廚房",
       "離開後，你將唔再睇到呢個廚房共享嘅食譜、排餐同購物清單。你之後仍然可以用同一個帳號加入另一個廚房。",
       [
-        { text: "取消", style: "cancel" },
-        { text: "離開", style: "destructive", onPress: () => leaveM.mutate({ familyId: familyIdNum }) },
+        { text: t("取消" as any), style: "cancel" },
+        { text: t("離開" as any), style: "destructive", onPress: () => leaveM.mutate({ familyId: familyIdNum }) },
       ],
     );
   };
@@ -199,9 +200,9 @@ export default function KitchenSettingsScreen() {
   const handleRemoveMember = (userId: string, name: string) => {
     if (!activeFamilyId) return;
     Alert.alert("移除成員", `確定要將「${name}」從廚房移除？`, [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "移除",
+        text: t("移除" as any),
         style: "destructive",
         onPress: () => {
           const familyIdNum = Number(activeFamilyId);
@@ -217,9 +218,9 @@ export default function KitchenSettingsScreen() {
       "解散廚房",
       "確定要解散這個廚房？所有資料（排餐、購物清單、食材庫存）將會被永久刪除，無法復原！",
       [
-        { text: "取消", style: "cancel" },
+        { text: t("取消" as any), style: "cancel" },
         {
-          text: "確認解散",
+          text: t("確認解散" as any),
           style: "destructive",
           onPress: () => dissolveM.mutate(),
         },
@@ -235,7 +236,7 @@ export default function KitchenSettingsScreen() {
       Alert.alert(
         "已切換廚房",
         `現在使用：${newFamilyName}`,
-        [{ text: "確定" }]
+        [{ text: t("確定" as any) }]
       );
     } catch (e) {
       Alert.alert("切換失敗", "無法切換至此廚房，請稍後再試");

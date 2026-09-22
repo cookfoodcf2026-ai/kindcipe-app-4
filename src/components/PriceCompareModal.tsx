@@ -350,7 +350,7 @@ export default function PriceCompareModal({
                 {selectedResult.offers.map((o: any, i: number) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A", marginBottom: 4, paddingHorizontal: 12, paddingVertical: 8 }}>
                     <Ionicons name="pricetag-outline" size={12} color="#92400E" />
-                    <Text style={{ fontSize: 11, color: "#92400E", flex: 1 }}>{o.supermarketName}：{o.text}</Text>
+                    <Text style={{ fontSize: 11, color: "#92400E", flex: 1 }}>{o.supermarketName}：{t(o.text as any)}</Text>
                   </View>
                 ))}
               </View>

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 import type { Message } from '@/types/ai-chef';
+import { friendlyError } from "@/lib/errors";
 
 interface UseChatMutationOptions {
   onSuccess?: (data: { content: string; recipes: any[] }) => void;
@@ -38,7 +39,7 @@ export function useChatMutation(
     },
     onError: (e: any) => {
       setIsPending(false);
-      const err = new Error(e?.message || 'AI 回應失敗');
+      const err = new Error(friendlyError(e) || 'AI 回應失敗');
       setError(err);
       onError?.(err);
     },

@@ -139,7 +139,7 @@ export default function UnitPicker(
             style={[s_unit.opt, value === item.value && s_unit.optActive]}
             onPress={() => handleUnitChange(item.value)}
           >
-            <Text style={[s_unit.optTxt, value === item.value && s_unit.optTxtActive]}>{item.label}</Text>
+            <Text style={[s_unit.optTxt, value === item.value && s_unit.optTxtActive]}>{t(item.label as any)}</Text>
             {value === item.value && <Text style={s_unit.check}>✓</Text>}
           </TouchableOpacity>
         ))}
@@ -160,7 +160,7 @@ export default function UnitPicker(
         onPress={() => setOpen(true)}
       >
         <Text style={[s_unit.triggerTxt, !selected && !value && { color: "#9CA3AF" }]}>
-          {typeof selected === "string" ? selected : selected?.label || value || "單位"}
+          {t(typeof selected === "string" ? selected : selected?.label || value || "單位" as any)}
         </Text>
       </TouchableOpacity>
 
@@ -168,7 +168,7 @@ export default function UnitPicker(
         <View style={s_unit.overlay}>
           <View style={s_unit.sheet}>
             <View style={s_unit.header}>
-              <Text style={s_unit.title}>{t("unit.title")}</Text>
+              <Text style={t(s_unit.title as any)}>{t("unit.title")}</Text>
               <TouchableOpacity onPress={() => setOpen(false)}>
                 <Text style={s_unit.closeBtn}>{t("unit.done")}</Text>
               </TouchableOpacity>

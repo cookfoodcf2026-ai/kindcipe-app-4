@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -62,6 +63,7 @@ function getSubCats(recipe: any): string[] {
 }
 
 function BarChart({ data, colorMap }: { data: { label: string; count: number }[]; colorMap: Record<string, string> }) {
+  const { t } = useTranslation();
   const max = Math.max(...data.map(d => d.count), 1);
   const total = data.reduce((s, d) => s + d.count, 0);
   return (
@@ -71,7 +73,7 @@ function BarChart({ data, colorMap }: { data: { label: string; count: number }[]
         return (
           <View key={d.label} style={{ flexDirection: "row", alignItems: "center", gap: 8 } as any}>
             <Text style={{ width: 100, fontSize: 11, fontWeight: "600", color: "#374151", textAlign: "right" as any }} numberOfLines={1}>
-              {d.label}
+              {t(d.label as any)}
             </Text>
             <View style={{ flex: 1, backgroundColor: "#F1F5F9", borderRadius: 6, height: 20, overflow: "hidden" } as any}>
               <View style={{
@@ -112,23 +114,23 @@ export default function AdminScreen() {
 
   const createOfficialM = trpc.recipes.adminCreateOfficial.useMutation({
     onSuccess: () => { utils.recipes.listOfficial.invalidate(); setShowForm(false); Alert.alert("已新增官方 AI 食譜"); },
-    onError: (e) => Alert.alert("新增失敗", e.message),
+    onError: (e) => Alert.alert("新增失敗", friendlyError(e)),
   });
   const updateOfficialM = trpc.recipes.adminUpdateOfficial.useMutation({
     onSuccess: () => { utils.recipes.listOfficial.invalidate(); setShowForm(false); Alert.alert("已更新食譜"); },
-    onError: (e) => Alert.alert("更新失敗", e.message),
+    onError: (e) => Alert.alert("更新失敗", friendlyError(e)),
   });
   const deleteOfficialM = trpc.recipes.deleteOfficial.useMutation({
     onSuccess: () => { utils.recipes.listOfficial.invalidate(); setDeleteConfirm(null); Alert.alert("已刪除"); },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
   const approveM = trpc.recipes.adminApprove.useMutation({
     onSuccess: () => { utils.recipes.adminListPending.invalidate(); utils.recipes.listOfficial.invalidate(); Alert.alert("已批准公開"); },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
   const rejectM = trpc.recipes.adminReject.useMutation({
     onSuccess: () => { utils.recipes.adminListPending.invalidate(); Alert.alert("已拒絕申請"); },
-    onError: (e) => Alert.alert("失敗", e.message),
+    onError: (e) => Alert.alert("失敗", friendlyError(e)),
   });
 
   // ── KOL (網紅食譜) ──
@@ -137,7 +139,7 @@ export default function AdminScreen() {
   const kolListQ = trpc.recipes.adminListKol.useQuery(undefined, { enabled: isAuthenticated && user?.role === "admin" });
   const createKolM = trpc.recipes.adminCreateKol.useMutation({
     onSuccess: (r: any) => { utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate(); Alert.alert("已上架", r?.name ?? ""); },
-    onError: (e) => Alert.alert("上架失敗", e.message),
+    onError: (e) => Alert.alert("上架失敗", friendlyError(e)),
   });
   const createKolBatchM = trpc.recipes.adminCreateKolBatch.useMutation({
     onSuccess: (r: any) => {
@@ -146,11 +148,11 @@ export default function AdminScreen() {
       const fail = (r?.results ?? []).length - ok;
       Alert.alert("批量上架完成", `成功 ${ok}，失敗 ${fail}`);
     },
-    onError: (e) => Alert.alert("批量上架失敗", e.message),
+    onError: (e) => Alert.alert("批量上架失敗", friendlyError(e)),
   });
   const deleteKolM = trpc.recipes.adminDeleteKol.useMutation({
     onSuccess: () => { utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate(); },
-    onError: (e) => Alert.alert("刪除失敗", e.message),
+    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
   const kolLinks = kolInput.split(/[\n\s]+/).map((s) => s.trim()).filter((s) => /^https?:\/\//i.test(s));
   // KOL whitelist
@@ -158,11 +160,11 @@ export default function AdminScreen() {
   const creatorsQ = trpc.recipes.adminListKolCreators.useQuery(undefined, { enabled: isAuthenticated && user?.role === "admin" });
   const addCreatorM = trpc.recipes.adminAddKolCreator.useMutation({
     onSuccess: () => { utils.recipes.adminListKolCreators.invalidate(); setCreatorEmail(""); Alert.alert("已加入白名單"); },
-    onError: (e) => Alert.alert("加入失敗", e.message),
+    onError: (e) => Alert.alert("加入失敗", friendlyError(e)),
   });
   const removeCreatorM = trpc.recipes.adminRemoveKolCreator.useMutation({
     onSuccess: () => { utils.recipes.adminListKolCreators.invalidate(); },
-    onError: (e) => Alert.alert("移除失敗", e.message),
+    onError: (e) => Alert.alert("移除失敗", friendlyError(e)),
   });
 
   const filtered = useMemo(() => {
@@ -208,8 +210,8 @@ export default function AdminScreen() {
       (form.estimatedCost && form.estimatedCost.trim() && form.estimatedCost !== "60");
     if (hasContent) {
       Alert.alert("確定關閉？", "已輸入嘅食譜內容將不會保存。", [
-        { text: "繼續編輯", style: "cancel" },
-        { text: "關閉", style: "destructive", onPress: () => setShowForm(false) },
+        { text: t("繼續編輯" as any), style: "cancel" },
+        { text: t("關閉" as any), style: "destructive", onPress: () => setShowForm(false) },
       ]);
     } else {
       setShowForm(false);
@@ -317,7 +319,7 @@ export default function AdminScreen() {
             <View key={stat.label} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
               <Ionicons name={stat.icon} size={14} color={BRAND} />
               <Text style={{ fontSize: 16, fontWeight: "800", color: "#F1F5F9", lineHeight: 16 }}>{stat.value}</Text>
-              <Text style={{ fontSize: 10, color: "#64748B", marginLeft: 4 }}>{stat.label}</Text>
+              <Text style={{ fontSize: 10, color: "#64748B", marginLeft: 4 }}>{t(stat.label as any)}</Text>
             </View>
           ))}
         </View>
@@ -337,7 +339,7 @@ export default function AdminScreen() {
                 onPress={() => setActiveTab(tab.id as "recipes" | "analytics" | "pending" | "kol")}
               >
                 <Ionicons name={tab.icon as any} size={15} color={isActive ? BRAND : SUB} />
-                <Text style={{ fontSize: 13, fontWeight: isActive ? "700" : "500", color: isActive ? BRAND : SUB }}>{tab.label}</Text>
+                <Text style={{ fontSize: 13, fontWeight: isActive ? "700" : "500", color: isActive ? BRAND : SUB }}>{t(tab.label as any)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -516,7 +518,7 @@ export default function AdminScreen() {
                     <View key={stat.label} style={{ width: (SW - 72) / 2, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: stat.color + "20" }}>
                       <Ionicons name={stat.icon} size={20} color={stat.color} />
                       <Text style={{ fontSize: 18, fontWeight: "800", color: stat.color, lineHeight: 22 }}>{stat.value}</Text>
-                      <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{stat.label}</Text>
+                      <Text style={{ fontSize: 11, color: SUB, marginTop: 2 }}>{t(stat.label as any)}</Text>
                     </View>
                   ))}
                 </View>

@@ -124,7 +124,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.xl, backgroundColor: colors.primary.navy }}>
             <Text style={{ fontSize: 34, fontWeight: '900', color: '#fff', textAlign: 'center', lineHeight: 42 }} numberOfLines={2}>
-              {recipe.title}
+              {t(recipe.title as any)}
             </Text>
           </View>
         )}
@@ -192,7 +192,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
             marginBottom: theme.spacing.md,
           }}
         >
-          {recipe.title}
+          {t(recipe.title as any)}
         </Text>
 
         <Text
@@ -486,7 +486,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
                           style={{
                             ...typography.caption,
                             color: colors.primary.navy,
-                          }}
+}}
                         >
                           比價
                         </Text>
@@ -675,7 +675,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
                       style={{
                         ...typography.caption,
                         color: colors.primary.navy,
-                      }}
+}}
                     >
                       {step.time} 分鐘 · 開始計時
                     </Text>
@@ -698,7 +698,7 @@ export const RecipeDetailScreen: React.FC<RecipeDetailScreenProps> = ({
                         style={{
                           ...typography.caption,
                           color: colors.primary.copper,
-                        }}
+}}
                       >
                         💡 {step.tip}
                       </Text>

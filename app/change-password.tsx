@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#013E77";
 
@@ -48,7 +49,7 @@ export default function ChangePasswordScreen() {
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
       Alert.alert(t("auth.updated"), t("auth.changeSuccess"), [{ text: t("auth.gotIt"), onPress: () => router.replace("/login") }]);
     } catch (err: any) {
-      Alert.alert(t("auth.changeFailed"), err?.message || t("auth.tryLater"));
+      Alert.alert(t("auth.changeFailed"), friendlyError(err) || t("auth.tryLater"));
     }
   };
 
@@ -65,8 +66,8 @@ export default function ChangePasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={styles.title}>{t("auth.changePwTitle")}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={t(styles.title as any)}>{t("auth.changePwTitle")}</Text>
+            <Text style={t(styles.subtitle as any)}>
               {user?.email ? `帳號：${user.email}` : "如你已設定密碼，請輸入舊密碼；否則可直接設定新密碼。"}
             </Text>
 

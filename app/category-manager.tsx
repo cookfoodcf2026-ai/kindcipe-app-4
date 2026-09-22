@@ -52,9 +52,9 @@ export default function CategoryManagerScreen() {
 
   const handleReset = useCallback(() => {
     Alert.alert("重設分類", "還原為預設分類設定？", [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "重設", style: "destructive",
+        text: t("重設" as any), style: "destructive",
         onPress: async () => {
           setCategories(DEFAULT_CATEGORIES);
           await saveCustomCategories(DEFAULT_CATEGORIES);
@@ -89,9 +89,9 @@ export default function CategoryManagerScreen() {
       return;
     }
     Alert.alert("刪除分類", `確定刪除「${key}」？`, [
-      { text: "取消", style: "cancel" },
+      { text: t("取消" as any), style: "cancel" },
       {
-        text: "刪除", style: "destructive",
+        text: t("刪除" as any), style: "destructive",
         onPress: () => { setDirty(true); setCategories(prev => prev.filter(c => c.key !== key)); },
       },
     ]);
@@ -125,8 +125,8 @@ export default function CategoryManagerScreen() {
         "確定離開？",
         "你尚未儲存分類改動，離開後將不會保存。\n\n可以按「儲存」先保存改動。",
         [
-          { text: "繼續編輯", style: "cancel" },
-          { text: "離開", style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
+          { text: t("繼續編輯" as any), style: "cancel" },
+          { text: t("離開" as any), style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
         ]
       );
     } else {
@@ -192,7 +192,7 @@ export default function CategoryManagerScreen() {
             ) : (
               <Text style={s_cat.emoji}>{cat.emoji}</Text>
             )}
-            <Text style={s_cat.label}>{cat.label}</Text>
+            <Text style={s_cat.label}>{t(cat.label as any)}</Text>
             <View style={{ flex: 1 }} />
             {/* 核心 8 大分類唔顯示刪除按鈕 */}
             {!["中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"].includes(cat.key) && (

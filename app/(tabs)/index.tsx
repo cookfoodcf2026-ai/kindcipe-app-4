@@ -15,6 +15,7 @@ import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCa
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
 import { getBilingualName } from "@/lib/bilingual";
+import { buildIngredientLookup } from "@/lib/ingredientLookup";
 import i18n from "@/lib/i18n";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -30,6 +31,7 @@ import RecipeCard from "@/src/components/RecipeCard";
 import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -106,10 +108,10 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
   const dinnerRows: { icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }[] = [];
 
   if (hasConflict) {
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: "今天" });
     dinnerRows.push({ icon: "alert-circle-outline", iconColor: "#DC2626", text: mealName(todayDinnerPlan), badge: "需確認", badgeKind: "conflict" });
   } else if (isTodayEatOut) {
-    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: "外出用餐", badge: "今天" });
+    dinnerRows.push({ icon: "restaurant-outline", iconColor: "#D97706", text: t("外出用餐" as any), badge: "今天" });
   } else if (todayDinnerPlan) {
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(todayDinnerPlan), badge: "今天" });
   }
@@ -152,7 +154,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
           {visibleDinnerRows.map((row, idx) => (
             <View key={idx} style={s.dualCardRow}>
               <Ionicons name={row.icon as any} size={12} color={row.iconColor} />
-              <Text style={s.dualCardRowText} numberOfLines={1}>{row.text}</Text>
+              <Text style={s.dualCardRowText} numberOfLines={1}>{t(row.text as any)}</Text>
               {/* 只喺第一個項目顯示日期標籤（跟返購物清單做法） */}
               {idx === 0 && row.badge && (
                 <View style={row.badgeKind === "conflict" ? s.conflictBadge : s.dateBadge}>
@@ -195,6 +197,14 @@ function ShoppingListPreview({ router }: {
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });
+
+  // Live dictionary lookup so items added before a translation existed still
+  // show their English/Filipino/Indonesian name (same behaviour as the cart).
+  const { data: commonIngredients = [] } = (trpc as any).commonIngredient.list.useQuery(undefined, {
+    staleTime: 1000 * 60 * 60 * 24,
+    retry: 2,
+  });
+  const ingredientLookup = useMemo(() => buildIngredientLookup(commonIngredients), [commonIngredients]);
 
   // Filter: only active items within 14 days
   const itemsIn14Days = useMemo(() => {
@@ -249,7 +259,7 @@ function ShoppingListPreview({ router }: {
           {itemsToShow.map((item: any, idx: number) => (
             <View key={idx} style={s.dualCardRow}>
               <Ionicons name="ellipse-outline" size={12} color="#6B7280" />
-              <Text style={s.dualCardRowText} numberOfLines={1}>{getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).primary}</Text>
+              <Text style={s.dualCardRowText} numberOfLines={1}>{(() => { const lk = ingredientLookup.resolveItem(item.name, item.nameEn); return getBilingualName(item.name, item.nameEn || lk?.en, item.nameFil || lk?.fil, item.nameId || lk?.id).primary; })()}</Text>
               {/* Only show date label for the first item */}
               {idx === 0 && dateLabel && (
                 <View style={s.dualCardDateBadge}>
@@ -615,8 +625,8 @@ export default function RecipesTab() {
             isEatOutConflict ? "衝突提示" : "重複食譜提示",
             result.warning,
             [
-              { text: "取消", style: "cancel", onPress: () => resolve(false) },
-              { text: "確定", onPress: () => resolve(true) },
+              { text: t("取消" as any), style: "cancel", onPress: () => resolve(false) },
+              { text: t("確定" as any), onPress: () => resolve(true) },
             ],
             { cancelable: false },
           );
@@ -646,7 +656,7 @@ export default function RecipesTab() {
 
       void invalidateMealPlanAndCart();
     },
-    onError: (e) => showToast(`加入失敗：${e.message}`, "error"),
+    onError: (e) => showToast(`加入失敗：${friendlyError(e)}`, "error"),
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -664,7 +674,7 @@ export default function RecipesTab() {
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${e.message}`, "error");
+      showToast(`加入食材失敗：${friendlyError(e)}`, "error");
     },
   });
 
@@ -938,7 +948,7 @@ export default function RecipesTab() {
               const chip = POPULAR_CHIPS.find(c => c.key === chipKey);
               return (
                 <View key={chipKey} style={s.smartToken}>
-                  <Text style={s.smartTokenTxt}>{chip?.label || chipKey}</Text>
+                  <Text style={s.smartTokenTxt}>{t(chip?.label || chipKey as any)}</Text>
                   <TouchableOpacity onPress={() => setActivePopularChips(prev => prev.filter(k => k !== chipKey))}>
                     <Ionicons name="close" size={12} color="#fff" />
                   </TouchableOpacity>
@@ -1265,7 +1275,7 @@ export default function RecipesTab() {
               {[{ id: "breakfast", label: "早餐", icon: "sunny-outline" as const }, { id: "lunch", label: "午餐", icon: "partly-sunny-outline" as const }, { id: "dinner", label: "晚餐", icon: "moon-outline" as const }, { id: "snack", label: "小食", icon: "cafe-outline" as const }].map(m => (
                 <TouchableOpacity key={m.id} style={[s.planMealChip, quickPlanMeal === m.id && s.planMealChipActive]} onPress={() => setQuickPlanMeal(m.id)}>
                   <Ionicons name={m.icon} size={18} color={quickPlanMeal === m.id ? "#fff" : "#374151"} />
-                  <Text style={[s.planMealTxt, quickPlanMeal === m.id && { color: "#fff" }]}>{m.label}</Text>
+                  <Text style={[s.planMealTxt, quickPlanMeal === m.id && { color: "#fff" }]}>{t(m.label as any)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1275,7 +1285,7 @@ export default function RecipesTab() {
               onPress={() => {
                 if (!quickPlanRecipe) return;
                 if (!quickPlanDate) {
-                  Alert.alert("日期無效", "請選擇排餐日期", [{ text: "確定" }]);
+                  Alert.alert("日期無效", "請選擇排餐日期", [{ text: t("確定" as any) }]);
                   return;
                 }
                 addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeNameEn: quickPlanRecipe.nameEn, recipeNameFil: quickPlanRecipe.nameFil, recipeNameId: quickPlanRecipe.nameId, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });

@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
+import { friendlyError } from "@/lib/errors";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -340,7 +341,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
-      setErrorMsg(err.message || "無法連接到解析服務，請稍後重試");
+      setErrorMsg(friendlyError(err) || "無法連接到解析服務，請稍後重試");
       setFailedInput({ type: "url", value: universalInput });
       setStep("failed");
     },
@@ -364,7 +365,7 @@ export default function ImportScreen() {
     onError: (err) => {
       isParsingRef.current = false;
       stopParseProgress();
-      setErrorMsg(err.message || "無法解析文字內容");
+      setErrorMsg(friendlyError(err) || "無法解析文字內容");
       setFailedInput({ type: "text", value: universalInput });
       setStep("failed");
     },
@@ -388,7 +389,7 @@ export default function ImportScreen() {
     onError: (err) => {
       isParsingRef.current = false;
       stopParseProgress();
-      setErrorMsg(err.message || "無法解析圖片，請確保圖片清晰");
+      setErrorMsg(friendlyError(err) || "無法解析圖片，請確保圖片清晰");
       setFailedInput({ type: "url", value: "" });
       setStep("failed");
     },
@@ -424,11 +425,11 @@ export default function ImportScreen() {
       if ((err as any).data?.code === "CONFLICT") {
         Alert.alert(
           "重複食譜",
-          err.message || "此食譜已在你的食譜庫中",
-          [{ text: "知道了", style: "cancel" }]
+          friendlyError(err) || "此食譜已在你的食譜庫中",
+          [{ text: t("知道了" as any), style: "cancel" }]
         );
       } else {
-        Alert.alert("儲存失敗", err.message);
+        Alert.alert("儲存失敗", friendlyError(err));
       }
     },
   });
@@ -560,7 +561,7 @@ export default function ImportScreen() {
       console.log("[Instagram Thumbnail] No thumbnail found");
       return undefined;
     } catch (e: any) {
-      console.log("[Instagram Thumbnail] Extraction error:", e?.message || e);
+      console.log("[Instagram Thumbnail] Extraction error:", friendlyError(e) || e);
       return undefined;
     }
   }
@@ -616,12 +617,12 @@ export default function ImportScreen() {
         Alert.alert(
           "剪貼板是空的",
           "請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上",
-          [{ text: "明白" }]
+          [{ text: t("明白" as any) }]
         );
       }
     } catch (e: any) {
-      console.error("[handlePaste] Error:", e.message);
-      Alert.alert("讀取剪貼板失敗", e.message || "請檢查剪貼板權限");
+      console.error("[handlePaste] Error:", friendlyError(e));
+      Alert.alert("讀取剪貼板失敗", friendlyError(e) || "請檢查剪貼板權限");
     }
   };
 
@@ -640,7 +641,7 @@ export default function ImportScreen() {
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
         : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
     } catch (e: any) {
-      Alert.alert("開啟失敗", e?.message || "請重試");
+      Alert.alert("開啟失敗", friendlyError(e) || "請重試");
       return;
     } finally {
       setShowPhotoSourceModal(false);
@@ -706,10 +707,10 @@ export default function ImportScreen() {
       parseImageMutation.reset();
       uploadImageMutation.reset();
       // Check if error is from backend AI analysis
-      const isNoContent = e.message?.includes("沒有足夠") || e.message?.includes("無法識別") || e.message?.includes("no recipe") || e.message?.includes("需要手動輸入");
+      const isNoContent = friendlyError(e)?.includes("沒有足夠") || friendlyError(e)?.includes("無法識別") || friendlyError(e)?.includes("no recipe") || friendlyError(e)?.includes("需要手動輸入");
       setErrorMsg(
         isNoContent
-          ? e.message
+          ? friendlyError(e)
           : "無法分析這張圖片的食譜內容。\n\n可能原因：\n• 食物特徵不明顯（太遠/太模糊/只拍表面）\n• 圖片缺少可識別的食材或步驟文字"
       );
       setFailedInput(null);
@@ -788,7 +789,7 @@ export default function ImportScreen() {
     } catch (e: any) {
       setIsSaving(false);
       if (saveStepTimer.current) { clearInterval(saveStepTimer.current); saveStepTimer.current = null; }
-      Alert.alert("儲存失敗", e?.message || "圖片上傳失敗，請重試");
+      Alert.alert("儲存失敗", friendlyError(e) || "圖片上傳失敗，請重試");
     }
   };
 
@@ -824,9 +825,9 @@ export default function ImportScreen() {
         "確定要離開？",
         "已輸入或編輯的內容將不會儲存",
         [
-          { text: "繼續編輯", style: "cancel" },
+          { text: t("繼續編輯" as any), style: "cancel" },
           {
-            text: "離開",
+            text: t("離開" as any),
             style: "destructive",
             onPress: () => {
               if (step === "preview" && parsedRecipe) {
@@ -918,24 +919,24 @@ export default function ImportScreen() {
           <View style={es.card}>
             <Text style={es.cardTitle}>{t("importRecipe.basicInfo")}</Text>
 
-            <Text style={es.label}>{t("importRecipe.recipeName")}</Text>
+            <Text style={t(es.label as any)}>{t("importRecipe.recipeName")}</Text>
             <TextInput style={es.input} value={editName} onChangeText={setEditName} placeholder={t("importRecipe.recipeName")} placeholderTextColor="#B0BAC9" />
 
-            <Text style={es.label}>{t("importRecipe.desc")}</Text>
+            <Text style={t(es.label as any)}>{t("importRecipe.desc")}</Text>
             <TextInput style={[es.input, es.multilineInput]} value={editDesc} onChangeText={setEditDesc} placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor="#B0BAC9" multiline numberOfLines={2} />
 
             <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={es.label}>{t("importRecipe.servings")}</Text>
+                <Text style={t(es.label as any)}>{t("importRecipe.servings")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editServings} onChangeText={setEditServings} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={es.label}>{t("importRecipe.timeMin")}</Text>
+                <Text style={t(es.label as any)}>{t("importRecipe.timeMin")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editCookTime} onChangeText={setEditCookTime} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
             </View>
 
-            <Text style={es.label}>{t("importRecipe.difficulty")}</Text>
+            <Text style={t(es.label as any)}>{t("importRecipe.difficulty")}</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               {["簡單", "中等", "困難"].map(d => (
                 <TouchableOpacity key={d} style={[es.chip, editDifficulty === d && es.chipActive]} onPress={() => setEditDifficulty(d)}>
@@ -944,7 +945,7 @@ export default function ImportScreen() {
               ))}
             </View>
 
-            <Text style={es.label}>{t("shopping.category")}</Text>
+            <Text style={t(es.label as any)}>{t("shopping.category")}</Text>
             <View style={es.categoryRow}>
               {["中菜","西餐","日式","韓式","東南亞","甜品","飲品","其他"].map(cat => (
                 <TouchableOpacity key={cat} style={[es.chip, selectedCategory === cat && es.chipActive]} onPress={() => setSelectedCategory(cat)}>
@@ -1091,8 +1092,8 @@ export default function ImportScreen() {
                 "重新匯入？",
                 "目前的編輯內容將會遺失",
                 [
-                  { text: "取消", style: "cancel" },
-                  { text: "重新匯入", style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },
+                  { text: t("取消" as any), style: "cancel" },
+                  { text: t("重新匯入" as any), style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },
                 ]
               );
             }}>

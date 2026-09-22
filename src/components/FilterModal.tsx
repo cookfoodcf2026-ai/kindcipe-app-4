@@ -87,7 +87,7 @@ export default function FilterModal({
               <Text style={[
                 s.filterSourceChipTxt,
                 viewMode === opt.key && s.filterSourceChipTxtActive
-              ]}>{opt.label}</Text>
+              ]}>{t(opt.label as any)}</Text>
               {opt.count !== undefined && (
                 <View style={[s.filterSourceCount, viewMode === opt.key && s.filterSourceCountActive]}>
                   <Text style={[s.filterSourceCountTxt, viewMode === opt.key && s.filterSourceCountTxtActive]}>{opt.count}</Text>
@@ -117,7 +117,7 @@ export default function FilterModal({
               <Text style={[
                 s.filterCategoryChipTxt,
                 activeCategory === cat.key && s.filterCategoryChipTxtActive
-              ]}>{cat.label}</Text>
+              ]}>{t(cat.label as any)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -146,7 +146,7 @@ export default function FilterModal({
               <Text style={[
                 s.filterIngCatChipTxt,
                 activeIngredientCategory === cat.key && s.filterIngCatChipTxtActive
-              ]}>{cat.label}</Text>
+              ]}>{t(cat.label as any)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -180,7 +180,7 @@ export default function FilterModal({
                   );
                 }}
               >
-                <Text style={[s.filterQuickChipTxt, isActive && s.filterQuickChipTxtActive]}>{chip.label}</Text>
+                <Text style={[s.filterQuickChipTxt, isActive && s.filterQuickChipTxtActive]}>{t(chip.label as any)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -206,7 +206,7 @@ export default function FilterModal({
               <Text style={[
                 s.filterTimeChipTxt,
                 filterCookTimeMax === opt.value && s.filterTimeChipTxtActive
-              ]}>{opt.label}</Text>
+              ]}>{t(opt.label as any)}</Text>
             </TouchableOpacity>
           ))}
         </View>
