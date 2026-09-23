@@ -1454,7 +1454,8 @@
     "quota": "Naabot na ang limitasyon. Subukan mamaya o mag-upgrade.",
     "purchaseFailed": "Nabigo ang pagbili. Subukan muli.",
     "purchaseInProgress": "May nagaganap nang pagbili.",
-    "restoreFailed": "Hindi maibalik ang mga pagbili. Subukan muli."
+    "restoreFailed": "Hindi maibalik ang mga pagbili. Subukan muli.",
+    "iapUnavailable": "Ang in-app purchase ay magiging available sa public release."
   },
   "notif": {
     "mealUpdated": "📅 Na-update ang meal plan",

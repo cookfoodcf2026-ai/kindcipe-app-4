@@ -1454,7 +1454,8 @@
     "quota": "Batas penggunaan tercapai. Coba nanti atau upgrade.",
     "purchaseFailed": "Pembelian gagal. Coba lagi.",
     "purchaseInProgress": "Ada pembelian yang sedang berlangsung.",
-    "restoreFailed": "Gagal memulihkan pembelian. Coba lagi."
+    "restoreFailed": "Gagal memulihkan pembelian. Coba lagi.",
+    "iapUnavailable": "Pembelian dalam aplikasi akan tersedia di rilis publik."
   },
   "notif": {
     "mealUpdated": "📅 Rencana makan diperbarui",

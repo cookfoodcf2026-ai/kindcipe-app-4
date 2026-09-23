@@ -1454,7 +1454,8 @@
     "quota": "已達到使用上限，請稍後再試或升級。",
     "purchaseFailed": "購買失敗，請重試",
     "purchaseInProgress": "已有進行中的購買，請稍後再試",
-    "restoreFailed": "恢復購買失敗，請重試"
+    "restoreFailed": "恢復購買失敗，請重試",
+    "iapUnavailable": "應用程式內購買將於正式版提供，敬請期待。"
   },
   "notif": {
     "mealUpdated": "📅 餐單已更新",

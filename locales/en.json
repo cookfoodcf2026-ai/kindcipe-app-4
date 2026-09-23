@@ -1454,7 +1454,8 @@
     "quota": "Usage limit reached. Try later or upgrade.",
     "purchaseFailed": "Purchase failed. Please try again.",
     "purchaseInProgress": "A purchase is already in progress.",
-    "restoreFailed": "Could not restore purchases. Please try again."
+    "restoreFailed": "Could not restore purchases. Please try again.",
+    "iapUnavailable": "In-app purchases will be available in the public release."
   },
   "notif": {
     "mealUpdated": "📅 Meal plan updated",
