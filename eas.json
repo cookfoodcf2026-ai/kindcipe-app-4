@@ -45,5 +45,12 @@
       },
       "distribution": "internal"
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleTeamId": "WGBN9GJ4TL"
+      }
+    }
   }
 }
