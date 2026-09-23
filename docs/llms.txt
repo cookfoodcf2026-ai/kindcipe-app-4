@@ -1,0 +1,11 @@
+# Kindcipe — LLM Quick Reference
+- name: 和諧食譜 Kindcipe
+  description: 專為香港家庭設計的 AI 食譜 App（繁中 + 廣東話 + 工人姐姐雙語支援）
+  url: https://kindcipe.com
+  tags: [recipe, meal-planning, hong-kong, domestic-helper, ai]
+  pages:
+    - / (首頁)
+    - /features (功能)
+    - /pricing (定價)
+    - /blog (部落格)
+    - /recipes/* (官方食譜)
