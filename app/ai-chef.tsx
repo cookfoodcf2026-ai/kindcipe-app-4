@@ -22,6 +22,7 @@ import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWe
 import { compressImage } from "@/lib/image-utils";
 import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
+import { track, Events } from "@/lib/analytics";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -1041,6 +1042,7 @@ export default function AIChefScreen() {
 
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => {
+      if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length });
       const { mainText, nextSteps } = parseAssistantResponse(data.content ?? "");
 
       // Direct use of recipes from backend（卡片防線：normalize + isValidRecipe 過濾，保證卡一定撳得）

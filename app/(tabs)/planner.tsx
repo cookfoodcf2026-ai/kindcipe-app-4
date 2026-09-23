@@ -39,6 +39,7 @@ import { DEFAULT_CATEGORIES, loadCustomCategories } from "@/lib/category-storage
 import { DateUtil } from "@/src/lib/DateUtil";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { friendlyError } from "@/lib/errors";
+import { track, Events } from "@/lib/analytics";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -556,6 +557,7 @@ export default function PlannerTab() {
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
     onSuccess: async (_, variables) => {
       const count = variables.items.length;
+      track(Events.ShoppingListGenerated, { count });
       setPickerRecipe(null);
       showToast(`✅ ${count} 件食材已加入購物清單`);
       void invalidateAll();
@@ -572,6 +574,7 @@ export default function PlannerTab() {
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
+      track(Events.MealPlanned);
       // 診斷日誌（檢查 Map 狀態）
 
       // 處理 Conflict 流程
