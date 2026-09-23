@@ -18,7 +18,8 @@ import {
   Linking,
   ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { track, Events } from "@/lib/analytics";
 import { purchaseSubscription, PRODUCT_IDS, manageSubscription, type ProductId } from "../lib/purchase";
 import { trpc } from "../lib/trpc";
 
@@ -84,6 +85,10 @@ export default function PaywallModal({
 }: PaywallModalProps) {
   const msg = FEATURE_MESSAGES[feature];
   const [isPurchasing, setIsPurchasing] = useState<"monthly" | "yearly" | null>(null);
+
+  useEffect(() => {
+    if (visible) track(Events.PaywallViewed, { feature });
+  }, [visible, feature]);
   const [error, setError] = useState<string | null>(null);
 
   const handlePurchase = async (productId: ProductId) => {

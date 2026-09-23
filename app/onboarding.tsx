@@ -27,6 +27,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { track, Events } from "@/lib/analytics";
 import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
@@ -69,6 +70,7 @@ export default function OnboardingScreen(
 
   // 完成 Onboarding（以用戶 ID 為 key，確保不同帳號都會看到 onboarding）
   const finishOnboarding = async () => {
+    track(Events.OnboardingCompleted);
     try {
       setLoading(true);
       const userId = meQuery.data?.id;

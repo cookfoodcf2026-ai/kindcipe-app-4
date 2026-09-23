@@ -6,6 +6,7 @@ import * as IAP from "expo-in-app-purchases";
 import { Linking, Platform } from "react-native";
 import { apiClient } from "./trpc";
 import i18n from "./i18n";
+import { track, Events } from "./analytics";
 
 // Product IDs (需要喺 App Store Connect / Google Play Console 開)
 export const PRODUCT_IDS = {
@@ -47,6 +48,7 @@ async function verifyReceipt(purchase: IAP.InAppPurchase) {
     throw new Error("找不到購買憑證");
   }
 
+  track(Events.PurchaseCompleted);
   const result = await apiClient.subscription.verifyIap.mutate({
     receipt,
     productId: purchase.productId,

@@ -11,6 +11,7 @@ import {
   Platform, Image, KeyboardAvoidingView,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { track, Events } from "@/lib/analytics";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -63,7 +64,8 @@ export default function LoginScreen() {
   // 登入後不直接跳到 tabs，讓 _layout.tsx 的 AuthGuard 根據 onboarding 狀態決定路由
   // 如果是新用戶（未完成 onboarding）→ 自動跳到 /onboarding
   // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
-  const onLoginSuccess = async () => {
+  const onLoginSuccess = async (method: string = "email") => {
+    track(Events.LoginCompleted, { method });
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
     await utils.invalidate();
     await utils.auth.me.invalidate();
@@ -118,7 +120,7 @@ export default function LoginScreen() {
       if (mode === "admin") {
         await onAdminLoginSuccess();
       } else {
-        await onLoginSuccess();
+        await onLoginSuccess(mode === "register" ? "email_register" : "email_login");
       }
     } catch (err: any) {
       if (mode === "register" && err?.data?.code === "CONFLICT") {
@@ -160,7 +162,7 @@ export default function LoginScreen() {
       if (!res.ok) throw new Error("Google login failed");
       const data = await res.json();
       await saveAuthTokenFromResponse(data);
-      await onLoginSuccess();
+      await onLoginSuccess("google");
     } catch (err: any) {
       if (__DEV__) {
         console.error("Google login error:", err);
@@ -203,7 +205,7 @@ export default function LoginScreen() {
       if (!res.ok) throw new Error("Apple login failed");
       const data = await res.json();
       await saveAuthTokenFromResponse(data);
-      await onLoginSuccess();
+      await onLoginSuccess("apple");
     } catch (err: any) {
       if (__DEV__) {
         console.error("Apple login error:", err);

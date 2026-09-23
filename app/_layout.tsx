@@ -36,6 +36,7 @@ import { initIAP } from "@/lib/purchase";
 import { onOfflineChange } from "@/lib/trpc";
 import NetInfo from "@react-native-community/netinfo";
 import { maybeRequestReview } from "@/lib/review";
+import { initAnalytics, identifyUser, resetAnalytics } from "@/lib/analytics";
 import { ToastProvider } from "@/src/components/Toast";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
@@ -200,6 +201,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     staleTime: 1000 * 60 * 5,
     enabled: biometricChecked && !biometricFailed,
   });
+
+  // Identify the signed-in user (or reset on logout) for analytics.
+  const analyticsUserId = meQuery.data?.id ? String(meQuery.data.id) : null;
+  useEffect(() => {
+    if (analyticsUserId) identifyUser(analyticsUserId);
+    else resetAnalytics();
+  }, [analyticsUserId]);
 
   // 在導航 useEffect 中重新檢查 AsyncStorage，確保 finishOnboarding 寫入後能立即反映
   const ensureOnboardingCheck = useCallback(async () => {
@@ -454,6 +462,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void maybeRequestReview();
+    initAnalytics();
   }, []);
 
   if (!langReady) return null;
