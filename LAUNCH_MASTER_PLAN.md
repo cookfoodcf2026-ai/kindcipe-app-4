@@ -64,7 +64,14 @@
 
 ## Phase 1 — 需你決定／credential
 
-### 1A. 🚀 搬區（用戶體驗最關鍵）
+### 1A. ✅ 搬區完成（2026-09-23）
+
+- Supabase: Sydney → **Singapore**（`aws-0-ap-southeast-1`，新 project `cwvsowrblklwpvirfqun`）；資料完整搬遷（row counts 全對）
+- Railway: SFO → **Singapore**（`asia-southeast1`）
+- **實測 HK 延遲：~1.5s → ~0.08s（快 ~10-18 倍）**
+- 舊 Sydney project 保留做備份
+
+#### 原始計劃（供參考）
 | 選項 | 做法 | HK 延遲 | 你要做 |
 |---|---|---|---|
 | **(a) 建議** | Supabase → **Singapore** + Railway → **Singapore** | **~30–50 ms** | 開新 Supabase project（Singapore）|
