@@ -52,7 +52,8 @@
         "appleTeamId": "WGBN9GJ4TL",
         "ascApiKeyPath": "/Users/mavisng/Desktop/Kindcipe/API/app_store_api_AuthKey_FF2R74GV59.p8",
         "ascApiKeyId": "FF2R74GV59",
-        "ascApiKeyIssuerId": "4ff6caa9-b13b-40f0-8407-bc43317c7b33"
+        "ascApiKeyIssuerId": "4ff6caa9-b13b-40f0-8407-bc43317c7b33",
+        "ascAppId": "6815294638"
       }
     }
   }
