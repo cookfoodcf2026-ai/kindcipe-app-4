@@ -2,7 +2,8 @@
   "common": {
     "today": "Hari ini",
     "tomorrow": "Besok",
-    "close": "Tutup"
+    "close": "Tutup",
+    "offline": "Offline — beberapa fitur butuh koneksi"
   },
   "login": {},
   "home": {
@@ -219,7 +220,8 @@
     "subExpired": "Langganan kedaluwarsa",
     "reminderOn": "Pengingat malam",
     "reminderOff": "Tidak ada pengingat saat mati",
-    "reminderHint": "Ketik angka (mis. 1930) · Saat ini: {{time}}"
+    "reminderHint": "Ketik angka (mis. 1930) · Saat ini: {{time}}",
+    "support": "Bantuan & Dukungan"
   },
   "errors": {},
   "aiChef": {
@@ -735,7 +737,9 @@
     "enableFaceId": "Aktifkan Face ID?",
     "faceIdMsg": "Lain kali cukup Face ID atau sidik jari",
     "enable": "Aktifkan",
-    "notNow": "Nanti saja"
+    "notNow": "Nanti saja",
+    "unlock": "Buka Kindcipe",
+    "usePassword": "Gunakan sandi"
   },
   "notFound": {
     "title": "Halaman ini tidak ada",
@@ -1447,6 +1451,17 @@
     "forbidden": "Anda tidak memiliki izin untuk ini.",
     "notFound": "Tidak ditemukan.",
     "duplicate": "Item ini sudah ada.",
-    "quota": "Batas penggunaan tercapai. Coba nanti atau upgrade."
+    "quota": "Batas penggunaan tercapai. Coba nanti atau upgrade.",
+    "purchaseFailed": "Pembelian gagal. Coba lagi.",
+    "purchaseInProgress": "Ada pembelian yang sedang berlangsung.",
+    "restoreFailed": "Gagal memulihkan pembelian. Coba lagi."
+  },
+  "notif": {
+    "mealUpdated": "📅 Rencana makan diperbarui",
+    "mealAdded": "“{{name}}” ditambahkan ke {{time}}",
+    "shoppingUpdated": "🛒 Daftar belanja diperbarui",
+    "itemAdded": "“{{name}}” ditambahkan ke daftar belanja",
+    "mealReminderTitle": "Makan malam apa?",
+    "mealReminderBody": "Rencanakan makan malam — aku urus 3 lauk + 1 sup 🍽️"
   }
 }

@@ -249,14 +249,6 @@ export default function MoreTab() {
       onPress: () => navigate(() => router.push("/purchase-history")),
       accessibilityLabel: t("more.purchaseHistoryTitle"),
     },
-    {
-      title: t("more.kitchenClassTitle"),
-      subtitle: t("more.kitchenClassSub"),
-      Icon: ChefHatIcon,
-      accent: "copper" as const,
-      onPress: () => goToComingSoon("廚房學堂", "學識切、醃、炒、蒸、煮", "廚房學堂仍在準備中，之後會提供一步一步的烹飪教學。"),
-      accessibilityLabel: t("more.kitchenClassTitle"),
-    },
   ];
 
   return (

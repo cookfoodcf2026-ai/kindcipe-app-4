@@ -2,7 +2,8 @@
   "common": {
     "today": "Ngayon",
     "tomorrow": "Bukas",
-    "close": "Isara"
+    "close": "Isara",
+    "offline": "Offline — may kailangan ng koneksyon ang ilang feature"
   },
   "login": {},
   "home": {
@@ -219,7 +220,8 @@
     "subExpired": "Nag-expire ang subscription",
     "reminderOn": "Paalala sa gabi",
     "reminderOff": "Walang paalala kapag off",
-    "reminderHint": "Mag-type ng numero (hal. 1930) · Kasalukuyan: {{time}}"
+    "reminderHint": "Mag-type ng numero (hal. 1930) · Kasalukuyan: {{time}}",
+    "support": "Tulong at Suporta"
   },
   "errors": {},
   "aiChef": {
@@ -735,7 +737,9 @@
     "enableFaceId": "I-enable ang Face ID?",
     "faceIdMsg": "Sa susunod, Face ID o fingerprint na lang",
     "enable": "I-enable",
-    "notNow": "Mamaya na"
+    "notNow": "Mamaya na",
+    "unlock": "I-unlock ang Kindcipe",
+    "usePassword": "Gamitin ang passcode"
   },
   "notFound": {
     "title": "Wala ang page na ito",
@@ -1447,6 +1451,17 @@
     "forbidden": "Wala kang pahintulot na gawin ito.",
     "notFound": "Hindi mahanap.",
     "duplicate": "Umiiral na ang item na ito.",
-    "quota": "Naabot na ang limitasyon. Subukan mamaya o mag-upgrade."
+    "quota": "Naabot na ang limitasyon. Subukan mamaya o mag-upgrade.",
+    "purchaseFailed": "Nabigo ang pagbili. Subukan muli.",
+    "purchaseInProgress": "May nagaganap nang pagbili.",
+    "restoreFailed": "Hindi maibalik ang mga pagbili. Subukan muli."
+  },
+  "notif": {
+    "mealUpdated": "📅 Na-update ang meal plan",
+    "mealAdded": "Naidagdag ang “{{name}}” sa {{time}}",
+    "shoppingUpdated": "🛒 Na-update ang listahan",
+    "itemAdded": "Naidagdag ang “{{name}}” sa listahan",
+    "mealReminderTitle": "Ano ang hapunan?",
+    "mealReminderBody": "I-plano ang hapunan — ako na sa 3 ulam + 1 sopas 🍽️"
   }
 }

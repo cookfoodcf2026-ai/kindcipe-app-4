@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import i18n from "./i18n";
 
 export const AUTH_TOKEN_KEY = "kindcipe_auth_token";
 export const FAMILY_ID_KEY = "kindcipe_active_family_id";
@@ -104,8 +105,8 @@ export async function authenticateBiometric(): Promise<boolean> {
   try {
     const LocalAuthentication = require("expo-local-authentication");
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "解鎖 Kindcipe",
-      fallbackLabel: "使用密碼",
+      promptMessage: i18n.t("auth.unlock" as any),
+      fallbackLabel: i18n.t("auth.usePassword" as any),
       disableDeviceFallback: false,
     });
     return result.success;

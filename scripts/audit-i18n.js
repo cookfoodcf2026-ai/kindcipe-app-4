@@ -13,8 +13,10 @@ const fs = require("fs");
 const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 
-const DIRS = ["app", "src/components", "hooks"];
+const DIRS = ["app", "src/components", "hooks", "lib"];
 const EXCLUDE_DIRS = ["node_modules", "locales", "__tests__", "e2e", ".expo"];
+// Files that are pure data dictionaries (bilingual maps / normalisation regexes), not UI.
+const SKIP_FILES = ["lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "lib/i18nEnums.ts"];
 const ALLOW_SUBSTR = [
   "nameYue", "nameZh", "nameFil", "nameId", "nameEn",
   "DEFAULT_CATEGORIES", "CATEGORY_", "HOUSEHOLD_CATEGORIES",
@@ -30,6 +32,8 @@ const ALLOW_SUBSTR = [
   "setDifficulty", "unit: ing.unit", "otherTitle", "prefs.time", "hasKids", "hasElderly",
   "const unit =", "const difficulty =", "reason:", "cat = item.category", "const kw = ctxQuery",
   "otherNames.join", "planDate", "mealTypeLabel", "const name =", "regeneratePrompt", "const msg =", "ROLE_LABEL",
+  // bilingual data dictionaries / normalisation regexes (not display strings)
+  "lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "CATEGORY_KEY_TO_LABEL",
   // role-label map values (data; rendered via t() at the call site)
   'owner: "', 'admin: "', 'helper: "', 'member: "',
   // regenerate prompts (sent to the model, not rendered)
@@ -75,6 +79,7 @@ let hits = [];
 for (const d of DIRS) {
   for (const file of walk(path.join(ROOT, d))) {
     const rel = path.relative(ROOT, file);
+    if (SKIP_FILES.includes(rel)) continue;
     const lines = fs.readFileSync(file, "utf8").split("\n");
     lines.forEach((ln, i) => {
       const stripped = ln.replace(/\/\/.*$/, "").replace(/\/\*[\s\S]*?\*\//g, "");

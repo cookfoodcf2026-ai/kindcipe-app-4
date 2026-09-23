@@ -804,6 +804,23 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_SUPPORT_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/support/', {
+              toolbarColor: '#013E77',
+              controlsColor: '#ffffff',
+              presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            })}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
+                <Ionicons name="help-circle-outline" size={20} color="#6B7280" />
+              </View>
+              <Text style={styles.settingLabel}>{t("settings.support" as any)}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
 
         {/* 登出按鈕 */}

@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import i18n from "./i18n";
 
 const isSimulator = __DEV__ && Platform.OS === "ios";
 
@@ -45,8 +46,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function scheduleMealNotification(mealName: string, mealTime: string) {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "📅 餐單已更新",
-      body: `「${mealName}」已加入 ${mealTime} 的餐單`,
+      title: i18n.t("notif.mealUpdated" as any),
+      body: i18n.t("notif.mealAdded" as any, { name: mealName, time: mealTime }),
       sound: true,
     },
     trigger: null,
@@ -56,8 +57,8 @@ export async function scheduleMealNotification(mealName: string, mealTime: strin
 export async function scheduleShoppingNotification(itemName: string) {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "🛒 購物清單已更新",
-      body: `「${itemName}」已加入購物清單`,
+      title: i18n.t("notif.shoppingUpdated" as any),
+      body: i18n.t("notif.itemAdded" as any, { name: itemName }),
       sound: true,
     },
     trigger: null,
@@ -119,8 +120,8 @@ export async function applyMealReminder(setting: MealReminderSetting): Promise<b
 
 async function scheduleMealReminder(setting: MealReminderSetting) {
   const content: Notifications.NotificationContentInput = {
-    title: "今晚食咩？",
-    body: "記得加入今晚排餐，我幫你搞掂 3 餸 1 湯 🍽️",
+    title: i18n.t("notif.mealReminderTitle" as any),
+    body: i18n.t("notif.mealReminderBody" as any),
     sound: true,
     data: { route: "/(tabs)/index" },
   };

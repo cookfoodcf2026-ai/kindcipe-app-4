@@ -34,6 +34,8 @@ import { CrashScreen } from "@/src/components/CrashScreen";
 import { initGlobalErrorHandler } from "@/lib/global-error-handler";
 import { initIAP } from "@/lib/purchase";
 import { onOfflineChange } from "@/lib/trpc";
+import NetInfo from "@react-native-community/netinfo";
+import { maybeRequestReview } from "@/lib/review";
 import { ToastProvider } from "@/src/components/Toast";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
@@ -103,8 +105,17 @@ const trpcClient = createTrpcClient();
 
 /** Floating banner shown when the network is detected as offline. */
 function OfflineBanner() {
-  const [offline, setOffline] = useState(false);
-  useEffect(() => onOfflineChange(setOffline), []);
+  const { t } = useTranslation();
+  const [apiOffline, setApiOffline] = useState(false);
+  const [netOffline, setNetOffline] = useState(false);
+  useEffect(() => onOfflineChange(setApiOffline), []);
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      setNetOffline(state.isConnected === false || state.isInternetReachable === false);
+    });
+    return () => unsub();
+  }, []);
+  const offline = apiOffline || netOffline;
   if (!offline) return null;
   return (
     <View
@@ -121,7 +132,7 @@ function OfflineBanner() {
       }}
     >
       <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>
-        離線模式 — 部分功能可能需要網絡
+        {t("common.offline" as any)}
       </Text>
     </View>
   );
@@ -439,6 +450,10 @@ export default function RootLayout() {
       }
     })();
     return () => { sub?.remove(); };
+  }, []);
+
+  useEffect(() => {
+    void maybeRequestReview();
   }, []);
 
   if (!langReady) return null;

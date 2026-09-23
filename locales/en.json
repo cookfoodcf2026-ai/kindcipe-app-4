@@ -2,7 +2,8 @@
   "common": {
     "today": "Today",
     "tomorrow": "Tomorrow",
-    "close": "Close"
+    "close": "Close",
+    "offline": "Offline — some features may need a connection"
   },
   "login": {},
   "home": {
@@ -219,7 +220,8 @@
     "subExpired": "Subscription expired",
     "reminderOn": "Evening reminder \"What's for dinner?\"",
     "reminderOff": "No reminder when off",
-    "reminderHint": "Type digits (e.g. 1930 = 19:30) · Current: {{time}}"
+    "reminderHint": "Type digits (e.g. 1930 = 19:30) · Current: {{time}}",
+    "support": "Help & Support"
   },
   "errors": {},
   "aiChef": {
@@ -735,7 +737,9 @@
     "enableFaceId": "Enable Face ID unlock?",
     "faceIdMsg": "Next time you can sign in with Face ID or fingerprint, no password needed",
     "enable": "Enable",
-    "notNow": "Not now"
+    "notNow": "Not now",
+    "unlock": "Unlock Kindcipe",
+    "usePassword": "Use passcode"
   },
   "notFound": {
     "title": "This page doesn't exist",
@@ -1447,6 +1451,17 @@
     "forbidden": "You do not have permission to do this.",
     "notFound": "Not found.",
     "duplicate": "This item already exists.",
-    "quota": "Usage limit reached. Try later or upgrade."
+    "quota": "Usage limit reached. Try later or upgrade.",
+    "purchaseFailed": "Purchase failed. Please try again.",
+    "purchaseInProgress": "A purchase is already in progress.",
+    "restoreFailed": "Could not restore purchases. Please try again."
+  },
+  "notif": {
+    "mealUpdated": "📅 Meal plan updated",
+    "mealAdded": "“{{name}}” was added to {{time}}",
+    "shoppingUpdated": "🛒 Shopping list updated",
+    "itemAdded": "“{{name}}” was added to the shopping list",
+    "mealReminderTitle": "What’s for dinner?",
+    "mealReminderBody": "Plan tonight’s meal — I’ll sort out 3 dishes + 1 soup 🍽️"
   }
 }

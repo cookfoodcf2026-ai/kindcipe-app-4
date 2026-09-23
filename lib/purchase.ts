@@ -5,6 +5,7 @@
 import * as IAP from "expo-in-app-purchases";
 import { Linking, Platform } from "react-native";
 import { apiClient } from "./trpc";
+import i18n from "./i18n";
 
 // Product IDs (需要喺 App Store Connect / Google Play Console 開)
 export const PRODUCT_IDS = {
@@ -76,7 +77,7 @@ async function processPurchaseResponse(response: IAP.IAPQueryResponse<IAP.InAppP
   }
 
   if (response.responseCode === IAP.IAPResponseCode.ERROR) {
-    pendingPurchase?.resolve({ success: false, error: "購買失敗，請重試" });
+    pendingPurchase?.resolve({ success: false, error: i18n.t("error.purchaseFailed" as any) });
     pendingPurchase = null;
     return;
   }
@@ -179,7 +180,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
     await ensureConnected();
 
     if (pendingPurchase) {
-      return { success: false, error: "已有進行中的購買，請稍後再試" };
+      return { success: false, error: i18n.t("error.purchaseInProgress" as any) };
     }
 
     return await new Promise<PurchaseResult>(async (resolve) => {
@@ -222,7 +223,7 @@ export async function restorePurchases() {
     await ensureConnected();
     const response = await IAP.getPurchaseHistoryAsync({ useGooglePlayCache: false });
     if (response.responseCode !== IAP.IAPResponseCode.OK) {
-      return { success: false, error: "恢復購買失敗，請重試" };
+      return { success: false, error: i18n.t("error.restoreFailed" as any) };
     }
 
     for (const purchase of response.results ?? []) {

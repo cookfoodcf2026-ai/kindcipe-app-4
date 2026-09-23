@@ -2,7 +2,8 @@
   "common": {
     "today": "今天",
     "tomorrow": "明天",
-    "close": "關閉"
+    "close": "關閉",
+    "offline": "離線模式 — 部分功能可能需要網絡"
   },
   "login": {},
   "home": {
@@ -219,7 +220,8 @@
     "subExpired": "訂閱已到期",
     "reminderOn": "黃昏提醒「今晚食咩」",
     "reminderOff": "關閉時不會提醒",
-    "reminderHint": "打數字（例如 1930 = 19:30）· 目前設定：{{time}}"
+    "reminderHint": "打數字（例如 1930 = 19:30）· 目前設定：{{time}}",
+    "support": "支援中心 / 聯絡我們"
   },
   "errors": {},
   "aiChef": {
@@ -735,7 +737,9 @@
     "enableFaceId": "啟用 Face ID 解鎖？",
     "faceIdMsg": "下次開啟 App 時可使用 Face ID 或指紋快速登入，不需再輸入密碼",
     "enable": "啟用",
-    "notNow": "暫時不要"
+    "notNow": "暫時不要",
+    "unlock": "解鎖 Kindcipe",
+    "usePassword": "使用密碼"
   },
   "notFound": {
     "title": "呢個頁面唔存在",
@@ -1447,6 +1451,17 @@
     "forbidden": "你沒有權限進行此操作。",
     "notFound": "找不到相關資料。",
     "duplicate": "此項目已存在。",
-    "quota": "已達到使用上限，請稍後再試或升級。"
+    "quota": "已達到使用上限，請稍後再試或升級。",
+    "purchaseFailed": "購買失敗，請重試",
+    "purchaseInProgress": "已有進行中的購買，請稍後再試",
+    "restoreFailed": "恢復購買失敗，請重試"
+  },
+  "notif": {
+    "mealUpdated": "📅 餐單已更新",
+    "mealAdded": "「{{name}}」已加入 {{time}} 的餐單",
+    "shoppingUpdated": "🛒 購物清單已更新",
+    "itemAdded": "「{{name}}」已加入購物清單",
+    "mealReminderTitle": "今晚食咩？",
+    "mealReminderBody": "記得加入今晚排餐，我幫你搞掂 3 餸 1 湯 🍽️"
   }
 }
