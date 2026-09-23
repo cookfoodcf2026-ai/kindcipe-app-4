@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useState, useEffect } from "react";
 import { track, Events } from "@/lib/analytics";
+import { friendlyError } from "@/lib/errors";
 import { purchaseSubscription, PRODUCT_IDS, manageSubscription, type ProductId } from "../lib/purchase";
 import { trpc } from "../lib/trpc";
 
@@ -103,10 +104,10 @@ export default function PaywallModal({
       } else if (result.error === 'cancelled') {
         // 用戶取消，唔使做嘢
       } else {
-        setError(result.error || '購買失敗，請重試');
+        setError(result.error || friendlyError({ message: "" }, "error.purchaseFailed"));
       }
     } catch (err: any) {
-      setError(err.message || '購買失敗，請重試');
+      setError(friendlyError(err, "error.purchaseFailed"));
     } finally {
       setIsPurchasing(null);
     }

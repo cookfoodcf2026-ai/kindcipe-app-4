@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "Kindcipe",
+  "NSPhotoLibraryUsageDescription": "Kailangan ng Kindcipe ng access sa iyong mga larawan para makapag-upload ng screenshot ng recipe.",
+  "NSCameraUsageDescription": "Kailangan ng Kindcipe ng access sa camera para makakuha ng litrato ng recipe."
+}
