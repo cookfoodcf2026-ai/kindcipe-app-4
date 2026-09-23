@@ -94,6 +94,14 @@
 
 ## ✅ Beta Build 狀態（2026-09-23）
 
+### 最終 artifacts
+- **Android APK**（含 email 驗證 + all-paid）：`expo.dev/artifacts/eas/TKKpzmNmG2Ct3HeK-pK5nQ4SAt_Lnf-CFXl9GB_HHmc.apk`
+- **iOS IPA**（production）：build `641aa5f3` → submit 緊去 **TestFlight**（Submission `41cba230`）
+- ASC app record：`6815294638`（Kindcipe, com.kindcipe.app）
+- ASC API Key：`FF2R74GV59`（config 喺 eas.json submit）
+- `BETA_ALL_PAID=true`：全家庭 Pro（AI 9999/月）
+- Email 驗證：6 位 code（Resend 未設 → code 落 log）
+
 | 平台 | 狀態 | Artifact |
 |---|---|---|
 | **Android** | ✅ 完成（APK）| `expo.dev/artifacts/eas/GvOGIMw7DTyn5y3gpHehpUZgOHtx4Nnhk8ujC0htJKk.apk` |
