@@ -35,12 +35,6 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
-    "locales": {
-      "en": "./locales/app/app-en.json",
-      "zh-Hant": "./locales/app/app-zh-Hant.json",
-      "fil": "./locales/app/app-fil.json",
-      "id": "./locales/app/app-id.json"
-    },
     "plugins": [
       "expo-router",
       "expo-dev-client",

@@ -1,0 +1,10 @@
+# Keep the EAS build archive small — EAS needs the source, not local state.
+.git
+node_modules
+.expo
+ios
+android
+dist
+docs
+*.log
+.DS_Store
