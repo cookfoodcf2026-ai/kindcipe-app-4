@@ -30,7 +30,11 @@
 
 ---
 
-## Phase 0 — 即刻做（唔需 credential／唔需外部決定）
+## Phase 0 — ✅ 已完成（2026-09-23）
+
+完成：`lib/` i18n（通知/FaceID/購買）+ audit 掃 `lib/` · 離線 banner（NetInfo+i18n）· Support URL（`docs/support/`）+ app 內入口 · App 評分提示 · 隱藏廚房學堂 · **Backend**：索引（migration 0025）· rate limiting（300/min，AI 20/min）· AI semaphore（8）· 字典 TTL cache · pool 20 · body 10MB · CORS 清理。
+
+### 原始清單（供參考）
 
 ### 0A. i18n 缺口修補
 - [ ] `lib/notifications.ts`：通知標題/內容改 `t()`（4 語言 key）
