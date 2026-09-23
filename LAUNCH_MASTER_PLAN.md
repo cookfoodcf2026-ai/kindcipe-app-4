@@ -92,6 +92,17 @@
 
 ---
 
+## ✅ Beta Build 狀態（2026-09-23）
+
+| 平台 | 狀態 | Artifact |
+|---|---|---|
+| **Android** | ✅ 完成（APK）| `expo.dev/artifacts/eas/GvOGIMw7DTyn5y3gpHehpUZgOHtx4Nnhk8ujC0htJKk.apk` |
+| **iOS** | ✅ 完成（App Store IPA）| `expo.dev/artifacts/eas/7mwk5IVRV62T1_HZ40VU2VoBbC-4U8PAh5qKH6UC_pw.ipa` |
+
+**Build 修復記錄**：expo-av/expo-haptics 版本 → SDK 54 · 轉 CNG（untrack ios/）· 移除 expo-in-app-purchases（stub）· 移除 app.json `locales`（Android lint）· 加 `.easignore`（archive 1.1GB → 559MB）
+
+**待辦**：iOS 安裝 → 註冊裝置 UDID（ad-hoc）或 ASC app record + TestFlight。
+
 ## Phase 2 — 上架前收尾
 - [ ] **2A** `git rm -r --cached node_modules` → commit（止血；歷史仍 862MB）
 - [ ] **2B** push 兩個 repo → **驗證 Pages**（privacy + support URL 200）
