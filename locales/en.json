@@ -1464,5 +1464,17 @@
     "itemAdded": "“{{name}}” was added to the shopping list",
     "mealReminderTitle": "What’s for dinner?",
     "mealReminderBody": "Plan tonight’s meal — I’ll sort out 3 dishes + 1 soup 🍽️"
+  },
+  "verify": {
+    "title": "Enter verification code",
+    "subtitle": "We sent a 6-digit code to {{email}}. Check your inbox (and spam).",
+    "submit": "Verify",
+    "resend": "Resend code",
+    "resendIn": "Resend in {{s}}s",
+    "resent": "Code resent",
+    "resentMsg": "Please check your email inbox.",
+    "success": "Verified",
+    "successMsg": "Welcome to Kindcipe!",
+    "failed": "Verification failed. Please try again."
   }
 }

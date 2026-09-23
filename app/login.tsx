@@ -109,11 +109,17 @@ export default function LoginScreen() {
       } else if (mode === "login") {
         result = await emailLoginMutation.mutateAsync({ email: email.trim(), password });
       } else {
-        result = await emailRegisterMutation.mutateAsync({
+        const reg = await emailRegisterMutation.mutateAsync({
           email: email.trim(),
           password,
           name: name.trim(),
-        });
+        }) as { token?: string; requiresVerification?: boolean; email?: string };
+        if (reg?.requiresVerification) {
+          // Account created — confirm the emailed code before signing in.
+          router.push({ pathname: "/verify-email", params: { email: reg.email ?? email.trim() } } as any);
+          return;
+        }
+        result = reg;
       }
 
       await saveAuthTokenFromResponse(result);
@@ -123,6 +129,12 @@ export default function LoginScreen() {
         await onLoginSuccess(mode === "register" ? "email_register" : "email_login");
       }
     } catch (err: any) {
+      // Unverified email → send the user to the verification screen.
+      if (err?.data?.code === "PRECONDITION_FAILED") {
+        setIsLoading(false);
+        router.push({ pathname: "/verify-email", params: { email: email.trim() } } as any);
+        return;
+      }
       if (mode === "register" && err?.data?.code === "CONFLICT") {
         Alert.alert(t("auth.emailTaken"), friendlyError(err) || t("auth.emailTakenMsg"), [
           { text: t("知道了" as any), style: "cancel" },

@@ -1464,5 +1464,17 @@
     "itemAdded": "「{{name}}」已加入購物清單",
     "mealReminderTitle": "今晚食咩？",
     "mealReminderBody": "記得加入今晚排餐，我幫你搞掂 3 餸 1 湯 🍽️"
+  },
+  "verify": {
+    "title": "輸入驗證碼",
+    "subtitle": "我哋已發送 6 位驗證碼去 {{email}}，請檢查收件箱（同雜件箱）。",
+    "submit": "驗證",
+    "resend": "重新發送驗證碼",
+    "resendIn": "{{s}} 秒後可重新發送",
+    "resent": "已重新發送",
+    "resentMsg": "請檢查你嘅電郵收件箱。",
+    "success": "驗證成功",
+    "successMsg": "歡迎使用 Kindcipe！",
+    "failed": "驗證失敗，請再試"
   }
 }

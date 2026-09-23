@@ -1464,5 +1464,17 @@
     "itemAdded": "“{{name}}” ditambahkan ke daftar belanja",
     "mealReminderTitle": "Makan malam apa?",
     "mealReminderBody": "Rencanakan makan malam — aku urus 3 lauk + 1 sup 🍽️"
+  },
+  "verify": {
+    "title": "Masukkan kode verifikasi",
+    "subtitle": "Kami mengirim kode 6 digit ke {{email}}. Periksa inbox (dan spam).",
+    "submit": "Verifikasi",
+    "resend": "Kirim ulang kode",
+    "resendIn": "Kirim ulang dalam {{s}}s",
+    "resent": "Kode terkirim ulang",
+    "resentMsg": "Silakan periksa inbox email Anda.",
+    "success": "Terverifikasi",
+    "successMsg": "Selamat datang di Kindcipe!",
+    "failed": "Verifikasi gagal. Coba lagi."
   }
 }

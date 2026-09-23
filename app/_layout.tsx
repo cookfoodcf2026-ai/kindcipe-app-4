@@ -337,12 +337,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const inLoginPage = segments[0] === "login";
       const inForgotPassword = segments[0] === "forgot-password";
       const inResetPassword = segments[0] === "reset-password";
+      const inVerifyEmail = segments[0] === "verify-email";
       const inOnboarding = segments[0] === "onboarding";
       const seg0 = segments[0] as string;
       const isLoggedIn = !!meQuery.data;
 
       // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
-      if (!isLoggedIn && !inLoginPage && !inForgotPassword && !inResetPassword) {
+      if (!isLoggedIn && !inLoginPage && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
         if (seg0 === "admin") {
           router.replace("/login?mode=admin");
         } else {
@@ -382,7 +383,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         } else {
           // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
           // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
-          if (inLoginPage || inForgotPassword || inResetPassword || inOnboarding || seg0 === "index") {
+          if (inLoginPage || inForgotPassword || inResetPassword || inOnboarding || inVerifyEmail || seg0 === "index") {
             router.replace("/(tabs)");
           }
         }

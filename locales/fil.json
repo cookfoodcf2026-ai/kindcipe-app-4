@@ -1464,5 +1464,17 @@
     "itemAdded": "Naidagdag ang “{{name}}” sa listahan",
     "mealReminderTitle": "Ano ang hapunan?",
     "mealReminderBody": "I-plano ang hapunan — ako na sa 3 ulam + 1 sopas 🍽️"
+  },
+  "verify": {
+    "title": "Ilagay ang verification code",
+    "subtitle": "Nagpadala kami ng 6-digit na code sa {{email}}. Tingnan ang inbox (at spam).",
+    "submit": "I-verify",
+    "resend": "Ipadala muli ang code",
+    "resendIn": "Muling ipadala sa {{s}}s",
+    "resent": "Naipadala muli",
+    "resentMsg": "Pakisuri ang iyong email inbox.",
+    "success": "Na-verify",
+    "successMsg": "Maligayang pagdating sa Kindcipe!",
+    "failed": "Nabigo ang verification. Subukan muli."
   }
 }
