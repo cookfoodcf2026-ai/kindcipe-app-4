@@ -221,7 +221,21 @@
     "reminderOn": "Paalala sa gabi",
     "reminderOff": "Walang paalala kapag off",
     "reminderHint": "Mag-type ng numero (hal. 1930) · Kasalukuyan: {{time}}",
-    "support": "Tulong at Suporta"
+    "support": "Tulong at Suporta",
+    "promoPlaceholder": "Ilagay ang IG promo code",
+    "promoRedeem": "I-redeem",
+    "promoDone": "Naka-enable ang 7-araw na libreng pagsubok (hanggang {date})",
+    "promoDoneShort": "Naka-enable ang 7-araw na libreng pagsubok",
+    "promoFailed": "Nabigo ang pag-redeem",
+    "editNameTitle": "Baguhin ang pangalan",
+    "editNamePlaceholder": "Maglagay ng pangalan",
+    "editNameCancel": "Kanselahin",
+    "editNameSave": "I-save",
+    "editNameEmpty": "Hindi maaaring blangko ang pangalan",
+    "editNameUpdated": "Na-update",
+    "editNameUpdatedMsg": "Na-update ang iyong pangalan.",
+    "nameUpdatedFailed": "Nabigo ang pag-update",
+    "unlimited": "Walang limitasyon"
   },
   "errors": {},
   "aiChef": {

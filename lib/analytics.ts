@@ -76,5 +76,6 @@ export const Events = {
   PaywallViewed: "paywall_viewed",
   PurchaseStarted: "purchase_started",
   PurchaseCompleted: "purchase_completed",
+  PromoRedeemed: "promo_redeemed",
   LanguageChanged: "language_changed",
 } as const;

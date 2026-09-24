@@ -221,7 +221,21 @@
     "reminderOn": "黃昏提醒「今晚食咩」",
     "reminderOff": "關閉時不會提醒",
     "reminderHint": "打數字（例如 1930 = 19:30）· 目前設定：{{time}}",
-    "support": "支援中心 / 聯絡我們"
+    "support": "支援中心 / 聯絡我們",
+    "promoPlaceholder": "輸入 IG 試用碼",
+    "promoRedeem": "兌換",
+    "promoDone": "已啟用 7 日免費試用（至 {date}）",
+    "promoDoneShort": "已啟用 7 日免費試用",
+    "promoFailed": "兌換失敗",
+    "editNameTitle": "修改用戶名稱",
+    "editNamePlaceholder": "請輸入名稱",
+    "editNameCancel": "取消",
+    "editNameSave": "儲存",
+    "editNameEmpty": "名稱不能為空",
+    "editNameUpdated": "已更新",
+    "editNameUpdatedMsg": "用戶名稱已更新。",
+    "nameUpdatedFailed": "更新失敗",
+    "unlimited": "無限"
   },
   "errors": {},
   "aiChef": {

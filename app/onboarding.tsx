@@ -394,6 +394,9 @@ export default function OnboardingScreen(
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
+              snapToInterval={width}
+              snapToAlignment="start"
+              decelerationRate="fast"
               onMomentumScrollEnd={(e) => setGuidePage(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))}
             >
               {GUIDE_SLIDES.map((slide, i) => (
@@ -538,13 +541,13 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   logoImage: {
-    width: 240,
-    height: 240,
+    width: 168,
+    height: 168,
     marginBottom: 16,
   },
   logoImageSmall: {
-    width: 180,
-    height: 180,
+    width: 126,
+    height: 126,
     marginBottom: 12,
   },
   heroImageWrap: {
@@ -752,8 +755,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   guideLogo: {
-    width: 100,
-    height: 100,
+    width: 70,
+    height: 70,
     marginBottom: 8,
   },
   benefitList: {

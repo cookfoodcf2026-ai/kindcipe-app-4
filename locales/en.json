@@ -221,7 +221,21 @@
     "reminderOn": "Evening reminder \"What's for dinner?\"",
     "reminderOff": "No reminder when off",
     "reminderHint": "Type digits (e.g. 1930 = 19:30) · Current: {{time}}",
-    "support": "Help & Support"
+    "support": "Help & Support",
+    "promoPlaceholder": "Enter IG promo code",
+    "promoRedeem": "Redeem",
+    "promoDone": "7-day free trial enabled (until {date})",
+    "promoDoneShort": "7-day free trial enabled",
+    "promoFailed": "Redeem failed",
+    "editNameTitle": "Edit name",
+    "editNamePlaceholder": "Enter a name",
+    "editNameCancel": "Cancel",
+    "editNameSave": "Save",
+    "editNameEmpty": "Name cannot be empty",
+    "editNameUpdated": "Updated",
+    "editNameUpdatedMsg": "Your name has been updated.",
+    "nameUpdatedFailed": "Update failed",
+    "unlimited": "Unlimited"
   },
   "errors": {},
   "aiChef": {

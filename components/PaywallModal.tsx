@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Linking,
   ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { track, Events } from "@/lib/analytics";
@@ -54,7 +55,7 @@ const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; title: string; d
   member_limit: {
     emoji: "👨‍👩‍👧",
     title: "已達成員上限",
-    desc: "免費版最多 2 位家庭成員\n升級後最多可加入 6 位成員",
+    desc: "免費版最多 1 位成員\n升級後最多可加入 4 位成員",
   },
   screenshot: {
     emoji: "📸",
@@ -86,6 +87,31 @@ export default function PaywallModal({
 }: PaywallModalProps) {
   const msg = FEATURE_MESSAGES[feature];
   const [isPurchasing, setIsPurchasing] = useState<"monthly" | "yearly" | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoState, setPromoState] = useState<"idle" | "redeeming" | "done" | "error">("idle");
+  const [promoMsg, setPromoMsg] = useState<string | null>(null);
+  const utils = trpc.useUtils();
+
+  const redeemM = trpc.subscription.redeemTrialCode.useMutation({
+    onSuccess: async (res) => {
+      setPromoState("done");
+      setPromoMsg(res.expiresAt ? `已啟用 7 日免費試用（至 ${new Date(res.expiresAt).toLocaleDateString()}）` : "已啟用 7 日免費試用");
+      await utils.invalidate();
+      track(Events.PromoRedeemed, {});
+    },
+    onError: (e) => {
+      setPromoState("error");
+      setPromoMsg(friendlyError(e));
+    },
+  });
+
+  const handleRedeem = () => {
+    const code = promoCode.trim();
+    if (!code) return;
+    setPromoState("redeeming");
+    setPromoMsg(null);
+    redeemM.mutate({ code });
+  };
 
   useEffect(() => {
     if (visible) track(Events.PaywallViewed, { feature });
@@ -181,12 +207,43 @@ export default function PaywallModal({
             <Text style={styles.errorText}>{error}</Text>
           ) : null}
 
+          {/* Promo code (IG follow 7-day trial) */}
+          {promoState !== "done" ? (
+            <View style={styles.promoBox}>
+              <View style={styles.promoRow}>
+                <TextInput
+                  style={styles.promoInput}
+                  placeholder="輸入 IG 試用碼"
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  editable={promoState !== "redeeming"}
+                />
+                <TouchableOpacity
+                  style={[styles.promoBtn, promoState === "redeeming" && styles.promoBtnDisabled]}
+                  onPress={handleRedeem}
+                  disabled={promoState === "redeeming" || !promoCode.trim()}
+                >
+                  {promoState === "redeeming" ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.promoBtnText}>兌換</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {promoMsg ? <Text style={styles.promoError}>{promoMsg}</Text> : null}
+            </View>
+          ) : (
+            promoMsg ? <Text style={styles.promoDone}>{promoMsg}</Text> : null
+          )}
+
           {/* Features list */}
           <View style={styles.featuresList}>
             {[
               "每月最多 300 個食譜匯入",
               "無限儲存食譜",
-              "最多 6 位家庭成員",
+              "最多 4 位家庭成員",
               "截圖匯入食譜",
               "食材搜尋功能",
               "多語言支援（英文 / 印尼文）",
@@ -427,5 +484,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginBottom: 12,
+  },
+  promoBox: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  promoRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+  },
+  promoBtn: {
+    backgroundColor: "#013E77",
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoBtnDisabled: {
+    backgroundColor: "#6B7280",
+  },
+  promoBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  promoError: {
+    color: "#DC2626",
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  promoDone: {
+    color: "#16A34A",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 16,
   },
 });

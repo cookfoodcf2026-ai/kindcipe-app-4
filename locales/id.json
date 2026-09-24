@@ -221,7 +221,21 @@
     "reminderOn": "Pengingat malam",
     "reminderOff": "Tidak ada pengingat saat mati",
     "reminderHint": "Ketik angka (mis. 1930) · Saat ini: {{time}}",
-    "support": "Bantuan & Dukungan"
+    "support": "Bantuan & Dukungan",
+    "promoPlaceholder": "Masukkan kode promo IG",
+    "promoRedeem": "Tukar",
+    "promoDone": "Uji coba gratis 7 hari aktif (hingga {date})",
+    "promoDoneShort": "Uji coba gratis 7 hari aktif",
+    "promoFailed": "Gagal menukar",
+    "editNameTitle": "Ubah nama",
+    "editNamePlaceholder": "Masukkan nama",
+    "editNameCancel": "Batal",
+    "editNameSave": "Simpan",
+    "editNameEmpty": "Nama tidak boleh kosong",
+    "editNameUpdated": "Diperbarui",
+    "editNameUpdatedMsg": "Nama Anda telah diperbarui.",
+    "nameUpdatedFailed": "Gagal memperbarui",
+    "unlimited": "Tanpa batas"
   },
   "errors": {},
   "aiChef": {

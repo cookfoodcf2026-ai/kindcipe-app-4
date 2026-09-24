@@ -10,7 +10,7 @@
  */
  import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Alert, Switch, TextInput, Image
+  Alert, Switch, TextInput, Image, Modal, ActivityIndicator
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from 'expo-web-browser';
@@ -46,6 +46,10 @@ function formatYearMonthLabel(yearMonth: string): string {
   return `${year} 年 ${Number(month)} 月`;
 }
 
+function formatLimit(n: number, unlimitedLabel: string): string {
+  return n >= 9999 ? unlimitedLabel : String(n);
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -56,6 +60,8 @@ export default function SettingsScreen() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showUsageHistory, setShowUsageHistory] = useState(false);
   const [expandedUsageMonths, setExpandedUsageMonths] = useState<Record<string, boolean>>({});
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
   // BUG#7 FIX: load persisted language on mount
   useEffect(() => {
@@ -87,6 +93,25 @@ export default function SettingsScreen() {
     },
     onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
+
+  // 修改用戶名稱（BUG#14）
+  const updateProfileM = trpc.auth.updateProfile.useMutation({
+    onSuccess: async () => {
+      setEditingName(false);
+      await utils.auth.me.invalidate();
+      Alert.alert(t("settings.editNameUpdated"), t("settings.editNameUpdatedMsg"));
+    },
+    onError: (e) => Alert.alert(t("settings.nameUpdatedFailed"), friendlyError(e)),
+  });
+
+  const handleSaveName = () => {
+    const name = nameDraft.trim();
+    if (!name) {
+      Alert.alert(t("settings.editNameEmpty"));
+      return;
+    }
+    updateProfileM.mutate({ name });
+  };
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -217,6 +242,31 @@ export default function SettingsScreen() {
   ];
 
   const [showPaywall, setShowPaywall] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMsg, setPromoMsg] = useState<string | null>(null);
+  const [promoState, setPromoState] = useState<"idle" | "redeeming" | "done">("idle");
+
+  const redeemPromoM = trpc.subscription.redeemTrialCode.useMutation({
+    onSuccess: async (res) => {
+      setPromoState("done");
+      setPromoMsg(res.expiresAt ? t("settings.promoDone", { date: new Date(res.expiresAt).toLocaleDateString() }) : t("settings.promoDoneShort"));
+      await Promise.all([
+        utils.auth.me.invalidate(),
+        utils.family.subscription.invalidate(),
+        utils.family.usage.invalidate(),
+      ]);
+    },
+    onError: (e) => setPromoMsg(`${t("settings.promoFailed")}: ${friendlyError(e)}`),
+  });
+
+  const handleRedeemPromo = () => {
+    const code = promoCode.trim();
+    if (!code) return;
+    setPromoState("redeeming");
+    setPromoMsg(null);
+    redeemPromoM.mutate({ code });
+  };
   const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
@@ -273,7 +323,19 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user.name || t("dyn.user")}</Text>
+              <View style={styles.profileNameRow}>
+                <Text style={styles.profileName}>{user.name || t("dyn.user")}</Text>
+                <TouchableOpacity
+                  style={styles.editNameButton}
+                  onPress={() => {
+                    setNameDraft(user.name || "");
+                    setEditingName(true);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="pencil" size={14} color="#013E77" />
+                </TouchableOpacity>
+              </View>
               <Text style={styles.profileEmail}>{user.email || ""}</Text>
               {user.role && (
                 <View style={styles.roleBadge}>
@@ -345,6 +407,41 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* 兌換試用碼（IG follow 7日） */}
+        {isAuthenticated && (
+          <View style={styles.promoCard}>
+            {promoState === "done" ? (
+              <Text style={styles.promoDoneText}>{promoMsg}</Text>
+            ) : (
+              <>
+                <View style={styles.promoRow}>
+                  <TextInput
+                    style={styles.promoInput}
+                    placeholder={t("settings.promoPlaceholder")}
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="characters"
+                    value={promoCode}
+                    onChangeText={setPromoCode}
+                    editable={promoState !== "redeeming"}
+                  />
+                  <TouchableOpacity
+                    style={[styles.promoBtn, (promoState === "redeeming" || !promoCode.trim()) && styles.promoBtnDisabled]}
+                    onPress={handleRedeemPromo}
+                    disabled={promoState === "redeeming" || !promoCode.trim()}
+                  >
+                    {promoState === "redeeming" ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <Text style={styles.promoBtnText}>{t("settings.promoRedeem")}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {promoMsg ? <Text style={styles.promoErrorText}>{promoMsg}</Text> : null}
+              </>
+            )}
+          </View>
+        )}
+
         {/* 使用統計 */}
         {isAuthenticated && activeFamily && usage && (
           <View style={styles.section}>
@@ -362,7 +459,7 @@ export default function SettingsScreen() {
 
               <View style={styles.usageMetricRow}>
                 <Text style={styles.usageMetricLabel}>{t("settings.aiChat")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${usage.aiChat.limit}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${formatLimit(usage.aiChat.limit, t("settings.unlimited"))}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -378,7 +475,7 @@ export default function SettingsScreen() {
 
               <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
                 <Text style={styles.usageMetricLabel}>{t("settings.recipeImport")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${usage.imports.limit}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${formatLimit(usage.imports.limit, t("settings.unlimited"))}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -856,6 +953,48 @@ export default function SettingsScreen() {
         feature="generic"
         trialDaysLeft={subInfo?.daysLeft}
       />
+
+      {/* 修改名稱 Modal（BUG#14） */}
+      <Modal
+        visible={editingName}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingName(false)}
+      >
+        <View style={styles.nameModalOverlay}>
+          <View style={styles.nameModalCard}>
+            <Text style={styles.nameModalTitle}>{t("settings.editNameTitle")}</Text>
+            <TextInput
+              style={styles.nameModalInput}
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              placeholder={t("settings.editNamePlaceholder")}
+              placeholderTextColor="#9CA3AF"
+              maxLength={64}
+              autoFocus
+            />
+            <View style={styles.nameModalRow}>
+              <TouchableOpacity
+                style={[styles.nameModalBtn, styles.nameModalCancel]}
+                onPress={() => setEditingName(false)}
+              >
+                <Text style={styles.nameModalCancelText}>{t("settings.editNameCancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.nameModalBtn, styles.nameModalSave, updateProfileM.isPending && styles.nameModalSaveDisabled]}
+                onPress={handleSaveName}
+                disabled={updateProfileM.isPending}
+              >
+                {updateProfileM.isPending ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.nameModalSaveText}>{t("settings.editNameSave")}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -884,6 +1023,11 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 24, fontWeight: "800", color: "#fff" },
   profileInfo: { flex: 1 },
+  profileNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  editNameButton: {
+    width: 22, height: 22, borderRadius: 11, backgroundColor: "#EFF6FF",
+    alignItems: "center", justifyContent: "center",
+  },
   profileName: { fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
   profileEmail: { fontSize: 13, color: "#6B7280", marginTop: 2 },
   roleBadge: {
@@ -1113,6 +1257,47 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "#FECACA",
   },
   logoutBtnText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },
+
+  nameModalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center", justifyContent: "center", padding: 24,
+  },
+  nameModalCard: {
+    width: "100%", maxWidth: 360, backgroundColor: "#FFFFFF", borderRadius: 16,
+    padding: 20,
+  },
+  nameModalTitle: { fontSize: 17, fontWeight: "800", color: "#111827", marginBottom: 14 },
+  nameModalInput: {
+    borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: "#111827", marginBottom: 16,
+  },
+  nameModalRow: { flexDirection: "row", gap: 10 },
+  nameModalBtn: {
+    flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center",
+  },
+  nameModalCancel: { backgroundColor: "#F3F4F6" },
+  nameModalCancelText: { color: "#4B5563", fontSize: 15, fontWeight: "700" },
+  nameModalSave: { backgroundColor: "#013E77" },
+  nameModalSaveDisabled: { backgroundColor: "#6B7280" },
+  nameModalSaveText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+
+  promoCard: {
+    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14, marginTop: 12,
+    borderWidth: 1, borderColor: "#EBEBEB",
+  },
+  promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  promoInput: {
+    flex: 1, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827",
+  },
+  promoBtn: {
+    backgroundColor: "#013E77", borderRadius: 10, paddingHorizontal: 18,
+    paddingVertical: 12, alignItems: "center", justifyContent: "center",
+  },
+  promoBtnDisabled: { backgroundColor: "#6B7280" },
+  promoBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  promoErrorText: { color: "#DC2626", fontSize: 13, marginTop: 6 },
+  promoDoneText: { color: "#16A34A", fontSize: 14, fontWeight: "700", textAlign: "center" },
 });
 
 const chipStyle = {
