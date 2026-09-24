@@ -234,8 +234,7 @@
     "editNameEmpty": "Nama tidak boleh kosong",
     "editNameUpdated": "Diperbarui",
     "editNameUpdatedMsg": "Nama Anda telah diperbarui.",
-    "nameUpdatedFailed": "Gagal memperbarui",
-    "unlimited": "Tanpa batas"
+    "nameUpdatedFailed": "Gagal memperbarui"
   },
   "errors": {},
   "aiChef": {

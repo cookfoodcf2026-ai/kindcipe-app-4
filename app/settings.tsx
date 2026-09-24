@@ -46,10 +46,6 @@ function formatYearMonthLabel(yearMonth: string): string {
   return `${year} 年 ${Number(month)} 月`;
 }
 
-function formatLimit(n: number, unlimitedLabel: string): string {
-  return n >= 9999 ? unlimitedLabel : String(n);
-}
-
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -459,7 +455,7 @@ export default function SettingsScreen() {
 
               <View style={styles.usageMetricRow}>
                 <Text style={styles.usageMetricLabel}>{t("settings.aiChat")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${formatLimit(usage.aiChat.limit, t("settings.unlimited"))}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${usage.aiChat.limit}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -475,7 +471,7 @@ export default function SettingsScreen() {
 
               <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
                 <Text style={styles.usageMetricLabel}>{t("settings.recipeImport")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${formatLimit(usage.imports.limit, t("settings.unlimited"))}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${usage.imports.limit}` })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View

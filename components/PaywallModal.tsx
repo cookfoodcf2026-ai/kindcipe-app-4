@@ -50,7 +50,7 @@ const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; title: string; d
   recipe_limit: {
     emoji: "📚",
     title: "已達食譜儲存上限",
-    desc: "免費版最多儲存 15 個自訂食譜\n升級後可無限儲存",
+    desc: "免費版每月最多建立 20 個食譜\n升級後可無限儲存",
   },
   member_limit: {
     emoji: "👨‍👩‍👧",

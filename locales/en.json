@@ -234,8 +234,7 @@
     "editNameEmpty": "Name cannot be empty",
     "editNameUpdated": "Updated",
     "editNameUpdatedMsg": "Your name has been updated.",
-    "nameUpdatedFailed": "Update failed",
-    "unlimited": "Unlimited"
+    "nameUpdatedFailed": "Update failed"
   },
   "errors": {},
   "aiChef": {

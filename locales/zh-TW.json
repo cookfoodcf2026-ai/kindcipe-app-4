@@ -234,8 +234,7 @@
     "editNameEmpty": "名稱不能為空",
     "editNameUpdated": "已更新",
     "editNameUpdatedMsg": "用戶名稱已更新。",
-    "nameUpdatedFailed": "更新失敗",
-    "unlimited": "無限"
+    "nameUpdatedFailed": "更新失敗"
   },
   "errors": {},
   "aiChef": {
