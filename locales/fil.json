@@ -9,7 +9,7 @@
   "home": {
     "title": "Kindcipe",
     "tagline": "Tuklasin ang masasarap na pagkain, planuhin ang lingguhang menu",
-    "tonight": "Ano'ng ulam mamayang gabi? 😋",
+    "tonight": "Isang tap: 3 ulam at 1 sabaw",
     "nextDinner": "Susunod na Hapunan",
     "noDinner": "Wala pang nakaplanong hapunan",
     "goPlan": "Pumunta sa meal plan ›",
@@ -17,7 +17,7 @@
     "viewAll": "Tingnan lahat ›",
     "shoppingEmpty": "Walang laman ang listahan",
     "addItems": "Magdagdag ›",
-    "heroSubtitle": "Ako na ang magpaplano",
+    "heroSubtitle": "Tutulong ang AI sa hapunan",
     "pendingTitle": "Gagawin",
     "searchPlaceholder": "Maghanap ng recipe, sangkap, tag",
     "recentSearch": "Mga huling paghahanap",
@@ -296,7 +296,7 @@
     "thinking": "Nag-iisip...",
     "loadingStep1": "Inuunawa ang kahilingan...",
     "loadingStep2": "Inihahanda ang sagot...",
-    "qa_dailyLabel": "Ano ang hapunan? 😋",
+    "qa_dailyLabel": "Isang tap: 3 ulam at 1 sabaw",
     "qa_dailySub": "Ako na ang magpaplano!",
     "qa_fridgeLabel": "Kunan ng litrato ang ref",
     "qa_randomLabel": "Random sa library",
@@ -319,8 +319,8 @@
     "hk_guestPrompt": "Masarap na handa para sa bisita"
   },
   "adSlot": {
-    "upgradeTitle": "Mag-upgrade sa Pro — unlimited AI meal planning",
-    "upgradeSubtitle": "Kumonekta sa pamilya at AI — 7-araw na libreng trial"
+    "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
+    "upgradeSubtitle": "I-follow sa IG para mag-redeem ng libreng 7-araw na trial"
   },
   "recipe": {
     "setTimer": "Itakda ang timer",
@@ -688,7 +688,8 @@
     "create": "Gumawa",
     "join": "Sumali",
     "namePlaceholder": "Ilagay ang pangalan ng kusina",
-    "invitePlaceholder": "Ilagay ang invite code"
+    "invitePlaceholder": "Ilagay ang invite code",
+    "paidKitchenBadge": "Bayad na kusina (ibinigay ng may-ari)"
   },
   "lock": {
     "unlock": "I-unlock ang Kindcipe",

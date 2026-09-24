@@ -9,7 +9,7 @@
   "home": {
     "title": "Kindcipe",
     "tagline": "Discover delicious meals, plan your weekly menu",
-    "tonight": "What's for dinner? 😋",
+    "tonight": "One tap: 3 dishes & a soup",
     "nextDinner": "Next Dinner",
     "noDinner": "No dinner planned yet",
     "goPlan": "Go to meal plan ›",
@@ -17,7 +17,7 @@
     "viewAll": "View all ›",
     "shoppingEmpty": "Shopping list is empty",
     "addItems": "Add items ›",
-    "heroSubtitle": "Let me plan your meals",
+    "heroSubtitle": "AI assistant plans tonight's dinner",
     "pendingTitle": "To-do",
     "searchPlaceholder": "Search recipes, ingredients, tags",
     "recentSearch": "Recent searches",
@@ -296,7 +296,7 @@
     "thinking": "Thinking...",
     "loadingStep1": "Understanding your request...",
     "loadingStep2": "Preparing response...",
-    "qa_dailyLabel": "What's for dinner? 😋",
+    "qa_dailyLabel": "One tap: 3 dishes & a soup",
     "qa_dailySub": "Let me plan your meals!",
     "qa_fridgeLabel": "Snap fridge",
     "qa_randomLabel": "Random from library",
@@ -319,8 +319,8 @@
     "hk_guestPrompt": "Impressive home-style dishes for guests"
   },
   "adSlot": {
-    "upgradeTitle": "Upgrade to Pro — unlimited AI meal planning",
-    "upgradeSubtitle": "Connect with family, connect AI — 7-day free trial"
+    "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
+    "upgradeSubtitle": "Follow on IG to redeem a free 7-day trial"
   },
   "recipe": {
     "setTimer": "Set timer",
@@ -688,7 +688,8 @@
     "create": "Create",
     "join": "Join",
     "namePlaceholder": "Enter kitchen name",
-    "invitePlaceholder": "Enter invite code"
+    "invitePlaceholder": "Enter invite code",
+    "paidKitchenBadge": "Paid kitchen (provided by the owner)"
   },
   "lock": {
     "unlock": "Unlock Kindcipe",

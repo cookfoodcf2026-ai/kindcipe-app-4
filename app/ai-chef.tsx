@@ -354,7 +354,7 @@ const extractAiHistoryRecipeNames = (sessions: ChatSession[]): string[] => {
 };
 
 const QUICK_ACTIONS = [
-  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "今晚食咩好？😋", subtitle: "等我幫你安排你嘅排餐啦！", group: "hero", tint: "#FF7A3D", color: "#FFFFFF" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#FF7A3D", color: "#FFFFFF" },
   { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#DCE9FF", color: "#1D4ED8" },
   { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
   { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#F1E0FF", color: "#7C3AED" },

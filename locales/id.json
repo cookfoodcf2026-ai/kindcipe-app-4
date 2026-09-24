@@ -9,7 +9,7 @@
   "home": {
     "title": "Kindcipe",
     "tagline": "Temukan hidangan lezat, rencanakan menu mingguan",
-    "tonight": "Masak apa malam ini? 😋",
+    "tonight": "Sekali tap: 3 lauk & 1 sup",
     "nextDinner": "Makan Malam Berikutnya",
     "noDinner": "Belum ada makan malam terjadwal",
     "goPlan": "Ke rencana makan ›",
@@ -17,7 +17,7 @@
     "viewAll": "Lihat semua ›",
     "shoppingEmpty": "Daftar belanja kosong",
     "addItems": "Tambah ›",
-    "heroSubtitle": "Biarkan saya merencanakan",
+    "heroSubtitle": "AI bantu rencanakan makan malam",
     "pendingTitle": "Tugas",
     "searchPlaceholder": "Cari resep, bahan, tag",
     "recentSearch": "Pencarian terbaru",
@@ -296,7 +296,7 @@
     "thinking": "Berpikir...",
     "loadingStep1": "Memahami permintaan...",
     "loadingStep2": "Menyiapkan jawapan...",
-    "qa_dailyLabel": "Makan apa malam ini? 😋",
+    "qa_dailyLabel": "Sekali tap: 3 lauk & 1 sup",
     "qa_dailySub": "Biarkan saya merencanakan!",
     "qa_fridgeLabel": "Foto kulkas",
     "qa_randomLabel": "Acak dari perpustakaan",
@@ -319,8 +319,8 @@
     "hk_guestPrompt": "Hidangan istimewa untuk tamu"
   },
   "adSlot": {
-    "upgradeTitle": "Upgrade ke Pro — AI meal planning tanpa batas",
-    "upgradeSubtitle": "Terhubung dengan keluarga & AI — uji coba gratis 7 hari"
+    "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
+    "upgradeSubtitle": "Ikuti IG untuk tukar uji coba gratis 7 hari"
   },
   "recipe": {
     "setTimer": "Atur timer",
@@ -688,7 +688,8 @@
     "create": "Buat",
     "join": "Gabung",
     "namePlaceholder": "Masukkan nama dapur",
-    "invitePlaceholder": "Masukkan kode undangan"
+    "invitePlaceholder": "Masukkan kode undangan",
+    "paidKitchenBadge": "Dapur berbayar (disediakan pemilik)"
   },
   "lock": {
     "unlock": "Buka Kindcipe",

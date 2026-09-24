@@ -29,8 +29,24 @@ export default function KitchenSettingsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, activeFamily, activeFamilyId, familyRole, switchFamily, families } = useAuth();
+  const { user, activeFamilyId, familyRole, switchFamily, families } = useAuth();
   const utils = trpc.useUtils();
+
+  // 自己查 active family（key 跟 id），確保入頁面即刻顯示啱嘅廚房名 + 邀請碼
+  const activeFamilyIdNum = activeFamilyId ? parseInt(activeFamilyId, 10) : undefined;
+  const { data: localFamily } = trpc.family.get.useQuery(
+    activeFamilyIdNum ? { id: activeFamilyIdNum } : undefined,
+    { enabled: !!activeFamilyIdNum, staleTime: 0, refetchOnMount: 'always' },
+  );
+  const activeFamily: any = localFamily;
+
+  // 訂閱狀態（用嚟顯示「付費廚房」指示）
+  const { data: subInfo } = trpc.family.subscription.useQuery(undefined, {
+    enabled: !!activeFamilyId,
+    staleTime: 1000 * 60,
+  });
+  const isPaidKitchen = subInfo?.status === "active" || subInfo?.status === "trial";
+  const showPaidKitchenBadge = isPaidKitchen && familyRole !== "owner";
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -318,6 +334,17 @@ export default function KitchenSettingsScreen() {
                 }}
               />
             )}
+            {hasKitchen && (
+              <View style={s.switchActions}>
+                <TouchableOpacity
+                  style={s.switchActionBtn}
+                  onPress={() => setShowJoinModal(true)}
+                >
+                  <Ionicons name="qr-code-outline" size={18} color={BRAND} />
+                  <Text style={s.switchActionBtnText}>{t("kitchen.joinKitchen")}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {!hasKitchen && (
               <View style={s.switchActions}>
                 <TouchableOpacity
@@ -369,6 +396,12 @@ export default function KitchenSettingsScreen() {
               </TouchableOpacity>
             )}
           </View>
+          {showPaidKitchenBadge && (
+            <View style={s.paidBadge}>
+              <Ionicons name="sparkles" size={13} color="#B45309" />
+              <Text style={s.paidBadgeText}>{t("kitchen.paidKitchenBadge")}</Text>
+            </View>
+          )}
         </View>
 
         <View style={s.section}>
@@ -671,6 +704,13 @@ const s = StyleSheet.create({
   },
   rowLabel: { fontSize: 15, fontWeight: "700", color: TEXT, flex: 1 },
   rowSub: { fontSize: 11, color: SUB, marginTop: 2 },
+  paidBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start", marginTop: 8,
+    backgroundColor: "#FEF3C7", borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  paidBadgeText: { fontSize: 11, fontWeight: "700", color: "#B45309" },
   primaryBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: BRAND, borderRadius: 8,
