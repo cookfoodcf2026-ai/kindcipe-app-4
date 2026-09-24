@@ -42,7 +42,7 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
             color: colors.primary.navy,
           }}
         >
-          編輯備註
+          {t("編輯備註" as any)}
         </Text>
 
         <TouchableOpacity onPress={onCancel}>
@@ -101,7 +101,7 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
               fontWeight: '600',
             }}
           >
-            取消
+            {t("取消" as any)}
           </Text>
         </TouchableOpacity>
 
@@ -124,7 +124,7 @@ export const RemarksEditor: React.FC<RemarksEditorProps> = ({
               fontWeight: '600',
             }}
           >
-            保存
+            {t("保存" as any)}
           </Text>
         </TouchableOpacity>
       </View>

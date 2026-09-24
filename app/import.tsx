@@ -1172,7 +1172,7 @@ export default function ImportScreen() {
                 >
                   <Ionicons name="image" size={18} color="#fff" />
                   <Text style={styles.tryScreenshotText}>
-                    換一張照片（拍清晰食物本體）
+                    {t("換一張照片（拍清晰食物本體）" as any)}
                   </Text>
                 </TouchableOpacity>
 

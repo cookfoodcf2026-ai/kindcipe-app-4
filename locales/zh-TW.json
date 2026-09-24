@@ -739,7 +739,11 @@
     "enable": "啟用",
     "notNow": "暫時不要",
     "unlock": "解鎖 Kindcipe",
-    "usePassword": "使用密碼"
+    "usePassword": "使用密碼",
+    "disclaimer": "登入即表示你同意我們的服務條款及私隱政策",
+    "resetDev": "重置 App 資料（開發用）",
+    "resetDone": "已清除",
+    "resetDoneMsg": "App 資料已重置，請重新啟動 App"
   },
   "notFound": {
     "title": "呢個頁面唔存在",

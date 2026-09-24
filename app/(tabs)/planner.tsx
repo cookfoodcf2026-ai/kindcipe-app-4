@@ -1955,7 +1955,7 @@ export default function PlannerTab() {
             {draftSyncShoppingDateMode === "custom" && (
               <View style={{ marginTop: 12 }}>
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#374151", marginBottom: 8 }}>
-                  自訂購物日期（唔可以遲過排餐日）
+                  {t("自訂購物日期（唔可以遲過排餐日）" as any)}
                 </Text>
                 <PlanDatePicker
                   value={clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) ?? toISODate(new Date())}

@@ -739,7 +739,11 @@
     "enable": "Enable",
     "notNow": "Not now",
     "unlock": "Unlock Kindcipe",
-    "usePassword": "Use passcode"
+    "usePassword": "Use passcode",
+    "disclaimer": "By logging in you agree to our Terms of Service and Privacy Policy",
+    "resetDev": "Reset app data (dev)",
+    "resetDone": "Cleared",
+    "resetDoneMsg": "App data reset. Please restart the app."
   },
   "notFound": {
     "title": "This page doesn't exist",

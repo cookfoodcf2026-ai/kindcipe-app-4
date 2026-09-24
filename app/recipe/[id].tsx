@@ -1366,7 +1366,7 @@ export default function RecipeDetailScreen() {
                 {isShoppingExpanded && !activeShoppingGroup && (
                   <View style={{ padding: 12 }}>
                     <Text style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>
-                      呢日仲未加入購物車食材
+                      {t("呢日仲未加入購物車食材" as any)}
                     </Text>
                   </View>
                 )}

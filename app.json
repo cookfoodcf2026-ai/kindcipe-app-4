@@ -19,7 +19,13 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "需要存取相片庫以上傳食譜截圖",
         "NSCameraUsageDescription": "需要存取相機以拍攝食譜截圖",
-        "NSClipboardUsageDescription": "偵測剪貼板中的食譜連結"
+        "NSClipboardUsageDescription": "偵測剪貼板中的食譜連結",
+        "CFBundleLocalizations": [
+          "zh-Hant",
+          "en",
+          "fil",
+          "id"
+        ]
       }
     },
     "android": {
@@ -49,7 +55,12 @@
       "expo-font",
       "expo-web-browser",
       "expo-apple-authentication",
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db"
+        }
+      ]
     ],
     "scheme": "kindcipe",
     "platforms": [
@@ -64,6 +75,9 @@
       "eas": {
         "projectId": "59ee279e-514a-4fb6-b98c-f04c84b969c0"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

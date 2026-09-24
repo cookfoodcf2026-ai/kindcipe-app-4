@@ -191,7 +191,7 @@ export default function OnboardingScreen(
             <Text style={styles.choiceDesc}>
               建立你的家庭廚房{"\n"}
               設定廚房名稱，邀請家人加入{"\n"}
-              一起規劃餐單、同步購物清單
+              {t("一起規劃餐單、同步購物清單" as any)}
             </Text>
           </TouchableOpacity>
 
@@ -208,7 +208,7 @@ export default function OnboardingScreen(
             <Text style={styles.choiceDesc}>
               輸入家人給你的邀請碼{"\n"}
               加入已有廚房，與家人共享{"\n"}
-              食譜、餐單、購買即時同步
+              {t("食譜、餐單、購買即時同步" as any)}
             </Text>
           </TouchableOpacity>
         </View>

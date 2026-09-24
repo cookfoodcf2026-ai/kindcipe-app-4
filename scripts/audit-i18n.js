@@ -62,6 +62,8 @@ const OBJ_DISPLAY = new RegExp(`\\b(?:${DISPLAY_KEYS})\\s*:\\s*"[^"]*[\\u3400-\\
 const ARRAY_CJK = /\[\s*"\[^"\]\*\[\\u3400-\\u9FFF\]\[^"\]\*"\s*(?:,|\])/;
 // D. render expression referencing a display field WITHOUT t()
 const RENDER_EXPR = /\{[^{}]*\.(label|subLabel|subtitle|title|caption|placeholder|desc|message|hint|hintText|note|text)\b[^{}]*\}/;
+// E. multi-line JSX text node — a line that is (almost) only CJK punctuation/characters
+const PURE_CJK = /^[\s\u3400-\u9FFF\uF900-\uFAFF，。、；：！？（）「」『』《》—…·、\s]+$/;
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -92,7 +94,8 @@ for (const d of DIRS) {
         JSX_EXPR_STR.test(stripped) ||
         OBJ_DISPLAY.test(stripped) ||
         ARRAY_CJK.test(stripped) || // data arrays: tag/ingredient values are API keys, not display
-        RENDER_EXPR.test(stripped);
+        RENDER_EXPR.test(stripped) ||
+        (PURE_CJK.test(stripped) && stripped.trim().length > 1);
       if (!isHit) return;
       hits.push(`${rel}:${i + 1}: ${ln.trim().slice(0, 120)}`);
     });

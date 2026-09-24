@@ -739,7 +739,11 @@
     "enable": "I-enable",
     "notNow": "Mamaya na",
     "unlock": "I-unlock ang Kindcipe",
-    "usePassword": "Gamitin ang passcode"
+    "usePassword": "Gamitin ang passcode",
+    "disclaimer": "Sa pag-log in, sumasang-ayon ka sa aming Mga Tuntunin at Patakaran sa Privacy",
+    "resetDev": "I-reset ang data ng app (dev)",
+    "resetDone": "Na-clear",
+    "resetDoneMsg": "Na-reset ang data ng app. Pakirestart ang app."
   },
   "notFound": {
     "title": "Wala ang page na ito",

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
@@ -22,10 +22,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Check if native modules are available (dev build vs Expo Go)
-import { TurboModuleRegistry } from "react-native";
+import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
-const hasGoogleSignin = TurboModuleRegistry.get("RNGoogleSignin") != null;
-const hasAppleAuth = TurboModuleRegistry.get("ExpoAppleAuthentication") != null;
+const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
+const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
 
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
@@ -55,6 +55,17 @@ export default function LoginScreen() {
   const [loadingType, setLoadingType] = useState<string>("");
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const utils = trpc.useUtils();
+
+  // Apple Sign-In availability (async; native module may not register synchronously in the New Architecture).
+  const [appleAvailable, setAppleAvailable] = useState<boolean>(hasAppleAuth);
+  useEffect(() => {
+    if (Platform.OS === "ios") {
+      try {
+        const AppleAuthentication = require("expo-apple-authentication");
+        AppleAuthentication.isAvailableAsync?.().then((ok: boolean) => setAppleAvailable(Boolean(ok))).catch(() => {});
+      } catch { /* ignore */ }
+    }
+  }, []);
 
   const emailLoginMutation = trpc.auth.emailLogin.useMutation();
   const emailRegisterMutation = trpc.auth.emailRegister.useMutation();
@@ -190,7 +201,7 @@ export default function LoginScreen() {
 
   // ── Apple Sign In ───────────────────────────────────────────────────────────
   const handleAppleSignIn = async () => {
-    if (!hasAppleAuth) { Alert.alert(t("auth.appleSignin"), t("auth.googleSigninMsg")); return; }
+    if (!appleAvailable) { Alert.alert(t("auth.appleSignin" as any), t("auth.googleSigninMsg" as any)); return; }
     setIsLoading(true);
     setLoadingType("apple");
     try {
@@ -259,7 +270,7 @@ export default function LoginScreen() {
                 onPress={() => setMode("login")}
               >
               <Text style={[styles.modeBtnText, mode === "login" && styles.modeBtnTextActive]}>
-                登入
+                {t("登入" as any)}
               </Text>
             </TouchableOpacity>
               <TouchableOpacity
@@ -267,7 +278,7 @@ export default function LoginScreen() {
                 onPress={() => setMode("register")}
               >
                 <Text style={[styles.modeBtnText, mode === "register" && styles.modeBtnTextActive]}>
-                  建立帳號
+                  {t("建立帳號" as any)}
                 </Text>
               </TouchableOpacity>
           </View>
@@ -279,7 +290,7 @@ export default function LoginScreen() {
                 <View>
                   {Platform.OS === "ios" && (
                     <TouchableOpacity
-                      style={[styles.socialBtn, !hasAppleAuth && styles.socialBtnDisabled]}
+                      style={[styles.socialBtn, !appleAvailable && styles.socialBtnDisabled]}
                       onPress={handleAppleSignIn}
                       disabled={isLoading}
                       activeOpacity={0.85}
@@ -403,29 +414,19 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.disclaimer}>
-            登入即表示你同意我們的服務條款及私隱政策
+            {t("auth.disclaimer" as any)}
           </Text>
-
-          {/* 管理員通道（微型連結） */}
-          <TouchableOpacity
-            onPress={() => setMode(mode === "admin" ? "login" : "admin")}
-            style={{ marginTop: 16, alignItems: "center", paddingVertical: 6 }}
-          >
-            <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "underline" }}>
-              管理員通道
-            </Text>
-          </TouchableOpacity>
 
           {/* 開發用：重置 App 資料 */}
           <TouchableOpacity
             onPress={async () => {
               await AsyncStorage.clear();
-              Alert.alert("已清除", "App 資料已重置，請重新啟動 App");
+              Alert.alert(t("auth.resetDone" as any), t("auth.resetDoneMsg" as any));
             }}
             style={{ marginTop: 12, alignItems: "center", paddingVertical: 8 }}
           >
             <Text style={{ fontSize: 11, color: "#D1D5DB", textDecorationLine: "underline" }}>
-              重置 App 資料（開發用）
+              {t("auth.resetDev" as any)}
             </Text>
           </TouchableOpacity>
         </ScrollView>

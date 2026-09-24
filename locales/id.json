@@ -739,7 +739,11 @@
     "enable": "Aktifkan",
     "notNow": "Nanti saja",
     "unlock": "Buka Kindcipe",
-    "usePassword": "Gunakan sandi"
+    "usePassword": "Gunakan sandi",
+    "disclaimer": "Dengan masuk, Anda menyetujui Ketentuan Layanan dan Kebijakan Privasi kami",
+    "resetDev": "Reset data aplikasi (dev)",
+    "resetDone": "Dibersihkan",
+    "resetDoneMsg": "Data aplikasi direset. Silakan mulai ulang aplikasi."
   },
   "notFound": {
     "title": "Halaman ini tidak ada",

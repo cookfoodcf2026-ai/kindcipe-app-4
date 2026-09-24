@@ -18,7 +18,8 @@ const resources = {
 };
 
 const getDeviceLanguage = (): string => {
-  const locale = Localization.getLocales()[0]?.languageCode || 'en';
+  const locale = Localization.getLocales()[0]?.languageCode || "en";
+  console.log("[i18n] detected device locale:", locale);
   const languageMap: Record<string, string> = {
     'zh': 'zh-TW',
     'en': 'en',

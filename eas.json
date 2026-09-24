@@ -18,7 +18,8 @@
       },
       "ios": {
         "buildConfiguration": "Release"
-      }
+      },
+      "channel": "production"
     },
     "development": {
       "env": {
@@ -31,7 +32,8 @@
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
       },
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "env": {
@@ -43,7 +45,8 @@
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_CQ7LWFNnTqdfD73DTKoE5R97dwspRvTUcwEjGkWXAAr9",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview"
     }
   },
   "submit": {
