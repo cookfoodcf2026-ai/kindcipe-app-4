@@ -412,13 +412,23 @@ const TIME_OPTIONS = [
 ];
 
 // 簡單 name-based dishType 推斷（後端用 LLM 分類 + 儲存 dishType，呢度係卡冇 dishType 時嘅兜底）
+// 優先次序同後端 classifyDishType 一致：soup → dessert/drink → vegetable → seafood → meat → other
 const inferDishTypeFromName = (name: string): string => {
   const n = String(name || "");
-  if (/湯$|湯水|煲湯|燉湯|老火湯|滾湯|湯羹|濃湯|清湯/.test(n)) return "soup";
-  if (/菜心|芥蘭|通菜|菠菜|生菜|白菜|椰菜|西蘭花|時蔬|素菜|青菜|蔬菜|南瓜|蘿蔔|薯仔|番茄|茄子|青椒|洋蔥|節瓜|勝瓜|苦瓜|西洋菜|瓜|菇|菌|芽|豆芽|豆角|青豆|毛豆|雲耳|木耳/.test(n)) return "vegetable";
+  if (/湯$|湯水|煲湯|燉湯|老火湯|滾湯|湯羹|濃湯|清湯|羅宋湯|粟米湯|番茄湯/.test(n)) return "soup";
+  if (/糖水|西米露|布甸|布丁|啫喱|慕斯|雪糕|蛋糕|蛋撻|曲奇|奶凍|糕點|甜點|芝麻糊|紅豆沙|綠豆沙|楊枝甘露|芋圓/.test(n)) return "dessert";
+  if (/水$|涼茶|竹蔗茅根|茅根水|山楂水|薏米水|蘆根|羅漢果|菊花茶|檸檬茶|雪梨水|陳皮水|汽水|果汁|茶飲/.test(n)) return "drink";
+  if (/菜心|芥蘭|通菜|菠菜|生菜|白菜|椰菜|西蘭花|時蔬|素菜|青菜|蔬菜|南瓜|蘿蔔|薯仔|番茄|茄子|青椒|洋蔥|節瓜|勝瓜|苦瓜|西洋菜|冬瓜|青瓜|黃瓜|絲瓜|豆芽|豆角|青豆|毛豆|雲耳|木耳|菇|菌|芽菜/.test(n)) return "vegetable";
   if (/蒸魚|清蒸|炒蝦|蝦|蟹|鮑魚|魚|帶子|海參|花膠|龍蝦|石斑|魷魚|章魚|墨魚|三文魚|蜆|蠔|豆腐|豆卜|豆干|腐皮|蒸蛋|炒蛋|蛋/.test(n)) return "seafood";
   if (/排骨|牛|雞|豬|肉|鴨|鵝|羊|腩|雞翼|雞腿|雞髀|肉丸|叉燒|燒肉|豬扒|牛扒|雞扒|豬手|豬腳/.test(n)) return "meat";
   return "other";
+};
+
+// 統一同類別判定：優先使用卡上已分類嘅 dishType，其次靠菜名推斷
+const getDishType = (r: any): string => {
+  const explicit = String(r?.dishType ?? "").trim();
+  if (explicit) return explicit;
+  return inferDishTypeFromName(String(r?.name ?? ""));
 };
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -2231,10 +2241,10 @@ export default function AIChefScreen() {
     const sessionAvoidNames = [...usedRecipeNames, ...sessionSeenRecipeNames];
 
     const pickLibraryFallback = () => {
-      const cardDishType = (recipe as any).dishType || inferDishTypeFromName(recipe.name || "");
+      const cardDishType = getDishType(recipe);
       const alternatives = [...(userRecipes ?? [])]
         .filter((r: any) => {
-          const dt = (r as any)?.dishType || inferDishTypeFromName(String(r.name || ""));
+          const dt = getDishType(r);
           return dt === cardDishType && r.name !== recipe.name;
         })
         .map(normalizeRecipe)
@@ -2262,7 +2272,7 @@ export default function AIChefScreen() {
     const useAi = recipe.source === "ai";
     const swapFromLibrary = async (): Promise<AIRecipe | null> => {
       // 換要換返「相關」：張卡嘅 dishType（湯→湯、肉→肉…）＋ 原請求 context（hotkey query / 用戶 keyword）
-      const cardDishType = (recipe as any).dishType || inferDishTypeFromName(recipe.name || "");
+      const cardDishType = getDishType(recipe);
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
       const lastUserText = typeof lastUser?.content === "string" ? lastUser.content : "";
       const isMealPrompt = /3\s*餸\s*1\s*湯|提供 ?4 個|家常菜。提供/.test(lastUserText);
@@ -2277,13 +2287,19 @@ export default function AIChefScreen() {
           excludeNames: [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])],
         });
         const candidates = collectCandidates(res);
-        // 來源一致優先：strict 搵新嘅；冇就接受任何一張唔同於現卡嘅（哪怕睇過），唔好跨去 AI
-        return candidates.find((cand) =>
-          !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || "", ...sessionAvoidNames]) &&
-          !swappedRecipeNames.has(cand.name)
-        ) ??
-        candidates.find((cand) => !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames])) ??
-        null;
+        // 來源一致優先：strict 搵「同類別 + 新」；冇就接受「同類別」（哪怕睇過）；跨類一律唔收
+        return (
+          candidates.find((cand) =>
+            getDishType(cand) === cardDishType &&
+            !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || "", ...sessionAvoidNames]) &&
+            !swappedRecipeNames.has(cand.name)
+          ) ??
+          candidates.find((cand) =>
+            getDishType(cand) === cardDishType &&
+            !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames])
+          ) ??
+          null
+        );
       } catch (err: any) {
         console.error("[handleSwapRecipe] library swap failed:", friendlyError(err) || err);
         return null;
@@ -2303,16 +2319,25 @@ export default function AIChefScreen() {
     const replaceFromAi = async () => {
       setSwappingIndex(index);
       try {
+        const cardDishType = getDishType(recipe);
         const prompt = [
           `請只生成 1 個可直接煮嘅食譜，作為「${recipe.name}」嘅替代。`,
           `分類要同原本相近：${category}。`,
-          `呢道一定要係「${(recipe as any).dishType || inferDishTypeFromName(recipe.name || "")}」類別（soup=湯、meat=肉、seafood=海鮮、vegetable=菜、other=主食），唔可以變成其他類別。`,
+          `呢道一定要係「${cardDishType}」類別（soup=湯、meat=肉、seafood=海鮮、vegetable=菜、other=主食），唔可以變成其他類別。`,
           `食譜名稱唔可以同以下已顯示食譜重複：${otherNames.length > 0 ? otherNames.join("、") : "無"}。`,
           `食材欄每行只寫一種食材，唔好加入功效、備註、口味描述；每個食材都一定要有名字。`,
           `保持家庭日常可煮、步驟完整、繁體中文。`,
         ].join("\n");
 
-        const tryGenerate = async (extra: string) => {
+        // 只收「同類別」嘅候選；避開已顯示 + 已換過
+        const pickSameCategory = (candidates: AIRecipe[]): AIRecipe | null =>
+          candidates.find((cand) =>
+            getDishType(cand) === cardDishType &&
+            !isDuplicateRecipeName(cand.name, [...otherNames, ...sessionAvoidNames]) &&
+            !swappedRecipeNames.has(cand.name)
+          ) ?? null;
+
+        const tryGenerate = async (extra: string): Promise<AIRecipe | null> => {
           try {
             const res = await apiClient.aiRecipe.chat.mutate({
               messages: [{ role: "user", content: `${prompt}${extra}` }],
@@ -2326,14 +2351,11 @@ export default function AIChefScreen() {
               return null;
             }
 
-            // 避開已顯示 + 已換過嘅食譜
-            const picked = candidates.find((candidate) => 
-              !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && 
-              !swappedRecipeNames.has(candidate.name)
-            ) ?? candidates[0];
+            // 優先同類別；AI 全出錯類就當冇（交由 repeat / 兜底）
+            const picked = pickSameCategory(candidates);
             if (picked) return picked;
 
-            console.warn("[handleSwapRecipe] All candidates duplicated:", candidates.map(c => c.name));
+            console.warn("[handleSwapRecipe] AI candidates wrong category:", candidates.map(c => `${c.name}(${getDishType(c)})`));
             return null;
           } catch (err: any) {
             console.error("[handleSwapRecipe] API call failed:", friendlyError(err) || err);
@@ -2341,21 +2363,19 @@ export default function AIChefScreen() {
           }
         };
 
-        let candidate = await tryGenerate("");
-        const duplicate = candidate ? isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) : false;
-        const alreadySwapped = candidate ? swappedRecipeNames.has(candidate.name) : false;
-        if (!candidate || duplicate || alreadySwapped) {
-          const libraryFallback = pickLibraryFallback();
-          if (libraryFallback && !swappedRecipeNames.has(libraryFallback.name) && !isDuplicateRecipeName(libraryFallback.name, sessionAvoidNames)) {
-            showToast(`📚 食譜庫搵到相近替代：${libraryFallback.name}`);
-            candidate = libraryFallback;
-          } else {
-            showToast("📚 食譜庫冇相近替代，改用 AI 生成全新食譜");
-            candidate = await tryGenerate("\n請直接生成一個全新、唔重複、可直接煮嘅食譜。唔需要參考舊食譜。");
+        // 次序：library 同類 → repeat 1-2 次（再生成）→ AI 換 prompt → 提示
+        let candidate: AIRecipe | null = pickLibraryFallback();
+        if (!candidate || swappedRecipeNames.has(candidate.name) || isDuplicateRecipeName(candidate.name, sessionAvoidNames)) {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            candidate = await tryGenerate(attempt === 1 ? `\n請再生成一個全新、唔重複、可直接煮嘅「${cardDishType}」食譜，唔好重複上次。類別一定要一致。` : "");
+            if (candidate) break;
           }
         }
+        if (!candidate) {
+          candidate = await tryGenerate("\n請直接生成一個全新、唔重複、可直接煮嘅食譜。唔需要參考舊食譜。");
+        }
 
-        if (candidate && isValidRecipe(candidate) && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
+        if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
           replaceRecipeAtIndex(index, candidate);
           showToast(`✅ 已換成「${candidate.name}」`);
           // 只保留最近 3 個換過嘅食譜
@@ -2370,7 +2390,7 @@ export default function AIChefScreen() {
           });
         } else {
           const fallback = pickLibraryFallback();
-          if (fallback && !swappedRecipeNames.has(fallback.name) && !isDuplicateRecipeName(fallback.name, sessionAvoidNames)) {
+          if (fallback && getDishType(fallback) === cardDishType && !swappedRecipeNames.has(fallback.name) && !isDuplicateRecipeName(fallback.name, sessionAvoidNames)) {
             showToast(`📚 食譜庫搵到相近替代：${fallback.name}`);
             replaceRecipeAtIndex(index, fallback);
             showToast(`✅ 已換成「${fallback.name}」`);
@@ -2385,7 +2405,7 @@ export default function AIChefScreen() {
             });
             return;
           }
-          showToast("⚠️ 暫時搵唔到可用替代，已試過 AI 生成，請再按一次");
+          showToast("⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次");
         }
       } catch (e: any) {
         console.error("[handleSwapRecipe] Error:", e);
