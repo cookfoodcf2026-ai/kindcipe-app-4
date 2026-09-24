@@ -2281,7 +2281,8 @@ export default function AIChefScreen() {
 
     // 換嘅結果跟「張卡本身嘅來源」：AI 卡 → AI 換；食譜庫卡 → 食譜庫換（來源一致）
     const useAi = recipe.source === "ai";
-    const swapFromLibrary = async (): Promise<AIRecipe | null> => {
+    const recipeDishType = getDishType(recipe);
+    const swapFromLibrary = async (kwOverride?: string): Promise<AIRecipe | null> => {
       // 換要換返「相關」：張卡嘅 dishType（湯→湯、肉→肉…）＋ 原請求 context（hotkey query / 用戶 keyword）
       const cardDishType = getDishType(recipe);
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
@@ -2293,7 +2294,7 @@ export default function AIChefScreen() {
       // 優先「原卡名」（最貼近原菜），冇就先中文類別詞（肉/海鮮/蔬菜/湯水），最後家常菜
       const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
       const catKw = dishTypeKeyword(cardDishType);
-      const kw = ctxQuery || cardNameKw || catKw || "家常菜";
+      const kw = kwOverride || ctxQuery || cardNameKw || catKw || "家常菜";
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
@@ -2440,9 +2441,16 @@ export default function AIChefScreen() {
       return;
     }
 
-    // 食譜庫卡：先喺後端食譜庫換（指定類別 + 7 日去重），真係冇新替代先 fallback AI
+    // 食譜庫卡：先喺後端食譜庫換（指定類別 + 7 日去重）—— 純食譜庫，唔 AI。
+    // 用唔同 keyword 試 1-2 次（先卡名、再類別詞），都搵唔到先轉 AI（明確標示）。
     setSwappingIndex(index);
-    const libraryPicked = await swapFromLibrary().finally(() => setSwappingIndex(null));
+    let libraryPicked: AIRecipe | null = null;
+    try {
+      libraryPicked = await swapFromLibrary();
+      if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
+    } finally {
+      setSwappingIndex(null);
+    }
     if (libraryPicked) {
       replaceRecipeAtIndex(index, libraryPicked);
       recordSeenRecipes([libraryPicked]);
@@ -2450,7 +2458,7 @@ export default function AIChefScreen() {
       showToast(`📚 已用食譜庫換成「${libraryPicked.name}」`);
       return;
     }
-    showToast("📚 食譜庫冇新嘅相近替代，改用 AI 生成");
+    showToast("📚 食譜庫冇新嘅相近替代，改用 AI 生成同類");
     await replaceFromAi();
   };
 
