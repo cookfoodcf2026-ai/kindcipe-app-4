@@ -431,6 +431,17 @@ const getDishType = (r: any): string => {
   return inferDishTypeFromName(String(r?.name ?? ""));
 };
 
+// 將英文 dishType 轉做中文搜尋 keyword（後端食譜庫係中文，用英文搜唔到嘢）
+const dishTypeKeyword = (t: string): string => {
+  switch (t) {
+    case "soup": return "湯水";
+    case "meat": return "肉";
+    case "seafood": return "海鮮";
+    case "vegetable": return "蔬菜";
+    default: return "";
+  }
+};
+
 // ─── Helpers ──────────────────────────────────────────────
 
 type ChatSession = {
@@ -2278,7 +2289,11 @@ export default function AIChefScreen() {
       const isMealPrompt = /3\s*餸\s*1\s*湯|提供 ?4 個|家常菜。提供/.test(lastUserText);
       const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
       const ctxQuery = (hotkeyCtx?.query || hotkeyCtx?.tags?.join(" ") || (isMealPrompt ? "" : lastUserText.trim())).slice(0, 40);
-      const kw = ctxQuery || (cardDishType && cardDishType !== "other" ? cardDishType : "家常菜");
+      // 唔好用英文 dishType 做 search keyword（後端食譜庫係中文，搜唔到嘢）——
+      // 優先「原卡名」（最貼近原菜），冇就先中文類別詞（肉/海鮮/蔬菜/湯水），最後家常菜
+      const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
+      const catKw = dishTypeKeyword(cardDishType);
+      const kw = ctxQuery || cardNameKw || catKw || "家常菜";
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
