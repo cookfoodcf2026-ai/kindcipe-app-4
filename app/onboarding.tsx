@@ -173,8 +173,8 @@ export default function OnboardingScreen(
             style={styles.logoImageSmall}
             resizeMode="contain"
           />
-          <Text style={t(styles.title as any)}>{t("onboarding.startTitle")}</Text>
-          <Text style={t(styles.subtitle as any)}>{t("onboarding.startSubtitle")}</Text>
+          <Text style={styles.title}>{t("onboarding.startTitle")}</Text>
+          <Text style={styles.subtitle}>{t("onboarding.startSubtitle")}</Text>
         </View>
 
         <View style={styles.choiceContainer}>
@@ -231,7 +231,7 @@ export default function OnboardingScreen(
           <Text style={styles.formSubtitle}>{t("onboarding.setupKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={t(styles.label as any)}>{t("onboarding.kitchenNameLabel")}</Text>
+            <Text style={styles.label}>{t("onboarding.kitchenNameLabel")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.kitchenNamePlaceholder")}
@@ -242,7 +242,7 @@ export default function OnboardingScreen(
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={t(styles.label as any)}>{t("onboarding.yourName")}</Text>
+            <Text style={styles.label}>{t("onboarding.yourName")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.yourNamePlaceholder")}
@@ -307,7 +307,7 @@ export default function OnboardingScreen(
           <Text style={styles.formSubtitle}>{t("onboarding.joinFamilyKitchenSub")}</Text>
 
           <View style={styles.formGroup}>
-            <Text style={t(styles.label as any)}>{t("kitchen.inviteCode")}</Text>
+            <Text style={styles.label}>{t("kitchen.inviteCode")}</Text>
             <TextInput
               style={styles.input}
               placeholder={t("onboarding.invitePlaceholder")}
@@ -402,8 +402,8 @@ export default function OnboardingScreen(
                   <View style={styles.slideScrim} />
 
                   <View style={styles.slideTop}>
-                    <Text style={styles.slideTitle} numberOfLines={2}>{t(slide.title as any)}</Text>
-                    <Text style={styles.slideCaption} numberOfLines={2}>{t(slide.caption as any)}</Text>
+                    <Text style={styles.slideTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>{t(slide.title as any)}</Text>
+                    <Text style={styles.slideCaption} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t(slide.caption as any)}</Text>
                   </View>
 
                   {slide.ui === "mealplan" && (
@@ -825,12 +825,16 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   slideTitle: {
+    width: "100%",
+    textAlign: "center",
     fontSize: 26,
     fontWeight: "900",
     color: "#4A3728",
     lineHeight: 34,
   },
   slideCaption: {
+    width: "100%",
+    textAlign: "center",
     fontSize: 14,
     color: "#7A6553",
     marginTop: 6,

@@ -16,8 +16,8 @@ export default function NotFoundScreen() {
         <View style={styles.iconBox}>
           <Ionicons name="help-circle-outline" size={40} color={BRAND} />
         </View>
-        <Text style={t(styles.title as any)}>{t("notFound.title")}</Text>
-        <Text style={t(styles.subtitle as any)}>{t("notFound.subtitle")}</Text>
+        <Text style={styles.title}>{t("notFound.title")}</Text>
+        <Text style={styles.subtitle}>{t("notFound.subtitle")}</Text>
         <Link href="/(tabs)" asChild>
           <TouchableOpacity style={styles.button}>
             <Ionicons name="home-outline" size={20} color="#fff" />

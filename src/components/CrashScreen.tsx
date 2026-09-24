@@ -23,8 +23,8 @@ export function CrashScreen({ onRestart }: CrashScreenProps) {
     <View style={styles.container}>
       <View style={styles.card}>
         <Ionicons name="warning-outline" size={48} color="#E66837" />
-        <Text style={t(styles.title as any)}>{t("crash.title")}</Text>
-        <Text style={t(styles.message as any)}>
+        <Text style={styles.title}>{t("crash.title")}</Text>
+        <Text style={styles.message}>
           App 遇到未預期的問題，這已回報給開發者。您可以重新整理頁面或重新啟動 App。
         </Text>
         <TouchableOpacity style={styles.button} onPress={handleRestart}>

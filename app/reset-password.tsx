@@ -69,8 +69,8 @@ export default function ResetPasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={t(styles.title as any)}>{t("auth.setNewPassword")}</Text>
-            <Text style={t(styles.subtitle as any)}>{t("auth.newPasswordSubtitle")}</Text>
+            <Text style={styles.title}>{t("auth.setNewPassword")}</Text>
+            <Text style={styles.subtitle}>{t("auth.newPasswordSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="key-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />

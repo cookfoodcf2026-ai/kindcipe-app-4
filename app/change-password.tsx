@@ -66,8 +66,8 @@ export default function ChangePasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={t(styles.title as any)}>{t("auth.changePwTitle")}</Text>
-            <Text style={t(styles.subtitle as any)}>
+            <Text style={styles.title}>{t("auth.changePwTitle")}</Text>
+            <Text style={styles.subtitle}>
               {user?.email ? `帳號：${user.email}` : t("如你已設定密碼，請輸入舊密碼；否則可直接設定新密碼。" as any)}
             </Text>
 

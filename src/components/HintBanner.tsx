@@ -61,7 +61,7 @@ export default function HintBanner({ hintId, icon = "bulb", title, body }: Props
           <Ionicons name={icon as any} size={18} color="#B45309" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={t(styles.title as any)}>{title}</Text>
+          <Text style={styles.title}>{title}</Text>
           <Text style={styles.body}>{body}</Text>
         </View>
         <Pressable onPress={dismiss} hitSlop={8} style={styles.close}>

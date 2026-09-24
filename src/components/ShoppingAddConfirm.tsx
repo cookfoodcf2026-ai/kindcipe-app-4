@@ -23,7 +23,7 @@ export default function ShoppingAddConfirm({ visible, count, onGoShopping, onClo
               <Ionicons name="checkmark-circle" size={26} color="#16A34A" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={t(styles.title as any)}>{t("shopping.addedToCart")}</Text>
+              <Text style={styles.title}>{t("shopping.addedToCart")}</Text>
               <Text style={styles.sub}>{t("picker.addedCount", { n: count })}</Text>
             </View>
           </View>

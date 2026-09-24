@@ -53,8 +53,8 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.body}>
           <View style={styles.card}>
-            <Text style={t(styles.title as any)}>{t("auth.resetTitle")}</Text>
-            <Text style={t(styles.subtitle as any)}>{t("auth.resetSubtitle")}</Text>
+            <Text style={styles.title}>{t("auth.resetTitle")}</Text>
+            <Text style={styles.subtitle}>{t("auth.resetSubtitle")}</Text>
 
             <View style={styles.inputWrapper}>
               <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
