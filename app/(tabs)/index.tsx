@@ -469,7 +469,7 @@ export default function RecipesTab() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol">("all");
+  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol" | "hot" | "imported">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
@@ -590,7 +590,7 @@ export default function RecipesTab() {
     cookTimeMax: activePopularChips.includes("quick15") ? 15 : activePopularChips.includes("quick30") ? 30 : filterCookTimeMax,
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
-    source: viewMode,
+    source: (viewMode === "imported" ? "user" : viewMode) as any,  // imported 由前端 filter；後端只認 all/official/user/kol/hot
     limit: 20,
   });
 
@@ -692,13 +692,16 @@ export default function RecipesTab() {
     if (viewMode === "official") {
       pool = pool.filter((r: any) => r.source === "official");
     } else if (viewMode === "user") {
-      pool = pool.filter((r: any) => r.source === "custom");
+      pool = pool.filter((r: any) => r.source === "custom" && (r.sourceType === "manual" || !r.sourceType));
+    } else if (viewMode === "imported") {
+      pool = pool.filter((r: any) => r.source === "custom" && ["instagram", "youtube", "xiaohongshu", "threads", "tiktok"].includes(r.sourceType));
     } else if (viewMode === "kol") {
       pool = pool.filter((r: any) => {
         const st = r.sourceType;
         return st === "kol" || st === "instagram" || st === "youtube" || st === "xiaohongshu" || st === "threads" || st === "tiktok";
       });
     }
+    // viewMode === "hot": 後端已按 popularity 排序返熱門，前端唔再 filter（直接顯示）
 
     // Deduplicate by recipe id (keep first occurrence)
     const seen = new Set<string>();
@@ -759,14 +762,15 @@ export default function RecipesTab() {
   };
 
   const renderCard = ({ item }: { item: any }) => {
-    const isUser = item.source === "custom";
+    const isKol = item.sourceType === "kol";
+    const isUser = item.source === "custom" && !isKol;
     const tags: string[] = item.tags ?? [];
     const isAIGenerated = tags.includes("AI 生成");
     const cat = categories.find(c => c.key === item.recipeCategory);
 
     return (
       <RecipeCard
-        item={item}
+        item={{ ...item, isKol } as any}
         category={cat}
         isUser={isUser}
         isAIGenerated={isAIGenerated}
@@ -791,6 +795,8 @@ export default function RecipesTab() {
     if (viewMode === "user") parts.push("我的食譜");
     else if (viewMode === "official") parts.push("官方食譜");
     else if (viewMode === "kol") parts.push("🌟 網紅食譜");
+    else if (viewMode === "hot") parts.push("🔥 熱門食譜");
+    else if (viewMode === "imported") parts.push("📥 匯入食譜");
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label || activeCategory);

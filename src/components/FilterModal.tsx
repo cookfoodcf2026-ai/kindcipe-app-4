@@ -23,11 +23,12 @@ interface FilterModalProps {
   setActivePopularChips: (chips: string[] | ((prev: string[]) => string[])) => void;
   activePopularChips: string[];
   setSortBy: (sort: "popular" | "cookTime" | "difficulty") => void;
-  viewMode: "all" | "official" | "user" | "kol";
-  setViewMode: (mode: "all" | "official" | "user" | "kol") => void;
+  viewMode: "all" | "official" | "user" | "kol" | "hot" | "imported";
+  setViewMode: (mode: "all" | "official" | "user" | "kol" | "hot" | "imported") => void;
   officialCount?: number;
   userCount?: number;
   kolCount?: number;
+  importedCount?: number;
 }
 
 const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
@@ -54,6 +55,7 @@ export default function FilterModal({
   officialCount,
   userCount,
   kolCount,
+  importedCount,
 }: FilterModalProps) {
   const { t } = useTranslation();
   const content = (
@@ -71,10 +73,12 @@ export default function FilterModal({
         <Text style={s.filterLabel}>{t("filter.source")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterSourceRow}>
           {[
-            { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
+            { key: "hot", label: "🔥 熱門食譜" },
             { key: "official", label: "🍳 官方食譜", count: officialCount },
             { key: "kol", label: "🌟 網紅食譜", count: kolCount },
             { key: "user", label: "📝 我的食譜", count: userCount },
+            { key: "imported", label: "📥 匯入食譜", count: importedCount },
+            { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
           ].map(opt => (
             <TouchableOpacity
               key={opt.key}
@@ -82,7 +86,7 @@ export default function FilterModal({
                 s.filterSourceChip,
                 viewMode === opt.key && s.filterSourceChipActive
               ]}
-              onPress={() => setViewMode(opt.key as "all" | "official" | "user" | "kol")}
+              onPress={() => setViewMode(opt.key as "all" | "official" | "user" | "kol" | "hot" | "imported")}
             >
               <Text style={[
                 s.filterSourceChipTxt,

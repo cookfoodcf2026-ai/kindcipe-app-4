@@ -775,7 +775,8 @@
   },
   "card": {
     "mine": "Mine",
-    "hot": "🔥 Popular"
+    "hot": "🔥 Popular",
+    "kol": "KOL"
   },
   "cat": {
     "addTitle": "Add category",

@@ -775,7 +775,8 @@
   },
   "card": {
     "mine": "Saya",
-    "hot": "🔥 Populer"
+    "hot": "🔥 Populer",
+    "kol": "KOL"
   },
   "cat": {
     "addTitle": "Tambah kategori",

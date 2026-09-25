@@ -99,9 +99,14 @@ export default function RecipeCard(
       
       {/* ─ Badges ── */}
       <View style={s.cardBadges}>
-        {isUser && (
+        {isUser && !(item as any).isKol && (
           <View style={s.sourceBadge}>
             <Text style={s.sourceBadgeTxt}>{t("card.mine")}</Text>
+          </View>
+        )}
+        {(item as any).isKol && (
+          <View style={s.kolBadge}>
+            <Text style={s.kolBadgeTxt}>{t("card.kol")}</Text>
           </View>
         )}
         {isAIGenerated && (
@@ -263,6 +268,17 @@ const s = StyleSheet.create({
     paddingVertical: 3,
   },
   sourceBadgeTxt: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#fff",    letterSpacing: 0.5,
+  },
+  kolBadge: {
+    backgroundColor: "rgba(124, 58, 237, 0.92)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  kolBadgeTxt: {
     fontSize: 9,
     fontWeight: "800",
     color: "#fff",

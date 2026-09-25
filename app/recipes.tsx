@@ -22,7 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import { useTranslation } from "react-i18next";
 
-type SourceType = "official" | "kol" | "user" | "all";
+type SourceType = "official" | "kol" | "user" | "all" | "hot" | "imported";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -120,7 +120,7 @@ export default function RecipesPage() {
     cookTimeMax: filterCookTimeMax,
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
-    source: source,
+    source: source as any,
     limit: 20,
   });
 
@@ -200,7 +200,8 @@ export default function RecipesPage() {
 
     const cat = categories.find(c => c.key === item.recipeCategory);
     const tags = item.tags ?? [];
-    const isUser = item.source === "user";
+    const isKol = item.sourceType === "kol";
+    const isUser = item.source === "user" && !isKol;
     const isAIGenerated = tags.includes("AI 生成");
 
     return (
@@ -209,6 +210,7 @@ export default function RecipesPage() {
           ...item,
           id: recipeId,
           _source: item.source,
+          isKol,
         }}
         category={cat}
         isUser={isUser}

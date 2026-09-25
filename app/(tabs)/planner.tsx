@@ -245,7 +245,7 @@ export default function PlannerTab() {
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<"popular" | "cookTime" | "difficulty">("popular");
-  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol">("all");
+  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol" | "hot" | "imported">("all");
 
   // ─── AI Weekly Recommendation States ───
   const [showSmartRecommend, setShowSmartRecommend] = useState(false);
