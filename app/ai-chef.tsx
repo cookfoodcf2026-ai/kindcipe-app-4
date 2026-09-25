@@ -195,6 +195,21 @@ const normalizeIngredient = (ing: any): { name: string; nameEn?: string; nameFil
   };
 };
 
+// 拆開「一欄多樣」食材（保險）：name 用 / 、 ； 分隔咗多樣 → 每樣一個獨立 ingredient
+const splitMultiIngredient = (ing: { name: string; quantity?: string; unit?: string }): { name: string; quantity: string; unit: string }[] => {
+  const rawName = String(ing?.name ?? "").trim();
+  if (!rawName) return [];
+  // 保護括號入面，避免「滷包（八角/花椒）」被拆
+  const protectedParts: string[] = [];
+  const noParens = rawName.replace(/（[^）]*）|\([^)]*\)/g, (m) => { protectedParts.push(m); return `\u0000${protectedParts.length - 1}\u0000`; });
+  const parts = noParens.split(/[/、；;|，]/).map(s => s.trim().replace(/\u0000(\d+)\u0000/g, (_, i) => protectedParts[Number(i)])).filter(Boolean);
+  if (parts.length <= 1) return [{ name: rawName, quantity: String(ing?.quantity ?? ""), unit: String(ing?.unit ?? "") }];
+  // quantity「各30克」→ 每樣 30 克；「少許」→ 每樣少許
+  const q = String(ing?.quantity ?? "").trim();
+  const perQty = /^各/.test(q) ? q.replace(/^各/, "").trim() : q;
+  return parts.map((p) => ({ name: p, quantity: perQty, unit: String(ing?.unit ?? "") }));
+};
+
 const isQuantityOnlyIngredientLine = (text: string) => ONLY_QUANTITY_RE.test(normalizeIngredientText(String(text ?? "")));
 const isIngredientNoteFragment = (text: string) => {
   const t = normalizeIngredientText(String(text ?? ""));
@@ -2471,6 +2486,7 @@ export default function AIChefScreen() {
       ingredients: r.ingredients
         .map((ing) => normalizeIngredient(ing))
         .filter((ing): ing is { name: string; quantity: string; unit: string } => !!ing)
+        .flatMap((ing) => splitMultiIngredient(ing))
         .map((ing) => ({
           name: ing.name,
           quantity: ing.quantity,
