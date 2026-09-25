@@ -1454,8 +1454,9 @@ export default function AIChefScreen() {
         await invalidateMealPlanAndCart();
         const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
         if (skipped > 0) {
+          // 同排餐 tab 一致：提示已設定外出
           const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
-          Alert.alert("⚠️ 部分日期未加入排餐", `有 ${skipped} 日（${days}）因已設定外出或重複而被跳過。`, [{ text: t("確定" as any) }]);
+          Alert.alert(t("衝突提示" as any), `已設定外出（${days}），未加入排餐。`, [{ text: t("確定" as any) }]);
         } else {
           showToast("✅ 已批量加入排餐");
         }
