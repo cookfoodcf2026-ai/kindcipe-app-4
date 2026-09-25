@@ -1310,7 +1310,8 @@ export default function RecipesTab() {
       <IngredientPickerModal
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
-        defaultDate={planPickerRecipe?.date}
+        mealDate={planPickerRecipe?.date}
+        defaultBuyDate={planPickerRecipe?.date ? DateUtil.getDayBefore(planPickerRecipe.date) : undefined}
         maxDate={planPickerRecipe?.date}
         showDateSelector={true}
         loading={addShoppingBatchM.isPending}

@@ -228,7 +228,7 @@ export default function PlannerTab() {
   const [addDayIndex, setAddDayIndex] = useState<number>(-1);
   const [addMealType, setAddMealType] = useState<string>("dinner");
   const [pickerSearch, setPickerSearch] = useState("");
-  const [pickerSourceFilter, setPickerSourceFilter] = useState<"all" | "official" | "user" | "template">("all");
+  const [pickerSourceFilter, setPickerSourceFilter] = useState<"all" | "official" | "user" | "kol" | "template">("all");
   const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const addMealLockRef = useRef(false);
@@ -320,6 +320,15 @@ export default function PlannerTab() {
 
   const { data: userRecipes = [] } = trpc.recipes.listUser.useQuery(
     { limit: 200, offset: 0 },
+    { 
+      staleTime: 1000 * 60 * 10,
+      enabled: shouldLoadRecipes, // Lazy Loading: 只喺用戶開 Modal 先加載
+      onSuccess: () => {},
+    },
+  );
+
+  const { data: kolRecipes = [] } = trpc.recipes.listKol.useQuery(
+    { limit: 100, offset: 0 },
     { 
       staleTime: 1000 * 60 * 10,
       enabled: shouldLoadRecipes, // Lazy Loading: 只喺用戶開 Modal 先加載
@@ -871,6 +880,7 @@ export default function PlannerTab() {
       ...templates,
       ...officialRecipes.map((r: any) => ({ ...r, _source: "official" as const })),
       ...userRecipes.map((r: any) => ({ ...r, _source: "user" as const })),
+      ...kolRecipes.map((r: any) => ({ ...r, _source: "kol" as const })),
     ];
     let filtered = all;
 
@@ -918,7 +928,7 @@ export default function PlannerTab() {
     }
 
     return filtered;
-  }, [officialRecipes, userRecipes, pickerSearch, pickerSourceFilter, viewMode, activeCategory, activeIngredientCategory, filterCookTimeMax, activeTagFilters, activePopularChips, sortBy, matchesIngredientCategory, matchesPopularChip]);
+  }, [officialRecipes, userRecipes, kolRecipes, pickerSearch, pickerSourceFilter, viewMode, activeCategory, activeIngredientCategory, filterCookTimeMax, activeTagFilters, activePopularChips, sortBy, matchesIngredientCategory, matchesPopularChip]);
 
   const handleAddMeal = useCallback(
     async (recipe: any) => {
@@ -1689,9 +1699,9 @@ export default function PlannerTab() {
               </TouchableOpacity>
             </View>
 
-            {/* 來源 filter chips：全部 / 官方 / 我的 / 模板 */}
+            {/* 來源 filter chips：全部 / 官方 / 網紅 / 我的 / 模板 */}
             <View style={styles.pickerSourceRow}>
-              {([["all", "全部"], ["official", "官方"], ["user", "我的"], ["template", "模板"]] as const).map(([key, label]) => {
+              {([["all", "全部"], ["official", "官方"], ["kol", "網紅"], ["user", "我的"], ["template", "模板"]] as const).map(([key, label]) => {
                 const active = pickerSourceFilter === key;
                 return (
                   <TouchableOpacity

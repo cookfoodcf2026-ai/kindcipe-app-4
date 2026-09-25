@@ -2191,29 +2191,32 @@ export default function AIChefScreen() {
       : null;
     try {
       const items: Array<{ date: string; mealType: string; recipeId: string; recipeName: string; recipeImage?: string; recipe?: AIRecipe }> = [];
-      for (const r of validRecipes) {
-        const ref = resolveRecipeRef(r);
-        if (ref.isLibraryRef) {
-          items.push({
-            date,
-            mealType: "dinner",
-            recipeId: ref.recipeId,
-            recipeName: r.name,
-            recipeImage: getRecipeImage(r),
-            recipe: r,
-          });
-        } else {
+      // 並行處理每個食譜（library ref 直接取；否則 save）—— 一次過落 4 個 network call，唔再逐個 await 排隊（舊版 ~1min）
+      const resolvedItems = await Promise.all(
+        validRecipes.map(async (r) => {
+          const ref = resolveRecipeRef(r);
+          if (ref.isLibraryRef) {
+            return {
+              date,
+              mealType: "dinner",
+              recipeId: ref.recipeId,
+              recipeName: r.name,
+              recipeImage: getRecipeImage(r),
+              recipe: r,
+            };
+          }
           const savedId = await ensureSaved(r, overrideServings);
-          items.push({
+          return {
             date,
             mealType: "dinner",
             recipeId: `user_${savedId}`,
             recipeName: r.name,
             recipeImage: getRecipeImage(r),
             recipe: r,
-          });
-        }
-      }
+          };
+        })
+      );
+      items.push(...resolvedItems);
       const recipesWithIds = validRecipes.map((r, idx) => {
         const found = items[idx];
         if (!found) return { ...r };
