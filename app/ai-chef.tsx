@@ -48,6 +48,7 @@ type AIRecipe = {
   nameEn?: string; nameFil?: string; nameId?: string;
   cookTime: number; servings: number;
   difficulty: string; recipeCategory?: string;
+  dishType?: string;
   ingredients: { name: string; nameEn?: string; nameFil?: string; nameId?: string; quantity: string; unit: string; category?: string }[];
   steps: string[]; stepsEn?: string[]; stepsFil?: string[]; stepsId?: string[];
   tags: string[];
@@ -1386,6 +1387,10 @@ export default function AIChefScreen() {
       difficulty: recipe.difficulty,
       image: "", thumbnailUrl: "",
       recipeCategory: recipe.recipeCategory || "其他",
+      dishType: recipe.dishType,
+      // AI 生成嘅食譜已帶翻譯，傳埋去後端 skip LLM translate（快好多）
+      nameEn: recipe.nameEn, nameFil: recipe.nameFil, nameId: recipe.nameId,
+      stepsEn: recipe.stepsEn, stepsFil: recipe.stepsFil, stepsId: recipe.stepsId,
       tags: recipe.source === "official" || recipe.source === "custom" ? (recipe.tags ?? []) : [...(recipe.tags ?? []), "AI 生成"],
       ingredients: (scaledIngredients ?? recipe.ingredients)
         .map(ing => normalizeIngredient(ing))
@@ -2343,10 +2348,6 @@ export default function AIChefScreen() {
       setSwappedRecipeNames(prev => {
         const newSet = new Set(prev);
         newSet.add(name);
-        if (newSet.size > 3) {
-          const arr = Array.from(newSet);
-          return new Set(arr.slice(arr.length - 3));
-        }
         return newSet;
       });
     };
@@ -2412,14 +2413,10 @@ export default function AIChefScreen() {
         if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
           replaceRecipeAtIndex(index, candidate);
           showToast(`✅ 已換成「${candidate.name}」`);
-          // 只保留最近 3 個換過嘅食譜
+          recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
           setSwappedRecipeNames(prev => {
             const newSet = new Set(prev);
             newSet.add(candidate.name);
-            if (newSet.size > 3) {
-              const arr = Array.from(newSet);
-              return new Set(arr.slice(arr.length - 3));
-            }
             return newSet;
           });
         } else {
@@ -2428,13 +2425,10 @@ export default function AIChefScreen() {
             showToast(`📚 食譜庫搵到相近替代：${fallback.name}`);
             replaceRecipeAtIndex(index, fallback);
             showToast(`✅ 已換成「${fallback.name}」`);
+            recordSeenRecipes([fallback]);
             setSwappedRecipeNames(prev => {
               const newSet = new Set(prev);
               newSet.add(fallback.name);
-              if (newSet.size > 3) {
-                const arr = Array.from(newSet);
-                return new Set(arr.slice(arr.length - 3));
-              }
               return newSet;
             });
             return;
@@ -3212,7 +3206,9 @@ export default function AIChefScreen() {
                       </View>
                     )}
                   </View>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recScroll}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.recScroll}
+                    maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                  >
                     {recommendedRecipes.map((r, i) => (
                       <View key={i} style={s.recCard} testID={`recipe-card-${i}`}>
                         <View style={s.recCardHeader}>
