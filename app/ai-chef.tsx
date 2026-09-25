@@ -2039,7 +2039,7 @@ export default function AIChefScreen() {
     setRecommendedRecipes([]);
     try {
       const res = await apiClient.aiRecipe.chat.mutate({
-        messages: [{ role: "user", content: "家常菜。提供 4 個唔同嘅食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。" }],
+        messages: [{ role: "user", content: buildMealPrompt(prefs) }],
         mode: "library",
         excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       });
@@ -2350,7 +2350,8 @@ export default function AIChefScreen() {
           ) ??
           candidates.find((cand) =>
             getDishType(cand) === cardDishType &&
-            !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames])
+            !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames]) &&
+            !swappedRecipeNames.has(cand.name)
           ) ??
           null
         );
@@ -2752,21 +2753,26 @@ export default function AIChefScreen() {
         const result = await addPlanBatchM.mutateAsync({ items: buildItems(false) });
         const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
         if (skipped > 0) {
-          // 同排餐 tab 一致：外出衝突 → 「確定要排餐嗎？+取消/確定」
+          // 分清「外出」vs「重複」；外出 → 「確定要排餐嗎？+取消/確定」，確定必加（force）
           const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
-          Alert.alert(
-            t("衝突提示" as any),
-            `當日已設定外出（${days}），確定要排餐嗎？`,
-            [
-              { text: t("取消" as any), style: "cancel", onPress: () => {} },
-              { text: t("確定" as any), onPress: async () => {
-                // 確定必加：無視外出再 submit 一次（force）
-                const forced = await addPlanBatchM.mutateAsync({ items: buildItems(true), force: true });
-                afterAdded(forced);
-              } },
-            ],
-            { cancelable: false },
-          );
+          const isDup = !!result?.skippedDueToDuplicate && !result?.skippedDays?.length;
+          if (isDup) {
+            Alert.alert(t("重複食譜提示" as any), `有 ${skipped} 個食譜同日已排過（${days}），未重複加入。`, [{ text: t("確定" as any) }]);
+          } else {
+            Alert.alert(
+              t("衝突提示" as any),
+              `當日已設定外出（${days}），確定要排餐嗎？`,
+              [
+                { text: t("取消" as any), style: "cancel", onPress: () => {} },
+                { text: t("確定" as any), onPress: async () => {
+                  // 確定必加：無視外出再 submit 一次（force）
+                  const forced = await addPlanBatchM.mutateAsync({ items: buildItems(true), force: true });
+                  afterAdded(forced);
+                } },
+              ],
+              { cancelable: false },
+            );
+          }
           return;
         }
         afterAdded(result);
@@ -3206,7 +3212,7 @@ export default function AIChefScreen() {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={() => (
             <>
-              {libraryLoading || (lastChatModeRef.current === "library" && chatMutation.isPending) ? (
+              {libraryLoading || ((lastChatModeRef.current === "library" || lastChatModeRef.current === "") && chatMutation.isPending) ? (
                 <View style={s.msgRow}>
                   <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>
                   <View style={[s.bubbleBot, s.typing]}>
