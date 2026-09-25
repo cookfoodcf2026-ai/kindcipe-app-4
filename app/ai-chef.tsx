@@ -1095,8 +1095,25 @@ export default function AIChefScreen() {
       // 記低今次睇過嘅菜式名 → 之後排除重複
       recordSeenRecipes(recipes);
 
+      // 文字/卡片一致：若後端文字講「N 道」但實際卡數唔符（filter 後變少），用實際卡數重寫 intro，
+      // 避免「文字講 2 道、卡片得 1 張」誤導用戶。
+      const finalMainText = (() => {
+        let t = mainText;
+        const m = t.match(/([一二兩三四五六七八九十\d]+)\s*道(?:菜|餸)/);
+        if (m && recipes.length > 0) {
+          const stated = m[1];
+          const actual = String(recipes.length);
+          const cn: Record<string, string> = { 一: "1", 兩: "2", 二: "2", 三: "3", 四: "4", 五: "5", 六: "6", 七: "7", 八: "8", 九: "9", 十: "10" };
+          const statedNum = /^\d+$/.test(stated) ? stated : (cn[stated] ?? stated);
+          if (statedNum !== actual) {
+            t = t.replace(/([一二兩三四五六七八九十\d]+)\s*道(?:菜|餸)/, `${actual}道菜`);
+          }
+        }
+        return t;
+      })();
+
       // 「記菜名」：將推薦咗嘅菜名一齊寫入 assistant message，令用戶碌返見到 / 打名搵返
-      updateMessages(prev => [...prev, { role: "assistant", content: mainText + recipeNameList(recipes) }]);
+      updateMessages(prev => [...prev, { role: "assistant", content: finalMainText + recipeNameList(recipes) }]);
       setAiNextSteps(nextSteps);
 
       // 只有 meal flow 自己 onSuccess 處理緊嘅 call 先 skip（避免覆蓋佢補好嘅 4 卡）；
@@ -2719,12 +2736,22 @@ export default function AIChefScreen() {
           })),
         };
       });
-      const afterAdded = (result: any) => {
+      const afterAdded = (results: any[]) => {
         setShowPlan(false);
         setBatchRecipes(null);
-        const addedIds = new Set((result.items ?? []).map((it: any) => String(it.recipeId)));
+        // 合併多個 result（第一次成功 + force 補加）嘅成功項，確保所有成功加入嘅食譜都開到購物車
+        const mergedItems: any[] = [];
+        const seenPlan = new Set<number>();
+        for (const res of results) {
+          for (const it of (res?.items ?? [])) {
+            if (it?.newPlanId != null && seenPlan.has(it.newPlanId)) continue;
+            if (it?.newPlanId != null) seenPlan.add(it.newPlanId);
+            mergedItems.push(it);
+          }
+        }
+        const addedIds = new Set(mergedItems.map((it: any) => String(it.recipeId)));
         const planIdByRecipeId = new Map<string, number>();
-        (result.items ?? []).forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
+        mergedItems.forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
         // 只對「成功加入排餐」嘅食譜開購物車；被外出/重複跳過嘅唔入購物車（唔再 fallback 去 recipesForShopping）
         const shoppingRecipes = recipesForShopping.filter((r: any) => {
           const libId = r._libraryRecipeId ? String(r._libraryRecipeId) : "";
@@ -2765,9 +2792,9 @@ export default function AIChefScreen() {
               [
                 { text: t("取消" as any), style: "cancel", onPress: () => {} },
                 { text: t("確定" as any), onPress: async () => {
-                  // 確定必加：無視外出再 submit 一次（force）
+                  // 確定必加：無視外出再 submit 一次（force），合併第一次成功 + force 補加
                   const forced = await addPlanBatchM.mutateAsync({ items: buildItems(true), force: true });
-                  afterAdded(forced);
+                  afterAdded([result, forced]);
                 } },
               ],
               { cancelable: false },
@@ -2775,7 +2802,7 @@ export default function AIChefScreen() {
           }
           return;
         }
-        afterAdded(result);
+        afterAdded([result]);
       } catch (e: any) {
         Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
       }
