@@ -2290,11 +2290,11 @@ export default function AIChefScreen() {
       const isMealPrompt = /3\s*餸\s*1\s*湯|提供 ?4 個|家常菜。提供/.test(lastUserText);
       const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
       // 唔好用英文 dishType 做 search keyword（後端食譜庫係中文，搜唔到嘢）——
-      // 優先「原卡名」（最貼近原菜），其次中文類別詞（肉/海鮮/蔬菜/湯水），最後家常菜。
+      // 優先「類別詞」（蔬菜/肉/海鮮/湯水）搜晒成個類別 pool，其次先原卡名（太精準搜唔到其他）。
       // 唔好俾 ctxQuery（用戶對話/問卷答案）污染 keyword —— 嗰啲唔係菜名/類別詞，搜唔到會 fallback AI。
       const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
       const catKw = dishTypeKeyword(cardDishType);
-      const kw = kwOverride || cardNameKw || catKw || "家常菜";
+      const kw = kwOverride || catKw || cardNameKw || "家常菜";
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
