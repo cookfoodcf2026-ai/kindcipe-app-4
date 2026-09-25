@@ -1448,10 +1448,16 @@ export default function AIChefScreen() {
   });
   const getRecipeImage = (recipe: AIRecipe | { image?: string; thumbnailUrl?: string }) => recipe.thumbnailUrl || recipe.image || undefined;
   const addPlanBatchM = trpc.mealPlan.addBatch.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       try {
         await invalidateMealPlanAndCart();
-        showToast("✅ 已批量加入排餐");
+        const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
+        if (skipped > 0) {
+          const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
+          Alert.alert("⚠️ 部分日期未加入排餐", `有 ${skipped} 日（${days}）因已設定外出或重複而被跳過。`, [{ text: t("確定" as any) }]);
+        } else {
+          showToast("✅ 已批量加入排餐");
+        }
       } catch (e) {
         console.error("[AI 助手] Batch meal plan invalidate failed:", e);
         showToast("⚠️ 已批量加入排餐，但列表可能需要手動刷新");
@@ -2709,17 +2715,25 @@ export default function AIChefScreen() {
         setBatchRecipes(null);
 
         const addedIds = new Set((result.items ?? []).map((it: any) => String(it.recipeId)));
+        const planIdByRecipeId = new Map<string, number>();
+        (result.items ?? []).forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
         const shoppingRecipes = recipesForShopping.filter((r: any) => {
           const libId = r._libraryRecipeId ? String(r._libraryRecipeId) : "";
           const savedId = r._savedId ? `user_${r._savedId}` : "";
           return addedIds.has(libId) || addedIds.has(savedId);
+        });
+        // 對位：每個 shopping 食譜搵返佢自己嘅 newPlanId（唔可以直接用 result.items 次序，因 shoppingRecipes 可能係過濾子集）
+        const planIds = shoppingRecipes.map((r: any) => {
+          const libId = r._libraryRecipeId ? String(r._libraryRecipeId) : "";
+          const savedId = r._savedId ? `user_${r._savedId}` : "";
+          return planIdByRecipeId.get(libId) ?? planIdByRecipeId.get(savedId);
         });
 
         openShoppingSelection(
           shoppingRecipes.length > 0 ? shoppingRecipes : recipesForShopping,
           getDayBefore(planDate),
           planDate,
-          (result.items ?? []).map((it: any) => it.newPlanId),
+          planIds.length > 0 ? planIds : (result.items ?? []).map((it: any) => it.newPlanId),
         );
       } catch (e: any) {
         Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
@@ -3596,6 +3610,7 @@ export default function AIChefScreen() {
                 category: i.category,
                 fromRecipeId: resolved[i.recipeId]?.fromRecipeId,
                 fromRecipeName: resolved[i.recipeId]?.fromRecipeName,
+                fromMealPlanId: i.fromMealPlanId,  // 每個食譜自己嘅排餐 id（修正排餐 tab「未加入購物車」）
               })),
               fromRecipeName: shopRecipes.map((r) => r.name).join(", "),
               fromRecipeId: undefined,
