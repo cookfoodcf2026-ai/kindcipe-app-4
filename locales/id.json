@@ -287,6 +287,7 @@
     "recipesCount": "{{n}} resep",
     "moreSteps": "+{{n}} langkah lagi...",
     "morePreview": "+{{n}} lagi...",
+    "q_people_invalid": "Maaf, saya tidak bisa membaca angka itu. Silakan ketik angka, mis. \"4\".",
     "q_people": "(Langkah {{n}}/4) Berapa orang untuk makan malam? (ketik angka, mis. 4)",
     "q_kids": "(Langkah {{n}}/4) Ada anak atau lansia? (pilih atau ketik)",
     "q_time": "(Langkah {{n}}/4) Berapa lama memasak? (pilih atau ketik)",

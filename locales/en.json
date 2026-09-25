@@ -287,6 +287,7 @@
     "recipesCount": "{{n}} recipes",
     "moreSteps": "+{{n}} more steps...",
     "morePreview": "+{{n}} more...",
+    "q_people_invalid": "Sorry, I couldn't read that number. Please type a number, e.g. \"4\".",
     "q_people": "(Step {{n}}/4) How many people for dinner? (type a number, e.g. 4)",
     "q_kids": "(Step {{n}}/4) Any kids or elderly? (pick a quick option or type)",
     "q_time": "(Step {{n}}/4) How long to cook? (pick a quick option or type)",

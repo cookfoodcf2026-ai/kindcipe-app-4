@@ -1449,17 +1449,9 @@ export default function AIChefScreen() {
   });
   const getRecipeImage = (recipe: AIRecipe | { image?: string; thumbnailUrl?: string }) => recipe.thumbnailUrl || recipe.image || undefined;
   const addPlanBatchM = trpc.mealPlan.addBatch.useMutation({
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       try {
         await invalidateMealPlanAndCart();
-        const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
-        if (skipped > 0) {
-          // 同排餐 tab 一致：提示已設定外出
-          const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
-          Alert.alert(t("衝突提示" as any), `已設定外出（${days}），未加入排餐。`, [{ text: t("確定" as any) }]);
-        } else {
-          showToast("✅ 已批量加入排餐");
-        }
       } catch (e) {
         console.error("[AI 助手] Batch meal plan invalidate failed:", e);
         showToast("⚠️ 已批量加入排餐，但列表可能需要手動刷新");
@@ -1695,17 +1687,22 @@ export default function AIChefScreen() {
     mealSelfHandledRef.current = false;
 
     const activeConfig = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current] : null;
-    const userPrompt = source === "library"
-      ? inMealContext
-        ? `家常菜。提供 4 個唔同嘅食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。`
+    // 自由對答：用「用戶最後一句」做 prompt，等後端按最新要求決定出幾多張（唔再硬code 4 卡）。
+    // 例如用戶打完「只要兩個餸」再撳「食譜庫/AI生成」→ 出 2 卡。
+    const lastUserText = [...messages].reverse().find(m => m.role === "user");
+    const lastUserContent = lastUserText && typeof lastUserText.content === "string" ? lastUserText.content.trim() : "";
+    // 若最後一句係「3餸1湯」意圖 prompt（問卷/hotkey 生成嗰啲），保留「提供 4 個唔同嘅食譜」結構；
+    // 否則用用戶原話（尊重最新要求），冇原話先 fallback generic
+    const isStructuredMealPrompt = /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
+    const userPrompt = isStructuredMealPrompt
+      ? lastUserContent
+      : lastUserContent.length >= 2
+        ? lastUserContent
         : activeConfig
           ? `${t(activeConfig.aiPrompt as any)}。`
-          : `家常菜。提供 1 個唔同嘅食譜。`
-      : inMealContext
-        ? `提供 4 個唔同嘅家常菜食譜（3 餸 1 湯：肉/海鮮/蔬菜/湯）。`
-        : activeConfig
-          ? `${t(activeConfig.aiPrompt as any)}。`
-          : `提供 1 個唔同嘅家常菜食譜。`;
+          : source === "ai"
+            ? `提供 1 個唔同嘅家常菜食譜。`
+            : `家常菜。提供 1 個唔同嘅食譜。`;
 
     const newMsg: Message = { role: "user", content: userPrompt };
     const msgs: Message[] = [...messages, newMsg];
@@ -1888,20 +1885,24 @@ export default function AIChefScreen() {
           }
         }
         
-        return { people: 4 }; // 預設值
+        return { people: -1 }; // 抽唔到人數 → 重新問（-1 表示無效）
       }
       case "audience": {
-        const hasKids = /仔 | 女|小朋友 | 細路 | 童|孩|孩 子|kids|child|children/.test(lower);
-        const hasElderly = /老人家 | 長者 | 老人 | 爸|媽|爺|嫲|公公 | 婆婆|父母|elderly|old|parent/.test(lower);
+        const hasKids = /仔|女|小朋友|細路|童|孩子|kids|child|children|有小孩|小孩/.test(lower);
+        const hasElderly = /老人家|長者|老人|爸|媽|爺|嫲|公公|婆婆|父母|elderly|old|parent|有老人/.test(lower);
         return { hasKids, hasElderly };
       }
       case "time": {
-        if (/快 |30|半|急|quick| 速|簡單| 易/.test(lower)) return { time: "quick" as const };
-        if (/慢 | 煲|燉|leisure|slow| 慢慢| 燜|煮 耐/.test(lower)) return { time: "leisure" as const };
+        if (/快|30|半|急|quick|速|簡單|易|快手|趕/.test(lower)) return { time: "quick" as const };
+        if (/慢|煲|燉|leisure|slow|慢慢|燜|煮耐/.test(lower)) return { time: "leisure" as const };
         return { time: "normal" as const };
       }
-      case "dislike":
-        return { dislikes: /冇 | 没有|無|none| 沒有|唔食|不食| 過敏| 唔鍾意|不喜歡/.test(t) ? "" : t };
+      case "dislike": {
+        // 「冇/無/無忌口」= 冇忌口 → 空字串；「唔食辣/唔食豬肉」= 有忌口 → 保留原文
+        const noDislike = /^(冇|無|無忌口|沒有|冇忌口|none|唔使|不用|冇特別|無特別)$/.test(t.trim())
+          || /(冇忌口|無忌口|沒有特別|唔使忌口|冇咩唔食|無咩唔食|什麼都食|咩都食)/.test(t);
+        return { dislikes: noDislike ? "" : t };
+      }
     }
     return {};
   };
@@ -1909,6 +1910,12 @@ export default function AIChefScreen() {
   const handleMealAnswer = (text: string) => {
     resetAiNextSteps();
     const update = parseMealAnswer(text);
+    // 人數答非數字 → 重新問，唔好靜靜 default 4
+    if (mealStep === "people" && update.people === -1) {
+      addUserMessage(text);
+      addBotMessage(t("aiChef.q_people_invalid" as any));
+      return;
+    }
     const nextPrefs = { ...mealPrefs, ...update };
     setMealPrefs(nextPrefs);
     const msgs = addUserMessage(text);
@@ -2696,7 +2703,7 @@ export default function AIChefScreen() {
     // Batch mode: add all recipes to meal plan with selected date/mealType
     if (batchRecipes && batchRecipes.length > 0) {
       const recipesForShopping = batchRecipes;
-      const items = batchRecipes.map((r: any) => {
+      const buildItems = (force: boolean) => batchRecipes.map((r: any) => {
         const libId = r._libraryRecipeId;
         return {
           date: planDate,
@@ -2711,11 +2718,9 @@ export default function AIChefScreen() {
           })),
         };
       });
-      try {
-        const result = await addPlanBatchM.mutateAsync({ items });
+      const afterAdded = (result: any) => {
         setShowPlan(false);
         setBatchRecipes(null);
-
         const addedIds = new Set((result.items ?? []).map((it: any) => String(it.recipeId)));
         const planIdByRecipeId = new Map<string, number>();
         (result.items ?? []).forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
@@ -2742,6 +2747,29 @@ export default function AIChefScreen() {
           planDate,
           planIds,
         );
+      };
+      try {
+        const result = await addPlanBatchM.mutateAsync({ items: buildItems(false) });
+        const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
+        if (skipped > 0) {
+          // 同排餐 tab 一致：外出衝突 → 「確定要排餐嗎？+取消/確定」
+          const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
+          Alert.alert(
+            t("衝突提示" as any),
+            `當日已設定外出（${days}），確定要排餐嗎？`,
+            [
+              { text: t("取消" as any), style: "cancel", onPress: () => {} },
+              { text: t("確定" as any), onPress: async () => {
+                // 確定必加：無視外出再 submit 一次（force）
+                const forced = await addPlanBatchM.mutateAsync({ items: buildItems(true), force: true });
+                afterAdded(forced);
+              } },
+            ],
+            { cancelable: false },
+          );
+          return;
+        }
+        afterAdded(result);
       } catch (e: any) {
         Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
       }
