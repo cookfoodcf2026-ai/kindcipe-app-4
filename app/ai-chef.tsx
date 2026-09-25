@@ -1108,8 +1108,9 @@ export default function AIChefScreen() {
         return;
       }
       setRecommendedRecipes(recipes);
-      // 3餸1湯 flow：同步更新 mealResult，令「全部加入排餐」用返最新呢批食譜
-      if (isSoupModeRef.current && recipes.length > 0) {
+      // 多過一張卡（3餸1湯 / 2送一湯 / 打字要求出多卡）都 set mealResult，
+      // 令「全部加入排餐」button 顯示（唔再淨係靠 3餸1湯問卷流程嘅 isSoupModeRef）
+      if (recipes.length >= 2) {
         setMealResult(recipes);
       }
       setChatStarted(true);
@@ -2717,11 +2718,16 @@ export default function AIChefScreen() {
         const addedIds = new Set((result.items ?? []).map((it: any) => String(it.recipeId)));
         const planIdByRecipeId = new Map<string, number>();
         (result.items ?? []).forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
+        // 只對「成功加入排餐」嘅食譜開購物車；被外出/重複跳過嘅唔入購物車（唔再 fallback 去 recipesForShopping）
         const shoppingRecipes = recipesForShopping.filter((r: any) => {
           const libId = r._libraryRecipeId ? String(r._libraryRecipeId) : "";
           const savedId = r._savedId ? `user_${r._savedId}` : "";
           return addedIds.has(libId) || addedIds.has(savedId);
         });
+        if (shoppingRecipes.length === 0) {
+          // 全部被跳過（例如全部設定咗外出）—— 唔跳去購物車
+          return;
+        }
         // 對位：每個 shopping 食譜搵返佢自己嘅 newPlanId（唔可以直接用 result.items 次序，因 shoppingRecipes 可能係過濾子集）
         const planIds = shoppingRecipes.map((r: any) => {
           const libId = r._libraryRecipeId ? String(r._libraryRecipeId) : "";
@@ -2730,10 +2736,10 @@ export default function AIChefScreen() {
         });
 
         openShoppingSelection(
-          shoppingRecipes.length > 0 ? shoppingRecipes : recipesForShopping,
+          shoppingRecipes,
           getDayBefore(planDate),
           planDate,
-          planIds.length > 0 ? planIds : (result.items ?? []).map((it: any) => it.newPlanId),
+          planIds,
         );
       } catch (e: any) {
         Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
