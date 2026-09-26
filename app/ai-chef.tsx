@@ -487,6 +487,18 @@ const parseCnOrDigit = (s: string): number => {
   if (/^\d+$/.test(s)) return parseInt(s, 10);
   return CN_NUM_MAP[s] ?? 0;
 };
+// 時間 → 湯種對應（quick=滾湯/例湯、normal=煲湯、leisure=老火湯）
+const soupTimeRule = (time: MealPlanPreferences["time"]): { min: number; max: number } => {
+  if (time === "quick") return { min: 0, max: 40 };
+  if (time === "leisure") return { min: 90, max: Infinity };
+  return { min: 0, max: 90 };
+};
+const soupStyleLabel = (time: MealPlanPreferences["time"]): string => {
+  if (time === "quick") return "滾湯/例湯（30–40 分鐘內）";
+  if (time === "leisure") return "老火湯（90 分鐘以上）";
+  return "煲湯（約 1 小時）";
+};
+
 const detectMealIntent = (text: string): { dishes: number; soups: number; carb: boolean } | null => {
   const raw = String(text ?? "").trim();
   if (!raw || raw.length > 40) return null;
@@ -2150,7 +2162,7 @@ export default function AIChefScreen() {
     const cats: string[] = [];
     for (let i = 0; i < dishes; i++) cats.push(catPool[i % catPool.length]);
     if (carb) cats.push("主食（飯/麵/粉/粥）");
-    if (soups > 0) cats.push("湯水");
+    if (soups > 0) cats.push(`湯水（${soupStyleLabel(prefs.time)}）`);
     const catLines = cats.map((c, i) => `${i + 1}. ${c}\n`).join("");
     return `請為我設計今晚「${titleParts.join(" ")}」晚餐，總共 ${total} 道菜，適合${prefs.people}人食用。` +
       (prefs.hasKids ? "有小朋友，口味要溫和、少辣、容易入口。" : "") +
@@ -2222,15 +2234,18 @@ export default function AIChefScreen() {
   };
 
   // ─── X 餸 Y 湯意圖：library 分類搜尋組卡，唔夠先用 AI fallback ───
-  const composeFromLibrary = async (intent: { dishes: number; soups: number; carb?: boolean }): Promise<AIRecipe[]> => {
+  const composeFromLibrary = async (
+    intent: { dishes: number; soups: number; carb?: boolean },
+    time: MealPlanPreferences["time"] = "normal",
+  ): Promise<AIRecipe[]> => {
     const excluded: string[] = [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])];
     const seen = new Set<string>();
     const picked: AIRecipe[] = [];
-    const trySearch = async (q: string, want?: "soup" | "dish") => {
+    const trySearch = async (q: string, want?: "soup" | "dish", soupTime?: MealPlanPreferences["time"]) => {
       try {
         const res: any = await apiClient.recipes.search.query({ query: q, limit: 8 });
         const list = Array.isArray(res) ? res : (res?.recipes ?? []);
-        const cands = list
+        const base = list
           .map(normalizeRecipe)
           .filter(isValidRecipe)
           .map((r: AIRecipe) => ({ ...r, source: "library" as const }))
@@ -2242,6 +2257,18 @@ export default function AIChefScreen() {
             if (excluded.some((e) => e && (e === n || isDuplicateRecipeName(n, [e])))) return false;
             return true;
           });
+        let cands = base;
+        if (want === "soup" && soupTime) {
+          const rule = soupTimeRule(soupTime);
+          const timed = base.filter((r: AIRecipe) => {
+            const ct = Number(r.cookTime) || 0;
+            if (ct < rule.min) return false;
+            if (rule.max !== Infinity && ct > rule.max) return false;
+            return true;
+          });
+          // 有符合時間嘅湯就用；冇就放寬，避免完全抽唔到湯
+          cands = timed.length > 0 ? timed : base;
+        }
         const pick = cands[0];
         if (pick) { picked.push(pick); seen.add((pick.name || "").trim()); return true; }
       } catch (e) {
@@ -2252,7 +2279,7 @@ export default function AIChefScreen() {
     const dishCats = ["肉", "海鮮", "蔬菜", "家常菜"];
     for (let i = 0; i < intent.dishes; i++) await trySearch(dishCats[i % dishCats.length], "dish");
     if (intent.carb) await trySearch("飯", "dish");
-    for (let i = 0; i < intent.soups; i++) await trySearch("湯", "soup");
+    for (let i = 0; i < intent.soups; i++) await trySearch("湯", "soup", time);
     return picked;
   };
 
@@ -2268,7 +2295,7 @@ export default function AIChefScreen() {
     setRecommendedRecipes([]);
     setMealResult(null);
     try {
-      const picked = await composeFromLibrary(intent);
+      const picked = await composeFromLibrary(intent, defaultPrefs.time);
       if (picked.length >= expected) {
         const show = picked.slice(0, expected);
         setMealStep("result");

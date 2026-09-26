@@ -78,3 +78,26 @@ tags?: string[]
 - [ ] 舊英文分類 backfill 後變成正確菜系（非大量「其他」）。
 - [ ] 讀取 API 全回傳上述欄位。
 - [ ] 卡顯示／3 餸 1 湯／換卡分類正確。
+
+## 8. 湯種 × 時間（新增）
+
+用戶喺問卷揀嘅煮食時間，應該決定湯嘅種類：
+
+| 用戶時間 | 湯種 | cookTime 條件 |
+|---|---|---|
+| `quick` | 滾湯 / 例湯 | ≤ 40 分鐘 |
+| `normal` | 煲湯 | ≤ 90 分鐘 |
+| `leisure` | 老火湯 | ≥ 90 分鐘 |
+
+### 8.1 前端（已做）
+- `ai-chef`：`buildMealPrompt` 會按時間寫明湯種（例：「湯水（滾湯/例湯，30–40 分鐘內）」）。
+- `composeFromLibrary` 會用 `soupTimeRule(time)` 按 `cookTime` 篩湯；冇符合就放寬（避免抽唔到湯）。
+
+### 8.2 後端（待做）
+- `aiRecipe.chat`（library mode / `pickSoupMeal`）要**跟 `time` 揀湯種**（唔止靠 prompt 文字）。
+- `recipes.search` 支援 `cookTimeMax`（前端已在傳；`SearchRecipesInput` 契約要補）。
+- Parse / backfill 建議為湯加 **sub-type tag**：`滾湯` / `煲湯` / `老火湯`（方便篩選）。
+- `dishType` 維持單一 `soup`；湯種用 tag 表達（唔細分 dishType）。
+
+> 注意：糖水屬 `dishType = dessert`（唔係 soup），已正確。
+
