@@ -420,6 +420,7 @@ export interface ImportRecipeInput {
   servings?: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   cuisine?: string;
+  dishType?: string;
   tags?: string[];
   imageUrl?: string;
   sourceUrl?: string;
@@ -440,6 +441,7 @@ export interface UpdateRecipeInput {
   servings?: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   cuisine?: string;
+  dishType?: string;
   tags?: string[];
   imageUrl?: string;
 }
@@ -493,6 +495,7 @@ export interface CreateOfficialRecipeInput {
   servings?: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   cuisine?: string;
+  dishType?: string;
   tags?: string[];
   imageUrl?: string;
 }

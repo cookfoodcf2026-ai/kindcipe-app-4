@@ -294,6 +294,8 @@
     "q_dislike": "(Langkah {{n}}/4) Ada yang tidak dimakan? (ketik atau tidak ada)",
     "userMsg3": "3 lauk + 1 sup ({{n}} porsi)",
     "replyTonight": "Ini dia 3 lauk + 1 sup malam ini:",
+    "foundMealDishesSoup": "Ditemukan {{dishes}} lauk + {{soups}} sup di perpustakaan:",
+    "foundMealDishes": "Ditemukan {{dishes}} lauk di perpustakaan:",
     "thinking": "Berpikir...",
     "loadingStep1": "Memahami permintaan...",
     "loadingStep2": "Menyiapkan jawapan...",
@@ -407,6 +409,17 @@
       "pet": "Hewan",
       "other": "Lainnya",
       "soup": "Sup"
+    },
+    "dishType": {
+      "meat": "Lauk Daging",
+      "seafood": "Seafood / Protein",
+      "vegetable": "Sayur / Tumis",
+      "soup": "Sup",
+      "carb": "Nasi & Mie",
+      "appetizer": "Pembuka / Camilan",
+      "dessert": "Hidangan Penutup",
+      "drink": "Minuman",
+      "other": "Lainnya"
     },
     "unit": {
       "piece": "pcs",

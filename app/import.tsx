@@ -22,6 +22,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
+import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -50,6 +51,7 @@ export default function ImportScreen() {
   const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("中菜");
+  const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -127,6 +129,7 @@ export default function ImportScreen() {
     setEditServings(String(recipe.servings || 4));
     setEditDifficulty(recipe.difficulty || "中等");
     setSelectedCategory(recipe.recipeCategory || "中菜");
+    setEditDishType(recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || ""));
     setEditTags((recipe.tags || []).join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
@@ -153,9 +156,14 @@ export default function ImportScreen() {
     
     if (hasBackendUrl && !isCDNUrl) {
       setRecipeImageUri(recipe.thumbnailUrl || recipe.image);
+      setRecipeImageBase64(null);
     } else if (recipe.image && !recipe.thumbnailUrl) {
       setRecipeImageUri(recipe.image);
+      setRecipeImageBase64(null);
     } else {
+      // 新一次解析冇圖 → 清走上一次嘅圖，避免沿用舊食譜圖片
+      setRecipeImageUri(null);
+      setRecipeImageBase64(null);
     }
   };
 
@@ -305,6 +313,7 @@ export default function ImportScreen() {
   // tRPC mutations
   const parseUrlMutation = trpc.recipes.parseUrl.useMutation({
     onSuccess: (data) => {
+      if (!isParsingRef.current) return; // 用戶已取消 → 忽略遲到嘅回覆
       isParsingRef.current = false;
       stopParseProgress();
       if (data.parseReason === "ok") {
@@ -318,6 +327,8 @@ export default function ImportScreen() {
           `這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。${platformHelp}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 換另一個包含完整食材和步驟的帖子`
         );
         setFailedInput({ type: "url", value: universalInput });
+        setClipboardUrl(null);
+        setDetectedPlatform(null);
         setStep("failed");
       } else {
         const platform = detectPlatform(universalInput);
@@ -329,10 +340,13 @@ export default function ImportScreen() {
         }
         setErrorMsg(msg);
         setFailedInput({ type: "url", value: universalInput });
+        setClipboardUrl(null);
+        setDetectedPlatform(null);
         setStep("failed");
       }
     },
     onError: (err) => {
+      if (!isParsingRef.current) return; // 用戶已取消 → 忽略遲到嘅錯誤
       isParsingRef.current = false;
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
@@ -344,6 +358,7 @@ export default function ImportScreen() {
 
   const parseTextMutation = trpc.recipes.parseText.useMutation({
     onSuccess: (data) => {
+      if (!isParsingRef.current) return; // 用戶已取消
       isParsingRef.current = false;
       stopParseProgress();
       const reason = (data as any).parseReason;
@@ -354,10 +369,13 @@ export default function ImportScreen() {
       } else {
         setErrorMsg("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。");
         setFailedInput({ type: "text", value: universalInput });
+        setClipboardUrl(null);
+        setDetectedPlatform(null);
         setStep("failed");
       }
     },
     onError: (err) => {
+      if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(friendlyError(err) || "無法解析文字內容");
@@ -368,6 +386,7 @@ export default function ImportScreen() {
 
   const parseImageMutation = trpc.recipes.parseImage.useMutation({
     onSuccess: (data) => {
+      if (!isParsingRef.current) return; // 用戶已取消
       isParsingRef.current = false;
       stopParseProgress();
       const reason = (data as any).parseReason;
@@ -378,10 +397,13 @@ export default function ImportScreen() {
       } else {
         setErrorMsg("圖片中沒有足夠的食譜資訊。\n\n請重新上傳更清晰的圖片，確保包含完整的食材和步驟");
         setFailedInput({ type: "url", value: "" });
+        setClipboardUrl(null);
+        setDetectedPlatform(null);
         setStep("failed");
       }
     },
     onError: (err) => {
+      if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
       setErrorMsg(friendlyError(err) || "無法解析圖片，請確保圖片清晰");
@@ -704,6 +726,7 @@ export default function ImportScreen() {
   // Save edited recipe with overlay
   const handleSaveEdited = async () => {
     if (!editName.trim()) { Alert.alert("請輸入食譜名稱"); return; }
+    if (!editDishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
     const validIngredients = editIngredients.filter(i => i.name.trim());
     const validSteps = editSteps.filter(s => s.instruction.trim());
     if (validIngredients.length === 0) { Alert.alert("請至少輸入一種食材"); return; }
@@ -751,6 +774,7 @@ export default function ImportScreen() {
         servings: parseInt(editServings) || 4,
         difficulty: editDifficulty,
         recipeCategory: selectedCategory,
+        dishType: editDishType,
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
         })),
@@ -896,24 +920,24 @@ export default function ImportScreen() {
           <View style={es.card}>
             <Text style={es.cardTitle}>{t("importRecipe.basicInfo")}</Text>
 
-            <Text style={t(es.label as any)}>{t("importRecipe.recipeName")}</Text>
+            <Text style={es.label}>{t("importRecipe.recipeName")}</Text>
             <TextInput style={es.input} value={editName} onChangeText={setEditName} placeholder={t("importRecipe.recipeName")} placeholderTextColor="#B0BAC9" />
 
-            <Text style={t(es.label as any)}>{t("importRecipe.desc")}</Text>
+            <Text style={es.label}>{t("importRecipe.desc")}</Text>
             <TextInput style={[es.input, es.multilineInput]} value={editDesc} onChangeText={setEditDesc} placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor="#B0BAC9" multiline numberOfLines={2} />
 
             <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={t(es.label as any)}>{t("importRecipe.servings")}</Text>
+                <Text style={es.label}>{t("importRecipe.servings")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editServings} onChangeText={setEditServings} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={t(es.label as any)}>{t("importRecipe.timeMin")}</Text>
+                <Text style={es.label}>{t("importRecipe.timeMin")}</Text>
                 <TextInput style={[es.input, { textAlign: "center" }]} value={editCookTime} onChangeText={setEditCookTime} keyboardType="numeric" placeholderTextColor="#B0BAC9" />
               </View>
             </View>
 
-            <Text style={t(es.label as any)}>{t("importRecipe.difficulty")}</Text>
+            <Text style={es.label}>{t("importRecipe.difficulty")}</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               {["簡單", "中等", "困難"].map(d => (
                 <TouchableOpacity key={d} style={[es.chip, editDifficulty === d && es.chipActive]} onPress={() => setEditDifficulty(d)}>
@@ -922,11 +946,20 @@ export default function ImportScreen() {
               ))}
             </View>
 
-            <Text style={t(es.label as any)}>{t("shopping.category")}</Text>
+            <Text style={es.label}>{t("shopping.category")}</Text>
             <View style={es.categoryRow}>
               {["中菜","西餐","日式","韓式","東南亞","甜品","飲品","其他"].map(cat => (
                 <TouchableOpacity key={cat} style={[es.chip, selectedCategory === cat && es.chipActive]} onPress={() => setSelectedCategory(cat)}>
                   <Text style={[es.chipTxt, selectedCategory === cat && es.chipTxtActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[es.label, { marginTop: 14 }]}>{t("editor.dishType")}</Text>
+            <View style={es.categoryRow}>
+              {DISH_TYPE_KEYS.map(key => (
+                <TouchableOpacity key={key} style={[es.chip, editDishType === key && es.chipActive]} onPress={() => setEditDishType(key)}>
+                  <Text style={[es.chipTxt, editDishType === key && es.chipTxtActive]}>{t(`enums.dishType.${key}` as any)}</Text>
                 </TouchableOpacity>
               ))}
             </View>

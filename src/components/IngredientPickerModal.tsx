@@ -78,7 +78,7 @@ interface Props {
   onDateChange?: (date: string) => void;
   showDateSelector?: boolean;
   maxDate?: string;
-  /** #3: 已經喺購物清單嘅 key（`${r.id}::${idx}`）——顯示「已加入」、唔可以再勾 */
+  /** #3: 已經喺購物清單嘅 key（`${r.id}::${idx}::${date}`）——顯示「已加入」、唔可以再勾 */
   alreadyAddedKeys?: Set<string>;
   onConfirm: (items: ConfirmedItem[]) => void;
   onSkip: () => void;
@@ -302,7 +302,7 @@ export default function IngredientPickerModal({
         <View style={[s.sheet, { height: "80%" }]}>
           <View style={s.header}>
             <View style={{ flex: 1 }}>
-              <Text style={t(s.title as any)}>{modalTitle}</Text>
+              <Text style={s.title}>{modalTitle}</Text>
               {multiRecipe && (
                 <Text style={s.subTitle}>
                   {recipes.map((r) => r.name).join("、")}
@@ -344,7 +344,17 @@ export default function IngredientPickerModal({
               <PlanDatePicker 
                 value={date}
                 onChange={(newDate) => {
-                  setDate(newDate);
+                  // 改日期時 remap 已勾選 key（key 含 date），否則選取會被清空
+                  setDate((prev) => {
+                    if (prev === newDate) return prev;
+                    setSelected((sel) => {
+                      const from = `::${prev}`;
+                      const next = new Set<string>();
+                      sel.forEach((k) => next.add(k.endsWith(from) ? `${k.slice(0, -from.length)}::${newDate}` : k));
+                      return next;
+                    });
+                    return newDate;
+                  });
                   onDateChange?.(newDate);
                 }}
                 showShortcuts={true}

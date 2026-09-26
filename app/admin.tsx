@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
+import { DISH_TYPE_KEYS } from "@/lib/dishType";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -193,7 +194,7 @@ export default function AdminScreen() {
   const [form, setForm] = useState({
     name: "", nameEn: "", description: "", image: "",
     cookTime: "20", servings: "2", difficulty: "簡單",
-    recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
+    recipeCategory: "其他", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
     isKol: false, // KOL 食譜標記
   });
 
@@ -232,6 +233,7 @@ export default function AdminScreen() {
   const handleSave = () => {
     if (!form.name.trim()) { Alert.alert("請輸入菜名"); return; }
     if (!form.image.trim()) { Alert.alert("請輸入圖片網址"); return; }
+    if (!form.dishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
     const payload = {
       name: form.name,
       nameEn: form.nameEn || undefined,
@@ -241,6 +243,7 @@ export default function AdminScreen() {
       servings: Number(form.servings),
       difficulty: form.difficulty as "簡單" | "中等" | "困難",
       recipeCategory: form.recipeCategory,
+      dishType: form.dishType,
       tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
       sourceAuthor: form.reelAuthor || undefined,
       sourceUrl: form.reelUrl || undefined,
@@ -359,7 +362,7 @@ export default function AdminScreen() {
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: BRAND, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 }}
                   onPress={() => {
-                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "其他", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60", isKol: false });
+                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "其他", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60", isKol: false });
                     setShowForm(true);
                   }}
                 >
@@ -387,6 +390,7 @@ export default function AdminScreen() {
                     </View>
                     <FS label={t("importRecipe.difficulty")} value={form.difficulty} onChange={v => setForm(p => ({ ...p, difficulty: v }))} options={["簡單", "中等", "困難"]} />
                     <FS label={t("shopping.category")} value={form.recipeCategory} onChange={v => setForm(p => ({ ...p, recipeCategory: v }))} options={[["中菜", "中菜"], ["西餐", "西餐"], ["日式", "日式"], ["韓式", "韓式"], ["東南亞", "東南亞"], ["甜品", "甜品"], ["飲品", "飲品"], ["其他", "其他"]]} />
+                    <FS label={t("editor.dishType")} value={form.dishType} onChange={v => setForm(p => ({ ...p, dishType: v }))} options={DISH_TYPE_KEYS.map(k => [k, t(`enums.dishType.${k}` as any)] as [string, string])} />
                     <FF label={t("admin.tagsLabel")} value={form.tags} onChange={v => setForm(p => ({ ...p, tags: v }))} placeholder={t("admin.tagsPlaceholder")} />
                     <FF label={t("admin.igSource")} value={form.reelAuthor} onChange={v => setForm(p => ({ ...p, reelAuthor: v }))} placeholder="@kiuu922" />
                     <Text style={{ fontSize: 12, fontWeight: "600", color: "#475569", marginBottom: 5 }}>{t("admin.budget")}</Text>
@@ -726,6 +730,7 @@ function MigrateCategoriesCard({ recipes }: { recipes: any[] }) {
           servings: r.servings ?? 2,
           difficulty: r.difficulty ?? "中等",
           recipeCategory: cuisine,
+          dishType: r.dishType ?? undefined,
           tags: r.tags ?? [],
           description: r.description ?? "",
           image: r.image ?? "",

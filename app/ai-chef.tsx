@@ -36,6 +36,7 @@ import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { categorizeIngredient, calcAdjustedQty } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore } from "@/src/lib/date";
 import { friendlyError } from "@/lib/errors";
+import { normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -384,6 +385,18 @@ const extractAiHistoryRecipeNames = (sessions: ChatSession[]): string[] => {
   return [...names];
 };
 
+// 按目標份量縮放食材（用於批次/單張加入排餐 → 連帶落購物清單）
+const scaleIngredients = (r: AIRecipe, overrideServings?: number | null): AIRecipe["ingredients"] => {
+  if (!overrideServings || overrideServings <= 0 || !r.servings || r.servings <= 0 || overrideServings === r.servings) {
+    return r.ingredients;
+  }
+  const ratio = overrideServings / r.servings;
+  return r.ingredients.map((ing) => ({
+    ...ing,
+    quantity: calcAdjustedQty(String(ing.quantity ?? ""), ing.unit ?? "", categorizeIngredient(ing.name), ratio),
+  }));
+};
+
 const QUICK_ACTIONS = [
   { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#FF7A3D", color: "#FFFFFF" },
   { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#DCE9FF", color: "#1D4ED8" },
@@ -442,33 +455,24 @@ const TIME_OPTIONS = [
   { key: "leisure", label: "慢煮/想慢慢煮" },
 ];
 
-// 簡單 name-based dishType 推斷（後端用 LLM 分類 + 儲存 dishType，呢度係卡冇 dishType 時嘅兜底）
-// 優先次序同後端 classifyDishType 一致：soup → dessert/drink → vegetable → seafood → meat → other
-const inferDishTypeFromName = (name: string): string => {
-  const n = String(name || "");
-  if (/湯$|湯水|煲湯|燉湯|老火湯|滾湯|湯羹|濃湯|清湯|羅宋湯|粟米湯|番茄湯/.test(n)) return "soup";
-  if (/糖水|西米露|布甸|布丁|啫喱|慕斯|雪糕|蛋糕|蛋撻|曲奇|奶凍|糕點|甜點|芝麻糊|紅豆沙|綠豆沙|楊枝甘露|芋圓/.test(n)) return "dessert";
-  if (/水$|涼茶|竹蔗茅根|茅根水|山楂水|薏米水|蘆根|羅漢果|菊花茶|檸檬茶|雪梨水|陳皮水|汽水|果汁|茶飲/.test(n)) return "drink";
-  if (/菜心|芥蘭|通菜|菠菜|生菜|白菜|椰菜|西蘭花|時蔬|素菜|青菜|蔬菜|南瓜|蘿蔔|薯仔|番茄|茄子|青椒|洋蔥|節瓜|勝瓜|苦瓜|西洋菜|冬瓜|青瓜|黃瓜|絲瓜|豆芽|豆角|青豆|毛豆|雲耳|木耳|菇|菌|芽菜/.test(n)) return "vegetable";
-  if (/蒸魚|清蒸|炒蝦|蝦|蟹|鮑魚|魚|帶子|海參|花膠|龍蝦|石斑|魷魚|章魚|墨魚|三文魚|蜆|蠔|豆腐|豆卜|豆干|腐皮|蒸蛋|炒蛋|蛋/.test(n)) return "seafood";
-  if (/排骨|牛|雞|豬|肉|鴨|鵝|羊|腩|雞翼|雞腿|雞髀|肉丸|叉燒|燒肉|豬扒|牛扒|雞扒|豬手|豬腳/.test(n)) return "meat";
-  return "other";
-};
-
-// 統一同類別判定：優先使用卡上已分類嘅 dishType，其次靠菜名推斷
-const getDishType = (r: any): string => {
+// 統一同類別判定：優先使用卡上已分類嘅 dishType，其次靠菜名推斷（canonical key）
+const getDishType = (r: any): DishTypeKey => {
   const explicit = String(r?.dishType ?? "").trim();
-  if (explicit) return explicit;
-  return inferDishTypeFromName(String(r?.name ?? ""));
+  if (explicit) return normalizeDishType(explicit);
+  return inferDishTypeKeyFromName(String(r?.name ?? ""));
 };
 
-// 將英文 dishType 轉做中文搜尋 keyword（後端食譜庫係中文，用英文搜唔到嘢）
+// 將 dishType key 轉做中文搜尋 keyword（後端食譜庫係中文，用英文搜唔到嘢）
 const dishTypeKeyword = (t: string): string => {
-  switch (t) {
+  switch (normalizeDishType(t)) {
     case "soup": return "湯水";
     case "meat": return "肉";
     case "seafood": return "海鮮";
     case "vegetable": return "蔬菜";
+    case "carb": return "飯";
+    case "appetizer": return "前菜";
+    case "dessert": return "甜品";
+    case "drink": return "飲品";
     default: return "";
   }
 };
@@ -483,11 +487,12 @@ const parseCnOrDigit = (s: string): number => {
   if (/^\d+$/.test(s)) return parseInt(s, 10);
   return CN_NUM_MAP[s] ?? 0;
 };
-const detectMealIntent = (text: string): { dishes: number; soups: number } | null => {
+const detectMealIntent = (text: string): { dishes: number; soups: number; carb: boolean } | null => {
   const raw = String(text ?? "").trim();
   if (!raw || raw.length > 40) return null;
   // 有疑問／動作詞 → 當自由對話，唔 intercept
   if (/(點|煮法|做法|食譜|邊度|邊到|買|唔食|忌口|點樣|教我|推介|介紹|推介下)/.test(raw)) return null;
+  const carb = /飯|麵|米線|粥|意粉|烏冬|拉麵/.test(raw);
   const num = "[0-9一二兩三四五六七八九十]+";
   const dishWord = "[餸送菜]";
   const soupWord = "湯(?:水)?";
@@ -495,12 +500,12 @@ const detectMealIntent = (text: string): { dishes: number; soups: number } | nul
   if (full) {
     const dishes = parseCnOrDigit(full[1]);
     const soups = parseCnOrDigit(full[2]);
-    if (dishes >= 1 && dishes <= 8 && soups >= 1 && soups <= 8) return { dishes, soups };
+    if (dishes >= 1 && dishes <= 8 && soups >= 1 && soups <= 8) return { dishes, soups, carb };
   }
   const dishOnly = raw.match(new RegExp(`(${num})\\s*${dishWord}`));
   if (dishOnly) {
     const dishes = parseCnOrDigit(dishOnly[1]);
-    if (dishes >= 1 && dishes <= 8) return { dishes, soups: 0 };
+    if (dishes >= 1 && dishes <= 8) return { dishes, soups: 0, carb };
   }
   return null;
 };
@@ -813,6 +818,8 @@ export default function AIChefScreen() {
   const [libraryLoading, setLibraryLoading] = useState(false);
   // 卡片「睇食材」展開（記錄展開邊張卡）
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  // 出咗新一批卡 → 收起之前展開嘅食材（index-based，唔 reset 會自動展開錯卡）
+  useEffect(() => { setExpandedCard(null); }, [recommendedRecipes]);
 
   // ─── Daily 3-dish-1-soup flow ──────────────────────────
   const [mealStep, setMealStep] = useState<MealPlanStep>("idle");
@@ -831,10 +838,14 @@ export default function AIChefScreen() {
   // ─── Toast notification ────────────────────────────────
   const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = (text: string, action?: { label: string; onPress: () => void }, duration = 2000) => {
     setToast({ text, visible: true, action });
-    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), duration);
+    // 清上一個 timer，否則快速連續兩個 toast 會被舊 timer 提早收埋
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(prev => ({ ...prev, visible: false })), duration);
   };
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
 
   // ─── Shopping lists after AI plan ─────────────────────
   const [shopRecipes, setShopRecipes] = useState<AIRecipe[]>([]); // 保留食譜名稱供 fromRecipeName
@@ -914,7 +925,8 @@ export default function AIChefScreen() {
       const targetMealPlanId = recipe.fromMealPlanId ? Number(recipe.fromMealPlanId) : null;
       const targetShoppingDate = recipe.date || todayISO();
       recipe.ingredients.forEach((ing, idx) => {
-        const key = `${recipe.id}::${idx}`;
+        // key 要同 IngredientPickerModal 一致（含 date），否則「已加入」永遠對唔上
+        const key = `${recipe.id}::${idx}::${targetShoppingDate}`;
         const ingName = (ing.name || "").trim();
         const ingUnit = (ing.unit || "").trim();
         if (!ingName || !realId) return;
@@ -1391,6 +1403,7 @@ export default function AIChefScreen() {
       {
         text: t("刪除" as any), style: "destructive",
         onPress: () => {
+          const deletingActive = id === activeChatId;
           setSessions(prev => {
             const next = prev.filter(s => s.id !== id);
             if (next.length === 0) {
@@ -1402,6 +1415,20 @@ export default function AIChefScreen() {
             if (id === activeChatId) setActiveChatId(next[0].id);
             return next;
           });
+          // 刪嘅係當前對話 → 清走所有依附舊對話嘅 UI 狀態，避免殘留卡／狀態
+          if (deletingActive) {
+            setRecommendedRecipes([]);
+            setChatStarted(false);
+            setSessionSeenRecipeNames([]);
+            setSwappedRecipeNames(new Set());
+            setMealResult(null);
+            setMealStep("idle");
+            setMealPrefs(EMPTY_PREFS);
+            setAiNextSteps([]);
+            setAskingIngredients(false);
+            setExpandedCard(null);
+            isSoupModeRef.current = false;
+          }
         },
       },
     ]);
@@ -1477,7 +1504,7 @@ export default function AIChefScreen() {
       difficulty: recipe.difficulty,
       image: "", thumbnailUrl: "",
       recipeCategory: recipe.recipeCategory || "其他",
-      dishType: recipe.dishType,
+      dishType: getDishType(recipe),
       // AI 生成嘅食譜已帶翻譯，傳埋去後端 skip LLM translate（快好多）
       nameEn: recipe.nameEn, nameFil: recipe.nameFil, nameId: recipe.nameId,
       stepsEn: recipe.stepsEn, stepsFil: recipe.stepsFil, stepsId: recipe.stepsId,
@@ -2106,13 +2133,14 @@ export default function AIChefScreen() {
 
   const buildMealPrompt = (
     prefs: MealPlanPreferences,
-    counts: { dishes: number; soups: number } = { dishes: 3, soups: 1 },
+    counts: { dishes: number; soups: number; carb?: boolean } = { dishes: 3, soups: 1 },
   ) => {
-    const { dishes, soups } = counts;
-    const total = Math.max(1, dishes + soups);
+    const { dishes, soups, carb = false } = counts;
+    const total = Math.max(1, dishes + soups + (carb ? 1 : 0));
     const timeLabel = prefs.time === "quick" ? "30 分鐘內快手菜" : prefs.time === "leisure" ? "可慢慢煮/煲燉" : "普通約 1 小時";
     const titleParts = [`${dishes} 餸`];
     if (soups > 0) titleParts.push(`${soups} 湯`);
+    if (carb) titleParts.push("主食");
     const catPool = [
       "肉類主菜（如豬/牛/雞）",
       "海鮮/其他蛋白主菜（如魚/蝦/豆腐蛋）",
@@ -2121,6 +2149,7 @@ export default function AIChefScreen() {
     ];
     const cats: string[] = [];
     for (let i = 0; i < dishes; i++) cats.push(catPool[i % catPool.length]);
+    if (carb) cats.push("主食（飯/麵/粉/粥）");
     if (soups > 0) cats.push("湯水");
     const catLines = cats.map((c, i) => `${i + 1}. ${c}\n`).join("");
     return `請為我設計今晚「${titleParts.join(" ")}」晚餐，總共 ${total} 道菜，適合${prefs.people}人食用。` +
@@ -2193,7 +2222,7 @@ export default function AIChefScreen() {
   };
 
   // ─── X 餸 Y 湯意圖：library 分類搜尋組卡，唔夠先用 AI fallback ───
-  const composeFromLibrary = async (intent: { dishes: number; soups: number }): Promise<AIRecipe[]> => {
+  const composeFromLibrary = async (intent: { dishes: number; soups: number; carb?: boolean }): Promise<AIRecipe[]> => {
     const excluded: string[] = [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])];
     const seen = new Set<string>();
     const picked: AIRecipe[] = [];
@@ -2222,15 +2251,16 @@ export default function AIChefScreen() {
     };
     const dishCats = ["肉", "海鮮", "蔬菜", "家常菜"];
     for (let i = 0; i < intent.dishes; i++) await trySearch(dishCats[i % dishCats.length], "dish");
+    if (intent.carb) await trySearch("飯", "dish");
     for (let i = 0; i < intent.soups; i++) await trySearch("湯", "soup");
     return picked;
   };
 
-  const generateMealFromIntent = async (intent: { dishes: number; soups: number }) => {
+  const generateMealFromIntent = async (intent: { dishes: number; soups: number; carb?: boolean }) => {
     const defaultPrefs: MealPlanPreferences = {
       people: 4, hasKids: false, hasElderly: false, time: "normal", dislikes: "",
     };
-    const expected = Math.max(1, intent.dishes + intent.soups);
+    const expected = Math.max(1, intent.dishes + intent.soups + (intent.carb ? 1 : 0));
     isSoupModeRef.current = true;
     setMealPrefs(defaultPrefs);
     setMealStep("generating");
@@ -2246,7 +2276,10 @@ export default function AIChefScreen() {
         setRecommendedRecipes(show);
         recordSeenRecipes(show);
         setChatStarted(true);
-        addBotMessage(`我喺食譜庫搵到呢套 ${intent.dishes} 餸${intent.soups > 0 ? ` ${intent.soups} 湯` : ""}：` + recipeNameList(show));
+        const mealLabel = intent.soups > 0
+          ? t("aiChef.foundMealDishesSoup" as any, { dishes: intent.dishes, soups: intent.soups })
+          : t("aiChef.foundMealDishes" as any, { dishes: intent.dishes });
+        addBotMessage(mealLabel + recipeNameList(show));
         setLibraryLoading(false);
         return;
       }
@@ -2402,9 +2435,11 @@ export default function AIChefScreen() {
       : null;
     try {
       const items: Array<{ date: string; mealType: string; recipeId: string; recipeName: string; recipeImage?: string; recipe?: AIRecipe }> = [];
+      // 目標份量縮放：先將每張卡嘅食材按 overrideServings 縮放，之後 save / 購物都用縮放後數量
+      const scaledRecipes = validRecipes.map((r) => ({ ...r, ingredients: scaleIngredients(r, overrideServings) }));
       // 並行處理每個食譜（library ref 直接取；否則 save）—— 一次過落 4 個 network call，唔再逐個 await 排隊（舊版 ~1min）
       const resolvedItems = await Promise.all(
-        validRecipes.map(async (r) => {
+        scaledRecipes.map(async (r) => {
           const ref = resolveRecipeRef(r);
           if (ref.isLibraryRef) {
             return {
@@ -2416,7 +2451,7 @@ export default function AIChefScreen() {
               recipe: r,
             };
           }
-          const savedId = await ensureSaved(r, overrideServings);
+          const savedId = await ensureSaved(r, overrideServings, r.ingredients);
           return {
             date,
             mealType: "dinner",
@@ -2428,7 +2463,7 @@ export default function AIChefScreen() {
         })
       );
       items.push(...resolvedItems);
-      const recipesWithIds = validRecipes.map((r, idx) => {
+      const recipesWithIds = scaledRecipes.map((r, idx) => {
         const found = items[idx];
         if (!found) return { ...r };
         return found.recipeId.startsWith("user_")
@@ -2472,6 +2507,8 @@ export default function AIChefScreen() {
 
   // 「換」掣：只替換單張卡。AI mode 就直接出 1 個替代食譜；library mode 先搵庫內替代
   const handleSwapRecipe = async (recipe: AIRecipe, index: number) => {
+    // 全域鎖：任何一張換卡進行中，唔准再撳其他卡（避免並發交錯覆寫）
+    if (swappingIndex !== null) return;
     const category = recipe.recipeCategory || "其他";
     const otherNames = recommendedRecipes
       .filter((_, i) => i !== index)
@@ -3011,6 +3048,8 @@ export default function AIChefScreen() {
           ...ing,
           quantity: calcAdjustedQty(String(ing.quantity ?? ""), ing.unit ?? "", categorizeIngredient(ing.name), servingRatio),
         }));
+    // 帶住縮放後食材，令 continueAfterMealPlan → 加入購物清單都用縮放數量
+    planRecipeRef.current = { ...planRecipe, ingredients: scaledIngredients };
     const ref = resolveRecipeRef(planRecipe);
     if (ref.isLibraryRef) {
       addPlanM.mutate({
@@ -3026,7 +3065,7 @@ export default function AIChefScreen() {
           const savedId = await ensureSaved(planRecipe, overrideServings, scaledIngredients);
           // 將 saved id 帶返落 planRecipeRef，令 continueAfterMealPlan→加入購物清單都用到 user_<id>
           const withRef: AIRecipe = planRecipe
-            ? { ...planRecipe, _savedId: savedId, _libraryRecipeId: `user_${savedId}` }
+            ? { ...planRecipe, ingredients: scaledIngredients, _savedId: savedId, _libraryRecipeId: `user_${savedId}` }
             : planRecipe;
             planRecipeRef.current = withRef;
             addPlanM.mutate({
@@ -3586,7 +3625,7 @@ export default function AIChefScreen() {
                               testID={`ai-chef-recipe-${i}-swap`}
                               style={[s.btnSwap, { opacity: chatMutation.isPending ? 0.5 : 1 }]}
                               onPress={() => handleSwapRecipe(r, i)}
-                              disabled={chatMutation.isPending || swappingIndex === i}
+                              disabled={chatMutation.isPending || swappingIndex !== null}
                             >
                               {swappingIndex === i ? (
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

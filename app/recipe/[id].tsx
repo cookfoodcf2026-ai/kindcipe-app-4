@@ -1334,7 +1334,7 @@ export default function RecipeDetailScreen() {
                     <Text style={s.shoppingTitle}>
                       🛒 已加入購物清單 ({activeShoppingGroup?.items?.length || 0} 項)
                     </Text>
-                    <Text style={t(s.hintText as any)}>{t("recipe.dateHint")}</Text>
+                    <Text style={s.hintText}>{t("recipe.dateHint")}</Text>
                   </View>
                   <Ionicons
                     name={isShoppingExpanded ? "chevron-up" : "chevron-down"}

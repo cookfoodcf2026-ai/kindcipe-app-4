@@ -294,6 +294,8 @@
     "q_dislike": "（步驟 {{n}}/4）有咩唔食？（可輸入食材或口味，冇就寫「冇」）",
     "userMsg3": "3 餸 1 湯（{{n}}人）",
     "replyTonight": "我幫你諗好咗今晚 3 餸 1 湯：",
+    "foundMealDishesSoup": "我喺食譜庫搵到呢套 {{dishes}} 餸 {{soups}} 湯：",
+    "foundMealDishes": "我喺食譜庫搵到呢套 {{dishes}} 餸：",
     "thinking": "思考中...",
     "loadingStep1": "正在理解你的需求...",
     "loadingStep2": "準備回應...",
@@ -407,6 +409,17 @@
       "pet": "寵物用品",
       "other": "其他",
       "soup": "湯水"
+    },
+    "dishType": {
+      "meat": "主菜（肉類）",
+      "seafood": "海鮮/蛋白",
+      "vegetable": "蔬菜/小炒",
+      "soup": "湯水",
+      "carb": "飯麵/主食",
+      "appetizer": "前菜/小食",
+      "dessert": "甜品",
+      "drink": "飲品",
+      "other": "其他"
     },
     "unit": {
       "piece": "個",

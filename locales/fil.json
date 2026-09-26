@@ -294,6 +294,8 @@
     "q_dislike": "(Hakbang {{n}}/4) May ayaw kayong kainin? (mag-type o wala)",
     "userMsg3": "3 ulam + 1 sabaw ({{n}} pax)",
     "replyTonight": "Narito ang 3 ulam + 1 sabaw ngayong gabi:",
+    "foundMealDishesSoup": "Nakahanap sa library ng {{dishes}} ulam + {{soups}} sabaw:",
+    "foundMealDishes": "Nakahanap sa library ng {{dishes}} ulam:",
     "thinking": "Nag-iisip...",
     "loadingStep1": "Inuunawa ang kahilingan...",
     "loadingStep2": "Inihahanda ang sagot...",
@@ -407,6 +409,17 @@
       "pet": "Alagang Hayop",
       "other": "Iba Pa",
       "soup": "Sabaw"
+    },
+    "dishType": {
+      "meat": "Ulam na Karne",
+      "seafood": "Pagkaing-dagat / Protina",
+      "vegetable": "Gulay / Ginisa",
+      "soup": "Sabaw",
+      "carb": "Kanin at Pancit",
+      "appetizer": "Pampagana / Meryenda",
+      "dessert": "Panghimagas",
+      "drink": "Inumin",
+      "other": "Iba Pa"
     },
     "unit": {
       "piece": "pcs",

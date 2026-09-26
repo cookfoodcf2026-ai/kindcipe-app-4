@@ -515,6 +515,7 @@ export default function ShoppingTab() {
       Alert.alert("確認失敗", friendlyError(e));
     },
     onSuccess: (_data, variables) => {
+      utils.shopping.list.invalidate();
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleShoppingNotification(variables.itemName || "食材");
       });

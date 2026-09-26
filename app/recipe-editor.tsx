@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
+import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { friendlyError } from "@/lib/errors";
@@ -59,15 +60,11 @@ const CATEGORY_OPTIONS = [
   { key: "其他",   label: "其他",   icon: "grid-outline" },
 ] as const;
 
-const DISH_TYPE_OPTIONS = [
-  { key: "",         label: "未指定（自動判斷）", icon: "help-circle-outline" },
-  { key: "主菜",     label: "主菜（肉類）",       icon: "restaurant-outline" },
-  { key: "海鮮",     label: "海鮮/蛋白",          icon: "fish-outline" },
-  { key: "蔬菜",     label: "蔬菜/小炒",          icon: "leaf-outline" },
-  { key: "湯水",     label: "湯水",               icon: "water-outline" },
-  { key: "甜品",     label: "甜品",               icon: "ice-cream-outline" },
-  { key: "飲品",     label: "飲品",               icon: "cafe-outline" },
-] as const;
+const DISH_TYPE_OPTIONS = DISH_TYPE_KEYS.map((key) => ({
+  key,
+  label: `enums.dishType.${key}`,
+  icon: DISH_TYPE_ICONS[key],
+}));
 
 type Ingredient = { id: string; name: string; quantity: string; unit: string };
 type Step = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
@@ -93,7 +90,7 @@ export default function RecipeEditorScreen() {
   const [cookTime, setCookTime] = useState("30");
   const [difficulty, setDifficulty] = useState("中等");
   const [category, setCategory] = useState("中菜");
-  const [dishType, setDishType] = useState("");
+  const [dishType, setDishType] = useState<DishTypeKey | "">("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [tags, setTags] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
@@ -176,7 +173,7 @@ const scrollToFocused = useCallback((e: any) => {
       setCookTime(String(r.cookTime ?? 30));
       setDifficulty(r.difficulty ?? "中等");
       setCategory(r.recipeCategory ?? "中菜");
-      setDishType(r.dishType ?? "");
+      setDishType(r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name ?? ""));
       setSourceUrl(r.sourceUrl ?? "");
       setTags((r.tags || []).join(" "));
       setImageError(false);
@@ -226,7 +223,7 @@ const scrollToFocused = useCallback((e: any) => {
     setCookTime(String(d.cookTime ?? 30));
     setDifficulty(d.difficulty ?? "中等");
     setCategory(d.recipeCategory ?? "中菜");
-    setDishType(d.dishType ?? "");
+    setDishType(d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name ?? ""));
     setSourceUrl(d.sourceUrl ?? "");
     setTags((d.tags || []).join(" "));
     setImageError(false);
@@ -435,6 +432,7 @@ const scrollToFocused = useCallback((e: any) => {
     if (!numRe.test(servings.trim())) { Alert.alert("份量", "請輸入正整數（例如 2、4）"); return; }
     if (!numRe.test(cookTime.trim())) { Alert.alert("烹調時間", "請輸入正整數（分鐘）"); return; }
     if (!numRe.test(prepTime.trim())) { Alert.alert("備料時間", "請輸入正整數（分鐘）"); return; }
+    if (!dishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
 
     setIsSaving(true);
     setSaveStep(0);
@@ -474,7 +472,7 @@ const scrollToFocused = useCallback((e: any) => {
         cookTime: parseInt(cookTime) || 30,
         difficulty,
         recipeCategory: category,
-        dishType: dishType || undefined,
+        dishType,
         tags: recipeTags.length > 0 ? recipeTags : ["自訂"],
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
@@ -739,24 +737,24 @@ const scrollToFocused = useCallback((e: any) => {
             <Text style={st.cardTitle}>{t("editor.recipeInfo")}</Text>
           </View>
 
-          <Text style={t(st.label as any)}>{t("editor.recipeNameReq")}</Text>
+          <Text style={st.label}>{t("editor.recipeNameReq")}</Text>
           <TextInput style={st.input} value={name} onChangeText={setName}
             onFocus={scrollToFocused}
             placeholder={t("editor.namePlaceholder")} placeholderTextColor={HINT} />
 
-          <Text style={t(st.label as any)}>{t("importRecipe.desc")}</Text>
+          <Text style={st.label}>{t("importRecipe.desc")}</Text>
           <TextInput style={[st.input, st.multi]} value={description} onChangeText={setDescription}
             onFocus={scrollToFocused}
             placeholder={t("importRecipe.descPlaceholder")} placeholderTextColor={HINT} multiline numberOfLines={2} />
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={t(st.label as any)}>{t("editor.prepTime")}</Text>
+              <Text style={st.label}>{t("editor.prepTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={prepTime}
                 onChangeText={setPrepTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={t(st.label as any)}>{t("editor.cookTime")}</Text>
+              <Text style={st.label}>{t("editor.cookTime")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={cookTime}
                 onChangeText={setCookTime} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
@@ -764,12 +762,12 @@ const scrollToFocused = useCallback((e: any) => {
 
           <View style={st.row2}>
             <View style={{ flex: 1 }}>
-              <Text style={t(st.label as any)}>{t("editor.servings")}</Text>
+              <Text style={st.label}>{t("editor.servings")}</Text>
               <TextInput style={[st.input, { textAlign: "center" }]} value={servings}
                 onChangeText={setServings} onFocus={scrollToFocused} keyboardType="numeric" placeholderTextColor={HINT} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={t(st.label as any)}>{t("importRecipe.difficulty")}</Text>
+              <Text style={st.label}>{t("importRecipe.difficulty")}</Text>
               <View style={{ flexDirection: "row", gap: 6 }}>
                 {DIFFICULTY_OPTIONS.map(d => (
                   <TouchableOpacity key={d}
@@ -782,7 +780,7 @@ const scrollToFocused = useCallback((e: any) => {
             </View>
           </View>
 
-          <Text style={t(st.label as any)}>{t("shopping.category")}</Text>
+          <Text style={st.label}>{t("shopping.category")}</Text>
           <View style={st.catGrid}>
             {CATEGORY_OPTIONS.map(opt => (
               <TouchableOpacity key={opt.key}
@@ -797,7 +795,7 @@ const scrollToFocused = useCallback((e: any) => {
           <Text style={[st.label, { marginTop: 12 }]}>{t("editor.dishType")} <Text style={st.hintTxt}>{t("editor.dishTypeHint")}</Text></Text>
           <View style={st.catGrid}>
             {DISH_TYPE_OPTIONS.map(opt => (
-              <TouchableOpacity key={opt.key || "auto"}
+              <TouchableOpacity key={opt.key}
                 style={[st.catChip, dishType === opt.key && st.catChipActive]}
                 onPress={() => setDishType(opt.key)}>
                 <Ionicons name={opt.icon as any} size={18} color={dishType === opt.key ? "#fff" : BRAND} />
@@ -833,7 +831,7 @@ const scrollToFocused = useCallback((e: any) => {
             autoCorrect={false}
             keyboardType="url"
           />
-          <Text style={t(st.hint as any)}>{t("editor.sourceUrlHint")}</Text>
+          <Text style={st.hint}>{t("editor.sourceUrlHint")}</Text>
         </View>
 
         {/* Ingredients */}

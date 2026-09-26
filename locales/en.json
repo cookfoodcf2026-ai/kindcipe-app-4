@@ -294,6 +294,8 @@
     "q_dislike": "(Step {{n}}/4) Anything you don't eat? (type ingredients or none)",
     "userMsg3": "3 dishes + 1 soup ({{n}} pax)",
     "replyTonight": "Here is tonight’s 3 dishes + 1 soup:",
+    "foundMealDishesSoup": "Found {{dishes}} dishes + {{soups}} soup(s) in the library:",
+    "foundMealDishes": "Found {{dishes}} dishes in the library:",
     "thinking": "Thinking...",
     "loadingStep1": "Understanding your request...",
     "loadingStep2": "Preparing response...",
@@ -407,6 +409,17 @@
       "pet": "Pet",
       "other": "Other",
       "soup": "Soup"
+    },
+    "dishType": {
+      "meat": "Meat dish",
+      "seafood": "Seafood / Protein",
+      "vegetable": "Veggie / Stir-fry",
+      "soup": "Soup",
+      "carb": "Rice & Noodles",
+      "appetizer": "Starter / Snack",
+      "dessert": "Dessert",
+      "drink": "Drink",
+      "other": "Other"
     },
     "unit": {
       "piece": "pc",

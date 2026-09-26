@@ -40,8 +40,8 @@ export default function AdSlot({ onPressUpgrade }: AdSlotProps) {
         <Ionicons name="sparkles" size={18} color="#FFFFFF" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={t(s.title as any)}>{t("adSlot.upgradeTitle")}</Text>
-        <Text style={t(s.subtitle as any)}>{t("adSlot.upgradeSubtitle")}</Text>
+        <Text style={s.title}>{t("adSlot.upgradeTitle")}</Text>
+        <Text style={s.subtitle}>{t("adSlot.upgradeSubtitle")}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#B45309" />
     </TouchableOpacity>

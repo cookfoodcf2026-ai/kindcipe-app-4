@@ -539,16 +539,13 @@ export default function PlannerTab() {
                   })(),
                 }));
 
-                const suggestedShoppingDate = (() => {
-                  const dayBefore = getDayBefore(itemDateStr);
-                  const today = todayISO();
-                  return dayBefore < today ? today : dayBefore;
-                })();
                 setPickerRecipe({
                   id: `day_${item.dayOfWeek}_ai`,
                   name: `${DAY_LABELS[item.dayOfWeek]} 晚餐推薦食材`,
                   ingredients: mergedIngredients,
-                  date: suggestedShoppingDate,
+                  // date = 排餐日（meal date）。購物日由 modal 用 defaultBuyDate=排餐日前一日 計算，
+                  // 避免之前 double getDayBefore 導致 off-by-one。
+                  date: itemDateStr,
                 });
               } else {
                 router.push("/(tabs)/shopping");
@@ -777,6 +774,11 @@ export default function PlannerTab() {
     }
     return map;
   }, [mealPlans]);
+
+  // 只要當週有排餐，就預載食譜（否則「加入購物車 / 確認」會搵唔到食材）
+  useEffect(() => {
+    if (!shouldLoadRecipes && mealPlans.length > 0) setShouldLoadRecipes(true);
+  }, [mealPlans.length, shouldLoadRecipes]);
 
   const weekDays = useMemo(() => {
     const days: { dateStr: string; date: Date; dayIndex: number; dayOfWeek: number }[] = [];
@@ -1179,10 +1181,16 @@ export default function PlannerTab() {
           fromMealPlanId: mp.id,
         });
       } else {
-        showToast("無法獲取食譜食材", "error");
+        if (!shouldLoadRecipes) {
+          // 首次入嚟未載食譜 → 觸發載入，叫用戶再試一次
+          setShouldLoadRecipes(true);
+          showToast("載入食譜中，請再試一次", "info");
+        } else {
+          showToast("無法獲取食譜食材", "error");
+        }
       }
     },
-    [officialRecipes, userRecipes, showToast],
+    [officialRecipes, userRecipes, showToast, shouldLoadRecipes],
   );
 
   const handleConfirmMeal = useCallback(
@@ -1819,6 +1827,9 @@ export default function PlannerTab() {
         alreadyAddedKeys={pickerAlreadyAddedKeys}
         onConfirm={(items) => {
           if (items.length > 0) {
+            // 合成 id（day_X_ai）唔係真 recipe ref，唔好當 fromRecipeId 用
+            const firstId = items[0].recipeId || "";
+            const realRecipeId = /^(official_|user_)/.test(firstId) ? firstId : undefined;
             addShoppingBatchM.mutate({
               items: items.map((i) => ({
                 name: i.name,
@@ -1827,7 +1838,7 @@ export default function PlannerTab() {
                 category: i.category,
                 mealDate: i.mealDate,  // 用餐日（標籤）
               })),
-              fromRecipeId: items[0].recipeId,
+              fromRecipeId: realRecipeId,
               fromRecipeName: items[0].recipeName,
               fromMealPlanId: items[0].fromMealPlanId,
               plannedDate: items[0].plannedDate,  // 採買日（購物車歸類日期）

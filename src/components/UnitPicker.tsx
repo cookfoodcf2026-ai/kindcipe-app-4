@@ -168,7 +168,7 @@ export default function UnitPicker(
         <View style={s_unit.overlay}>
           <View style={s_unit.sheet}>
             <View style={s_unit.header}>
-              <Text style={t(s_unit.title as any)}>{t("unit.title")}</Text>
+              <Text style={s_unit.title}>{t("unit.title")}</Text>
               <TouchableOpacity onPress={() => setOpen(false)}>
                 <Text style={s_unit.closeBtn}>{t("unit.done")}</Text>
               </TouchableOpacity>
