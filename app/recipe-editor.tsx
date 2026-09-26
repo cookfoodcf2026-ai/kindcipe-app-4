@@ -17,7 +17,8 @@ import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
-import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
+import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, type DishTypeKey } from "@/lib/dishType";
+import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { friendlyError } from "@/lib/errors";
@@ -48,17 +49,7 @@ const extractSourceUrl = (raw: string): string => {
 };
 
 const DIFFICULTY_OPTIONS = ["簡單", "中等", "困難"];
-const SUGGESTED_TAGS = ["蒸", "炒", "炆", "焗", "煎", "炸", "燉", "涼拌", "烤", "紅燒", "清淡", "鹹香", "酸甜", "辛辣", "鮮味", "家常菜", "快手菜", "宴客菜", "高蛋白", "低卡", "素食", "減脂餐", "小朋友", "30 分鐘內"];
-const CATEGORY_OPTIONS = [
-  { key: "中菜",   label: "中菜",   icon: "restaurant-outline" },
-  { key: "西餐",   label: "西餐",   icon: "leaf-outline" },
-  { key: "日式",   label: "日式",   icon: "fish-outline" },
-  { key: "韓式",   label: "韓式",   icon: "flame-outline" },
-  { key: "東南亞", label: "東南亞", icon: "restaurant-outline" },
-  { key: "甜品",   label: "甜品",   icon: "star-outline" },
-  { key: "飲品",   label: "飲品",   icon: "cafe-outline" },
-  { key: "其他",   label: "其他",   icon: "grid-outline" },
-] as const;
+const CATEGORY_OPTIONS = CUISINE_OPTIONS;
 
 const DISH_TYPE_OPTIONS = DISH_TYPE_KEYS.map((key) => ({
   key,
@@ -89,7 +80,7 @@ export default function RecipeEditorScreen() {
   const [prepTime, setPrepTime] = useState("15");
   const [cookTime, setCookTime] = useState("30");
   const [difficulty, setDifficulty] = useState("中等");
-  const [category, setCategory] = useState("中菜");
+  const [category, setCategory] = useState("");
   const [dishType, setDishType] = useState<DishTypeKey | "">("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [tags, setTags] = useState("");
@@ -172,8 +163,8 @@ const scrollToFocused = useCallback((e: any) => {
       setPrepTime(String(r.prepTime ?? 15));
       setCookTime(String(r.cookTime ?? 30));
       setDifficulty(r.difficulty ?? "中等");
-      setCategory(r.recipeCategory ?? "中菜");
-      setDishType(r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name ?? ""));
+      setCategory(normalizeCuisine(r.recipeCategory) ?? "");
+      setDishType(r.dishType ? normalizeDishType(r.dishType) : "");
       setSourceUrl(r.sourceUrl ?? "");
       setTags((r.tags || []).join(" "));
       setImageError(false);
@@ -222,8 +213,8 @@ const scrollToFocused = useCallback((e: any) => {
     setPrepTime(String(d.prepTime ?? 15));
     setCookTime(String(d.cookTime ?? 30));
     setDifficulty(d.difficulty ?? "中等");
-    setCategory(d.recipeCategory ?? "中菜");
-    setDishType(d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name ?? ""));
+    setCategory(normalizeCuisine(d.recipeCategory) ?? "");
+    setDishType(d.dishType ? normalizeDishType(d.dishType) : "");
     setSourceUrl(d.sourceUrl ?? "");
     setTags((d.tags || []).join(" "));
     setImageError(false);
@@ -432,7 +423,12 @@ const scrollToFocused = useCallback((e: any) => {
     if (!numRe.test(servings.trim())) { Alert.alert("份量", "請輸入正整數（例如 2、4）"); return; }
     if (!numRe.test(cookTime.trim())) { Alert.alert("烹調時間", "請輸入正整數（分鐘）"); return; }
     if (!numRe.test(prepTime.trim())) { Alert.alert("備料時間", "請輸入正整數（分鐘）"); return; }
-    if (!dishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
+    // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
+    const missing: string[] = [];
+    if (!isKnownCuisine(category)) missing.push("分類");
+    if (!dishType) missing.push("菜式類型");
+    if (tags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push("常用標籤");
+    if (missing.length > 0) { Alert.alert("請填寫必填資料", `請填：${missing.join("、")}`); return; }
 
     setIsSaving(true);
     setSaveStep(0);
@@ -506,7 +502,7 @@ const scrollToFocused = useCallback((e: any) => {
     if (
       name.trim() || description.trim() || sourceUrl.trim() || tags.trim() ||
       servings !== "4" || prepTime !== "15" || cookTime !== "30" ||
-      difficulty !== "中等" || category !== "中菜" || dishType !== ""
+      difficulty !== "中等" || category !== "" || dishType !== ""
     ) return true;
     if (ingredients.some(i => i.name.trim())) return true;
     if (steps.some(s => s.instruction.trim())) return true;
@@ -787,7 +783,7 @@ const scrollToFocused = useCallback((e: any) => {
                 style={[st.catChip, category === opt.key && st.catChipActive]}
                 onPress={() => setCategory(opt.key)}>
                 <Ionicons name={opt.icon as any} size={18} color={category === opt.key ? "#fff" : BRAND} />
-                <Text style={[st.catLabel, category === opt.key && st.catLabelActive]}>{t(opt.label as any)}</Text>
+                <Text style={[st.catLabel, category === opt.key && st.catLabelActive]}>{t(opt.key as any)}</Text>
               </TouchableOpacity>
             ))}
           </View>

@@ -562,6 +562,9 @@ export interface ParsedRecipe {
   servings?: number;
   imageUrl?: string;
   sourceUrl?: string;
+  recipeCategory?: string;
+  dishType?: string;
+  tags?: string[];
 }
 
 export interface RecipeImageUrl {

@@ -22,7 +22,8 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
-import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
+import { DISH_TYPE_KEYS, normalizeDishType, type DishTypeKey } from "@/lib/dishType";
+import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -50,7 +51,7 @@ export default function ImportScreen() {
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
   const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("中菜");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
@@ -128,8 +129,8 @@ export default function ImportScreen() {
     setEditCookTime(String(recipe.cookTime || 30));
     setEditServings(String(recipe.servings || 4));
     setEditDifficulty(recipe.difficulty || "中等");
-    setSelectedCategory(recipe.recipeCategory || "中菜");
-    setEditDishType(recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || ""));
+    setSelectedCategory(normalizeCuisine(recipe.recipeCategory) ?? "");
+    setEditDishType(recipe.dishType ? normalizeDishType(recipe.dishType) : "");
     setEditTags((recipe.tags || []).join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
@@ -726,7 +727,12 @@ export default function ImportScreen() {
   // Save edited recipe with overlay
   const handleSaveEdited = async () => {
     if (!editName.trim()) { Alert.alert("請輸入食譜名稱"); return; }
-    if (!editDishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
+    // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
+    const missing: string[] = [];
+    if (!isKnownCuisine(selectedCategory)) missing.push("分類");
+    if (!editDishType) missing.push("菜式類型");
+    if (editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push("常用標籤");
+    if (missing.length > 0) { Alert.alert("請填寫必填資料", `請填：${missing.join("、")}`); return; }
     const validIngredients = editIngredients.filter(i => i.name.trim());
     const validSteps = editSteps.filter(s => s.instruction.trim());
     if (validIngredients.length === 0) { Alert.alert("請至少輸入一種食材"); return; }
@@ -948,9 +954,9 @@ export default function ImportScreen() {
 
             <Text style={es.label}>{t("shopping.category")}</Text>
             <View style={es.categoryRow}>
-              {["中菜","西餐","日式","韓式","東南亞","甜品","飲品","其他"].map(cat => (
-                <TouchableOpacity key={cat} style={[es.chip, selectedCategory === cat && es.chipActive]} onPress={() => setSelectedCategory(cat)}>
-                  <Text style={[es.chipTxt, selectedCategory === cat && es.chipTxtActive]}>{cat}</Text>
+              {CUISINE_OPTIONS.map(opt => (
+                <TouchableOpacity key={opt.key} style={[es.chip, selectedCategory === opt.key && es.chipActive]} onPress={() => setSelectedCategory(opt.key)}>
+                  <Text style={[es.chipTxt, selectedCategory === opt.key && es.chipTxtActive]}>{t(opt.key as any)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -966,6 +972,23 @@ export default function ImportScreen() {
 
             <Text style={[es.label, { marginTop: 14 }]}>{t("filter.tags")}</Text>
             <TextInput style={es.input} value={editTags} onChangeText={setEditTags} placeholder={t("importRecipe.tagsPlaceholder")} placeholderTextColor="#B0BAC9" />
+            <View style={es.categoryRow}>
+              {SUGGESTED_TAGS.map(tag => {
+                const active = editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).includes(tag);
+                return (
+                  <TouchableOpacity key={tag} style={[es.chip, active && es.chipActive]} onPress={() => {
+                    setEditTags(prev => {
+                      const list = prev.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean);
+                      const idx = list.findIndex(x => x === tag);
+                      if (idx >= 0) list.splice(idx, 1); else list.push(tag);
+                      return list.join(" ");
+                    });
+                  }}>
+                    <Text style={[es.chipTxt, active && es.chipTxtActive]}>{t(tag as any)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Ingredients */}

@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DIRS = ["app", "src/components", "hooks", "lib"];
 const EXCLUDE_DIRS = ["node_modules", "locales", "__tests__", "e2e", ".expo"];
 // Files that are pure data dictionaries (bilingual maps / normalisation regexes), not UI.
-const SKIP_FILES = ["lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "lib/i18nEnums.ts"];
+const SKIP_FILES = ["lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "lib/i18nEnums.ts", "lib/taxonomy.ts", "lib/dishType.ts"];
 const ALLOW_SUBSTR = [
   "nameYue", "nameZh", "nameFil", "nameId", "nameEn",
   "DEFAULT_CATEGORIES", "CATEGORY_", "HOUSEHOLD_CATEGORIES",

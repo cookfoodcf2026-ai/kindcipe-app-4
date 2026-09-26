@@ -12,6 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS } from "@/lib/dishType";
+import { CUISINE_OPTIONS } from "@/lib/taxonomy";
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#013E77";
@@ -194,7 +195,7 @@ export default function AdminScreen() {
   const [form, setForm] = useState({
     name: "", nameEn: "", description: "", image: "",
     cookTime: "20", servings: "2", difficulty: "簡單",
-    recipeCategory: "其他", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
+    recipeCategory: "", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60",
     isKol: false, // KOL 食譜標記
   });
 
@@ -233,7 +234,12 @@ export default function AdminScreen() {
   const handleSave = () => {
     if (!form.name.trim()) { Alert.alert("請輸入菜名"); return; }
     if (!form.image.trim()) { Alert.alert("請輸入圖片網址"); return; }
-    if (!form.dishType) { Alert.alert("請選擇菜式類型", "菜式類型影響「3 餸 1 湯」配搭，請揀一個。"); return; }
+    // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
+    const missing: string[] = [];
+    if (!form.recipeCategory) missing.push("分類");
+    if (!form.dishType) missing.push("菜式類型");
+    if (!form.tags.split(",").map(s => s.trim()).filter(Boolean).length) missing.push("常用標籤");
+    if (missing.length > 0) { Alert.alert("請填寫必填資料", `請填：${missing.join("、")}`); return; }
     const payload = {
       name: form.name,
       nameEn: form.nameEn || undefined,
@@ -362,7 +368,7 @@ export default function AdminScreen() {
                 <TouchableOpacity
                   style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: BRAND, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 }}
                   onPress={() => {
-                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "其他", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60", isKol: false });
+                    setForm({ name: "", nameEn: "", description: "", image: "", cookTime: "20", servings: "2", difficulty: "簡單", recipeCategory: "", dishType: "", tags: "", reelAuthor: "", reelUrl: "", estimatedCost: "60", isKol: false });
                     setShowForm(true);
                   }}
                 >
@@ -389,7 +395,7 @@ export default function AdminScreen() {
                       <View style={{ flex: 1 }}><FF label={t("admin.servingsPax")} value={form.servings} onChange={v => setForm(p => ({ ...p, servings: v }))} keyboardType="numeric" /></View>
                     </View>
                     <FS label={t("importRecipe.difficulty")} value={form.difficulty} onChange={v => setForm(p => ({ ...p, difficulty: v }))} options={["簡單", "中等", "困難"]} />
-                    <FS label={t("shopping.category")} value={form.recipeCategory} onChange={v => setForm(p => ({ ...p, recipeCategory: v }))} options={[["中菜", "中菜"], ["西餐", "西餐"], ["日式", "日式"], ["韓式", "韓式"], ["東南亞", "東南亞"], ["甜品", "甜品"], ["飲品", "飲品"], ["其他", "其他"]]} />
+                    <FS label={t("shopping.category")} value={form.recipeCategory} onChange={v => setForm(p => ({ ...p, recipeCategory: v }))} options={CUISINE_OPTIONS.map(o => [o.key, t(o.key as any)] as [string, string])} />
                     <FS label={t("editor.dishType")} value={form.dishType} onChange={v => setForm(p => ({ ...p, dishType: v }))} options={DISH_TYPE_KEYS.map(k => [k, t(`enums.dishType.${k}` as any)] as [string, string])} />
                     <FF label={t("admin.tagsLabel")} value={form.tags} onChange={v => setForm(p => ({ ...p, tags: v }))} placeholder={t("admin.tagsPlaceholder")} />
                     <FF label={t("admin.igSource")} value={form.reelAuthor} onChange={v => setForm(p => ({ ...p, reelAuthor: v }))} placeholder="@kiuu922" />
