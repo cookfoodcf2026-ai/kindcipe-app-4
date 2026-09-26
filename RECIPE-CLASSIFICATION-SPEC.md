@@ -101,3 +101,48 @@ tags?: string[]
 
 > 注意：糖水屬 `dishType = dessert`（唔係 soup），已正確。
 
+## 9. Backfill Quickstart（可直接跑）
+
+骨架檔：`backend-handoff/backfill-recipe-classification.ts`（copy 去後端 repo，例如 `scripts/`）。
+
+### 步驟
+1. Copy 骨架去後端 repo。
+2. 實作兩個 adapter：
+   ```ts
+   const store: RecipeStore = {
+     async findBatch({ only, skip, take }) { /* prisma.recipe.findMany(...) */ return []; },
+     async update(id, patch) { /* prisma.recipe.update({ where: { id }, data: patch }) */ },
+   };
+   const llm: LlmClient = {
+     async classify(prompt) { /* DashScope/Qwen → JSON.parse */ return {}; },
+   };
+   ```
+3. 解除檔尾 `main()` 註解。
+4. **先 dry-run**（唔會寫 DB）：
+   ```bash
+   npx tsx scripts/backfill-recipe-classification.ts --dry-run --limit=20
+   ```
+   檢查 log 嘅 before/after 同統計報表。
+5. 冇問題再寫入：
+   ```bash
+   npx tsx scripts/backfill-recipe-classification.ts --write --batch=5
+   ```
+6. 完成後跑一次驗收（第 7 節）。
+
+### 參數
+| 參數 | 作用 |
+|---|---|
+| `--dry-run` | 預設，只 log 唔寫 |
+| `--write` | 真正寫入 DB |
+| `--limit=N` | 最多處理 N 條 |
+| `--batch=N` | 每批幾條（預設 10） |
+| `--only=official\|user\|kol\|all` | 限定來源 |
+| `--resume` | 續跑（略過已處理） |
+
+### 安全
+- dry-run 預設、分批限速、idempotent（可重覆跑）
+- 舊英文值一律重分類，唔會亂當「中菜」
+- 湯類會補 `滾湯/煲湯/老火湯` tag（dishType 維持 `soup`）
+- 建議**先 backfill，後 enforce**（server 必填）
+
+
