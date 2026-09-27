@@ -37,7 +37,7 @@ export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string }>();
+  const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string; sharedText?: string; sharedImageUri?: string }>();
   const isOnboarding = params.onboarding === "true";
   const { user: authUser } = useAuth();
   
@@ -292,6 +292,42 @@ export default function ImportScreen() {
         setClipboardUrl(url);
         setDetectedPlatform(platform);
       }
+    }
+
+    // 由系統 Share Sheet 分享過嚟嘅純文字（非連結）
+    if (params.sharedText) {
+      const txt = String(params.sharedText);
+      if (isValidUrl(txt.trim())) {
+        setUniversalInput(txt.trim());
+        const platform = detectPlatform(txt);
+        if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+          setClipboardUrl(txt.trim());
+          setDetectedPlatform(platform);
+        }
+      } else {
+        setUniversalInput(txt);
+      }
+    }
+
+    // 由系統 Share Sheet 分享過嚟嘅圖片 → 當截圖處理
+    if (params.sharedImageUri) {
+      const uri = String(params.sharedImageUri);
+      (async () => {
+        try {
+          const compressed = await compressImage(uri);
+          setPendingScreenshot({
+            uri: compressed.uri,
+            base64: compressed.base64 || "",
+            mimeType: compressed.mimeType,
+          });
+        } catch {
+          setPendingScreenshot({ uri, base64: "", mimeType: "image/jpeg" });
+        }
+        setUniversalInput("");
+        setClipboardUrl(null);
+        setDetectedPlatform(null);
+        setStep("input");
+      })();
     }
   }, []);
 

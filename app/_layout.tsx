@@ -14,6 +14,7 @@ import "react-native-gesture-handler";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, createTrpcClient } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
@@ -88,6 +89,44 @@ const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number
     return null;
   }
 };
+
+/**
+ * 接收系統 Share Sheet（IG / YouTube / 小紅書 / Safari…）分享過嚟嘅內容，
+ * 分流去 /import：連結 → clipboardUrl、純文字 → sharedText、圖片 → sharedImageUri。
+ */
+function ShareIntentBridge() {
+  const router = useRouter();
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+
+  useEffect(() => {
+    if (!hasShareIntent) return;
+    try {
+      const rawText = String(shareIntent.text ?? "").trim();
+      const webUrl = shareIntent.webUrl || (rawText && isValidUrl(rawText) ? rawText : "");
+      const text = webUrl ? "" : rawText;
+      const imgFile = (shareIntent.files ?? []).find((f: any) =>
+        String(f?.mimeType ?? "").startsWith("image/"),
+      );
+      const sharedImageUri = imgFile?.path ? String(imgFile.path) : "";
+      if (webUrl || text || sharedImageUri) {
+        router.push({
+          pathname: "/import",
+          params: {
+            ...(webUrl ? { clipboardUrl: webUrl } : {}),
+            ...(text ? { sharedText: text } : {}),
+            ...(sharedImageUri ? { sharedImageUri } : {}),
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("[ShareIntent] handle failed:", e);
+    } finally {
+      resetShareIntent();
+    }
+  }, [hasShareIntent, shareIntent, router, resetShareIntent]);
+
+  return null;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -402,6 +441,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
       {children}
+      <ShareIntentBridge />
       <OfflineBanner />
       {showLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
@@ -468,15 +508,21 @@ export default function RootLayout() {
 
   if (!langReady) return null;
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary fallback={<CrashScreen />}>
-        <I18nextProvider i18n={i18n}>
-          <trpc.Provider client={trpcClient} queryClient={queryClient}>
-            <QueryClientProvider client={queryClient}>
-              <ToastProvider>
-                <StatusBar style="light" />
-                <AuthGuard>
-                  <Stack
+    <ShareIntentProvider
+      options={{
+        debug: __DEV__,
+        resetOnBackground: false,
+      }}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ErrorBoundary fallback={<CrashScreen />}>
+          <I18nextProvider i18n={i18n}>
+            <trpc.Provider client={trpcClient} queryClient={queryClient}>
+              <QueryClientProvider client={queryClient}>
+                <ToastProvider>
+                  <StatusBar style="light" />
+                  <AuthGuard>
+                    <Stack
                   screenOptions={{
                     headerStyle: { backgroundColor: "#013E77" },
                     headerTintColor: "#fff",
@@ -544,7 +590,8 @@ export default function RootLayout() {
           </QueryClientProvider>
         </trpc.Provider>
       </I18nextProvider>
-    </ErrorBoundary>
-    </GestureHandlerRootView>
+      </ErrorBoundary>
+      </GestureHandlerRootView>
+    </ShareIntentProvider>
   );
 }

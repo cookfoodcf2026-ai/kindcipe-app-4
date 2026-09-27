@@ -68,6 +68,18 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.690207937492-epsg13ch62s93cmav0nkfieeeoq6r3db"
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
+          },
+          "androidIntentFilters": ["text/*", "image/*"]
+        }
       ]
     ],
     "scheme": "kindcipe",
