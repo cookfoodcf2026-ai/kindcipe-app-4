@@ -22,7 +22,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
-import { DISH_TYPE_KEYS, normalizeDishType, type DishTypeKey } from "@/lib/dishType";
+import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
@@ -129,9 +129,13 @@ export default function ImportScreen() {
     setEditCookTime(String(recipe.cookTime || 30));
     setEditServings(String(recipe.servings || 4));
     setEditDifficulty(recipe.difficulty || "中等");
-    setSelectedCategory(normalizeCuisine(recipe.recipeCategory) ?? "");
-    setEditDishType(recipe.dishType ? normalizeDishType(recipe.dishType) : "");
-    setEditTags((recipe.tags || []).join(" "));
+    // 自動填：AI 有值用 AI，冇值用兜底（分類「其他」、dishType 由菜名推斷、標籤「家常菜」）
+    setSelectedCategory(normalizeCuisine(recipe.recipeCategory) ?? "其他");
+    setEditDishType(
+      recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || "")
+    );
+    const parsedTags: string[] = (recipe.tags || []).map((x: any) => String(x)).filter(Boolean);
+    setEditTags((parsedTags.length ? parsedTags : ["家常菜"]).join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
         id: `ing_${i}`,
