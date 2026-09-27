@@ -17,6 +17,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.kindcipe.app",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "需要存取相片庫以上傳食譜截圖",
         "NSCameraUsageDescription": "需要存取相機以拍攝食譜截圖",
         "NSClipboardUsageDescription": "偵測剪貼板中的食譜連結",
