@@ -251,7 +251,7 @@ const scrollToFocused = useCallback((e: any) => {
       await invalidateRecipesAndWeekly();
       goToRecipeDetail(data?.id);
     },
-    onError: (e) => { setIsSaving(false); Alert.alert("儲存失敗", friendlyError(e)); },
+    onError: (e) => { setIsSaving(false); Alert.alert(t("儲存失敗" as any), friendlyError(e)); },
   });
   const updateM = trpc.recipes.updateUser.useMutation({
     onSuccess: async () => {
@@ -266,7 +266,7 @@ const scrollToFocused = useCallback((e: any) => {
       }
       goToRecipeDetail(hitId);
     },
-    onError: (e) => { setIsSaving(false); Alert.alert("更新失敗", friendlyError(e)); },
+    onError: (e) => { setIsSaving(false); Alert.alert(t("更新失敗" as any), friendlyError(e)); },
   });
 
   // 草稿專用 mutations：無導航副作用，由 saveDraftAndLeave 自己控制離開
@@ -297,13 +297,13 @@ const scrollToFocused = useCallback((e: any) => {
     if (source === "camera") {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("需要相機權限", "請在系統設定中允許存取相機，才能拍攝食譜圖片。");
+        Alert.alert(t("需要相機權限" as any), t("請在系統設定中允許存取相機，才能拍攝食譜圖片。" as any));
         return;
       }
     } else {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("需要相簿權限", "請在系統設定中允許存取相簿，才能選擇圖片。");
+        Alert.alert(t("需要相簿權限" as any), t("請在系統設定中允許存取相簿，才能選擇圖片。" as any));
         return;
       }
     }
@@ -344,7 +344,7 @@ const scrollToFocused = useCallback((e: any) => {
   const askImageSource = (kind: "cover" | "step", idx?: number) => {
     const onPick = (source: "camera" | "library") => {
       captureFromSource(source, kind, idx).catch((e: any) => {
-        Alert.alert("無法開啟相機/相簿", friendlyError(e) || "請檢查權限設定");
+        Alert.alert(t("無法開啟相機/相簿" as any), friendlyError(e) || t("請檢查權限設定" as any));
       });
     };
     if (Platform.OS === "ios") {
@@ -359,7 +359,7 @@ const scrollToFocused = useCallback((e: any) => {
         },
       );
     } else {
-      Alert.alert("加入圖片", "選擇來源", [
+      Alert.alert(t("加入圖片" as any), t("選擇來源" as any), [
         { text: t("📷 影相" as any), onPress: () => onPick("camera") },
         { text: t("🖼 從相簿選擇" as any), onPress: () => onPick("library") },
         { text: t("取消" as any), style: "cancel" },
@@ -412,23 +412,23 @@ const scrollToFocused = useCallback((e: any) => {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { Alert.alert("請輸入食譜名稱"); return; }
+    if (!name.trim()) { Alert.alert(t("請輸入食譜名稱" as any)); return; }
     const validIngredients = ingredients.filter(i => i.name.trim());
     const validSteps = steps.filter(s => s.instruction.trim());
-    if (validIngredients.length === 0) { Alert.alert("請至少輸入一種食材"); return; }
-    if (validSteps.length === 0) { Alert.alert("請至少輸入一個步驟"); return; }
+    if (validIngredients.length === 0) { Alert.alert(t("請至少輸入一種食材" as any)); return; }
+    if (validSteps.length === 0) { Alert.alert(t("請至少輸入一個步驟" as any)); return; }
 
     // Numeric field validation (prevent NaN / negative values)
     const numRe = /^(\d+)$/;
-    if (!numRe.test(servings.trim())) { Alert.alert("份量", "請輸入正整數（例如 2、4）"); return; }
-    if (!numRe.test(cookTime.trim())) { Alert.alert("烹調時間", "請輸入正整數（分鐘）"); return; }
-    if (!numRe.test(prepTime.trim())) { Alert.alert("備料時間", "請輸入正整數（分鐘）"); return; }
+    if (!numRe.test(servings.trim())) { Alert.alert(t("份量" as any), t("請輸入正整數（例如 2、4）" as any)); return; }
+    if (!numRe.test(cookTime.trim())) { Alert.alert(t("烹調時間" as any), t("請輸入正整數（分鐘）" as any)); return; }
+    if (!numRe.test(prepTime.trim())) { Alert.alert(t("備料時間" as any), t("請輸入正整數（分鐘）" as any)); return; }
     // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
     const missing: string[] = [];
-    if (!isKnownCuisine(category)) missing.push("分類");
-    if (!dishType) missing.push("菜式類型");
-    if (tags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push("常用標籤");
-    if (missing.length > 0) { Alert.alert("請填寫必填資料", `請填：${missing.join("、")}`); return; }
+    if (!isKnownCuisine(category)) missing.push(t("分類" as any));
+    if (!dishType) missing.push(t("菜式類型" as any));
+    if (tags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push(t("常用標籤" as any));
+    if (missing.length > 0) { Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") })); return; }
 
     setIsSaving(true);
     setSaveStep(0);
@@ -469,7 +469,7 @@ const scrollToFocused = useCallback((e: any) => {
         difficulty,
         recipeCategory: category,
         dishType,
-        tags: recipeTags.length > 0 ? recipeTags : ["自訂"],
+        tags: recipeTags.length > 0 ? recipeTags : [t("自訂" as any)],
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
         })),
@@ -493,7 +493,7 @@ const scrollToFocused = useCallback((e: any) => {
       clearInterval(timer);
       saveTimerRef.current = null;
       setIsSaving(false);
-      Alert.alert("儲存失敗", friendlyError(e) || "圖片上傳失敗，請重試");
+      Alert.alert(t("儲存失敗" as any), friendlyError(e) || t("圖片上傳失敗，請重試" as any));
     }
   };
 
@@ -553,7 +553,7 @@ const scrollToFocused = useCallback((e: any) => {
       }
       const recipeTags = tags.split(/[\s,，]+/).map(t => t.replace(/^#/, "").trim()).filter(t => t.length > 0);
       const recipeData: any = {
-        name: name.trim() || "未命名草稿",
+        name: name.trim() || t("未命名草稿" as any),
         description: description.trim(),
         image: imageUrl,
         thumbnailUrl: imageUrl,
@@ -564,7 +564,7 @@ const scrollToFocused = useCallback((e: any) => {
         difficulty,
         recipeCategory: category,
         dishType: dishType || undefined,
-        tags: recipeTags.length > 0 ? recipeTags : ["自訂"],
+        tags: recipeTags.length > 0 ? recipeTags : [t("自訂" as any)],
         ingredients: ingredients.map(i => ({
           name: i.name || "", quantity: i.quantity, unit: i.unit || "克", category: "食材",
         })),
@@ -595,7 +595,7 @@ const scrollToFocused = useCallback((e: any) => {
       }
     } catch (e: any) {
       setIsSaving(false);
-      Alert.alert("儲存草稿失敗", friendlyError(e) || "請重試");
+      Alert.alert(t("儲存草稿失敗" as any), friendlyError(e) || t("請重試" as any));
       return;
     }
     setIsSaving(false);
@@ -608,7 +608,7 @@ const scrollToFocused = useCallback((e: any) => {
     if (!hasUnsaved) { leave(opts); return; }
     // 已發佈食譜編輯中途 → 唔會用草稿覆蓋，只問「放棄」
     if (isEditing && !isDraft) {
-      Alert.alert("放棄編輯？", "已輸入的內容將不會保存", [
+      Alert.alert(t("放棄編輯？" as any), t("已輸入的內容將不會保存" as any), [
         { text: t("繼續編輯" as any), style: "cancel" },
         { text: t("放棄" as any), style: "destructive", onPress: () => leave(opts) },
       ]);
@@ -616,7 +616,7 @@ const scrollToFocused = useCallback((e: any) => {
     }
     // 全新／草稿 → Instagram 式「儲存草稿？」
     Alert.alert(
-      "儲存草稿？",
+      t("儲存草稿？" as any),
       isComplete ? t("內容完整，可先儲存為草稿，之後隨時發佈。" as any) : t("未完成嘅食譜會保存為草稿，之後可繼續編輯。" as any),
       [
         { text: t("取消" as any), style: "cancel" },
@@ -635,14 +635,14 @@ const scrollToFocused = useCallback((e: any) => {
       setAllowLeave(true);
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
   });
   const handleDeleteDraft = useCallback(() => {
     const id = draftId != null ? draftId
       : isDraft && editingId != null ? editingId
       : null;
     if (id == null) return;
-    Alert.alert("刪除草稿？", "草稿刪除後無法復原。", [
+    Alert.alert(t("刪除草稿？" as any), t("草稿刪除後無法復原。" as any), [
       { text: t("取消" as any), style: "cancel" },
       { text: t("刪除" as any), style: "destructive", onPress: () => deleteDraftM.mutate({ id }) },
     ]);
@@ -673,7 +673,7 @@ const scrollToFocused = useCallback((e: any) => {
     <>
       <Stack.Screen
         options={{
-          title: isDraft ? "草稿 ✏️" : (isEditing ? "編輯食譜" : "新增食譜 ✨"),
+          title: isDraft ? t("草稿 ✏️" as any) : (isEditing ? t("編輯食譜" as any) : t("新增食譜 ✨" as any)),
           headerShown: true,
           headerBackTitle: '',
           headerBackButtonMenuEnabled: false,
@@ -821,7 +821,7 @@ const scrollToFocused = useCallback((e: any) => {
           <Text style={[st.label, { marginTop: 16 }]}>{t("editor.sourceUrl")}</Text>
           <TextInput style={st.input} value={sourceUrl} onChangeText={setSourceUrl}
             onFocus={scrollToFocused}
-            placeholder="例：https://www.instagram.com/reel/xxx 或 YouTube 連結"
+            placeholder={t("例：https://www.instagram.com/reel/xxx 或 YouTube 連結" as any)}
             placeholderTextColor={HINT}
             autoCapitalize="none"
             autoCorrect={false}
@@ -964,7 +964,7 @@ const scrollToFocused = useCallback((e: any) => {
               <ActivityIndicator size="large" color={BRAND} />
               <Text style={st.overlayTitle}>{t("editor.saving")}</Text>
               <View style={st.overlaySteps}>
-                {["驗證資料...", "上載圖片...", "儲存到食譜庫..."].map((s, i) => (
+                {[t("驗證資料..." as any), t("上載圖片..." as any), t("儲存到食譜庫..." as any)].map((s, i) => (
                   <View key={s} style={st.overlayStep}>
                     {i < saveStep ? (
                       <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
