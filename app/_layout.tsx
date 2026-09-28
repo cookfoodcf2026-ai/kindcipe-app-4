@@ -95,7 +95,6 @@ const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number
  * 分流去 /import：連結 → clipboardUrl、純文字 → sharedText、圖片 → sharedImageUri。
  */
 function ShareIntentBridge() {
-  const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
 
   useEffect(() => {
@@ -108,22 +107,21 @@ function ShareIntentBridge() {
         String(f?.mimeType ?? "").startsWith("image/"),
       );
       const sharedImageUri = imgFile?.path ? String(imgFile.path) : "";
-      if (webUrl || text || sharedImageUri) {
-        router.push({
-          pathname: "/import",
-          params: {
-            ...(webUrl ? { clipboardUrl: webUrl } : {}),
-            ...(text ? { sharedText: text } : {}),
-            ...(sharedImageUri ? { sharedImageUri } : {}),
-          },
-        });
+      const params: Record<string, string> = {
+        ...(webUrl ? { clipboardUrl: webUrl } : {}),
+        ...(text ? { sharedText: text } : {}),
+        ...(sharedImageUri ? { sharedImageUri } : {}),
+      };
+      if (Object.keys(params).length > 0) {
+        // 未登入都可以先暫存，登入後由 AuthGuard 自動匯入
+        AsyncStorage.setItem("kindcipe_pending_share", JSON.stringify(params)).catch(() => {});
       }
     } catch (e) {
       console.warn("[ShareIntent] handle failed:", e);
     } finally {
       resetShareIntent();
     }
-  }, [hasShareIntent, shareIntent, router, resetShareIntent]);
+  }, [hasShareIntent, shareIntent, resetShareIntent]);
 
   return null;
 }
@@ -306,6 +304,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const promptClipboardImport = useCallback(async () => {
     try {
+      const disabled = await AsyncStorage.getItem("kindcipe_clipboard_autodetect_disabled");
+      if (disabled === "1") return;
       const text = await Clipboard.getStringAsync();
       if (!text || !isValidUrl(text.trim())) return;
       const platform = detectPlatform(text);
@@ -328,6 +328,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         t("發現 {{platform}} 連結，是否立即匯入？" as any, { platform }),
         [
           { text: t("取消" as any), style: "cancel" },
+          {
+            text: t("不再自動偵測" as any),
+            style: "cancel",
+            onPress: () => { AsyncStorage.setItem("kindcipe_clipboard_autodetect_disabled", "1").catch(() => {}); },
+          },
           {
             text: t("匯入食譜" as any),
             onPress: () => {
@@ -365,6 +370,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     });
     return () => sub.remove();
   }, [isLoggedIn, isTabsGroup, promptClipboardImport]);
+
+  // 分享入嚟（Share Extension）而當時未登入 → 登入後自動匯入
+  useEffect(() => {
+    if (!isLoggedIn || !onboardingDone) return;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem("kindcipe_pending_share");
+        if (!raw) return;
+        await AsyncStorage.removeItem("kindcipe_pending_share");
+        const p = JSON.parse(raw);
+        if (p && typeof p === "object") {
+          router.push({ pathname: "/import", params: p });
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [isLoggedIn, onboardingDone, router]);
 
   useEffect(() => {
     (async () => {

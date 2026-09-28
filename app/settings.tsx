@@ -242,6 +242,16 @@ export default function SettingsScreen() {
   const [promoCode, setPromoCode] = useState("");
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [promoState, setPromoState] = useState<"idle" | "redeeming" | "done">("idle");
+  const [autoDetect, setAutoDetect] = useState(true);
+  useEffect(() => {
+    AsyncStorage.getItem("kindcipe_clipboard_autodetect_disabled")
+      .then((v) => setAutoDetect(v !== "1"))
+      .catch(() => {});
+  }, []);
+  const toggleAutoDetect = (val: boolean) => {
+    setAutoDetect(val);
+    AsyncStorage.setItem("kindcipe_clipboard_autodetect_disabled", val ? "0" : "1").catch(() => {});
+  };
 
   const redeemPromoM = trpc.subscription.redeemTrialCode.useMutation({
     onSuccess: async (res) => {
@@ -443,6 +453,16 @@ export default function SettingsScreen() {
                 {promoMsg ? <Text style={styles.promoErrorText}>{promoMsg}</Text> : null}
               </>
             )}
+          </View>
+        )}
+
+        {/* 自動偵測剪貼板連結 */}
+        {isAuthenticated && (
+          <View style={styles.promoCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 14, color: "#1A1A1A", flex: 1, paddingRight: 12 }}>{t("settings.clipboardAutoDetect" as any)}</Text>
+              <Switch value={autoDetect} onValueChange={toggleAutoDetect} />
+            </View>
           </View>
         )}
 

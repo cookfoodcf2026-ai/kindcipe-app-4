@@ -235,7 +235,8 @@
     "editNameUpdated": "已更新",
     "editNameUpdatedMsg": "用戶名稱已更新。",
     "nameUpdatedFailed": "更新失敗",
-    "followIg": "追蹤 IG 攞 7 日 Pro"
+    "followIg": "追蹤 IG 攞 7 日 Pro",
+    "clipboardAutoDetect": "自動偵測剪貼板連結"
   },
   "errors": {},
   "aiChef": {
@@ -1760,5 +1761,6 @@
   "清除全部 AI 食譜": "清除全部 AI 食譜",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "確定刪除所有 AI 生成食譜？此動作無法還原。",
   "清除 AI 食譜（{{n}}）": "清除 AI 食譜（{{n}}）",
-  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}"
+  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}",
+  "不再自動偵測": "不再自動偵測"
 }
