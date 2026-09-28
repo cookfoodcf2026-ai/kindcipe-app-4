@@ -1,9 +1,8 @@
 /**
- * 登入頁面 v5 — 真實 Email / Google / Apple 登入
- * - Email 登入：直接呼叫後端 trpc.auth.emailLogin
- * - Email 註冊：直接呼叫後端 trpc.auth.emailRegister
- * - Google 登入：@react-native-google-signin/google-signin → POST /api/auth/google
- * - Apple 登入：expo-apple-authentication → POST /api/auth/apple
+ * 登入頁面 v6 — 極簡 Apple / Google 登入
+ * - 只保留 Apple + Google 登入（確保資料跟隨用戶嘅 Apple/Google 帳戶）
+ * - 隱藏管理員入口：連點 Logo 5 下 → 顯示 email/密碼管理員登入
+ * - Email 登入：只供管理員用（trpc.auth.adminLogin）
  */
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
@@ -20,6 +19,7 @@ import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, se
 import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
 
 // Check if native modules are available (dev build vs Expo Go)
 import { NativeModules } from "react-native";
@@ -30,6 +30,7 @@ const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FAF8F5";
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://kindcipe.com/privacy/";
 
 // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
 try {
@@ -56,6 +57,19 @@ export default function LoginScreen() {
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const utils = trpc.useUtils();
 
+  // 隱藏管理員入口：連點 Logo 5 下
+  const logoTaps = useRef(0);
+  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onLogoTap = () => {
+    logoTaps.current += 1;
+    if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
+    logoTapTimer.current = setTimeout(() => { logoTaps.current = 0; }, 1500);
+    if (logoTaps.current >= 5) {
+      logoTaps.current = 0;
+      setMode("admin");
+    }
+  };
+
   // Apple Sign-In availability (async; native module may not register synchronously in the New Architecture).
   const [appleAvailable, setAppleAvailable] = useState<boolean>(hasAppleAuth);
   useEffect(() => {
@@ -72,9 +86,6 @@ export default function LoginScreen() {
   const adminLoginMutation = trpc.auth.adminLogin.useMutation();
 
   // ── After successful login ──────────────────────────────────────────────────
-  // 登入後不直接跳到 tabs，讓 _layout.tsx 的 AuthGuard 根據 onboarding 狀態決定路由
-  // 如果是新用戶（未完成 onboarding）→ 自動跳到 /onboarding
-  // 如果是舊用戶（已完成 onboarding）→ 自動跳到 /(tabs)
   const onLoginSuccess = async (method: string = "email") => {
     track(Events.LoginCompleted, { method });
     await AsyncStorage.removeItem(FAMILY_ID_KEY);
@@ -97,7 +108,7 @@ export default function LoginScreen() {
     router.replace("/admin");
   };
 
-  // ── Email Login / Register ──────────────────────────────────────────────────
+  // ── Email Login / Register (admin only) ─────────────────────────────────────
   const handleEmailSubmit = async () => {
     if (!email.trim()) { Alert.alert(t("auth.enterEmail")); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -126,7 +137,6 @@ export default function LoginScreen() {
           name: name.trim(),
         }) as { token?: string; requiresVerification?: boolean; email?: string };
         if (reg?.requiresVerification) {
-          // Account created — confirm the emailed code before signing in.
           router.push({ pathname: "/verify-email", params: { email: reg.email ?? email.trim() } } as any);
           return;
         }
@@ -140,7 +150,6 @@ export default function LoginScreen() {
         await onLoginSuccess(mode === "register" ? "email_register" : "email_login");
       }
     } catch (err: any) {
-      // Unverified email → send the user to the verification screen.
       if (err?.data?.code === "PRECONDITION_FAILED") {
         setIsLoading(false);
         router.push({ pathname: "/verify-email", params: { email: email.trim() } } as any);
@@ -171,7 +180,7 @@ export default function LoginScreen() {
       if (Platform.OS !== "ios") {
         await GoogleSignin.hasPlayServices();
       }
-      
+
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) throw new Error("No ID token");
@@ -241,7 +250,7 @@ export default function LoginScreen() {
       setLoadingType("");
     }
   };
-  
+
   return (
     <SafeAreaView style={styles.root} testID="login-screen">
       <KeyboardAvoidingView
@@ -253,182 +262,132 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo */}
+          {/* Logo（連點 5 下 = 管理員入口） */}
           <View style={styles.logoSection}>
-            <Image
-              source={getAppLogo()}
-              style={{ width: 192, height: 192, resizeMode: "contain" }}
-            />
-            <Text style={styles.tagline}>{t("auth.tagline")}</Text>
-          </View>
-
-          {/* Mode Toggle */}
-            <View style={styles.modeToggle}>
-              <TouchableOpacity
-                testID="login-mode-login"
-                style={[styles.modeBtn, mode === "login" && styles.modeBtnActive]}
-                onPress={() => setMode("login")}
-              >
-              <Text style={[styles.modeBtnText, mode === "login" && styles.modeBtnTextActive]}>
-                {t("登入" as any)}
-              </Text>
+            <TouchableOpacity activeOpacity={1} onPress={onLogoTap}>
+              <Image
+                source={getAppLogo()}
+                style={{ width: 220, height: 220, resizeMode: "contain" }}
+              />
             </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modeBtn, mode === "register" && styles.modeBtnActive]}
-                onPress={() => setMode("register")}
-              >
-                <Text style={[styles.modeBtnText, mode === "register" && styles.modeBtnTextActive]}>
-                  {t("建立帳號" as any)}
-                </Text>
-              </TouchableOpacity>
+            <Text style={styles.appName}>{t("auth.appName" as any)}</Text>
+            <Text style={styles.slogan}>{t("auth.slogan" as any)}</Text>
           </View>
 
-          {/* Social Login First */}
-          {mode !== "admin" && (
-            <>
-              <View style={styles.socialSection}>
-                <View>
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={[styles.socialBtn, !appleAvailable && styles.socialBtnDisabled]}
-                      onPress={handleAppleSignIn}
-                      disabled={isLoading}
-                      activeOpacity={0.85}
-                    >
-                      {isLoading && loadingType === "apple" ? (
-                        <ActivityIndicator color={BRAND} size="small" />
-                      ) : (
-                        <Ionicons name="logo-apple" size={20} color={BRAND} />
-                      )}
-                      <Text style={styles.socialBtnText}>{t("auth.appleLogin")}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <View>
-                  <TouchableOpacity
-                    style={[styles.socialBtn, !hasGoogleSignin && styles.socialBtnDisabled]}
-                    onPress={handleGoogleSignIn}
-                    disabled={isLoading}
-                    activeOpacity={0.85}
-                  >
-                    {isLoading && loadingType === "google" ? (
-                      <ActivityIndicator color="#DB4437" size="small" />
-                    ) : (
-                      <Ionicons name="logo-google" size={20} color="#DB4437" />
-                    )}
-                    <Text style={styles.socialBtnText}>{t("auth.googleLogin")}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>{t("auth.orEmail")}</Text>
-                <View style={styles.dividerLine} />
-              </View>
-            </>
-          )}
-
-          {/* Email Form */}
-          <View style={styles.form}>
-            {mode === "register" && (
+          {mode === "admin" ? (
+            /* 管理員登入（隱藏） */
+            <View style={styles.form}>
+              <Text style={styles.adminTitle}>{t("auth.adminLoginTitle" as any)}</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
                 <TextInput
-                  testID="login-name"
+                  testID="login-email"
                   style={styles.input}
-                  placeholder={t("auth.namePlaceholder")}
+                  placeholder={t("auth.emailPlaceholder")}
                   placeholderTextColor="#9CA3AF"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   returnKeyType="next"
                 />
               </View>
-            )}
-
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                testID="login-email"
-                style={styles.input}
-                placeholder={t("auth.emailPlaceholder")}
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="next"
-              />
-            </View>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-              <TextInput
-                testID="login-password"
-                style={[styles.input, { flex: 1 }]}
-                placeholder={mode === "register" ? t("密碼（至少 8 個字元）" as any) : t("密碼" as any)}
-                placeholderTextColor="#9CA3AF"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleEmailSubmit}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
-                  color="#9CA3AF"
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+                <TextInput
+                  testID="login-password"
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder={t("密碼" as any)}
+                  placeholderTextColor="#9CA3AF"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleEmailSubmit}
                 />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={18}
+                    color="#9CA3AF"
+                  />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                testID="login-submit"
+                style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+                onPress={handleEmailSubmit}
+                disabled={isLoading}
+                activeOpacity={0.85}
+              >
+                {isLoading && loadingType === "email" ? <ActivityIndicator color="#fff" size="small" /> : null}
+                <Text style={styles.submitBtnText}>{t("登入" as any)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push("/forgot-password")} style={{ alignItems: "center", marginTop: 4 }}>
+                <Text style={{ fontSize: 13, color: COPPER, fontWeight: "600" }}>{t("auth.forgotPassword")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setMode("login")} style={{ alignItems: "center", marginTop: 6 }}>
+                <Text style={{ fontSize: 13, color: "#9CA3AF" }}>{t("auth.backToUserLogin" as any)}</Text>
               </TouchableOpacity>
             </View>
-
-            {mode === "login" && (
-              <TouchableOpacity style={styles.forgotRow} onPress={() => router.push("/forgot-password")}>
-                <Text style={styles.forgotText}>{t("auth.forgotPassword")}</Text>
+          ) : (
+            /* 用戶：只留 Apple + Google */
+            <View style={styles.socialSection}>
+              {Platform.OS === "ios" && (
+                <TouchableOpacity
+                  style={[styles.appleBtn, (!appleAvailable || isLoading) && styles.socialBtnDisabled]}
+                  onPress={handleAppleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.85}
+                >
+                  {isLoading && loadingType === "apple" ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Ionicons name="logo-apple" size={22} color="#fff" />
+                  )}
+                  <Text style={styles.appleBtnText}>{t("auth.appleLogin")}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.googleBtn, (!hasGoogleSignin || isLoading) && styles.socialBtnDisabled]}
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+                activeOpacity={0.85}
+              >
+                {isLoading && loadingType === "google" ? (
+                  <ActivityIndicator color="#DB4437" size="small" />
+                ) : (
+                  <Ionicons name="logo-google" size={22} color="#DB4437" />
+                )}
+                <Text style={styles.googleBtnText}>{t("auth.googleLogin")}</Text>
               </TouchableOpacity>
-            )}
+            </View>
+          )}
 
+          {/* 私隱同意 */}
+          <TouchableOpacity
+            style={styles.privacyRow}
+            onPress={() => { if (PRIVACY_URL) WebBrowser.openBrowserAsync(PRIVACY_URL); }}
+          >
+            <Text style={styles.privacyText}>{t("auth.privacyAgree" as any)}</Text>
+          </TouchableOpacity>
+
+          {/* 開發用：重置 App 資料（只喺 dev build 顯示） */}
+          {__DEV__ && (
             <TouchableOpacity
-              testID="login-submit"
-              style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
-              onPress={handleEmailSubmit}
-              disabled={isLoading}
-              activeOpacity={0.85}
+              onPress={async () => {
+                await AsyncStorage.clear();
+                Alert.alert(t("auth.resetDone" as any), t("auth.resetDoneMsg" as any));
+              }}
+              style={{ marginTop: 12, alignItems: "center", paddingVertical: 8 }}
             >
-              {isLoading && loadingType === "email" ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : null}
-              <Text style={styles.submitBtnText}>
-                {mode === "register" ? t("建立帳號" as any) : t("登入" as any)}
+              <Text style={{ fontSize: 11, color: "#D1D5DB", textDecorationLine: "underline" }}>
+                {t("auth.resetDev" as any)}
               </Text>
             </TouchableOpacity>
-
-            {mode === "admin" && (
-              <Text style={styles.adminHint}>{t("auth.adminHint")}</Text>
-            )}
-          </View>
-
-          <Text style={styles.disclaimer}>
-            {t("auth.disclaimer" as any)}
-          </Text>
-
-          {/* 開發用：重置 App 資料 */}
-          <TouchableOpacity
-            onPress={async () => {
-              await AsyncStorage.clear();
-              Alert.alert(t("auth.resetDone" as any), t("auth.resetDoneMsg" as any));
-            }}
-            style={{ marginTop: 12, alignItems: "center", paddingVertical: 8 }}
-          >
-            <Text style={{ fontSize: 11, color: "#D1D5DB", textDecorationLine: "underline" }}>
-              {t("auth.resetDev" as any)}
-            </Text>
-          </TouchableOpacity>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -468,33 +427,16 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
-  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 52, paddingBottom: 32 },
+  content: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 28, paddingTop: 40, paddingBottom: 28 },
 
   // Logo
-  logoSection: { alignItems: "center", marginBottom: 28 },
-  tagline: { fontSize: 12, color: "#9CA3AF", marginTop: 6, letterSpacing: 0.5 },
+  logoSection: { alignItems: "center", marginBottom: 32 },
+  appName: { fontSize: 20, fontWeight: "800", color: BRAND, marginTop: 4 },
+  slogan: { fontSize: 14, color: "#6B7280", marginTop: 10, textAlign: "center", lineHeight: 20, paddingHorizontal: 12 },
 
-  // Mode Toggle
-  modeToggle: {
-    flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  modeBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center",
-  },
-  modeBtnActive: {
-    backgroundColor: "#fff",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
-  },
-  modeBtnText: { fontSize: 14, fontWeight: "600", color: "#9CA3AF" },
-  modeBtnTextActive: { color: BRAND, fontWeight: "800" },
-
-  // Form
+  // Form (admin)
   form: { gap: 12 },
+  adminTitle: { fontSize: 16, fontWeight: "800", color: BRAND, textAlign: "center", marginBottom: 4 },
   inputWrapper: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#F9FAFB",
@@ -503,45 +445,33 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, fontSize: 15, color: "#1A1A1A" },
-  forgotRow: { alignItems: "flex-end" },
-  forgotText: { fontSize: 13, color: COPPER, fontWeight: "600" },
 
-  // Submit Button
+  // Submit (admin)
   submitBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     backgroundColor: BRAND, borderRadius: 12,
     paddingVertical: 15, marginTop: 4,
-    shadowColor: BRAND, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 8, elevation: 5,
   },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  adminHint: { fontSize: 12, color: "#6B7280", marginTop: 10, textAlign: "center" },
-
-  // Divider
-  divider: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    marginVertical: 20,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dividerText: { fontSize: 12, color: "#9CA3AF" },
 
   // Social
-  socialSection: { gap: 12 },
-  socialBtn: {
+  socialSection: { gap: 14 },
+  appleBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: "#fff",
-    borderWidth: 1.5, borderColor: "#E5E7EB",
-    borderRadius: 12, paddingVertical: 13,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+    backgroundColor: "#000000", borderRadius: 12, paddingVertical: 16,
   },
-  socialBtnText: { fontSize: 15, fontWeight: "700", color: BRAND },
+  appleBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  googleBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5, borderColor: "#E5E7EB",
+    borderRadius: 12, paddingVertical: 16,
+  },
+  googleBtnText: { fontSize: 16, fontWeight: "700", color: "#1A1A1A" },
   socialBtnDisabled: { opacity: 0.4 },
 
-  // Disclaimer
-  disclaimer: {
-    fontSize: 11, color: "#9CA3AF", textAlign: "center", marginTop: 20,
-    lineHeight: 16,
-  },
+  // Privacy
+  privacyRow: { marginTop: 28, alignItems: "center" },
+  privacyText: { fontSize: 11, color: "#9CA3AF", textAlign: "center" },
 });

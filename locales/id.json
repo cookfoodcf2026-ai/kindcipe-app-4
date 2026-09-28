@@ -772,7 +772,12 @@
     "disclaimer": "Dengan masuk, Anda menyetujui Ketentuan Layanan dan Kebijakan Privasi kami",
     "resetDev": "Reset data aplikasi (dev)",
     "resetDone": "Dibersihkan",
-    "resetDoneMsg": "Data aplikasi direset. Silakan mulai ulang aplikasi."
+    "resetDoneMsg": "Data aplikasi direset. Silakan mulai ulang aplikasi.",
+    "appName": "Kindcipe",
+    "slogan": "Mau masak apa? Sekali ketuk untuk 3 lauk + 1 sup, sinkron dengan keluarga.",
+    "privacyAgree": "Dengan masuk, Anda menyetujui Kebijakan Privasi",
+    "adminLoginTitle": "Login admin",
+    "backToUserLogin": "Kembali ke login pengguna"
   },
   "notFound": {
     "title": "Halaman ini tidak ada",

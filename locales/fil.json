@@ -772,7 +772,12 @@
     "disclaimer": "Sa pag-log in, sumasang-ayon ka sa aming Mga Tuntunin at Patakaran sa Privacy",
     "resetDev": "I-reset ang data ng app (dev)",
     "resetDone": "Na-clear",
-    "resetDoneMsg": "Na-reset ang data ng app. Pakirestart ang app."
+    "resetDoneMsg": "Na-reset ang data ng app. Pakirestart ang app.",
+    "appName": "Kindcipe",
+    "slogan": "Anong lutuin? Isang tap para sa 3 ulam + 1 sopas, sabay sa pamilya.",
+    "privacyAgree": "Sa pag-sign in, sumasang-ayon ka sa Privacy Policy",
+    "adminLoginTitle": "Admin login",
+    "backToUserLogin": "Bumalik sa user login"
   },
   "notFound": {
     "title": "Wala ang page na ito",

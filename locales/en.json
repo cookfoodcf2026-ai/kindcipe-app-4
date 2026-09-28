@@ -772,7 +772,12 @@
     "disclaimer": "By logging in you agree to our Terms of Service and Privacy Policy",
     "resetDev": "Reset app data (dev)",
     "resetDone": "Cleared",
-    "resetDoneMsg": "App data reset. Please restart the app."
+    "resetDoneMsg": "App data reset. Please restart the app.",
+    "appName": "Kindcipe",
+    "slogan": "What's for dinner? One tap to plan 3 dishes + 1 soup and sync with the family.",
+    "privacyAgree": "By signing in you agree to the Privacy Policy",
+    "adminLoginTitle": "Admin login",
+    "backToUserLogin": "Back to user login"
   },
   "notFound": {
     "title": "This page doesn't exist",
