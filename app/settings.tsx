@@ -410,6 +410,14 @@ export default function SettingsScreen() {
               <Text style={styles.promoDoneText}>{promoMsg}</Text>
             ) : (
               <>
+                {process.env.EXPO_PUBLIC_INSTAGRAM_URL ? (
+                  <TouchableOpacity
+                    style={[styles.promoBtn, { marginBottom: 10 }]}
+                    onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_INSTAGRAM_URL as string)}
+                  >
+                    <Text style={styles.promoBtnText}>{t("settings.followIg")}</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <View style={styles.promoRow}>
                   <TextInput
                     style={styles.promoInput}

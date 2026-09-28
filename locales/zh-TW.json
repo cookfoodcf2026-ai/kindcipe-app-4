@@ -234,7 +234,8 @@
     "editNameEmpty": "名稱不能為空",
     "editNameUpdated": "已更新",
     "editNameUpdatedMsg": "用戶名稱已更新。",
-    "nameUpdatedFailed": "更新失敗"
+    "nameUpdatedFailed": "更新失敗",
+    "followIg": "追蹤 IG 攞 7 日 Pro"
   },
   "errors": {},
   "aiChef": {
