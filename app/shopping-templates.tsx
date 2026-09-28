@@ -174,7 +174,7 @@ export default function ShoppingTemplatesScreen() {
     // 載入模板
     const template = SHOPPING_TEMPLATES.find(t => t.id === list.template);
     if (!template) {
-      Alert.alert("錯誤", "找不到對應嘅模板");
+      Alert.alert("錯誤", t("找不到對應嘅模板" as any));
       return;
     }
     
@@ -190,7 +190,7 @@ export default function ShoppingTemplatesScreen() {
   const deleteSavedList = async (listId: string) => {
     Alert.alert(
       "刪除清單",
-      "確定要刪除呢個清單？",
+      t("確定要刪除呢個清單？" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -417,7 +417,7 @@ export default function ShoppingTemplatesScreen() {
   const handleConfirmAddToCart = () => {
     if (!selectedTemplate) return;
     if (totalSelectedCount === 0) {
-      Alert.alert("未選取任何食材", "請至少勾選一項食材");
+      Alert.alert("未選取任何食材", t("請至少勾選一項食材" as any));
       return;
     }
 
@@ -459,7 +459,7 @@ export default function ShoppingTemplatesScreen() {
   const handleAASplit = () => {
     const total = parseFloat(actualSpent);
     if (isNaN(total) || total <= 0) {
-      Alert.alert("輸入錯誤", "請輸入正確的消費總金額");
+      Alert.alert("輸入錯誤", t("請輸入正確的消費總金額" as any));
       return;
     }
     const perPerson = (total / peopleCount).toFixed(1);
@@ -477,7 +477,7 @@ export default function ShoppingTemplatesScreen() {
           onPress: async () => {
             await Clipboard.setStringAsync(message);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("已複製到剪貼簿", "可以去 WhatsApp 貼上俾隊友啦！");
+            Alert.alert("已複製到剪貼簿", t("可以去 WhatsApp 貼上俾隊友啦！" as any));
             setShowAASplitModal(false);
             setActualSpent("");
           }
@@ -547,7 +547,7 @@ export default function ShoppingTemplatesScreen() {
 
     await Clipboard.setStringAsync(text);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("複製成功", "已生成雙語買餸清單，快去貼上俾姐姐或幫手啦！");
+    Alert.alert("複製成功", t("已生成雙語買餸清單，快去貼上俾姐姐或幫手啦！" as any));
     setShowShareModal(false);
   };
 
@@ -620,7 +620,7 @@ export default function ShoppingTemplatesScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "未安裝 WhatsApp",
-        "已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App",
+        t("已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App" as any),
         [{ text: t("確定" as any) }]
       );
     }

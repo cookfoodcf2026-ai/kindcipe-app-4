@@ -67,7 +67,7 @@ export default function SettingsScreen() {
   }, []);
 
   const handleLogout = () => {
-    Alert.alert("登出", "確定要登出嗎？", [
+    Alert.alert("登出", t("確定要登出嗎？" as any), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("登出" as any),
@@ -85,7 +85,7 @@ export default function SettingsScreen() {
       await utils.invalidate();
       await utils.auth.me.invalidate();
       router.replace("/login");
-      Alert.alert("已刪除", "帳戶已永久刪除。");
+      Alert.alert("已刪除", t("帳戶已永久刪除。" as any));
     },
     onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
   });
@@ -111,8 +111,8 @@ export default function SettingsScreen() {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "刪除帳戶",
-      "呢個操作會永久刪除你嘅帳戶同所有資料（食譜、排餐、購物清單、訂閱等），無法復原。確定要刪除嗎？",
+      t("刪除帳戶" as any),
+      t("呢個操作會永久刪除你嘅帳戶同所有資料（食譜、排餐、購物清單、訂閱等），無法復原。確定要刪除嗎？" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -190,7 +190,7 @@ export default function SettingsScreen() {
     await saveMealReminderSetting(next);
     const ok = await applyMealReminder(next);
     if (next.enabled && !ok) {
-      Alert.alert("通知權限", "未能取得通知權限，提醒未開啟。請到系統設定開啟通知。", [
+      Alert.alert("通知權限", t("未能取得通知權限，提醒未開啟。請到系統設定開啟通知。" as any), [
         { text: t("確定" as any) },
       ]);
       setReminderEnabled(false);
@@ -211,7 +211,7 @@ export default function SettingsScreen() {
   const applyReminderTimeText = () => {
     const m = reminderTimeText.trim().match(/^(\d{1,2}):(\d{2})$/);
     if (!m) {
-      Alert.alert("時間格式", "請輸入 HH:MM（例如 19:30）", [{ text: t("確定" as any) }]);
+      Alert.alert("時間格式", t("請輸入 HH:MM（例如 19:30）" as any), [{ text: t("確定" as any) }]);
       return;
     }
     const hour = Math.min(23, Math.max(0, Number(m[1])));

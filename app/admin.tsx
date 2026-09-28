@@ -148,7 +148,7 @@ export default function AdminScreen() {
       utils.recipes.adminListKol.invalidate(); utils.recipes.listKol.invalidate();
       const ok = (r?.results ?? []).filter((x: any) => x.ok).length;
       const fail = (r?.results ?? []).length - ok;
-      Alert.alert("批量上架完成", `成功 ${ok}，失敗 ${fail}`);
+      Alert.alert("批量上架完成", t("成功 {{ok}}，失敗 {{fail}}" as any, { ok, fail }));
     },
     onError: (e) => Alert.alert("批量上架失敗", friendlyError(e)),
   });
@@ -211,7 +211,7 @@ export default function AdminScreen() {
       form.reelUrl.trim() ||
       (form.estimatedCost && form.estimatedCost.trim() && form.estimatedCost !== "60");
     if (hasContent) {
-      Alert.alert("確定關閉？", "已輸入嘅食譜內容將不會保存。", [
+      Alert.alert("確定關閉？", t("已輸入嘅食譜內容將不會保存。" as any), [
         { text: t("繼續編輯" as any), style: "cancel" },
         { text: t("關閉" as any), style: "destructive", onPress: () => setShowForm(false) },
       ]);
@@ -643,7 +643,7 @@ export default function AdminScreen() {
                     <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{r.name}</Text>
                     <Text style={{ fontSize: 11, color: SUB }} numberOfLines={1}>{r.sourceAuthor ? `${r.sourceAuthor} · ` : ""}{r.sourceUrl}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => Alert.alert("刪除", `確定刪除「${r.name}」？`, [{ text: t("recipe.cancel"), style: "cancel" }, { text: t("shopping.delete"), style: "destructive", onPress: () => deleteKolM.mutate({ id: r.id }) }])}>
+                  <TouchableOpacity onPress={() => Alert.alert("刪除", t("確定刪除「{{name}}」？" as any, { name: r.name }), [{ text: t("recipe.cancel"), style: "cancel" }, { text: t("shopping.delete"), style: "destructive", onPress: () => deleteKolM.mutate({ id: r.id }) }])}>
                     <Ionicons name="trash-outline" size={18} color="#DC2626" />
                   </TouchableOpacity>
                 </View>
@@ -746,7 +746,7 @@ function MigrateCategoriesCard({ recipes }: { recipes: any[] }) {
     }
     setMigrating(false);
     utils.recipes.listOfficial.invalidate();
-    Alert.alert(`遷移完成：${ok} 個成功，${fail} 個失敗`);
+    Alert.alert(t("遷移完成：{{ok}} 個成功，{{fail}} 個失敗" as any, { ok, fail }));
   };
 
   return (

@@ -462,7 +462,7 @@ export default function PlannerTab() {
     const toAdd = daySlots.filter(s => item[`${s}Id`] && item[`${s}Name`]);
 
     if (toAdd.length === 0) {
-      Alert.alert("本日沒有推薦的菜式", "請先使用 AI 生成或手動添加菜式");
+      Alert.alert("本日沒有推薦的菜式", t("請先使用 AI 生成或手動添加菜式" as any));
       return;
     }
 
@@ -508,8 +508,8 @@ export default function PlannerTab() {
 
       // 詢問用戶下一步操作（關鍵：分離排餐和購物清單）
       Alert.alert(
-        `✅ 已套用${DAY_LABELS[item.dayOfWeek]}的晚餐推薦`,
-        "排餐已記錄！下一步要做什麼？",
+        t("✅ 已套用{{day}}的晚餐推薦" as any, { day: DAY_LABELS[item.dayOfWeek] }),
+        t("排餐已記錄！下一步要做什麼？" as any),
         [
           {
             text: t("繼續審視其他日期" as any),
@@ -966,7 +966,7 @@ export default function PlannerTab() {
         setIsAddingMeal(false);
         setShowAddModal(false);
         addMealLockRef.current = false;
-        Alert.alert("加入失敗", "請稍後再試");
+        Alert.alert("加入失敗", t("請稍後再試" as any));
       }
     },
     [addDayIndex, addMealType, weekDays, addMealM],
@@ -1032,8 +1032,8 @@ export default function PlannerTab() {
 
   const promptSyncShoppingDate = useCallback(() => {
     Alert.alert(
-      "同步購物日期？",
-      "呢個排餐已經有相關購物清單，要唔要一齊改購物日期？",
+      t("同步購物日期？" as any),
+      t("呢個排餐已經有相關購物清單，要唔要一齊改購物日期？" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -1227,8 +1227,8 @@ export default function PlannerTab() {
         
         const shouldDelete = await new Promise<boolean>((resolve) => {
           Alert.alert(
-            "外食衝突提示",
-            `本日已有 ${mealsOnDate.length} 個餐次，設定外出將會刪除當天排餐，確定要繼續嗎？`,
+            t("外食衝突提示" as any),
+            t("本日已有 {{n}} 個餐次，設定外出將會刪除當天排餐，確定要繼續嗎？" as any, { n: mealsOnDate.length }),
             [
               { 
                 text: t("取消" as any), 
@@ -1902,11 +1902,11 @@ export default function PlannerTab() {
                   onPress={() => {
                     if (!moveMealPlanTarget || !moveMealPlanDate) return;
                     if (syncShoppingItems && syncShoppingDateMode === "custom" && !syncShoppingDate) {
-                      Alert.alert("請選擇購物日期", "請先選擇自訂購物日期");
+                      Alert.alert("請選擇購物日期", t("請先選擇自訂購物日期" as any));
                       return;
                     }
                     if (syncShoppingItems && selectedMoveShoppingDate > moveMealPlanDate) {
-                      Alert.alert("日期超出範圍", "購物日期不能遲過排餐日");
+                      Alert.alert("日期超出範圍", t("購物日期不能遲過排餐日" as any));
                       return;
                     }
                     if (relatedShoppingItems.length > 0 && moveMealPlanTarget && moveMealPlanDate !== moveMealPlanTarget.date) {
@@ -2128,7 +2128,7 @@ export default function PlannerTab() {
                             <TouchableOpacity
                               style={{ backgroundColor: "#FEE2E2", borderRadius: 6, padding: 6 }}
                               onPress={() => {
-                                Alert.alert("清除", `確定清除本日的「${t(meta.label as any)}」嗎？`, [
+                                Alert.alert("清除", t("確定清除本日的「{{label}}」嗎？" as any, { label: t(meta.label as any) }), [
                                   { text: t("取消" as any), style: "cancel" },
                                   {
                                     text: t("清除" as any),
@@ -2527,8 +2527,8 @@ function SlotPickerModal({
                 style={{ marginTop: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: "#7C3AED", alignItems: "center" }}
                 onPress={() => {
                   Alert.alert(
-                    "🤖 AI 生成食譜",
-                    `AI 生成功能已移至 AI 助手，你可以：\n\n1. 去 AI 助手輸入「生成 3 個${t(meta.label as any)}食譜」\n2. 或使用「食譜庫」揀選現有食譜`,
+                    t("🤖 AI 生成食譜" as any),
+                    t("AI 生成功能已移至 AI 助手，你可以：\n\n1. 去 AI 助手輸入「生成 3 個{{label}}食譜」\n2. 或使用「食譜庫」揀選現有食譜" as any, { label: t(meta.label as any) }),
                     [
                       { text: t("取消" as any), style: "cancel" },
                       { text: t("開啟 AI 助手" as any), onPress: () => { router.push("/ai-chef"); onClose(); } }
@@ -2640,7 +2640,7 @@ function AISuggestModalRN({
     },
     onError: (e) => {
       console.error("[AI Suggest] Error:", e);
-      let message = "AI 推薦失敗";
+      let message = t("AI 推薦失敗" as any);
       if (friendlyError(e)?.includes("食譜庫")) {
         message = friendlyError(e);
       } else if (friendlyError(e)?.includes("權限")) {
@@ -2661,8 +2661,8 @@ function AISuggestModalRN({
 
   const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
     Alert.alert(
-      "清空菜式",
-      `確定要清空週${DAY_SHORT[dayOfWeek]}${t(SLOT_META[slotType].label as any)}？`,
+      t("清空菜式" as any),
+      t("確定要清空週{{day}}{{slot}}？" as any, { day: DAY_SHORT[dayOfWeek], slot: t(SLOT_META[slotType].label as any) }),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -2864,7 +2864,7 @@ function AISuggestModalRN({
                                   if (found) {
                                     onViewRecipe(found);
                                   } else {
-                                    Alert.alert("找不到食譜詳情", "此食譜暫無詳細內容");
+                                    Alert.alert("找不到食譜詳情", t("此食譜暫無詳細內容" as any));
                                   }
                                 }}
                                 activeOpacity={0.7}
@@ -2977,7 +2977,7 @@ function AISuggestModalRN({
             }
             handleSwap(swapPreview.day, swapPreview.slot, swapPreview.dish);
             setSwapPreview(null);
-            Alert.alert(`週${DAY_SHORT[swapPreview.day]}${t(SLOT_META[swapPreview.slot].label as any)} 已更新`);
+            Alert.alert(t("週{{day}}{{slot}} 已更新" as any, { day: DAY_SHORT[swapPreview.day], slot: t(SLOT_META[swapPreview.slot].label as any) }));
           }}
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];

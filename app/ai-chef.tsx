@@ -606,7 +606,7 @@ function parseAssistantResponse(content: string) {
 
 function makeSessionTitle(msgs: Message[]): string {
   const firstUser = msgs.find(m => m.role === "user");
-  if (!firstUser) return "新對話";
+  if (!firstUser) return i18n.t("新對話" as any);
   const t = contentToText(firstUser.content).trim();
   return t.length > 30 ? t.slice(0, 30) + "..." : t;
 }
@@ -1302,7 +1302,7 @@ export default function AIChefScreen() {
 
         if (all.length === 0) {
           const newId = generateId();
-          all = [{ id: newId, title: "新對話", createdAt: Date.now(), messages: [] }];
+          all = [{ id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] }];
         }
         const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
@@ -1357,11 +1357,11 @@ export default function AIChefScreen() {
   // Auto-title: when first user message is sent, update the title
   useEffect(() => {
     if (!activeSession || !loaded) return;
-    if (activeSession.title !== "新對話") return;
+    if (activeSession.title !== t("新對話" as any)) return;
     const firstUser = activeSession.messages.find(m => m.role === "user");
     if (!firstUser) return;
     const title = makeSessionTitle(activeSession.messages);
-    if (title === "新對話") return;
+    if (title === t("新對話" as any)) return;
     setSessions(prev => {
       const idx = prev.findIndex(s => s.id === activeChatId);
       if (idx === -1) return prev;
@@ -1386,7 +1386,7 @@ export default function AIChefScreen() {
     setShowSessions(false);
 
     const newId = generateId();
-    const newSession: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
+    const newSession: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
     setSessions(prev => [newSession, ...prev]);
     setActiveChatId(newId);
     scrollToLatestMessage();
@@ -1420,7 +1420,7 @@ export default function AIChefScreen() {
             const next = prev.filter(s => s.id !== id);
             if (next.length === 0) {
               const newId = generateId();
-              const fallback: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
+              const fallback: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
               setActiveChatId(newId);
               return [fallback];
             }
@@ -1891,7 +1891,7 @@ export default function AIChefScreen() {
   // 唔會同現有對話撈埋（每次撳 = 乾淨、獨立嘅 3餸1湯）。
   const startMealFlowInNewSession = () => {
     const newId = generateId();
-    const newSession: ChatSession = { id: newId, title: "新對話", createdAt: Date.now(), messages: [] };
+    const newSession: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
     setSessions(prev => [newSession, ...prev]);
     setActiveChatId(newId);
     setMealPrefs(EMPTY_PREFS);
@@ -3103,7 +3103,7 @@ export default function AIChefScreen() {
               autoAddIngredients: false,
             });
         } catch (e: any) {
-          Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
+          Alert.alert("加入排餐失敗", friendlyError(e) || t("請稍後再試" as any));
         }
       })();
     }

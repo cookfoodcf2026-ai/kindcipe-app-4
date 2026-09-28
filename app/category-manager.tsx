@@ -47,11 +47,11 @@ export default function CategoryManagerScreen() {
     setShowAdd(false);
     setNewLabel("");
     setNewEmoji("restaurant-outline");
-    Alert.alert("已儲存", "分類設定已更新");
+    Alert.alert("已儲存", t("分類設定已更新" as any));
   }, [categories]);
 
   const handleReset = useCallback(() => {
-    Alert.alert("重設分類", "還原為預設分類設定？", [
+    Alert.alert("重設分類", t("還原為預設分類設定？" as any), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("重設" as any), style: "destructive",
@@ -85,7 +85,7 @@ export default function CategoryManagerScreen() {
     // 核心 8 大分類唔可以刪除
     const CORE_CATEGORIES = ["中菜", "西餐", "日式", "韓式", "東南亞", "甜品", "飲品", "其他"];
     if (CORE_CATEGORIES.includes(key)) {
-      Alert.alert("系統分類保護", "核心分類為 AI 週餐推薦嘅基礎，無法刪除或改名。\n\n你可以新增自訂分類，或者調整排序。");
+      Alert.alert("系統分類保護", t("核心分類為 AI 週餐推薦嘅基礎，無法刪除或改名。\n\n你可以新增自訂分類，或者調整排序。" as any));
       return;
     }
     Alert.alert("刪除分類", `確定刪除「${key}」？`, [
@@ -123,7 +123,7 @@ export default function CategoryManagerScreen() {
     if (hasPending) {
       Alert.alert(
         "確定離開？",
-        "你尚未儲存分類改動，離開後將不會保存。\n\n可以按「儲存」先保存改動。",
+        t("你尚未儲存分類改動，離開後將不會保存。\n\n可以按「儲存」先保存改動。" as any),
         [
           { text: t("繼續編輯" as any), style: "cancel" },
           { text: t("離開" as any), style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },

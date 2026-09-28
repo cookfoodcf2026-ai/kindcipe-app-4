@@ -101,7 +101,7 @@ export default function RestockScreen() {
   };
 
   const handleMarkAllRestocked = () => {
-    Alert.alert("全部標記為有貨", `確認將 ${urgentItems.length} 件商品標記為有貨？`, [
+    Alert.alert("全部標記為有貨", t("確認將 {{n}} 件商品標記為有貨？" as any, { n: urgentItems.length }), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("確認" as any),

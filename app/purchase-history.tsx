@@ -259,7 +259,7 @@ export default function PurchaseHistoryScreen() {
     onSuccess: () => {
       utils.shopping.list.invalidate();
       utils.purchaseHistory.list.invalidate();
-      Alert.alert("已移至今日", "項目已更新為今天的購買日期");
+      Alert.alert("已移至今日", t("項目已更新為今天的購買日期" as any));
     },
     onError: (e: Error) => {
       Alert.alert("更新失敗", friendlyError(e));
@@ -270,7 +270,7 @@ export default function PurchaseHistoryScreen() {
     onSuccess: () => {
       utils.shopping.list.invalidate();
       utils.purchaseHistory.list.invalidate();
-      Alert.alert("已全部移至今日", `${missedItems.length} 個項目已更新`);
+      Alert.alert("已全部移至今日", t("{{n}} 個項目已更新" as any, { n: missedItems.length }));
     },
     onError: (e: Error) => {
       Alert.alert("批量更新失敗", friendlyError(e));
@@ -291,11 +291,11 @@ export default function PurchaseHistoryScreen() {
       setEditPurchaseItem(null);
       setEditPurchasePrice("");
       setEditPurchaseQty("");
-      Alert.alert("已更新", "購買記錄已更新");
+      Alert.alert("已更新", t("購買記錄已更新" as any));
     },
     onError: (e: Error) => {
       console.error('[DEBUG] SAVE PRICE ERROR:', e);
-      Alert.alert("更新失敗", friendlyError(e) || "請檢查網絡連接");
+      Alert.alert("更新失敗", friendlyError(e) || t("請檢查網絡連接" as any));
     },
   });
 
@@ -558,8 +558,8 @@ export default function PurchaseHistoryScreen() {
                       style={{ backgroundColor: "#F59E0B", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
                       onPress={() => {
                         Alert.alert(
-                          "批量移至今日",
-                          `確定要將這 ${missedItems.length} 個項目全部移至今日嗎？`,
+                          t("批量移至今日" as any),
+                          t("確定要將這 {{n}} 個項目全部移至今日嗎？" as any, { n: missedItems.length }),
                           [
                             { text: t("取消" as any), style: "cancel" },
                             {

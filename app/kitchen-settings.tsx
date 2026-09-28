@@ -102,7 +102,7 @@ export default function KitchenSettingsScreen() {
     if (editingName && nameInput.trim().length > 0) {
       Alert.alert(
         "確定離開？",
-        "你輸入嘅廚房名稱尚未儲存，離開後將不會保存。",
+        t("你輸入嘅廚房名稱尚未儲存，離開後將不會保存。" as any),
         [
           { text: t("取消" as any), style: "cancel" },
           { text: t("離開" as any), style: "destructive", onPress: () => (router.canGoBack() ? router.back() : router.replace("/(tabs)")) },
@@ -204,8 +204,8 @@ export default function KitchenSettingsScreen() {
     const familyIdNum = Number(activeFamilyId);
     if (isNaN(familyIdNum)) return;
     Alert.alert(
-      "離開廚房",
-      "離開後，你將唔再睇到呢個廚房共享嘅食譜、排餐同購物清單。你之後仍然可以用同一個帳號加入另一個廚房。",
+      t("離開廚房" as any),
+      t("離開後，你將唔再睇到呢個廚房共享嘅食譜、排餐同購物清單。你之後仍然可以用同一個帳號加入另一個廚房。" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         { text: t("離開" as any), style: "destructive", onPress: () => leaveM.mutate({ familyId: familyIdNum }) },
@@ -215,7 +215,7 @@ export default function KitchenSettingsScreen() {
 
   const handleRemoveMember = (userId: string, name: string) => {
     if (!activeFamilyId) return;
-    Alert.alert("移除成員", `確定要將「${name}」從廚房移除？`, [
+    Alert.alert("移除成員", t("確定要將「{{name}}」從廚房移除？" as any, { name }), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("移除" as any),
@@ -231,8 +231,8 @@ export default function KitchenSettingsScreen() {
 
   const handleDissolve = () => {
     Alert.alert(
-      "解散廚房",
-      "確定要解散這個廚房？所有資料（排餐、購物清單、食材庫存）將會被永久刪除，無法復原！",
+      t("解散廚房" as any),
+      t("確定要解散這個廚房？所有資料（排餐、購物清單、食材庫存）將會被永久刪除，無法復原！" as any),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -250,12 +250,12 @@ export default function KitchenSettingsScreen() {
       await switchFamily(id);
       const newFamilyName = targetFamily?.name || "廚房";
       Alert.alert(
-        "已切換廚房",
-        `現在使用：${newFamilyName}`,
+        t("已切換廚房" as any),
+        t("現在使用：{{name}}" as any, { name: newFamilyName }),
         [{ text: t("確定" as any) }]
       );
     } catch (e) {
-      Alert.alert("切換失敗", "無法切換至此廚房，請稍後再試");
+      Alert.alert("切換失敗", t("無法切換至此廚房，請稍後再試" as any));
     }
   };
 
@@ -525,7 +525,7 @@ export default function KitchenSettingsScreen() {
                     const code = (activeFamily as any)?.inviteCode;
                     if (code) {
                       await Clipboard.setStringAsync(code);
-                      Alert.alert("已複製", `邀請碼 ${code} 已複製到剪貼簿`);
+                      Alert.alert("已複製", t("邀請碼 {{code}} 已複製到剪貼簿" as any, { code }));
                     }
                   }}
                 >

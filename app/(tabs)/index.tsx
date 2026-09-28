@@ -1148,7 +1148,7 @@ export default function RecipesTab() {
                     ? t("系統搜尋時遇到問題，請稍後再試" as any) :
                     searchError?.message?.includes("UNAUTHORIZED") || searchError?.message?.includes("login") || searchError?.message?.includes("登入")
                     ? t("請重新登入後再試" as any) :
-                    searchError?.message || "請稍後再試"}
+                    searchError?.message || t("請稍後再試" as any)}
                 </Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => refetchSearch()}>
                   <Text style={s.emptyBtnTxt}>{t("home.retry")}</Text>
@@ -1291,7 +1291,7 @@ export default function RecipesTab() {
               onPress={() => {
                 if (!quickPlanRecipe) return;
                 if (!quickPlanDate) {
-                  Alert.alert("日期無效", "請選擇排餐日期", [{ text: t("確定" as any) }]);
+                  Alert.alert("日期無效", t("請選擇排餐日期" as any), [{ text: t("確定" as any) }]);
                   return;
                 }
                 addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeNameEn: quickPlanRecipe.nameEn, recipeNameFil: quickPlanRecipe.nameFil, recipeNameId: quickPlanRecipe.nameId, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });

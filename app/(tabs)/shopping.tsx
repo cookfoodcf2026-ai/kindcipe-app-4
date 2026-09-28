@@ -435,7 +435,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("儲存失敗", friendlyError(e) || "請檢查網絡連接");
+      Alert.alert("儲存失敗", friendlyError(e) || t("請檢查網絡連接" as any));
     },
   });
 
@@ -451,7 +451,7 @@ export default function ShoppingTab() {
       setNewPrice("");
       setNewPlannedDate(null);
       setShowNameSuggestions(false);
-      Alert.alert("已加入購物車", `${variables.name} 已成功加入購物清單`);
+      Alert.alert("已加入購物車", t("{{name}} 已成功加入購物清單" as any, { name: variables.name }));
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleShoppingNotification(variables.name);
       });
@@ -544,7 +544,7 @@ export default function ShoppingTab() {
   const approveAllM = (trpc as any).shopping.approveAll.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("全部已確認", "所有待確認項目已確認");
+      Alert.alert("全部已確認", t("所有待確認項目已確認" as any));
     },
     onError: (e: Error) => Alert.alert("確認失敗", friendlyError(e)),
   });
@@ -552,7 +552,7 @@ export default function ShoppingTab() {
   const rejectAllM = (trpc as any).shopping.rejectAll.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("全部已拒絕", "所有待確認項目已拒絕");
+      Alert.alert("全部已拒絕", t("所有待確認項目已拒絕" as any));
     },
     onError: (e: Error) => Alert.alert("拒絕失敗", friendlyError(e)),
   });
@@ -582,7 +582,7 @@ export default function ShoppingTab() {
       utils.shopping.list.invalidate();
       setShowEditModal(false);
       setEditItem(null);
-      Alert.alert("已儲存", "價格已更新");
+      Alert.alert("已儲存", t("價格已更新" as any));
     },
   });
 
@@ -831,7 +831,7 @@ export default function ShoppingTab() {
     if (!name) return;
     const linkedMealDate = getLinkedMealPlanDate(editItem);
     if (linkedMealDate && editPlannedDate && editPlannedDate > linkedMealDate) {
-      Alert.alert("日期超出範圍", `採購日期不能遲過排餐日（${linkedMealDate}）`);
+      Alert.alert("日期超出範圍", t("採購日期不能遲過排餐日（{{date}}）" as any, { date: linkedMealDate }));
       return;
     }
     const budgetPrice = editBudgetPrice.trim();
