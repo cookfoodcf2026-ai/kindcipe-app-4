@@ -16,9 +16,13 @@ export const BIOMETRIC_KEY = "kindcipe_biometric_enabled";
  * ⚠️ WARNING: Do NOT use AsyncStorage for auth tokens in production.
  * It is unencrypted and is only acceptable for E2E testing on Simulator.
  */
+const isWeb = Platform.OS === "web";
 const isIOS = Platform.OS === "ios";
 const isE2ETest = process.env.EXPO_PUBLIC_E2E === "1";
-const useSecureStore = !(isIOS && isE2ETest);
+// SecureStore has no web implementation. On web we fall back to AsyncStorage
+// (localStorage-backed) AND rely on the httpOnly session cookie the backend sets.
+// Web tokens live in localStorage only where a cookie cannot be used.
+const useSecureStore = !isWeb && !(isIOS && isE2ETest);
 
 // ─── Token (SecureStore with biometric protection) ─────────────────────
 export async function saveAuthToken(token: string): Promise<void> {
@@ -61,6 +65,7 @@ export async function saveAuthTokenFromResponse(data: unknown): Promise<void> {
 
 // ─── Biometric ─────────────────────────────────────────────────────────
 export async function isBiometricAvailable(): Promise<boolean> {
+  if (isWeb) return false; // browsers have no device biometrics API for this
   try {
     const LocalAuthentication = require("expo-local-authentication");
     const compatible = await LocalAuthentication.hasHardwareAsync();
@@ -102,6 +107,7 @@ export async function setBiometricEnabled(enabled: boolean): Promise<void> {
 }
 
 export async function authenticateBiometric(): Promise<boolean> {
+  if (isWeb) return false;
   try {
     const LocalAuthentication = require("expo-local-authentication");
     const result = await LocalAuthentication.authenticateAsync({

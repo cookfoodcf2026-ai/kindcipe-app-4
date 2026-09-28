@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { trpc, apiClient, API_BASE_URL, resolveImageUrl } from "@/lib/trpc";
 import { getRecipeLocalImage } from "@/lib/recipe-local-images";
 import { useAuth } from "@/hooks/useAuth";
+import { useAiChatCloudSync } from "@/hooks/ai-chef/useAiChatCloudSync";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { compressImage } from "@/lib/image-utils";
@@ -779,6 +780,14 @@ export default function AIChefScreen() {
   const [loaded, setLoaded] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
+  // Cross-device sync: backend is the source of truth for chat history so the
+  // same conversations appear on App + Web. Local AsyncStorage stays as cache.
+  const {
+    cloudSessions,
+    syncSession: syncSessionToCloud,
+    removeSession: removeSessionFromCloud,
+    migrateLocalIfNeeded,
+  } = useAiChatCloudSync(user?.id);
   const displaySessions = useMemo(() => {
     const q = sessionSearch.trim().toLowerCase();
     const filtered = q
@@ -1300,16 +1309,18 @@ export default function AIChefScreen() {
           }
         }
 
-        if (all.length === 0) {
-          const newId = generateId();
-          all = [{ id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] }];
-        }
+        // Cross-device: if the backend has cloud sessions, they win (they may
+        // have been created/updated from the web app). Otherwise keep local and
+        // upload local-only sessions once.
+        await migrateLocalIfNeeded(all);
+
         const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
         setActiveChatId(activeId && all.find(s => s.id === activeId) ? activeId : all[0].id);
       } catch { /* ignore */ }
       setLoaded(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // 持久化 session：現在 images 用 storage URL（僅 ~200 字元），因此保留 url 即可。
@@ -1353,6 +1364,57 @@ export default function AIChefScreen() {
     if (!loaded || !user?.id || !activeChatId) return;
     persistSessions(sessions, activeChatId);
   }, [sessions, loaded, user?.id, activeChatId, persistSessions]);
+
+  // ─── Cross-device hydration ─────────────────────────────
+  // When cloud sessions arrive (or after a refetch triggered by App↔Web switch),
+  // merge them in. Cloud is authoritative for sessions it knows about; local-only
+  // sessions are preserved (and uploaded by migrateLocalIfNeeded).
+  const cloudHydratedRef = useRef(false);
+  useEffect(() => {
+    if (!loaded || !user?.id || !cloudSessions) return;
+    if (cloudSessions.length === 0) return;
+    // Skip the very first hydration if local already had sessions with content,
+    // to avoid clobbering active in-flight edits. Afterwards always refresh.
+    setSessions(prev => {
+      const byId = new Map(prev.map(s => [s.id, s]));
+      for (const cloud of cloudSessions) {
+        const local = byId.get(cloud.id);
+        // Prefer whichever has more messages (handles a message sent offline).
+        if (!local || cloud.messages.length >= local.messages.length) {
+          byId.set(cloud.id, {
+            id: cloud.id,
+            title: cloud.title,
+            createdAt: cloud.createdAt,
+            messages: cloud.messages,
+          });
+        }
+      }
+      const merged = Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt);
+      return merged;
+    });
+    cloudHydratedRef.current = true;
+  }, [cloudSessions, loaded, user?.id]);
+
+  // Push a session to the cloud whenever its messages change (debounced).
+  const cloudSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!loaded || !user?.id || !cloudHydratedRef.current) return;
+    const session = sessions.find(s => s.id === activeChatId);
+    // Only sync sessions that actually have content.
+    if (!session || session.messages.length === 0) return;
+    if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+    cloudSyncTimer.current = setTimeout(() => {
+      syncSessionToCloud({
+        id: session.id,
+        title: session.title,
+        createdAt: session.createdAt,
+        messages: session.messages,
+      });
+    }, 800);
+    return () => {
+      if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+    };
+  }, [sessions, activeChatId, loaded, user?.id, syncSessionToCloud]);
 
   // Auto-title: when first user message is sent, update the title
   useEffect(() => {
@@ -1416,6 +1478,8 @@ export default function AIChefScreen() {
         text: t("刪除" as any), style: "destructive",
         onPress: () => {
           const deletingActive = id === activeChatId;
+          // Cross-device: remove from the cloud too so it disappears on web.
+          removeSessionFromCloud(id);
           setSessions(prev => {
             const next = prev.filter(s => s.id !== id);
             if (next.length === 0) {

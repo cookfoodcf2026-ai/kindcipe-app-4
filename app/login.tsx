@@ -24,6 +24,8 @@ import * as WebBrowser from "expo-web-browser";
 // Check if native modules are available (dev build vs Expo Go)
 import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
+import { isWeb } from "@/lib/platform";
+import { signInWithGoogleWeb, startAppleWebLogin } from "@/lib/socialAuth";
 const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
 const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
 
@@ -47,7 +49,7 @@ type Mode = "login" | "register" | "admin" | "otp";
 export default function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; apple?: string }>();
   const [mode, setMode] = useState<Mode>(params.mode === "admin" ? "admin" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -127,6 +129,24 @@ export default function LoginScreen() {
     router.replace("/admin");
   };
 
+  // Web: the Apple OAuth flow returns to /login?apple=success|error. The session
+  // cookie is already set by the backend, so we just refresh auth state.
+  useEffect(() => {
+    if (!isWeb) return;
+    const status = params.apple;
+    if (!status) return;
+    if (status === "success") {
+      void onLoginSuccess("apple");
+    } else {
+      Alert.alert(t("auth.appleFailed" as any), t("auth.tryLater"));
+    }
+    // Strip the query param so a refresh doesn't re-trigger.
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.apple]);
+
   // ── Email Login / Register (admin only) ─────────────────────────────────────
   const handleEmailSubmit = async () => {
     if (!email.trim()) { Alert.alert(t("auth.enterEmail")); return; }
@@ -191,6 +211,34 @@ export default function LoginScreen() {
 
   // ── Google Sign In ──────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
+    if (isWeb) {
+      setIsLoading(true);
+      setLoadingType("google");
+      try {
+        const idToken = await signInWithGoogleWeb();
+        const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ idToken }),
+        });
+        if (!res.ok) throw new Error("Google login failed");
+        const data = await res.json();
+        await saveAuthTokenFromResponse(data);
+        await onLoginSuccess("google");
+      } catch (err: any) {
+        if (__DEV__) console.error("Google web login error:", err);
+        if (err?.message !== "GOOGLE_PROMPT_UNAVAILABLE") {
+          Alert.alert(t("auth.googleFailed"), t("auth.tryLater"));
+        } else {
+          Alert.alert(t("auth.googleSignin"), "瀏覽器暫時未能彈出 Google 登入，請允許彈出視窗或稍後再試。");
+        }
+      } finally {
+        setIsLoading(false);
+        setLoadingType("");
+      }
+      return;
+    }
     if (!hasGoogleSignin) { Alert.alert(t("auth.googleSignin"), t("auth.googleSigninMsg")); return; }
     setIsLoading(true);
     setLoadingType("google");
@@ -229,6 +277,12 @@ export default function LoginScreen() {
 
   // ── Apple Sign In ───────────────────────────────────────────────────────────
   const handleAppleSignIn = async () => {
+    if (isWeb) {
+      // Full-page redirect to the backend-hosted Apple OAuth flow, which sets
+      // the session cookie and returns to /login?apple=success.
+      startAppleWebLogin(typeof window !== "undefined" ? `${window.location.origin}/login` : undefined);
+      return;
+    }
     if (!appleAvailable) { Alert.alert(t("auth.appleSignin" as any), t("auth.googleSigninMsg" as any)); return; }
     setIsLoading(true);
     setLoadingType("apple");

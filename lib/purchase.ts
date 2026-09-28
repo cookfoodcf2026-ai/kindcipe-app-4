@@ -17,6 +17,12 @@ export const PRODUCT_IDS = {
   YEARLY: "kindcipe_yearly_288",
 } as const;
 
+/**
+ * In-App Purchase is only meaningful on native stores. On web we surface a
+ * web billing/upgrade path instead (set EXPO_PUBLIC_ACCOUNT_URL), never IAP.
+ */
+export const isIapSupported = Platform.OS !== "web";
+
 export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS];
 
 export const SUBSCRIPTION_TYPE: Record<ProductId, "monthly" | "yearly"> = {
@@ -37,12 +43,21 @@ export async function getProducts(): Promise<Array<{ productId: ProductId; price
 }
 
 export async function purchaseSubscription(_productId: ProductId): Promise<PurchaseResult> {
+  if (!isIapSupported) {
+    return { success: false, error: i18n.t("error.iapUnavailable" as any) };
+  }
   return { success: false, error: i18n.t("error.iapUnavailable" as any) };
 }
 
 export async function manageSubscription(): Promise<void> {
   try {
-    if (Platform.OS === "ios") {
+    if (Platform.OS === "web") {
+      const url =
+        process.env.EXPO_PUBLIC_ACCOUNT_URL ??
+        process.env.EXPO_PUBLIC_STORE_URL ??
+        "https://kindcipe.com/pricing";
+      await Linking.openURL(url);
+    } else if (Platform.OS === "ios") {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
     } else {
       await Linking.openURL("https://play.google.com/store/account/subscriptions");

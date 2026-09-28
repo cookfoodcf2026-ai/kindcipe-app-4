@@ -30,6 +30,44 @@ export interface AppRouter {
   priceWatch: PriceWatchRouter;
   purchaseHistory: PurchaseHistoryRouter;
   commonIngredient: CommonIngredientRouter;
+  aiChat: AiChatRouter;
+}
+
+// ============================================================================
+// AI Chat Sessions Router (cross-device AI Chef history)
+// ============================================================================
+
+export interface AiChatSessionRow {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+}
+
+export interface AiChatRouter {
+  list: { input: void; output: AiChatSessionRow[] };
+  upsert: {
+    input: {
+      id: string;
+      title: string;
+      createdAt?: number;
+      messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+    };
+    output: { ok: boolean; updatedAt?: number };
+  };
+  delete: { input: { id: string }; output: { ok: boolean } };
+  bulkImport: {
+    input: {
+      sessions: Array<{
+        id: string;
+        title: string;
+        createdAt?: number;
+        messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+      }>;
+    };
+    output: { ok: boolean; imported: number };
+  };
 }
 
 // ============================================================================
