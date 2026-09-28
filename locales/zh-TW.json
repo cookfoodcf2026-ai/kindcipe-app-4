@@ -784,7 +784,14 @@
     "privacyAgree": "登入即代表同意私隱政策",
     "adminLoginTitle": "管理員登入",
     "backToUserLogin": "返回用戶登入",
-    "dataFollowsLogin": "資料會跟住你嘅 Apple／Google 帳號，換機用同一個登入即可搵返。"
+    "dataFollowsLogin": "資料會跟住你嘅 Apple／Google 帳號，換機用同一個登入即可搵返。",
+    "continueEmail": "使用電郵繼續",
+    "otpTitle": "電郵登入",
+    "sendCode": "發送驗證碼",
+    "codeSentTo": "驗證碼已寄到 {{email}}",
+    "enterCode": "輸入驗證碼",
+    "verifyAndSignIn": "驗證並登入",
+    "resendCode": "重新發送驗證碼"
   },
   "notFound": {
     "title": "呢個頁面唔存在",

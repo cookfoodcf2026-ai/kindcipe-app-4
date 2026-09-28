@@ -41,7 +41,7 @@ try {
   });
 } catch {}
 
-type Mode = "login" | "register" | "admin";
+type Mode = "login" | "register" | "admin" | "otp";
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -71,6 +71,37 @@ export default function LoginScreen() {
   const emailLoginMutation = trpc.auth.emailLogin.useMutation();
   const emailRegisterMutation = trpc.auth.emailRegister.useMutation();
   const adminLoginMutation = trpc.auth.adminLogin.useMutation();
+  const requestOtpM = trpc.auth.requestLoginOtp.useMutation();
+  const verifyOtpM = trpc.auth.verifyLoginOtp.useMutation();
+  const [otpStep, setOtpStep] = useState<"email" | "code">("email");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpMsg, setOtpMsg] = useState<string | null>(null);
+
+  const handleSendOtp = async () => {
+    const email = otpEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setOtpMsg(t("auth.invalidEmail") as any); return; }
+    setOtpMsg(null); setIsLoading(true); setLoadingType("otp");
+    try {
+      await requestOtpM.mutateAsync({ email });
+      setOtpStep("code");
+    } catch (e: any) {
+      setOtpMsg(friendlyError(e) || (t("auth.tryLater") as any));
+    } finally { setIsLoading(false); setLoadingType(""); }
+  };
+
+  const handleVerifyOtp = async () => {
+    const email = otpEmail.trim().toLowerCase();
+    if (otpCode.trim().length < 4) { setOtpMsg(t("auth.enterCode") as any); return; }
+    setOtpMsg(null); setIsLoading(true); setLoadingType("otp");
+    try {
+      const res = await verifyOtpM.mutateAsync({ email, code: otpCode.trim() });
+      await saveAuthTokenFromResponse(res as any);
+      await onLoginSuccess("otp");
+    } catch (e: any) {
+      setOtpMsg(friendlyError(e) || (t("auth.tryLater") as any));
+    } finally { setIsLoading(false); setLoadingType(""); }
+  };
 
   // ── After successful login ──────────────────────────────────────────────────
   const onLoginSuccess = async (method: string = "email") => {
@@ -318,6 +349,70 @@ export default function LoginScreen() {
                 <Text style={{ fontSize: 13, color: "#9CA3AF" }}>{t("auth.backToUserLogin" as any)}</Text>
               </TouchableOpacity>
             </View>
+          ) : mode === "otp" ? (
+            /* 電郵 OTP 登入（萬能後備） */
+            <View style={styles.form}>
+              <Text style={styles.adminTitle}>{t("auth.otpTitle" as any)}</Text>
+              {otpStep === "email" ? (
+                <>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t("auth.emailPlaceholder")}
+                      placeholderTextColor="#9CA3AF"
+                      value={otpEmail}
+                      onChangeText={setOtpEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+                    onPress={handleSendOtp}
+                    disabled={isLoading}
+                    activeOpacity={0.85}
+                  >
+                    {isLoading && loadingType === "otp" ? <ActivityIndicator color="#fff" size="small" /> : null}
+                    <Text style={styles.submitBtnText}>{t("auth.sendCode" as any)}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 13, color: "#6B7280", textAlign: "center" }}>{t("auth.codeSentTo" as any, { email: otpEmail })}</Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="key-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t("auth.enterCode" as any)}
+                      placeholderTextColor="#9CA3AF"
+                      value={otpCode}
+                      onChangeText={setOtpCode}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+                    onPress={handleVerifyOtp}
+                    disabled={isLoading}
+                    activeOpacity={0.85}
+                  >
+                    {isLoading && loadingType === "otp" ? <ActivityIndicator color="#fff" size="small" /> : null}
+                    <Text style={styles.submitBtnText}>{t("auth.verifyAndSignIn" as any)}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSendOtp} style={{ alignItems: "center", marginTop: 4 }}>
+                    <Text style={{ fontSize: 13, color: COPPER, fontWeight: "600" }}>{t("auth.resendCode" as any)}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {otpMsg ? <Text style={{ fontSize: 12, color: "#B91C1C", textAlign: "center" }}>{otpMsg}</Text> : null}
+              <TouchableOpacity onPress={() => { setMode("login"); setOtpMsg(null); }} style={{ alignItems: "center", marginTop: 6 }}>
+                <Text style={{ fontSize: 13, color: "#9CA3AF" }}>{t("auth.backToUserLogin" as any)}</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             /* 用戶：只留 Apple + Google */
             <View style={styles.socialSection}>
@@ -348,6 +443,15 @@ export default function LoginScreen() {
                   <Ionicons name="logo-google" size={22} color="#DB4437" />
                 )}
                 <Text style={styles.googleBtnText}>{t("auth.googleLogin")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.googleBtn, isLoading && styles.socialBtnDisabled]}
+                onPress={() => { setMode("otp"); setOtpStep("email"); setOtpMsg(null); setOtpCode(""); }}
+                disabled={isLoading}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="mail-outline" size={22} color={BRAND} />
+                <Text style={styles.googleBtnText}>{t("auth.continueEmail" as any)}</Text>
               </TouchableOpacity>
             </View>
           )}

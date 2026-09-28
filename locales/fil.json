@@ -784,7 +784,14 @@
     "privacyAgree": "Sa pag-sign in, sumasang-ayon ka sa Privacy Policy",
     "adminLoginTitle": "Admin login",
     "backToUserLogin": "Bumalik sa user login",
-    "dataFollowsLogin": "Kasama ng data ang iyong Apple/Google account. Mag-sign in sa parehong paraan para makuha ito."
+    "dataFollowsLogin": "Kasama ng data ang iyong Apple/Google account. Mag-sign in sa parehong paraan para makuha ito.",
+    "continueEmail": "Magpatuloy gamit ang email",
+    "otpTitle": "Email sign-in",
+    "sendCode": "Ipadala ang code",
+    "codeSentTo": "Naipadala ang code sa {{email}}",
+    "enterCode": "Ilagay ang code",
+    "verifyAndSignIn": "I-verify at mag-sign in",
+    "resendCode": "Ipadala muli"
   },
   "notFound": {
     "title": "Wala ang page na ito",

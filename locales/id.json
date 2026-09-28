@@ -784,7 +784,14 @@
     "privacyAgree": "Dengan masuk, Anda menyetujui Kebijakan Privasi",
     "adminLoginTitle": "Login admin",
     "backToUserLogin": "Kembali ke login pengguna",
-    "dataFollowsLogin": "Data mengikuti akun Apple/Google Anda. Masuk dengan cara sama untuk mendapatkannya kembali."
+    "dataFollowsLogin": "Data mengikuti akun Apple/Google Anda. Masuk dengan cara sama untuk mendapatkannya kembali.",
+    "continueEmail": "Lanjut dengan email",
+    "otpTitle": "Masuk dengan email",
+    "sendCode": "Kirim kode",
+    "codeSentTo": "Kode dikirim ke {{email}}",
+    "enterCode": "Masukkan kode",
+    "verifyAndSignIn": "Verifikasi & masuk",
+    "resendCode": "Kirim ulang"
   },
   "notFound": {
     "title": "Halaman ini tidak ada",

@@ -784,7 +784,14 @@
     "privacyAgree": "By signing in you agree to the Privacy Policy",
     "adminLoginTitle": "Admin login",
     "backToUserLogin": "Back to user login",
-    "dataFollowsLogin": "Your data follows your Apple/Google account. Sign in with the same method on any phone to get it back."
+    "dataFollowsLogin": "Your data follows your Apple/Google account. Sign in with the same method on any phone to get it back.",
+    "continueEmail": "Continue with email",
+    "otpTitle": "Email sign-in",
+    "sendCode": "Send code",
+    "codeSentTo": "Code sent to {{email}}",
+    "enterCode": "Enter code",
+    "verifyAndSignIn": "Verify & sign in",
+    "resendCode": "Resend code"
   },
   "notFound": {
     "title": "This page doesn't exist",
