@@ -31,6 +31,7 @@ const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FAF8F5";
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://kindcipe.com/privacy/";
+const APPLE_WEB_ENABLED = process.env.EXPO_PUBLIC_ENABLE_APPLE_WEB === "1";
 
 // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
 try {
@@ -269,6 +270,31 @@ export default function LoginScreen() {
     }
   };
 
+  // ── Apple Sign In (Web/Android OAuth) ────────────────────────────────────────
+  const handleAppleWebSignIn = async () => {
+    setIsLoading(true);
+    setLoadingType("apple");
+    try {
+      const startUrl = `${BACKEND_URL}/api/auth/apple/web/start`;
+      const result = await WebBrowser.openAuthSessionAsync(startUrl, "kindcipe://apple-login");
+      if (result.type === "success" && result.url) {
+        const tokenMatch = result.url.match(/[?&]token=([^&]+)/);
+        if (tokenMatch) {
+          await saveAuthTokenFromResponse({ token: decodeURIComponent(tokenMatch[1]) } as any);
+          await onLoginSuccess("apple");
+        } else {
+          Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));
+        }
+      }
+    } catch (err) {
+      if (__DEV__) console.error("Apple web login error:", err);
+      Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));
+    } finally {
+      setIsLoading(false);
+      setLoadingType("");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.root} testID="login-screen">
       <KeyboardAvoidingView
@@ -416,10 +442,10 @@ export default function LoginScreen() {
           ) : (
             /* 用戶：只留 Apple + Google */
             <View style={styles.socialSection}>
-              {Platform.OS === "ios" && (
+              {(Platform.OS === "ios" || APPLE_WEB_ENABLED) && (
                 <TouchableOpacity
-                  style={[styles.appleBtn, (!appleAvailable || isLoading) && styles.socialBtnDisabled]}
-                  onPress={handleAppleSignIn}
+                  style={[styles.appleBtn, ((Platform.OS === "ios" && !appleAvailable) || isLoading) && styles.socialBtnDisabled]}
+                  onPress={Platform.OS === "ios" ? handleAppleSignIn : handleAppleWebSignIn}
                   disabled={isLoading}
                   activeOpacity={0.85}
                 >
