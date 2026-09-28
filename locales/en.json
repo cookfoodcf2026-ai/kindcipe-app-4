@@ -886,7 +886,9 @@
     "reselect": "Reselect",
     "startParse2": "Start parsing",
     "photoUpload": "Photo upload analysis",
-    "xiaohongshuTip": "Xiaohongshu users: upload a photo/screenshot or paste text"
+    "xiaohongshuTip": "Xiaohongshu users: upload a photo/screenshot or paste text",
+    "pasteHint": "How to paste: in Safari/IG tap ⋯ or long-press → Copy link, then tap Paste (or long-press the box). We auto-detect it when you return.",
+    "igCopyHint": "IG isn't in the system share sheet: tap ⋯/the paper-plane on the post → 'Copy link'. The app will auto-detect it when you come back."
   },
   "editor": {
     "photo": "Recipe photo",

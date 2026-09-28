@@ -886,7 +886,9 @@
     "reselect": "Pumili muli",
     "startParse2": "Simulan",
     "photoUpload": "I-upload ang litrato",
-    "xiaohongshuTip": "Xiaohongshu users: mag-upload o mag-paste"
+    "xiaohongshuTip": "Xiaohongshu users: mag-upload o mag-paste",
+    "pasteHint": "Paano i-paste: sa Safari/IG i-tap ang ⋯ o long-press → Copy link, tapos i-tap ang Paste. Awtomatikong ma-detect pagbalik mo.",
+    "igCopyHint": "Hindi lumalabas ang IG sa share sheet: i-tap ang ⋯/paper-plane → 'Copy link'. Awtomatikong ma-detect ng app pagbalik mo."
   },
   "editor": {
     "photo": "Larawan ng recipe",

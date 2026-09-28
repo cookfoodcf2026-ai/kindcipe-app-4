@@ -5,7 +5,7 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Image, Modal,
-  KeyboardAvoidingView, Platform, Keyboard,
+  KeyboardAvoidingView, Platform, Keyboard, AppState,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,7 +22,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
-import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
+import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
@@ -132,7 +132,10 @@ export default function ImportScreen() {
     // 自動填：AI 有值用 AI，冇值用兜底（分類「其他」、dishType 由菜名推斷、標籤「家常菜」）
     setSelectedCategory(normalizeCuisine(recipe.recipeCategory) ?? "其他");
     setEditDishType(
-      recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || "")
+      guardDishTypeByName(
+        recipe.name || "",
+        recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || "")
+      )
     );
     const parsedTags: string[] = (recipe.tags || []).map((x: any) => String(x)).filter(Boolean);
     setEditTags((parsedTags.length ? parsedTags : ["家常菜"]).join(" "));
@@ -350,6 +353,14 @@ export default function ImportScreen() {
       // 剪貼板讀取失敗，忽略
     }
   };
+
+  // 由背景返前台（例如去 IG 複製完連結返嚟）→ 重新偵測剪貼板，自動顯示 Magic Card
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void checkClipboard();
+    });
+    return () => sub.remove();
+  }, []);
 
   // tRPC mutations
   const parseUrlMutation = trpc.recipes.parseUrl.useMutation({
@@ -1379,7 +1390,10 @@ export default function ImportScreen() {
             )}
           </View>
           <Text style={styles.inputHint}>
-            💡 貼上方法：喺 Safari/Instagram 長按連結 → 複製，然後喺呢度長按輸入框 → 貼上，或者撳「貼上」button
+            💡 {t("importRecipe.pasteHint" as any)}
+          </Text>
+          <Text style={styles.inputHint}>
+            {t("importRecipe.igCopyHint" as any)}
           </Text>
           
           <TouchableOpacity

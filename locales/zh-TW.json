@@ -886,7 +886,9 @@
     "reselect": "重新選擇",
     "startParse2": "開始解析",
     "photoUpload": "拍照上傳分析",
-    "xiaohongshuTip": "小紅書用戶請用：拍照/截圖上傳 或 貼上文字"
+    "xiaohongshuTip": "小紅書用戶請用：拍照/截圖上傳 或 貼上文字",
+    "pasteHint": "貼上方法：喺 Safari／IG 撳 ⋯ 或長按 → 複製連結，返嚟撳「貼上」或長按輸入框貼上。（去完 IG 返嚟會自動偵測）",
+    "igCopyHint": "IG 唔會出現喺系統分享清單：請撳帖子嘅 ⋯／紙飛機 → 「複製連結」，返嚟 App 會自動彈出匯入。"
   },
   "editor": {
     "photo": "食譜相片",

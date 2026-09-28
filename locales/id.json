@@ -886,7 +886,9 @@
     "reselect": "Pilih ulang",
     "startParse2": "Mulai",
     "photoUpload": "Unggah foto",
-    "xiaohongshuTip": "Pengguna Xiaohongshu: unggah atau tempel"
+    "xiaohongshuTip": "Pengguna Xiaohongshu: unggah atau tempel",
+    "pasteHint": "Cara tempel: di Safari/IG ketuk ⋯ atau tekan lama → Copy link, lalu ketuk Tempel. Otomatis terdeteksi saat kamu kembali.",
+    "igCopyHint": "IG tidak muncul di share sheet sistem: ketuk ⋯/pesawat kertas → 'Copy link'. App akan mendeteksi otomatis saat kamu kembali."
   },
   "editor": {
     "photo": "Foto resep",

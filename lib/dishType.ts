@@ -78,7 +78,7 @@ export const normalizeDishType = (v?: string | null): DishTypeKey => {
 export const inferDishTypeKeyFromName = (name: string): DishTypeKey => {
   const n = String(name || "");
   if (/湯$|湯水|煲湯|燉湯|老火湯|滾湯|湯羹|濃湯|清湯|羅宋湯|粟米湯|番茄湯|羹/.test(n)) return "soup";
-  if (/糖水|西米露|布甸|布丁|啫喱|慕斯|雪糕|蛋糕|蛋撻|曲奇|奶凍|糕點|甜點|芝麻糊|紅豆沙|綠豆沙|楊枝甘露|芋圓/.test(n)) return "dessert";
+  if (/糖水|西米露|布甸|布丁|啫喱|慕斯|雪糕|蛋糕|蛋撻|曲奇|奶凍|糕點|甜點|芝麻糊|紅豆沙|綠豆沙|楊枝甘露|芋圓|湯圓|汤圆|豆花|豆腐花|燉奶|炖奶/.test(n)) return "dessert";
   if (/水$|涼茶|竹蔗茅根|茅根水|山楂水|薏米水|蘆根|羅漢果|菊花茶|檸檬茶|雪梨水|陳皮水|汽水|果汁|茶飲/.test(n)) return "drink";
   if (/飯|炒飯|炊飯|燴飯|蓋飯|丼|粥|麵|拉麵|意粉|烏冬|米粉|米線|河粉|通粉|湯麵|撈麵|饅頭|餃子|雲吞/.test(n)) return "carb";
   if (/前菜|小食|小吃|沙律|沙拉|涼拌|春卷|頭盤/.test(n)) return "appetizer";
@@ -86,4 +86,22 @@ export const inferDishTypeKeyFromName = (name: string): DishTypeKey => {
   if (/蒸魚|清蒸|炒蝦|蝦|蟹|鮑魚|魚|帶子|海參|花膠|龍蝦|石斑|魷魚|章魚|墨魚|三文魚|蜆|蠔|豆腐|豆卜|豆干|腐皮|蒸蛋|炒蛋|蛋/.test(n)) return "seafood";
   if (/排骨|牛|雞|豬|肉|鴨|鵝|羊|腩|雞翼|雞腿|雞髀|肉丸|叉燒|燒肉|豬扒|牛扒|雞扒|豬手|豬腳/.test(n)) return "meat";
   return "other";
+};
+
+/**
+ * 前端確定性護欄：修正 backend/LLM 常見誤判（尤其「名稱有湯字但唔係湯」）。
+ * 順序：carb → dessert → drink → soup（先匹配先贏）。
+ */
+const NAME_CARB_RE = /(?:麵|面|飯|饭|河粉|湯河|汤河|米線|米线|烏冬|乌冬|餃|饺|粥|米粉|意粉|意面|拉麵|拉面|通粉|丼|饅頭|馒头|麵包|面包|三文治|漢堡|汉堡|薄餅|薄饼|披薩|披萨|pizza|noodle|ramen|rice|pasta|bread)/i;
+const NAME_DESSERT_RE = /(?:湯圓|汤圆|糖水|糊$|豆沙|豆花|豆腐花|布甸|布丁|燉奶|炖奶|雪糕|蛋糕|蛋撻|蛋挞|奶凍|奶冻|慕斯|西米露|楊枝甘露|杨枝甘露|芋圓|芋圆|dessert|cake|pudding|sorbet|ice cream)/i;
+const NAME_DRINK_RE = /(?:茶$|茶飲|茶饮|涼茶|凉茶|水$|果汁|咖啡|奶茶|豆漿|豆浆|汽水|沙冰|smoothie|juice|coffee|latte|tea)/i;
+const NAME_SOUP_RE = /(?:羹|煲湯|煲汤|燉湯|炖汤|老火湯|老火汤|滾湯|滚汤|清湯|清汤|濃湯|浓汤|羅宋湯|罗宋汤|粟米湯|番茄湯|湯$|汤$|soup)/i;
+
+export const guardDishTypeByName = (name: string, current: DishTypeKey): DishTypeKey => {
+  const n = String(name || "");
+  if (NAME_CARB_RE.test(n)) return "carb";
+  if (NAME_DESSERT_RE.test(n)) return "dessert";
+  if (NAME_DRINK_RE.test(n)) return "drink";
+  if (NAME_SOUP_RE.test(n)) return "soup";
+  return current;
 };

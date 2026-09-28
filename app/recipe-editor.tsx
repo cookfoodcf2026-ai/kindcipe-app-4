@@ -17,7 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
-import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
+import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
@@ -164,7 +164,7 @@ const scrollToFocused = useCallback((e: any) => {
       setCookTime(String(r.cookTime ?? 30));
       setDifficulty(r.difficulty ?? "中等");
       setCategory(normalizeCuisine(r.recipeCategory) ?? "其他");
-      setDishType(r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name || ""));
+      setDishType(guardDishTypeByName(r.name || "", r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name || "")));
       setSourceUrl(r.sourceUrl ?? "");
       setTags(((r.tags || []).length ? r.tags : ["家常菜"]).join(" "));
       setImageError(false);
@@ -214,7 +214,7 @@ const scrollToFocused = useCallback((e: any) => {
     setCookTime(String(d.cookTime ?? 30));
     setDifficulty(d.difficulty ?? "中等");
     setCategory(normalizeCuisine(d.recipeCategory) ?? "其他");
-    setDishType(d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name || ""));
+    setDishType(guardDishTypeByName(d.name || "", d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name || "")));
     setSourceUrl(d.sourceUrl ?? "");
     setTags(((d.tags || []).length ? d.tags : ["家常菜"]).join(" "));
     setImageError(false);

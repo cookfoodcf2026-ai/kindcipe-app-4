@@ -18,7 +18,7 @@ import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, createTrpcClient } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, TouchableOpacity, Text, Alert } from "react-native";
+import { View, ActivityIndicator, TouchableOpacity, Text, Alert, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
@@ -299,70 +299,72 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     checkOnboarding();
   }, [meQuery.data?.id]);
   
-  // Global clipboard detection on app open (only after login, only on tabs page)
+  // Global clipboard detection：開 app 時 + 由背景返前台（例如去完 IG 複製連結返嚟）都偵測
   const isLoggedIn = !!meQuery.data;
   const isTabsGroup = segments[0] === "(tabs)";
+  const lastClipboardCheck = useRef(0);
+
+  const promptClipboardImport = useCallback(async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (!text || !isValidUrl(text.trim())) return;
+      const platform = detectPlatform(text);
+      if (!platform || !SUPPORTED_PLATFORMS.includes(platform)) return;
+      if (Date.now() - lastClipboardCheck.current < 3000) return;
+      lastClipboardCheck.current = Date.now();
+
+      const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
+      if (hintedData) {
+        const parsed = safeParseClipboardHint(hintedData);
+        const url = parsed?.url;
+        const timestamp = parsed?.timestamp;
+        const now = Date.now();
+        const hours24 = 24 * 60 * 60 * 1000;
+        if (url === text && typeof timestamp === "number" && now - timestamp < hours24) return;
+      }
+
+      Alert.alert(
+        "偵測到食譜連結",
+        `發現 ${platform} 連結，是否立即匯入？`,
+        [
+          { text: t("取消" as any), style: "cancel" },
+          {
+            text: t("匯入食譜" as any),
+            onPress: () => {
+              AsyncStorage.setItem(
+                "kindcipe_clipboard_hinted",
+                JSON.stringify({ url: text, timestamp: Date.now() })
+              );
+              router.push({
+                pathname: "/import",
+                params: { clipboardUrl: text },
+              });
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      // Clipboard read failed, ignore
+    }
+  }, [router]);
+
   useEffect(() => {
     if (meQuery.isLoading || !isLoggedIn) return;
     if (!isTabsGroup) return; // Only show clipboard alert on main tabs, not during login/onboarding
     if (hasCheckedClipboard.current) return;
     hasCheckedClipboard.current = true;
-    
-    const checkClipboardOnOpen = async () => {
-      try {
-        const text = await Clipboard.getStringAsync();
-        if (!text || !isValidUrl(text.trim())) {
-          return;
-        }
-        
-        const platform = detectPlatform(text);
-        if (!platform) {
-          return;
-        }
-        
-        if (!SUPPORTED_PLATFORMS.includes(platform)) {
-          return;
-        }
-        
-        const hintedData = await AsyncStorage.getItem("kindcipe_clipboard_hinted");
-        if (hintedData) {
-          const parsed = safeParseClipboardHint(hintedData);
-          const url = parsed?.url;
-          const timestamp = parsed?.timestamp;
-          const now = Date.now();
-          const hours24 = 24 * 60 * 60 * 1000;
-          if (url === text && typeof timestamp === "number" && now - timestamp < hours24) {
-            return;
-          }
-        }
-        
-        Alert.alert(
-          "偵測到食譜連結",
-          `發現 ${platform} 連結，是否立即匯入？`,
-          [
-            { text: t("取消" as any), style: "cancel" },
-            {
-              text: t("匯入食譜" as any),
-              onPress: () => {
-                AsyncStorage.setItem(
-                  "kindcipe_clipboard_hinted",
-                  JSON.stringify({ url: text, timestamp: Date.now() })
-                );
-                router.push({
-                  pathname: "/import",
-                  params: { clipboardUrl: text },
-                });
-              }
-            }
-          ]
-        );
-      } catch (e) {
-        // Clipboard read failed, ignore
-      }
-    };
-    
-    checkClipboardOnOpen();
-  }, [meQuery.isLoading, isLoggedIn, isTabsGroup]);
+    void promptClipboardImport();
+  }, [meQuery.isLoading, isLoggedIn, isTabsGroup, promptClipboardImport]);
+
+  // 由背景返前台 → 再偵測剪貼板（節流 3 秒）
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (!isLoggedIn || !isTabsGroup) return;
+      void promptClipboardImport();
+    });
+    return () => sub.remove();
+  }, [isLoggedIn, isTabsGroup, promptClipboardImport]);
 
   useEffect(() => {
     (async () => {
