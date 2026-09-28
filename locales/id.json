@@ -235,7 +235,13 @@
     "editNameUpdated": "Diperbarui",
     "editNameUpdatedMsg": "Nama Anda telah diperbarui.",
     "nameUpdatedFailed": "Gagal memperbarui",
-    "followIg": "Follow us on IG for 7-day Pro"
+    "followIg": "Follow us on IG for 7-day Pro",
+    "loginMethods": "Metode masuk",
+    "providerApple": "Apple",
+    "providerGoogle": "Google",
+    "providerEmail": "Email",
+    "providerOtp": "Kode email",
+    "linkHint": "Masuk dengan akun Apple/Google yang sama untuk data yang sama di ponsel mana pun."
   },
   "errors": {},
   "aiChef": {

@@ -275,6 +275,11 @@ export default function SettingsScreen() {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
+  const identitiesQuery = trpc.auth.identities.useQuery(undefined, {
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+    enabled: isAuthenticated,
+  });
   const sub = subscriptionQuery.data;
   const usage = usageQuery.data;
   const usageHistoryByMember = usageHistoryByMemberQuery.data ?? [];
@@ -443,6 +448,25 @@ export default function SettingsScreen() {
                 {promoMsg ? <Text style={styles.promoErrorText}>{promoMsg}</Text> : null}
               </>
             )}
+          </View>
+        )}
+
+        {/* 已連結登入方式 */}
+        {isAuthenticated && (identitiesQuery.data?.length ?? 0) > 0 && (
+          <View style={styles.promoCard}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>{t("settings.loginMethods" as any)}</Text>
+            {(identitiesQuery.data as any[]).map((id: any) => {
+              const icon = id.provider === "apple" ? "logo-apple" : id.provider === "google" ? "logo-google" : id.provider === "otp" ? "key-outline" : "mail-outline";
+              const label = id.provider === "apple" ? t("settings.providerApple" as any) : id.provider === "google" ? t("settings.providerGoogle" as any) : id.provider === "otp" ? t("settings.providerOtp" as any) : t("settings.providerEmail" as any);
+              return (
+                <View key={id.provider} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 }}>
+                  <Ionicons name={icon as any} size={18} color="#1C2E4A" />
+                  <Text style={{ fontSize: 14, color: "#1A1A1A" }}>{label}</Text>
+                  {id.email ? <Text style={{ fontSize: 12, color: "#9CA3AF", flex: 1, textAlign: "right" }} numberOfLines={1}>{id.email}</Text> : null}
+                </View>
+              );
+            })}
+            <Text style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8, lineHeight: 16 }}>{t("settings.linkHint" as any)}</Text>
           </View>
         )}
 

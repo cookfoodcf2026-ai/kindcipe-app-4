@@ -235,7 +235,13 @@
     "editNameUpdated": "Updated",
     "editNameUpdatedMsg": "Your name has been updated.",
     "nameUpdatedFailed": "Update failed",
-    "followIg": "Follow us on IG for 7-day Pro"
+    "followIg": "Follow us on IG for 7-day Pro",
+    "loginMethods": "Sign-in methods",
+    "providerApple": "Apple",
+    "providerGoogle": "Google",
+    "providerEmail": "Email",
+    "providerOtp": "Email code",
+    "linkHint": "Sign in with the same Apple/Google account to get the same account and data on any phone."
   },
   "errors": {},
   "aiChef": {

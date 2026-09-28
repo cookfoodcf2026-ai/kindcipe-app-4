@@ -235,7 +235,13 @@
     "editNameUpdated": "Na-update",
     "editNameUpdatedMsg": "Na-update ang iyong pangalan.",
     "nameUpdatedFailed": "Nabigo ang pag-update",
-    "followIg": "Follow us on IG for 7-day Pro"
+    "followIg": "Follow us on IG for 7-day Pro",
+    "loginMethods": "Mga paraan ng pag-sign in",
+    "providerApple": "Apple",
+    "providerGoogle": "Google",
+    "providerEmail": "Email",
+    "providerOtp": "Email code",
+    "linkHint": "Mag-sign in sa parehong Apple/Google account para makuha ang parehong data sa anumang telepono."
   },
   "errors": {},
   "aiChef": {
