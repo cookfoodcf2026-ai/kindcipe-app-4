@@ -481,6 +481,7 @@ export default function RecipesTab() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
+  const [hideAI, setHideAI] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const skeletonAnim = useRef(new Animated.Value(0)).current;
 
@@ -490,6 +491,18 @@ export default function RecipesTab() {
       router.setParams({ initialViewMode: undefined } as any);
     }
   }, [initialViewMode, router]);
+
+  // 隱藏 AI 生成食譜（記住用戶選擇）
+  useEffect(() => {
+    AsyncStorage.getItem("kindcipe_hide_ai").then((v) => setHideAI(v === "1")).catch(() => {});
+  }, []);
+  const toggleHideAI = useCallback(() => {
+    setHideAI((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("kindcipe_hide_ai", next ? "1" : "0").catch(() => {});
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
@@ -674,9 +687,39 @@ export default function RecipesTab() {
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${friendlyError(e)}`, "error");
+      showToast(t("加入食材失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
+
+  // AI 生成食譜：一鍵清除
+  const deleteUserM = trpc.recipes.deleteUser.useMutation();
+  const aiRecipes = useMemo(
+    () => (userRecipes as any[]).filter((r: any) => Array.isArray(r.tags) && r.tags.includes("AI 生成")),
+    [userRecipes],
+  );
+  const clearAIRecipes = useCallback(() => {
+    if (aiRecipes.length === 0) return;
+    Alert.alert(
+      t("清除全部 AI 食譜" as any),
+      t("確定刪除所有 AI 生成食譜？此動作無法還原。" as any),
+      [
+        { text: t("取消" as any), style: "cancel" },
+        {
+          text: t("刪除" as any),
+          style: "destructive",
+          onPress: async () => {
+            for (const r of aiRecipes) {
+              const id = Number(String(r.id).replace(/^user_/, ""));
+              if (!Number.isNaN(id)) {
+                try { await deleteUserM.mutateAsync({ id }); } catch { /* skip */ }
+              }
+            }
+            utils.recipes.listUser.invalidate();
+          },
+        },
+      ],
+    );
+  }, [aiRecipes, deleteUserM, utils, t]);
 
   const allUserTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -719,6 +762,11 @@ export default function RecipesTab() {
       });
     }
 
+    // 隱藏 AI 生成食譜（用戶選擇）
+    if (hideAI) {
+      pool = pool.filter((r: any) => !(Array.isArray(r.tags) ? r.tags : []).includes("AI 生成"));
+    }
+
     // Apply sorting
     if (sortBy === "popular") {
       // Backend already sorts by popularity (relevance → popularity → created_at)
@@ -730,7 +778,7 @@ export default function RecipesTab() {
     }
 
     return pool;
-  }, [searchRecipes, viewMode, sortBy, draftIdSet]);
+  }, [searchRecipes, viewMode, sortBy, draftIdSet, hideAI]);
 
   // P3: 背景預載食譜詳情（getById），令「撳落去」即刻見（避免第一次空白 3 秒）
   useEffect(() => {
@@ -877,6 +925,26 @@ export default function RecipesTab() {
             </View>
           )}
         </TouchableOpacity>
+      </View>
+
+      {/* AI 生成食譜：隱藏 toggle / 一鍵清除 */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6 }}>
+        <TouchableOpacity
+          onPress={toggleHideAI}
+          style={[s.sortBtn, { paddingHorizontal: 10, width: "auto", flexDirection: "row", gap: 4 }, hideAI && { backgroundColor: BRAND }]}
+        >
+          <Ionicons name="sparkles-outline" size={14} color={hideAI ? "#fff" : BRAND} />
+          <Text style={{ fontSize: 12, color: hideAI ? "#fff" : BRAND, fontWeight: "600" }}>
+            {hideAI ? t("顯示 AI 生成" as any) : t("隱藏 AI 生成" as any)}
+          </Text>
+        </TouchableOpacity>
+        {viewMode === "user" && aiRecipes.length > 0 && (
+          <TouchableOpacity onPress={clearAIRecipes} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+            <Text style={{ fontSize: 12, color: "#B91C1C", fontWeight: "600" }}>
+              {t("清除 AI 食譜（{{n}}）" as any, { n: aiRecipes.length })}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Search History Dropdown */}

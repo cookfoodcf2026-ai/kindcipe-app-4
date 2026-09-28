@@ -1748,5 +1748,11 @@
   "請輸入正確的消費總金額": "Please enter a valid total amount",
   "可以去 WhatsApp 貼上俾隊友啦！": "Paste it to WhatsApp for your teammate!",
   "已生成雙語買餸清單，快去貼上俾姐姐或幫手啦！": "Bilingual shopping list ready — paste it to your helper!",
-  "已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App": "List copied to clipboard. Paste it into WhatsApp or any app."
+  "已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App": "List copied to clipboard. Paste it into WhatsApp or any app.",
+  "隱藏 AI 生成": "Hide AI-generated",
+  "顯示 AI 生成": "Show AI-generated",
+  "清除全部 AI 食譜": "Clear all AI recipes",
+  "確定刪除所有 AI 生成食譜？此動作無法還原。": "Delete all AI-generated recipes? This cannot be undone.",
+  "清除 AI 食譜（{{n}}）": "Clear AI recipes ({{n}})",
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}"
 }
