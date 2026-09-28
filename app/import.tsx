@@ -74,8 +74,8 @@ export default function ImportScreen() {
   const [saveStepIdx, setSaveStepIdx] = useState(0);
   const saveStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const SAVE_STEPS = ["上載圖片...", "整理食譜資料...", "儲存到食譜庫..."];
-  const PARSE_STEPS = ["讀取內容", "識別食材", "整理步驟", "生成食譜"];
+  const SAVE_STEPS = [t("上載圖片..." as any), t("整理食譜資料..." as any), t("儲存到食譜庫..." as any)];
+  const PARSE_STEPS = [t("讀取內容" as any), t("識別食材" as any), t("整理步驟" as any), t("生成食譜" as any)];
 
   // 渲染圖片來源選擇 Modal（封裝成函式，可在多個 step 中复用）
   const renderPhotoSourceModal = () => (
@@ -374,9 +374,9 @@ export default function ImportScreen() {
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
         const platform = detectPlatform(universalInput);
-        const platformHelp = platform ? `\n\n平台提示（${platform}）：\n${getPlatformHelp(platform)}` : "";
+        const platformHelp = platform ? t("平台提示（{{platform}}）：\n{{help}}", { platform, help: getPlatformHelp(platform) }) : "";
         setErrorMsg(
-          `這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。${platformHelp}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 換另一個包含完整食材和步驟的帖子`
+          t("這個帖子沒有完整的食譜內容（例如只是用餐照片、產品推廣等）。{{help}}\n\n一般建議：\n• 試試截圖上傳帖子內的食材/步驟圖片\n• 換另一個包含完整食材和步驟的帖子" as any, { help: platformHelp })
         );
         setFailedInput({ type: "url", value: universalInput });
         setClipboardUrl(null);
@@ -384,11 +384,11 @@ export default function ImportScreen() {
         setStep("failed");
       } else {
         const platform = detectPlatform(universalInput);
-        let msg = "無法讀取此連結的內容，可能需要登入或內容已被刪除。";
+        let msg = t("無法讀取此連結的內容，可能需要登入或內容已被刪除。" as any);
         if (platform === "小紅書") {
-          msg += "\n\n小紅書限制了自動讀取，請改用「截圖上傳」或「貼上文字」功能。";
+          msg += t("\n\n小紅書限制了自動讀取，請改用「截圖上傳」或「貼上文字」功能。" as any);
         } else {
-          msg += "\n\n建議改用截圖上傳。";
+          msg += t("\n\n建議改用截圖上傳。" as any);
         }
         setErrorMsg(msg);
         setFailedInput({ type: "url", value: universalInput });
@@ -402,7 +402,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
-      setErrorMsg(friendlyError(err) || "無法連接到解析服務，請稍後重試");
+      setErrorMsg(friendlyError(err) || t("無法連接到解析服務，請稍後重試" as any));
       setFailedInput({ type: "url", value: universalInput });
       setStep("failed");
     },
@@ -419,7 +419,7 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else {
-        setErrorMsg("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。");
+        setErrorMsg(t("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。" as any));
         setFailedInput({ type: "text", value: universalInput });
         setClipboardUrl(null);
         setDetectedPlatform(null);
@@ -430,7 +430,7 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
-      setErrorMsg(friendlyError(err) || "無法解析文字內容");
+      setErrorMsg(friendlyError(err) || t("無法解析文字內容" as any));
       setFailedInput({ type: "text", value: universalInput });
       setStep("failed");
     },
@@ -447,7 +447,7 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else {
-        setErrorMsg("圖片中沒有足夠的食譜資訊。\n\n請重新上傳更清晰的圖片，確保包含完整的食材和步驟");
+        setErrorMsg(t("圖片中沒有足夠的食譜資訊。\n\n請重新上傳更清晰的圖片，確保包含完整的食材和步驟" as any));
         setFailedInput({ type: "url", value: "" });
         setClipboardUrl(null);
         setDetectedPlatform(null);
@@ -458,7 +458,7 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
-      setErrorMsg(friendlyError(err) || "無法解析圖片，請確保圖片清晰");
+      setErrorMsg(friendlyError(err) || t("無法解析圖片，請確保圖片清晰" as any));
       setFailedInput({ type: "url", value: "" });
       setStep("failed");
     },
@@ -493,12 +493,12 @@ export default function ImportScreen() {
       isImportingRef.current = false;
       if ((err as any).data?.code === "CONFLICT") {
         Alert.alert(
-          "重複食譜",
-          friendlyError(err) || "此食譜已在你的食譜庫中",
+          t("重複食譜" as any),
+          friendlyError(err) || t("此食譜已在你的食譜庫中" as any),
           [{ text: t("知道了" as any), style: "cancel" }]
         );
       } else {
-        Alert.alert("儲存失敗", friendlyError(err));
+        Alert.alert(t("儲存失敗" as any), friendlyError(err));
       }
     },
   });
@@ -631,7 +631,7 @@ export default function ImportScreen() {
     if (isParsingRef.current) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      Alert.alert("請輸入連結或食譜內容");
+      Alert.alert(t("請輸入連結或食譜內容" as any));
       return;
     }
     isParsingRef.current = true;
@@ -672,14 +672,14 @@ export default function ImportScreen() {
         }
       } else {
         Alert.alert(
-          "剪貼板是空的",
-          "請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上",
+          t("剪貼板是空的" as any),
+          t("請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上" as any),
           [{ text: t("明白" as any) }]
         );
       }
     } catch (e: any) {
       console.error("[handlePaste] Error:", friendlyError(e));
-      Alert.alert("讀取剪貼板失敗", friendlyError(e) || "請檢查剪貼板權限");
+      Alert.alert(t("讀取剪貼板失敗" as any), friendlyError(e) || t("請檢查剪貼板權限" as any));
     }
   };
 
@@ -688,7 +688,7 @@ export default function ImportScreen() {
     if (source === "camera") {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("需要相機權限", "請在系統設定中允許存取相機，才能拍照。");
+        Alert.alert(t("需要相機權限" as any), t("請在系統設定中允許存取相機，才能拍照。" as any));
         return;
       }
     }
@@ -698,7 +698,7 @@ export default function ImportScreen() {
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
         : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
     } catch (e: any) {
-      Alert.alert("開啟失敗", friendlyError(e) || "請重試");
+      Alert.alert(t("開啟失敗" as any), friendlyError(e) || t("請重試" as any));
       return;
     } finally {
       setShowPhotoSourceModal(false);
@@ -777,17 +777,17 @@ export default function ImportScreen() {
 
   // Save edited recipe with overlay
   const handleSaveEdited = async () => {
-    if (!editName.trim()) { Alert.alert("請輸入食譜名稱"); return; }
+    if (!editName.trim()) { Alert.alert(t("請輸入食譜名稱" as any)); return; }
     // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
     const missing: string[] = [];
-    if (!isKnownCuisine(selectedCategory)) missing.push("分類");
-    if (!editDishType) missing.push("菜式類型");
-    if (editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push("常用標籤");
-    if (missing.length > 0) { Alert.alert("請填寫必填資料", `請填：${missing.join("、")}`); return; }
+    if (!isKnownCuisine(selectedCategory)) missing.push(t("分類" as any));
+    if (!editDishType) missing.push(t("菜式類型" as any));
+    if (editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push(t("常用標籤" as any));
+    if (missing.length > 0) { Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") })); return; }
     const validIngredients = editIngredients.filter(i => i.name.trim());
     const validSteps = editSteps.filter(s => s.instruction.trim());
-    if (validIngredients.length === 0) { Alert.alert("請至少輸入一種食材"); return; }
-    if (validSteps.length === 0) { Alert.alert("請至少輸入一個步驟"); return; }
+    if (validIngredients.length === 0) { Alert.alert(t("請至少輸入一種食材" as any)); return; }
+    if (validSteps.length === 0) { Alert.alert(t("請至少輸入一個步驟" as any)); return; }
 
     setIsSaving(true);
     setSaveStepIdx(0);
@@ -847,7 +847,7 @@ export default function ImportScreen() {
     } catch (e: any) {
       setIsSaving(false);
       if (saveStepTimer.current) { clearInterval(saveStepTimer.current); saveStepTimer.current = null; }
-      Alert.alert("儲存失敗", friendlyError(e) || "圖片上傳失敗，請重試");
+      Alert.alert(t("儲存失敗" as any), friendlyError(e) || t("圖片上傳失敗，請重試" as any));
     }
   };
 
@@ -880,8 +880,8 @@ export default function ImportScreen() {
     hasUnsavedImport && !allowLeaveImport,
     ({ data }) => {
       Alert.alert(
-        "確定要離開？",
-        "已輸入或編輯的內容將不會儲存",
+        t("確定要離開？" as any),
+        t("已輸入或編輯的內容將不會儲存" as any),
         [
           { text: t("繼續編輯" as any), style: "cancel" },
           {
@@ -1173,8 +1173,8 @@ export default function ImportScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.retryButton} onPress={() => {
               Alert.alert(
-                "重新匯入？",
-                "目前的編輯內容將會遺失",
+                t("重新匯入？" as any),
+                t("目前的編輯內容將會遺失" as any),
                 [
                   { text: t("取消" as any), style: "cancel" },
                   { text: t("重新匯入" as any), style: "destructive", onPress: () => { setStep("input"); setParsedRecipe(null); } },

@@ -198,7 +198,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const handleDevReset = useCallback(async () => {
     await AsyncStorage.clear();
-    Alert.alert("已清除", "App 資料已重置，請重新啟動 App");
+    Alert.alert(t("已清除" as any), t("App 資料已重置，請重新啟動 App" as any));
     setShowDevReset(false);
   }, []);
 
@@ -324,8 +324,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       Alert.alert(
-        "偵測到食譜連結",
-        `發現 ${platform} 連結，是否立即匯入？`,
+        t("偵測到食譜連結" as any),
+        t("發現 {{platform}} 連結，是否立即匯入？" as any, { platform }),
         [
           { text: t("取消" as any), style: "cancel" },
           {
