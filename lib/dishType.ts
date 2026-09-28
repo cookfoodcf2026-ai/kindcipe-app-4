@@ -91,16 +91,19 @@ export const inferDishTypeKeyFromName = (name: string): DishTypeKey => {
 /**
  * 前端確定性護欄：**只救援被誤判為 soup** 嘅情況（如湯麵/湯圓/糖水被當湯）。其他不動。
  */
-const NAME_CARB_RE = /(?:麵|面|飯|饭|河粉|湯河|汤河|米線|米线|烏冬|乌冬|餃|饺|粥|米粉|意粉|意面|拉麵|拉面|通粉|丼|饅頭|馒头|noodle|ramen|pasta)/i;
-const NAME_DESSERT_RE = /(?:湯圓|汤圆|糖水|糊$|豆沙|豆花|豆腐花|布甸|布丁|燉奶|炖奶|西米露|楊枝甘露|杨枝甘露|芋圓|芋圆|dessert|pudding)/i;
-const NAME_DRINK_RE = /(?:水$|茶飲|茶饮|涼茶|凉茶|奶茶|豆漿|豆浆|果汁|咖啡|汽水|smoothie|juice|coffee)/i;
+const NAME_CARB_RE = /(?:麵|面|飯|饭|河粉|湯河|汤河|米線|米线|烏冬|乌冬|餃|饺|粥|米粉|意粉|意面|拉麵|拉面|通粉|丼|饅頭|馒头|冬粉|粉絲|粉丝|叻沙|喇沙|年糕|粄條|粄条|米苔目|泡饃|泡馍|泡飯|泡饭|粿條|粿条|油麵|油面|麵線|面线|公仔麵|公仔面|noodle|ramen|pasta|vermicelli|rice noodle|glass noodle|soba|udon|pho|laksa|congee|risotto|gnocchi|naan|biryani|bibimbap|donburi|ラーメン|うどん|そば|라면|국수|냉면|김밥|덮밥)/i;
+const NAME_DESSERT_RE = /(?:湯圓|汤圆|湯丸|汤丸|糖水|糊$|豆沙|豆花|豆腐花|布甸|布丁|燉奶|炖奶|燉蛋|炖蛋|西米露|楊枝甘露|杨枝甘露|芋圓|芋圆|dessert|pudding|tangyuan|sweet soup|glutinous rice ball|mochi|sago|red bean soup)/i;
+const NAME_DRINK_RE = /(?:水$|茶飲|茶饮|涼茶|凉茶|奶茶|豆漿|豆浆|果汁|咖啡|汽水|冬瓜茶|菊花茶|洛神花茶|檸檬茶|柠檬茶|杏仁茶|smoothie|juice|coffee|soda|milk tea)/i;
+const NAME_VEG_RE = /(?:菜心|芥蘭|芥兰|時蔬|时蔬|青菜|蔬菜|豆苗|菠菜|生菜|通菜|白菜|椰菜|西蘭花|西兰花|浸菜|炒菜|瓜|菇|木耳|雲耳|云耳)/i;
+const NAME_PROTEIN_RE = /(?:魚|鱼|蝦|虾|蟹|雞|鸡|牛|豬|猪|肉|羊|鴨|鸭|蛋|豆腐|海鮮|海鲜|羊肉|牛腩)/i;
 
 export const guardDishTypeByName = (name: string, current: DishTypeKey): DishTypeKey => {
   if (current !== "soup") return current;
   const n = String(name || "").replace(/電飯煲|电饭煲|電子鍋|电子锅|飯煲|饭煲/g, "");
+  if (NAME_DESSERT_RE.test(n)) return "dessert";
   if (/(?:湯|汤|soup)\s*$/.test(n) || /羹/.test(n)) return current;
   if (NAME_CARB_RE.test(n)) return "carb";
-  if (NAME_DESSERT_RE.test(n)) return "dessert";
   if (NAME_DRINK_RE.test(n)) return "drink";
+  if (NAME_VEG_RE.test(n) && !NAME_PROTEIN_RE.test(n)) return "vegetable";
   return current;
 };
