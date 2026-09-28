@@ -32,7 +32,7 @@
           "id"
         ]
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {
@@ -48,7 +48,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 4
+      "versionCode": 5
     },
     "plugins": [
       "expo-router",
@@ -79,7 +79,10 @@
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
             "NSExtensionActivationSupportsImageWithMaxCount": 1
           },
-          "androidIntentFilters": ["text/*", "image/*"]
+          "androidIntentFilters": [
+            "text/*",
+            "image/*"
+          ]
         }
       ]
     ],
