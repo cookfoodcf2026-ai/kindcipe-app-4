@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
@@ -56,19 +56,6 @@ export default function LoginScreen() {
   const [loadingType, setLoadingType] = useState<string>("");
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const utils = trpc.useUtils();
-
-  // 隱藏管理員入口：連點 Logo 5 下
-  const logoTaps = useRef(0);
-  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onLogoTap = () => {
-    logoTaps.current += 1;
-    if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
-    logoTapTimer.current = setTimeout(() => { logoTaps.current = 0; }, 1500);
-    if (logoTaps.current >= 5) {
-      logoTaps.current = 0;
-      setMode("admin");
-    }
-  };
 
   // Apple Sign-In availability (async; native module may not register synchronously in the New Architecture).
   const [appleAvailable, setAppleAvailable] = useState<boolean>(hasAppleAuth);
@@ -264,14 +251,13 @@ export default function LoginScreen() {
         >
           {/* Logo（連點 5 下 = 管理員入口） */}
           <View style={styles.logoSection}>
-            <TouchableOpacity activeOpacity={1} onPress={onLogoTap}>
-              <Image
-                source={getAppLogo()}
-                style={{ width: 220, height: 220, resizeMode: "contain" }}
-              />
-            </TouchableOpacity>
+            <Image
+              source={getAppLogo()}
+              style={{ width: 220, height: 220, resizeMode: "contain" }}
+            />
             <Text style={styles.appName}>{t("auth.appName" as any)}</Text>
             <Text style={styles.slogan}>{t("auth.slogan" as any)}</Text>
+            <Text style={styles.dataNote}>{t("auth.dataFollowsLogin" as any)}</Text>
           </View>
 
           {mode === "admin" ? (
@@ -433,6 +419,7 @@ const styles = StyleSheet.create({
   logoSection: { alignItems: "center", marginBottom: 32 },
   appName: { fontSize: 20, fontWeight: "800", color: BRAND, marginTop: 4 },
   slogan: { fontSize: 14, color: "#6B7280", marginTop: 10, textAlign: "center", lineHeight: 20, paddingHorizontal: 12 },
+  dataNote: { fontSize: 11.5, color: "#9CA3AF", marginTop: 8, textAlign: "center", lineHeight: 16, paddingHorizontal: 16 },
 
   // Form (admin)
   form: { gap: 12 },

@@ -235,8 +235,7 @@
     "editNameUpdated": "已更新",
     "editNameUpdatedMsg": "用戶名稱已更新。",
     "nameUpdatedFailed": "更新失敗",
-    "followIg": "追蹤 IG 攞 7 日 Pro",
-    "clipboardAutoDetect": "自動偵測剪貼板連結"
+    "followIg": "追蹤 IG 攞 7 日 Pro"
   },
   "errors": {},
   "aiChef": {
@@ -778,7 +777,8 @@
     "slogan": "今晚食咩？一鍵配好三餸一湯，家人溝通零時差",
     "privacyAgree": "登入即代表同意私隱政策",
     "adminLoginTitle": "管理員登入",
-    "backToUserLogin": "返回用戶登入"
+    "backToUserLogin": "返回用戶登入",
+    "dataFollowsLogin": "資料會跟住你嘅 Apple／Google 帳號，換機用同一個登入即可搵返。"
   },
   "notFound": {
     "title": "呢個頁面唔存在",
@@ -1761,6 +1761,5 @@
   "清除全部 AI 食譜": "清除全部 AI 食譜",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "確定刪除所有 AI 生成食譜？此動作無法還原。",
   "清除 AI 食譜（{{n}}）": "清除 AI 食譜（{{n}}）",
-  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}",
-  "不再自動偵測": "不再自動偵測"
+  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}"
 }

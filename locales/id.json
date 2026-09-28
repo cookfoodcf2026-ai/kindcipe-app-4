@@ -235,8 +235,7 @@
     "editNameUpdated": "Diperbarui",
     "editNameUpdatedMsg": "Nama Anda telah diperbarui.",
     "nameUpdatedFailed": "Gagal memperbarui",
-    "followIg": "Follow us on IG for 7-day Pro",
-    "clipboardAutoDetect": "Auto-detect clipboard links"
+    "followIg": "Follow us on IG for 7-day Pro"
   },
   "errors": {},
   "aiChef": {
@@ -778,7 +777,8 @@
     "slogan": "Mau masak apa? Sekali ketuk untuk 3 lauk + 1 sup, sinkron dengan keluarga.",
     "privacyAgree": "Dengan masuk, Anda menyetujui Kebijakan Privasi",
     "adminLoginTitle": "Login admin",
-    "backToUserLogin": "Kembali ke login pengguna"
+    "backToUserLogin": "Kembali ke login pengguna",
+    "dataFollowsLogin": "Data mengikuti akun Apple/Google Anda. Masuk dengan cara sama untuk mendapatkannya kembali."
   },
   "notFound": {
     "title": "Halaman ini tidak ada",
@@ -1761,6 +1761,5 @@
   "清除全部 AI 食譜": "Clear all AI recipes",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "Delete all AI-generated recipes? This cannot be undone.",
   "清除 AI 食譜（{{n}}）": "Clear AI recipes ({{n}})",
-  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}",
-  "不再自動偵測": "Don't auto-detect again"
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}"
 }

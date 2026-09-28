@@ -304,8 +304,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const promptClipboardImport = useCallback(async () => {
     try {
-      const disabled = await AsyncStorage.getItem("kindcipe_clipboard_autodetect_disabled");
-      if (disabled === "1") return;
       const text = await Clipboard.getStringAsync();
       if (!text || !isValidUrl(text.trim())) return;
       const platform = detectPlatform(text);
@@ -328,11 +326,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         t("發現 {{platform}} 連結，是否立即匯入？" as any, { platform }),
         [
           { text: t("取消" as any), style: "cancel" },
-          {
-            text: t("不再自動偵測" as any),
-            style: "cancel",
-            onPress: () => { AsyncStorage.setItem("kindcipe_clipboard_autodetect_disabled", "1").catch(() => {}); },
-          },
           {
             text: t("匯入食譜" as any),
             onPress: () => {
