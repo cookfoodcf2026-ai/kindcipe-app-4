@@ -1410,7 +1410,7 @@ export default function AIChefScreen() {
   };
 
   const handleDeleteChat = (id: string) => {
-    Alert.alert("刪除對話", "確定要刪除這個對話嗎？", [
+    Alert.alert(t("刪除對話" as any), t("確定要刪除這個對話嗎？" as any), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("刪除" as any), style: "destructive",
@@ -1570,7 +1570,7 @@ export default function AIChefScreen() {
         continueAfterMealPlan();
       }
     },
-    onError: (e) => Alert.alert("加入排餐失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("加入排餐失敗" as any), friendlyError(e)),
   });
   const deleteMealM = trpc.mealPlan.delete.useMutation({
     onSuccess: async () => { await invalidateMealPlanAndCart(); },
@@ -1585,7 +1585,7 @@ export default function AIChefScreen() {
         showToast("⚠️ 已批量加入排餐，但列表可能需要手動刷新");
       }
     },
-    onError: (e) => Alert.alert("批量加入排餐失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("批量加入排餐失敗" as any), friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
     onSuccess: async (data, variables) => {
@@ -1626,7 +1626,7 @@ export default function AIChefScreen() {
       let result: ImagePicker.ImagePickerResult;
       if (idx === 0) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert("需要相機權限"); return; }
+        if (!perm.granted) { Alert.alert(t("需要相機權限" as any)); return; }
         try {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"], quality: 0.8, base64: false,
@@ -1634,8 +1634,8 @@ export default function AIChefScreen() {
         } catch (e: any) {
           console.error("[AI 助手] Camera launch failed:", e);
           Alert.alert(
-            "相機無法使用",
-            "此裝置（例如 iOS 模擬器）冇可用相機。\n\n請用真機測試，或改用「從相簿選擇」。"
+            t("相機無法使用" as any),
+            t("此裝置（例如 iOS 模擬器）冇可用相機。\n\n請用真機測試，或改用「從相簿選擇」。" as any)
           );
           return;
         }
@@ -1750,7 +1750,7 @@ export default function AIChefScreen() {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, onSelect);
     } else {
-      Alert.alert("上傳雪櫃圖片", "選擇來源", [
+      Alert.alert(t("上傳雪櫃圖片" as any), t("選擇來源" as any), [
         { text: t("拍照" as any), onPress: () => onSelect(0) },
         { text: t("從相簿選擇" as any), onPress: () => onSelect(1) },
         { text: t("取消" as any), style: "cancel" },
@@ -2453,7 +2453,7 @@ export default function AIChefScreen() {
     if (batchPlanBusy) return;
     const validRecipes = recipes.filter(isValidRecipe);
     if (validRecipes.length === 0) {
-      Alert.alert("無法加入排餐", "未找到有效食譜，請確認食譜包含食材同步驟。");
+      Alert.alert(t("無法加入排餐" as any), t("未找到有效食譜，請確認食譜包含食材同步驟。" as any));
       return;
     }
     setBatchPlanBusy(true);
@@ -2503,7 +2503,7 @@ export default function AIChefScreen() {
       setPlanDate(date);
       setShowPlan(true);
     } catch (e: any) {
-      Alert.alert("儲存食譜失敗", friendlyError(e) || "請稍後再試");
+      Alert.alert(t("儲存食譜失敗" as any), friendlyError(e) || t("請稍後再試" as any));
     } finally {
       setBatchPlanBusy(false);
     }
@@ -2511,7 +2511,7 @@ export default function AIChefScreen() {
 
   const handleFavoriteRecipe = async (recipe: AIRecipe) => {
     if (!isValidRecipe(recipe)) {
-      Alert.alert("無法收藏", "此食譜資料不完整，無法收藏。");
+      Alert.alert(t("無法收藏" as any), t("此食譜資料不完整，無法收藏。" as any));
       return;
     }
     const key = (recipe.name || "").trim();
@@ -2521,7 +2521,7 @@ export default function AIChefScreen() {
       await ensureSaved(recipe);
       showToast("✅ 已收藏（食譜庫）");
     } catch (e: any) {
-      Alert.alert("收藏失敗", friendlyError(e) || "請稍後再試");
+      Alert.alert(t("收藏失敗" as any), friendlyError(e) || t("請稍後再試" as any));
     } finally {
       setFavoritingName("");
     }
@@ -2708,10 +2708,10 @@ export default function AIChefScreen() {
         }
       } catch (e: any) {
         console.error("[handleSwapRecipe] Error:", e);
-        const errorMsg = friendlyError(e) || "未知錯誤";
+        const errorMsg = friendlyError(e) || t("未知錯誤" as any);
         Alert.alert(
-          "換食譜失敗",
-          `錯誤：${errorMsg}\n\n請檢查網絡連接，或嘗試再次點擊。`,
+          t("換食譜失敗" as any),
+          t("錯誤：{{msg}}\n\n請檢查網絡連接，或嘗試再次點擊。" as any, { msg: errorMsg }),
           [{ text: t("確定" as any) }]
         );
       } finally {
@@ -2827,7 +2827,7 @@ export default function AIChefScreen() {
       if (validRecipes.length === 1) {
         handleFavoriteRecipe(validRecipes[0]);
       } else if (validRecipes.length > 1) {
-        Alert.alert("選擇食譜", "你想收藏邊個食譜？請㩒卡片上嘅「收藏」掣。");
+        Alert.alert(t("選擇食譜" as any), t("你想收藏邊個食譜？請㩒卡片上嘅「收藏」掣。" as any));
       }
       return true;
     }
@@ -2918,7 +2918,7 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
       return;
     }
-    Alert.alert("未能識別食譜", "AI 回覆中未找到有效食譜。");
+    Alert.alert(t("未能識別食譜" as any), t("AI 回覆中未找到有效食譜。" as any));
   };
 
   const handleNextStep = (text: string) => {
@@ -2961,7 +2961,7 @@ export default function AIChefScreen() {
     }
     // Guard: ensure date is selected
     if (!planDate) {
-      Alert.alert("請選擇日期");
+      Alert.alert(t("請選擇日期" as any));
       return;
     }
     // Batch mode: add all recipes to meal plan with selected date/mealType
@@ -3030,11 +3030,11 @@ export default function AIChefScreen() {
           const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
           const isDup = !!result?.skippedDueToDuplicate && !result?.skippedDays?.length;
           if (isDup) {
-            Alert.alert(t("重複食譜提示" as any), `有 ${skipped} 個食譜同日已排過（${days}），未重複加入。`, [{ text: t("確定" as any) }]);
+            Alert.alert(t("重複食譜提示" as any), t("有 {{n}} 個食譜同日已排過（{{days}}），未重複加入。" as any, { n: skipped, days }), [{ text: t("確定" as any) }]);
           } else {
             Alert.alert(
               t("衝突提示" as any),
-              `當日已設定外出（${days}），確定要排餐嗎？`,
+              t("當日已設定外出（{{days}}），確定要排餐嗎？" as any, { days }),
               [
                 { text: t("取消" as any), style: "cancel", onPress: () => {} },
                 { text: t("確定" as any), onPress: async () => {
@@ -3050,7 +3050,7 @@ export default function AIChefScreen() {
         }
         afterAdded([result]);
       } catch (e: any) {
-        Alert.alert("加入排餐失敗", friendlyError(e) || "請稍後再試");
+        Alert.alert(t("加入排餐失敗" as any), friendlyError(e) || t("請稍後再試" as any));
       }
       return;
     }
@@ -3058,7 +3058,7 @@ export default function AIChefScreen() {
     // Single recipe mode
     if (!planRecipe) return;
     if (!isValidRecipe(planRecipe)) {
-      Alert.alert("無法加入", "此食譜資料不完整（缺少食材或步驟），無法加入排餐。");
+      Alert.alert(t("無法加入" as any), t("此食譜資料不完整（缺少食材或步驟），無法加入排餐。" as any));
       return;
     }
     // Override servings with user's preference if from meal plan flow
@@ -3629,7 +3629,7 @@ export default function AIChefScreen() {
                                   setPlanDate(todayISO());
                                   setShowPlan(true);
                                 } else {
-                                  Alert.alert("無法加入", "此食譜資料不完整。");
+                                  Alert.alert(t("無法加入" as any), t("此食譜資料不完整。" as any));
                                 }
                               }}
                               disabled={!isValidRecipe(r)}
