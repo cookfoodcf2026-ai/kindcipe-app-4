@@ -399,7 +399,19 @@
     "linkedDinner": "Naka-link sa {{date}}; bumili bago",
     "addNIngredients": "Idagdag ang {{n}}",
     "addToShopping": "Idagdag sa listahan",
-    "copiedLink": "Nakopya ang link ng recipe"
+    "copiedLink": "Nakopya ang link ng recipe",
+    "privateLoginTitle": "Pribadong ibinahagi ang recipe na ito",
+    "privateLoginBody": "Mag-log in upang makita ito.",
+    "privateNoAccessTitle": "Pag-aari ng ibang pamilya ang recipe na ito",
+    "privateNoAccessBody": "Wala kang access dito.",
+    "viewPublic": "Tingnan ang pampublikong recipes",
+    "notFoundDeleted": "Wala na ang recipe na ito",
+    "notFoundDeletedBody": "Maaaring luma na ang link.",
+    "loadFailed": "Nabigo ang pag-load",
+    "loadFailedBody": "Suriin ang koneksyon at subukan muli.",
+    "retry": "Subukan muli",
+    "login": "Mag-log in",
+    "privateShareHint": "Pribado ang recipe — nakopya ang teksto (hindi link)"
   },
   "enums": {
     "category": {

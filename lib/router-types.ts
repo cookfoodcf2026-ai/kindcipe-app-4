@@ -576,6 +576,8 @@ export interface Recipe {
   sourceUrl?: string;
   isOfficial: boolean;
   isFavorite: boolean;
+  /** Present on user recipes: controls whether a share link is usable. */
+  visibility?: 'private' | 'pending_public' | 'public';
   userId?: string;
   createdAt: string;
   updatedAt: string;

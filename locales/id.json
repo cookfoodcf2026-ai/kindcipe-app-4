@@ -399,7 +399,19 @@
     "linkedDinner": "Terkait {{date}}; beli sehari sebelumnya",
     "addNIngredients": "Tambah {{n}} bahan",
     "addToShopping": "Tambah ke belanja",
-    "copiedLink": "Tautan resep disalin"
+    "copiedLink": "Tautan resep disalin",
+    "privateLoginTitle": "Resep ini dibagikan secara privat",
+    "privateLoginBody": "Silakan masuk untuk melihatnya.",
+    "privateNoAccessTitle": "Resep ini milik keluarga lain",
+    "privateNoAccessBody": "Anda tidak memiliki akses.",
+    "viewPublic": "Lihat resep publik",
+    "notFoundDeleted": "Resep ini sudah tidak ada",
+    "notFoundDeletedBody": "Tautan mungkin sudah kedaluwarsa.",
+    "loadFailed": "Gagal memuat",
+    "loadFailedBody": "Periksa koneksi lalu coba lagi.",
+    "retry": "Coba lagi",
+    "login": "Masuk",
+    "privateShareHint": "Resep ini privat — teks resep disalin (bukan tautan)"
   },
   "enums": {
     "category": {

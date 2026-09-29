@@ -951,13 +951,61 @@ export default function RecipeDetailScreen() {
   }
 
   if (!recipe) {
+    // Distinguish error types so a shared private link explains itself instead
+    // of showing a bare "not found".
+    const errCode = (recipeQ.error as any)?.data?.code as string | undefined;
+    const errMsg = String((recipeQ.error as any)?.message ?? "");
+    const isPrivate = errCode === "FORBIDDEN" && /PRIVATE_RECIPE|Access denied/i.test(errMsg);
+
+    let icon: keyof typeof Ionicons.glyphMap = "alert-circle-outline";
+    let iconColor = HINT;
+    let title = t("recipe.notFound");
+    let body = "";
+    let ctaLabel = t("recipe.back");
+    let ctaOnPress: () => void = () => router.back();
+    let secondaryLabel: string | null = null;
+    let secondaryOnPress: (() => void) | null = null;
+
+    if (isPrivate && !isAuthenticated) {
+      icon = "lock-closed-outline";
+      iconColor = BRAND;
+      title = t("recipe.privateLoginTitle");
+      body = t("recipe.privateLoginBody");
+      ctaLabel = t("recipe.login");
+      ctaOnPress = () => router.replace("/login");
+    } else if (isPrivate) {
+      icon = "lock-closed-outline";
+      iconColor = BRAND;
+      title = t("recipe.privateNoAccessTitle");
+      body = t("recipe.privateNoAccessBody");
+      ctaLabel = t("recipe.viewPublic");
+      ctaOnPress = () => router.replace("/recipes");
+      secondaryLabel = t("recipe.back");
+      secondaryOnPress = () => router.back();
+    } else if (errCode === "NOT_FOUND") {
+      title = t("recipe.notFoundDeleted");
+      body = t("recipe.notFoundDeletedBody");
+    } else if (recipeQ.error) {
+      icon = "cloud-offline-outline";
+      title = t("recipe.loadFailed");
+      body = t("recipe.loadFailedBody");
+      ctaLabel = t("recipe.retry");
+      ctaOnPress = () => { void recipeQ.refetch(); };
+    }
+
     return (
       <View style={s.center}>
-        <Ionicons name="alert-circle-outline" size={52} color={HINT} />
-        <Text style={{ fontSize: 15, color: SUB, marginTop: 8 }}>{t("recipe.notFound")}</Text>
-        <TouchableOpacity style={s.backBtnSolid} onPress={() => router.back()}>
-          <Text style={{ color: "#fff", fontWeight: "700" }}>{t("recipe.back")}</Text>
+        <Ionicons name={icon} size={52} color={iconColor} />
+        <Text style={s.emptyTitle}>{title}</Text>
+        {body ? <Text style={s.emptyBody}>{body}</Text> : null}
+        <TouchableOpacity style={s.backBtnSolid} onPress={ctaOnPress}>
+          <Text style={{ color: "#fff", fontWeight: "700" }}>{ctaLabel}</Text>
         </TouchableOpacity>
+        {secondaryLabel && secondaryOnPress ? (
+          <TouchableOpacity onPress={secondaryOnPress} style={{ paddingVertical: 8 }}>
+            <Text style={{ color: SUB, fontSize: 14 }}>{secondaryLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   }
@@ -1066,77 +1114,16 @@ export default function RecipeDetailScreen() {
                   `— 來自 Kindcipe 家庭廚房`,
                 ].filter(Boolean).join("\n");
                 
-                Share.share({ message: shareText, title: recipe?.name ?? "食譜" });
+                const recipeUrl = buildRecipeShareUrlFor({ id: recipe?.id ?? "", name: recipe?.name, source: (recipe as any)?.source });
+                Alert.alert("分享食譜", undefined, [
+                  { text: "分享", onPress: () => { Share.share({ message: shareText, title: recipe?.name ?? "食譜" }); } },
+                  { text: "複製全文", onPress: async () => { await Clipboard.setStringAsync(shareText); showToast("已複製整個食譜"); } },
+                  { text: "複製連結", onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
+                  { text: "取消", style: "cancel" },
+                ]);
               }}
             >
               <Ionicons name="share-outline" size={20} color="#013E77" />
-            </TouchableOpacity>
-            {/* Copy Whole Recipe button */}
-            <TouchableOpacity
-              style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 64 }]}
-              onPress={async () => {
-                // 處理食材 - 使用 adjustedQty (已調整份量)
-                const ingText = adjustedIngredients
-                  .map((i: any) => {
-                    const name = i.name ?? t("未知食材" as any);
-                    const qty = i.adjustedQty ?? i.quantity ?? "";
-                    const unit = i.unit ?? "";
-                    return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
-                  })
-                  .join("\n");
-                
-                // 處理步驟 - 支援多種屬性名稱，包含小貼士
-                const stepText = steps
-                  .map((s: any, i: number) => {
-                    const instruction = typeof s === "string" 
-                      ? s 
-                      : (s.instruction ?? s.description ?? s.step ?? `步驟 ${i + 1}`);
-                    const tip = s.tip ?? s.tips ?? "";
-                    
-                    let result = `${i + 1}. ${instruction}`;
-                    if (tip) result += `\n   💡 ${tip}`;
-                    return result;
-                  })
-                  .join("\n");
-                
-                // 組合完整複製文字
-                const copyText = [
-                  `🍽️ ${recipe?.name ?? t("食譜" as any)}`,
-                  (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
-                  "",
-                  recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
-                  `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
-                  (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
-                  "",
-                  `🛒 食材清單：`,
-                  ingText,
-                  "",
-                  `👨‍🍳 烹飪步驟：`,
-                  stepText,
-                  "",
-                  (recipe as any).housewifeTips ? `💡 主婦貼士：${(recipe as any).housewifeTips}` : "",
-                ].filter(Boolean).join("\n");
-                
-                await Clipboard.setStringAsync(copyText);
-                showToast("已複製整個食譜");
-              }}
-            >
-              <Ionicons name="copy-outline" size={20} color="#013E77" />
-            </TouchableOpacity>
-            {/* 🔗 Web App Link Share Button - Activate when Web App is deployed */}
-            <TouchableOpacity
-              style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 112 }]}
-              onPress={() => {
-                const recipeUrl = buildRecipeShareUrlFor({
-                  id: recipe?.id ?? "",
-                  name: recipe?.name,
-                  source: (recipe as any)?.source,
-                });
-                Clipboard.setStringAsync(recipeUrl);
-                showToast(t("recipe.copiedLink"));
-              }}
-            >
-              <Ionicons name="link-outline" size={20} color="#013E77" />
             </TouchableOpacity>
             {/* Recipe info overlay */}
             <View style={s.heroInfo}>
@@ -2425,6 +2412,8 @@ export default function RecipeDetailScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: BG },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#1A1A1A", textAlign: "center", paddingHorizontal: 32 },
+  emptyBody: { fontSize: 14, color: SUB, textAlign: "center", paddingHorizontal: 40, lineHeight: 20 },
   backBtnSolid: { backgroundColor: BRAND, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10, marginTop: 8 },
 
   // Hero

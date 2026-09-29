@@ -30,15 +30,21 @@ export function getWebOrigin(): string {
   return window.location.origin;
 }
 
+/** The public marketing site (Astro, SEO/GEO pages like /recipes/<name>/). */
+export function getMarketingUrl(): string {
+  return process.env.EXPO_PUBLIC_MARKETING_URL ?? "https://kindcipe.com";
+}
+
 /** Build a shareable recipe link that works on both platforms. */
 export function buildRecipeShareUrl(recipeId: string | number): string {
   return `${getWebappUrl()}/recipe/${recipeId}`;
 }
 
 /**
- * Share URL for a recipe. Official recipes have a public SEO page at
- * `/recipes/<name>/` (backend-driven static site); everything else falls back
- * to the app's own recipe route.
+ * Share URL for a recipe.
+ *  - Official / KOL recipes → the public marketing SEO page
+ *    (`kindcipe.com/recipes/<name>/`) — viewable without login.
+ *  - User / AI recipes → the web app recipe route (may require login).
  */
 export function buildRecipeShareUrlFor(recipe: {
   id: string | number;
@@ -47,7 +53,7 @@ export function buildRecipeShareUrlFor(recipe: {
 }): string {
   const isOfficial = recipe.source === "official" || recipe.source === "kol";
   if (isOfficial && recipe.name) {
-    return `${getWebappUrl()}/recipes/${encodeURIComponent(recipe.name.trim())}/`;
+    return `${getMarketingUrl()}/recipes/${encodeURIComponent(recipe.name.trim())}/`;
   }
   return buildRecipeShareUrl(recipe.id);
 }

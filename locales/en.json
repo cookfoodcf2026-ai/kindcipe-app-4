@@ -399,7 +399,19 @@
     "linkedDinner": "Linked to {{date}} dinner; buy the day before",
     "addNIngredients": "Add {{n}} ingredients",
     "addToShopping": "Add to shopping",
-    "copiedLink": "Recipe link copied"
+    "copiedLink": "Recipe link copied",
+    "privateLoginTitle": "This recipe was shared privately",
+    "privateLoginBody": "Please log in to view it.",
+    "privateNoAccessTitle": "This recipe belongs to another family",
+    "privateNoAccessBody": "You don't have access to it.",
+    "viewPublic": "Browse public recipes",
+    "notFoundDeleted": "This recipe no longer exists",
+    "notFoundDeletedBody": "The link may be out of date.",
+    "loadFailed": "Failed to load",
+    "loadFailedBody": "Check your connection and try again.",
+    "retry": "Retry",
+    "login": "Log in",
+    "privateShareHint": "This recipe is private — copied the recipe text (not a link)"
   },
   "enums": {
     "category": {

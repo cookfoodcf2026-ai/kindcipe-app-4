@@ -399,7 +399,19 @@
     "linkedDinner": "已關聯 {{date}} 晚餐，建議購買日為前一日",
     "addNIngredients": "加入 {{n}} 項食材",
     "addToShopping": "加入購買",
-    "copiedLink": "已複製食譜連結"
+    "copiedLink": "已複製食譜連結",
+    "privateLoginTitle": "此食譜由私人分享",
+    "privateLoginBody": "請登入後查看。",
+    "privateNoAccessTitle": "此食譜屬其他家庭的私密內容",
+    "privateNoAccessBody": "你沒有存取權限。",
+    "viewPublic": "查看公開食譜",
+    "notFoundDeleted": "此食譜已被刪除或不存在",
+    "notFoundDeletedBody": "連結可能已經失效。",
+    "loadFailed": "載入失敗",
+    "loadFailedBody": "請檢查網絡後再試。",
+    "retry": "重試",
+    "login": "登入",
+    "privateShareHint": "此食譜為私密，已複製食譜文字（非連結）"
   },
   "enums": {
     "category": {
