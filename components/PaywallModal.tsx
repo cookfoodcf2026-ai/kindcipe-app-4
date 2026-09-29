@@ -15,14 +15,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Linking,
   ActivityIndicator,
   TextInput,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
-import { purchaseSubscription, PRODUCT_IDS, manageSubscription, type ProductId } from "../lib/purchase";
+import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, type ProductId } from "../lib/purchase";
 import { trpc } from "../lib/trpc";
 
 type PaywallFeature =
@@ -266,7 +265,9 @@ export default function PaywallModal({
             {isPurchasing === 'monthly' ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.upgradeBtnText}>訂閱月費 HK$30</Text>
+              <Text style={styles.upgradeBtnText}>
+                {isStripeSupported ? "信用卡訂閱月費 HK$30" : "訂閱月費 HK$30"}
+              </Text>
             )}
           </TouchableOpacity>
 
@@ -281,6 +282,12 @@ export default function PaywallModal({
               <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（最抵，80% 僱主選擇）</Text>
             )}
           </TouchableOpacity>
+
+          <Text style={styles.legalNote}>
+            {isStripeSupported
+              ? "以信用卡安全付款（Stripe）。可隨時於「管理訂閱」取消。"
+              : "透過 App Store 付款，可隨時於 Apple 帳戶取消。"}
+          </Text>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
             <Text style={styles.cancelBtnText}>
@@ -478,6 +485,13 @@ const styles = StyleSheet.create({
     color: "#013E77",
     fontSize: 14,
     fontWeight: "600",
+  },
+  legalNote: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 17,
   },
   errorText: {
     color: "#DC2626",

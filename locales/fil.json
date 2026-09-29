@@ -241,7 +241,10 @@
     "providerGoogle": "Google",
     "providerEmail": "Email",
     "providerOtp": "Email code",
-    "linkHint": "Mag-sign in sa parehong Apple/Google account para makuha ang parehong data sa anumang telepono."
+    "linkHint": "Mag-sign in sa parehong Apple/Google account para makuha ang parehong data sa anumang telepono.",
+    "billingSuccess": "Matagumpay ang bayad — Pro ka na!",
+    "billingPending": "Pinoproseso ang bayad — mag-aactivate agad ang Pro.",
+    "billingCancelled": "Kinansela ang bayad."
   },
   "errors": {},
   "aiChef": {

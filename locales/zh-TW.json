@@ -241,7 +241,10 @@
     "providerGoogle": "Google",
     "providerEmail": "電郵",
     "providerOtp": "電郵驗證碼",
-    "linkHint": "用同一個 Apple／Google 帳號登入，任何手機都搵返同一帳戶同資料。"
+    "linkHint": "用同一個 Apple／Google 帳號登入，任何手機都搵返同一帳戶同資料。",
+    "billingSuccess": "付款成功，已升級為 Pro！",
+    "billingPending": "付款處理中，稍後會自動生效。",
+    "billingCancelled": "已取消付款。"
   },
   "errors": {},
   "aiChef": {

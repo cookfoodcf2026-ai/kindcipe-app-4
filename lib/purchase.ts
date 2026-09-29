@@ -1,27 +1,31 @@
 /**
- * IAP (In-App Purchase) helper — Beta build.
+ * Subscription purchase helper (universal build).
  *
- * `expo-in-app-purchases` is deprecated and not supported by Expo SDK 54
- * (it targets compileSdk 33 and breaks the Android Gradle build). The real
- * store integration will be added with `react-native-iap` together with
- * server-side receipt verification before the public release.
+ * Channel by platform:
+ *  - Web / Android → Stripe Checkout (see backend billing router). Opening the
+ *    URL navigates the browser / in-app browser to Stripe.
+ *  - iOS → Apple In-App Purchase. NOTE: `expo-in-app-purchases` is deprecated
+ *    on SDK 54 and not bundled, so iOS currently reports "unavailable" until
+ *    react-native-iap + server receipt verification land (see docs).
  *
- * This module keeps the same public API so the UI works unchanged; purchases
- * simply report that they are not available in this build yet.
+ * App Store guideline 3.1.1: iOS must use IAP for digital goods, so we NEVER
+ * expose the Stripe path on iOS.
  */
 import { Linking, Platform } from "react-native";
 import i18n from "./i18n";
+import { trpc } from "./trpc";
+import { isWeb } from "./platform";
 
 export const PRODUCT_IDS = {
   MONTHLY: "kindcipe_monthly_30",
   YEARLY: "kindcipe_yearly_288",
 } as const;
 
-/**
- * In-App Purchase is only meaningful on native stores. On web we surface a
- * web billing/upgrade path instead (set EXPO_PUBLIC_ACCOUNT_URL), never IAP.
- */
-export const isIapSupported = Platform.OS !== "web";
+/** Apple IAP only applies to native iOS builds. */
+export const isIapSupported = Platform.OS === "ios";
+
+/** Stripe applies to web (and Android, where permitted). Never iOS. */
+export const isStripeSupported = Platform.OS === "web" || Platform.OS === "android";
 
 export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS];
 
@@ -38,25 +42,62 @@ export async function initIAP(): Promise<void> {
   // No-op in the Beta build (store SDK not bundled yet).
 }
 
-export async function getProducts(): Promise<Array<{ productId: ProductId; price: string }>> {
+export async function getProducts(): Promise<{ productId: ProductId; price: string }[]> {
   return [];
 }
 
-export async function purchaseSubscription(_productId: ProductId): Promise<PurchaseResult> {
-  if (!isIapSupported) {
-    return { success: false, error: i18n.t("error.iapUnavailable" as any) };
+/**
+ * Start a purchase. On web/Android this opens Stripe Checkout (full-page
+ * redirect on web, in-app browser on native-android). On iOS it attempts IAP.
+ */
+export async function purchaseSubscription(productId: ProductId): Promise<PurchaseResult> {
+  const plan = SUBSCRIPTION_TYPE[productId];
+
+  if (isStripeSupported) {
+    try {
+      const returnUrl =
+        isWeb && typeof window !== "undefined" ? window.location.origin : undefined;
+      const { url } = await trpc.billing.createCheckoutSession.mutate({
+        plan,
+        returnUrl,
+      });
+      if (!url) {
+        return { success: false, error: i18n.t("error.purchaseFailed" as any) };
+      }
+      await Linking.openURL(url);
+      // Stripe handles the payment; the webhook (or confirmCheckout on return)
+      // activates Pro. Caller should refresh subscription state after redirect.
+      return { success: true, purchase: { productId } };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { success: false, error: msg || i18n.t("error.purchaseFailed" as any) };
+    }
   }
+
+  // iOS: Apple IAP (not yet wired in this build).
   return { success: false, error: i18n.t("error.iapUnavailable" as any) };
 }
 
 export async function manageSubscription(): Promise<void> {
   try {
-    if (Platform.OS === "web") {
-      const url =
+    if (isStripeSupported) {
+      // Prefer the Stripe Billing Portal when a customer exists; otherwise fall
+      // back to the pricing page.
+      try {
+        const { url } = await trpc.billing.createPortalSession.mutate();
+        if (url) {
+          await Linking.openURL(url);
+          return;
+        }
+      } catch {
+        /* no customer yet → fall through */
+      }
+      const fallback =
         process.env.EXPO_PUBLIC_ACCOUNT_URL ??
+        process.env.EXPO_PUBLIC_PRICING_URL ??
         process.env.EXPO_PUBLIC_STORE_URL ??
         "https://kindcipe.com/pricing";
-      await Linking.openURL(url);
+      await Linking.openURL(fallback);
     } else if (Platform.OS === "ios") {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
     } else {
@@ -69,4 +110,17 @@ export async function manageSubscription(): Promise<void> {
 
 export async function restorePurchases(): Promise<PurchaseResult> {
   return { success: false, error: i18n.t("error.iapUnavailable" as any) };
+}
+
+/**
+ * After a Stripe checkout redirect back to the app, confirm the session and
+ * activate Pro without waiting for the webhook.
+ */
+export async function confirmStripeCheckout(sessionId: string): Promise<boolean> {
+  try {
+    const res = await trpc.billing.confirmCheckout.mutate({ sessionId });
+    return res.status === "active";
+  } catch {
+    return false;
+  }
 }

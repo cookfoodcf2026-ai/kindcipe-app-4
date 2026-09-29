@@ -31,6 +31,27 @@ export interface AppRouter {
   purchaseHistory: PurchaseHistoryRouter;
   commonIngredient: CommonIngredientRouter;
   aiChat: AiChatRouter;
+  billing: BillingRouter;
+}
+
+// ============================================================================
+// Billing Router (Stripe — web/Android)
+// ============================================================================
+
+export interface BillingRouter {
+  status: { input: void; output: { configured: boolean } };
+  createCheckoutSession: {
+    input: { plan: "monthly" | "yearly"; returnUrl?: string };
+    output: { url: string | null };
+  };
+  createPortalSession: { input: void; output: { url: string } };
+  confirmCheckout: {
+    input: { sessionId: string };
+    output:
+      | { status: "pending" }
+      | { status: "active"; plan: "monthly" | "yearly"; expiresAt: string };
+  };
+  current: { input: void; output: FamilySubscription | null };
 }
 
 // ============================================================================

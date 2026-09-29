@@ -15,12 +15,13 @@
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from 'expo-web-browser';
 import { useState, useEffect } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
+import { confirmStripeCheckout } from "@/lib/purchase";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
 import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
@@ -49,6 +50,10 @@ function formatYearMonthLabel(yearMonth: string): string {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { billing: billingReturn, session_id: billingSessionId } = useLocalSearchParams<{
+    billing?: string;
+    session_id?: string;
+  }>();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
   const { user, isAuthenticated, logout, familyRole, activeFamily, families } = useAuth();
@@ -263,6 +268,29 @@ export default function SettingsScreen() {
     setPromoMsg(null);
     redeemPromoM.mutate({ code });
   };
+
+  // ── Stripe checkout return (?billing=success&session_id=...) ──────────────
+  // Activate Pro immediately on return so the user doesn't wait for the webhook.
+  const [billingNotice, setBillingNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (billingReturn !== "success" && billingReturn !== "cancel") return;
+    if (billingReturn === "cancel") {
+      setBillingNotice(t("settings.billingCancelled" as any));
+      return;
+    }
+    const sid = Array.isArray(billingSessionId) ? billingSessionId[0] : billingSessionId;
+    if (!sid) {
+      // No session id → rely on webhook; just refresh.
+      void Promise.all([utils.auth.me.invalidate(), utils.family.subscription.invalidate()]);
+      return;
+    }
+    (async () => {
+      const ok = await confirmStripeCheckout(sid);
+      await Promise.all([utils.auth.me.invalidate(), utils.family.subscription.invalidate()]);
+      setBillingNotice(ok ? t("settings.billingSuccess" as any) : t("settings.billingPending" as any));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingReturn, billingSessionId]);
   const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
@@ -407,6 +435,10 @@ export default function SettingsScreen() {
             )}
           </View>
         )}
+
+        {billingNotice ? (
+          <Text style={styles.billingNotice}>{billingNotice}</Text>
+        ) : null}
 
         {/* 兌換試用碼（IG follow 7日） */}
         {isAuthenticated && (
@@ -624,8 +656,8 @@ export default function SettingsScreen() {
                               </View>
                             ))}
                           </View>
-                        )}
-                      </View>
+            )}
+          </View>
                     );
                   })}
                 </>
@@ -1120,6 +1152,7 @@ const styles = StyleSheet.create({
   subCardLeft: { flex: 1 },
   subCardTitle: { fontSize: 12, color: "#9CA3AF", marginBottom: 4 },
   subCardStatus: { fontSize: 16, fontWeight: "800" },
+  billingNotice: { fontSize: 13, color: "#013E77", marginTop: 8, marginBottom: 4 },
   upgradeSmallBtn: {
     backgroundColor: "#013E77", borderRadius: 10,
     paddingVertical: 8, paddingHorizontal: 16,
