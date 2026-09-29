@@ -94,8 +94,9 @@ const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number
  * 接收系統 Share Sheet（IG / YouTube / 小紅書 / Safari…）分享過嚟嘅內容，
  * 分流去 /import：連結 → clipboardUrl、純文字 → sharedText、圖片 → sharedImageUri。
  */
-function ShareIntentBridge() {
+function ShareIntentBridge({ authReady }: { authReady: boolean }) {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const router = useRouter();
 
   useEffect(() => {
     if (!hasShareIntent) return;
@@ -108,20 +109,26 @@ function ShareIntentBridge() {
       );
       const sharedImageUri = imgFile?.path ? String(imgFile.path) : "";
       const params: Record<string, string> = {
-        ...(webUrl ? { clipboardUrl: webUrl } : {}),
+        // 連結分享 → 入 import 後自動解析（高成功率平台）
+        ...(webUrl ? { clipboardUrl: webUrl, autoParse: "1" } : {}),
         ...(text ? { sharedText: text } : {}),
         ...(sharedImageUri ? { sharedImageUri } : {}),
       };
       if (Object.keys(params).length > 0) {
-        // 未登入都可以先暫存，登入後由 AuthGuard 自動匯入
-        AsyncStorage.setItem("kindcipe_pending_share", JSON.stringify(params)).catch(() => {});
+        if (authReady) {
+          // 已登入 → 直接入匯入頁（唔靠 AuthGuard effect，避免熱啟唔觸發）
+          router.push({ pathname: "/import", params });
+        } else {
+          // 未登入 → 暫存，登入後由 AuthGuard 自動匯入
+          AsyncStorage.setItem("kindcipe_pending_share", JSON.stringify(params)).catch(() => {});
+        }
       }
     } catch (e) {
       console.warn("[ShareIntent] handle failed:", e);
     } finally {
       resetShareIntent();
     }
-  }, [hasShareIntent, shareIntent, resetShareIntent]);
+  }, [hasShareIntent, shareIntent, resetShareIntent, authReady, router]);
 
   return null;
 }
@@ -457,7 +464,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
       {children}
-      <ShareIntentBridge />
+      <ShareIntentBridge authReady={isLoggedIn && onboardingDone} />
       <OfflineBanner />
       {showLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>

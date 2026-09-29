@@ -37,7 +37,7 @@ export default function ImportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string; sharedText?: string; sharedImageUri?: string }>();
+  const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string; sharedText?: string; sharedImageUri?: string; autoParse?: string }>();
   const isOnboarding = params.onboarding === "true";
   const { user: authUser } = useAuth();
   
@@ -286,7 +286,7 @@ export default function ImportScreen() {
   useEffect(() => {
     checkClipboard();
     
-    // 如果有 params.clipboardUrl（從首頁提示跳轉過來），自動填充
+    // 如果有 params.clipboardUrl（從首頁提示／系統分享跳轉過來），自動填充
     if (params.clipboardUrl) {
       const url = params.clipboardUrl as string;
       setUniversalInput(url);
@@ -294,6 +294,11 @@ export default function ImportScreen() {
       if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
         setClipboardUrl(url);
         setDetectedPlatform(platform);
+        // 由系統分享入嚟 → 自動開始解析（高成功率平台）
+        if (params.autoParse === "1") {
+          isParsingRef.current = false;
+          void handleUniversalParse(url);
+        }
       }
     }
 
@@ -306,6 +311,10 @@ export default function ImportScreen() {
         if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
           setClipboardUrl(txt.trim());
           setDetectedPlatform(platform);
+          if (params.autoParse === "1") {
+            isParsingRef.current = false;
+            void handleUniversalParse(txt.trim());
+          }
         }
       } else {
         setUniversalInput(txt);
