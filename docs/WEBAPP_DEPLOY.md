@@ -30,16 +30,38 @@ OAuth client（Web）→ Authorized JavaScript origins 加：
 https://app.kindcipe.com
 ```
 
-## 3. Apple Web 登入（可選，後補）
-後端設：
+## 3. Apple Web 登入
+登入流程：web 撳 Apple → `GET /api/auth/apple/web/start`（302 去 Apple）→ Apple `form_post` 去
+`APPLE_WEB_REDIRECT_URI` → 後端設 session cookie 並轉返 `app.kindcipe.com/login?apple=success`。
+
+### 3a. Apple Developer（developer.apple.com）
+1. **Team ID** → Membership 頁複製（10 字元）
+2. **Services ID** → Certificates, Identifiers & Profiles → Identifiers →
+   新 Identifier（Services IDs），例：`com.kindcipe.app.web`
+   ・勾選 **Sign In with Apple** → Configure
+   ・**Primary App ID** 揀 `com.kindcipe.app`
+   ・**Domains and Subdomains**：`api.kindcipe.com`
+      （若後端仍在 railway.app，填 `kindcipe-backend-production.up.railway.app`）
+   ・**Return URLs**：`https://api.kindcipe.com/api/auth/apple/callback`
+      （或 Railway 版：`https://kindcipe-backend-production.up.railway.app/api/auth/apple/callback`）
+   ・Save
+3. **Key** → Keys → 新 Key → 勾 **Sign In with Apple** → 下載 `.p8`（只可下載一次）
+   ・記低 **Key ID**（10 字元）
+
+### 3b. Railway env（backend）
 ```
-APPLE_SERVICES_ID=<Services ID>
 APPLE_TEAM_ID=<Team ID>
 APPLE_KEY_ID=<Key ID>
-APPLE_PRIVATE_KEY=<.p8>
+APPLE_SERVICES_ID=com.kindcipe.app.web
+APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 APPLE_WEB_REDIRECT_URI=https://api.kindcipe.com/api/auth/apple/callback
 ```
-App 端 `.env` 設 `EXPO_PUBLIC_ENABLE_APPLE_WEB=1`（已設）。
+> `APPLE_PRIVATE_KEY` 用 `.p8` 全文；Railway 可直接貼多行值。兩個 redirect URI
+> （Apple Developer 設定 與 Railway env）**必須完全一致**。
+
+### 3c. App 端
+`.env` 設 `EXPO_PUBLIC_ENABLE_APPLE_WEB=1`（已設）。
+
 
 ## 4. 建置 webapp
 ```bash
@@ -48,19 +70,26 @@ npm run build:web      # 產出 dist/
 ```
 > `EXPO_PUBLIC_*` 係 build-time 注入；改 `.env` 後必須重新 build。
 
-## 5. 部署（Cloudflare Pages）
-- 連 repo：`kindcipe-app-4`
-- Build command：`npm run build:web`
-- Output directory：`dist`
-- 綁 domain：`app.kindcipe.com`
-- `public/_headers` 已備 cache/security headers
-- **唔可以有 `public/_redirects`** —— `/* /index.html 200` 會被 Cloudflare 判為無限循環而令 deploy 失敗。SPA fallback 由 `wrangler.jsonc` 嘅 `assets.not_found_handling: "single-page-application"` 處理。
+## 5. 部署（Cloudflare Workers，已連 repo）
+此 repo 連嘅係 **Cloudflare Workers**（`wrangler deploy`），唔係 Pages。
+**重要限制：** Workers Builds **唔會**執行 `wrangler.jsonc` 嘅 `build.command`
+（官方文檔明言），而 dashboard 嘅 **Build command 係唯讀（=None）**。
+所以 deploy 前**冇 build 步驟** → 必須**將 `dist/` commit 入 repo**。
+
+- Deploy command：`npx wrangler deploy`（唯讀，唔使改）
+- `wrangler.jsonc`：`assets.directory=dist` + `not_found_handling=single-page-application`
+- `dist/` 已 commit；改 web 後用附帶嘅 **pre-commit hook** 自動 rebuild：
+  ```bash
+  git config core.hooksPath .githooks   # 每個 clone 做一次
+  ```
+- **唔可以有 `public/_redirects`**（`/* /index.html 200` 會被判無限循環 → deploy 失敗）。
+  SPA fallback 由 `wrangler.jsonc` 處理。
 
 ## 6. 驗證
-- [ ] `curl https://api.kindcipe.com/health` → 200
-- [ ] 開 `https://app.kindcipe.com` → login 頁
-- [ ] Google 登入成功（彈窗 + 回 app）
+- [ ] `https://app.kindcipe.com` → login 頁
+- [ ] Google 登入成功
 - [ ] 桌面寬度 → 左側側欄；窄 → 底部 tabs
+- [ ] Onboarding：桌面可用箭咀／圓點切換投影片
 - [ ] 匯入 / 排餐 / 購物 / 雪櫃 / AI Chef 正常
 - [ ] AI Chef 對話：手機傾完，web 開到同一對話（雲端同步）
 - [ ] 分享食譜連結 → 開到 `/recipes/<名>/` 公開頁
@@ -69,3 +98,4 @@ npm run build:web      # 產出 dist/
 - Live sync 用 polling（15–60s），非秒級
 - IAP 在 web 隱藏（只顯示帳戶管理連結）
 - 推送通知 web 未支援
+- Cloudflare deploy 靠 commit 嘅 `dist/`（見第 5 節）
