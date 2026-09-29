@@ -115,6 +115,8 @@ function ShareIntentBridge({ authReady }: { authReady: boolean }) {
         ...(sharedImageUri ? { sharedImageUri } : {}),
       };
       if (Object.keys(params).length > 0) {
+        // 分享期間暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源／弹出誤導 Alert
+        AsyncStorage.setItem("kindcipe_clipboard_snooze", String(Date.now() + 60000)).catch(() => {});
         if (authReady) {
           // 已登入 → 直接入匯入頁（唔靠 AuthGuard effect，避免熱啟唔觸發）
           router.push({ pathname: "/import", params });
@@ -311,6 +313,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const promptClipboardImport = useCallback(async () => {
     try {
+      const snooze = await AsyncStorage.getItem("kindcipe_clipboard_snooze");
+      if (snooze && Date.now() < Number(snooze)) return;
       const text = await Clipboard.getStringAsync();
       if (!text || !isValidUrl(text.trim())) return;
       const platform = detectPlatform(text);

@@ -88,6 +88,8 @@ export default function ImportScreen() {
   const isParsingRef = useRef(false);
   // 手機端抓到嘅暫時縮圖（例如 IG CDN URL）→ 後端冇圖時做 preview，儲存時再上傳成永久圖
   const clientThumbRef = useRef<string | null>(null);
+  // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
+  const clipboardSkipUntilRef = useRef(0);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [parseStepIndex, setParseStepIndex] = useState(0);
 
@@ -321,7 +323,14 @@ export default function ImportScreen() {
 
   // 偵測剪貼板（只對高成功率平台）
   useEffect(() => {
-    checkClipboard();
+    // 有 Share/剪貼板 params 進入 → 停用被動偵測一段時間，避免舊剪貼板內容蓋過分享來源
+    const hasIncoming =
+      !!(params.clipboardUrl || params.sharedText || params.sharedImageUri);
+    if (hasIncoming) {
+      clipboardSkipUntilRef.current = Date.now() + 4000;
+    } else {
+      checkClipboard();
+    }
     
     // 如果有 params.clipboardUrl（從首頁提示／系統分享跳轉過來），自動填充
     if (params.clipboardUrl) {
@@ -381,6 +390,7 @@ export default function ImportScreen() {
   }, []);
 
   const checkClipboard = async () => {
+    if (Date.now() < clipboardSkipUntilRef.current) return;
     try {
       const text = await Clipboard.getStringAsync();
       if (text && isValidUrl(text.trim())) {
