@@ -32,6 +32,37 @@ type EditableStep = { id: number; instruction: string; duration: number; imageUr
 // 高成功率平台清單（顯示 Magic Card）
 const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
 
+// 判斷係咪我哋自己 storage（R2 / backend proxy）嘅 URL；否則視為外部（可能過期）
+function isOwnStorageUrl(url: string): boolean {
+  return url.includes("r2-storage") || url.includes(".r2.cloudflarestorage.com");
+}
+
+// 由遠端圖片 URL 抓 bytes → base64（純 JS，無需額外 native module）
+async function remoteUrlToBase64(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      },
+    });
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const res = String(reader.result || "");
+        const comma = res.indexOf(",");
+        resolve(comma >= 0 ? res.slice(comma + 1) : res || null);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function ImportScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -55,6 +86,8 @@ export default function ImportScreen() {
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
+  // 手機端抓到嘅暫時縮圖（例如 IG CDN URL）→ 後端冇圖時做 preview，儲存時再上傳成永久圖
+  const clientThumbRef = useRef<string | null>(null);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [parseStepIndex, setParseStepIndex] = useState(0);
 
@@ -167,6 +200,10 @@ export default function ImportScreen() {
       setRecipeImageBase64(null);
     } else if (recipe.image && !recipe.thumbnailUrl) {
       setRecipeImageUri(recipe.image);
+      setRecipeImageBase64(null);
+    } else if (clientThumbRef.current) {
+      // 後端冇永久圖，但手機端抓到暫時縮圖 → 保留做 preview（儲存時會上傳）
+      setRecipeImageUri(clientThumbRef.current);
       setRecipeImageBase64(null);
     } else {
       // 新一次解析冇圖 → 清走上一次嘅圖，避免沿用舊食譜圖片
@@ -646,6 +683,7 @@ export default function ImportScreen() {
     isParsingRef.current = true;
     setStep("parsing");
     startParseProgress();
+    clientThumbRef.current = null;
     
     if (isValidUrl(trimmed)) {
       // For Instagram URLs, extract thumbnail URL and display immediately
@@ -655,6 +693,7 @@ export default function ImportScreen() {
         if (extractedUrl) {
           // Display immediately (temporary CDN URL)
           setRecipeImageUri(extractedUrl);
+          clientThumbRef.current = extractedUrl;
           clientThumbnail = extractedUrl;
         } else {
         }
@@ -812,6 +851,20 @@ export default function ImportScreen() {
           mimeType: "image/jpeg",
         });
         imageUrl = uploadResult?.url || "";
+      } else if (imageUrl && !isOwnStorageUrl(imageUrl)) {
+        // 外部暫時圖（例如手機抓到嘅 IG CDN URL）→ 儲存前上傳成永久圖，避免 URL 過期
+        const b64 = await remoteUrlToBase64(imageUrl);
+        if (b64) {
+          try {
+            const up = await uploadImageMutation.mutateAsync({ base64: b64, mimeType: "image/jpeg" });
+            imageUrl = up?.url || "";
+          } catch {
+            imageUrl = "";
+          }
+        } else {
+          // 抓唔到 → 唔好儲存會過期嘅 URL，留空（前端顯示中性佔位）
+          imageUrl = "";
+        }
       }
 
       const stepImages: (string | null)[] = [];
