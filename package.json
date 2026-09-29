@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
+    "deploy:web": "expo export --platform web && wrangler deploy",
     "check:env": "npx tsx scripts/check-env.ts",
     "ci-gate": "./scripts/ci-gate.sh",
     "e2e:build:ios": "EXPO_PUBLIC_E2E=1 detox build -c ios.sim.debug",
