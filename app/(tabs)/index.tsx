@@ -40,6 +40,12 @@ const CARD_IMAGE_RATIO = getRecipeCardImageRatio(Dimensions.get("window").height
 const BRAND = "#013E77";
 const BG = "#FAF8F5";
 
+// 社交平台來源白名單（單一真相）：用於「匯入食譜」篩選。
+// 之前漏咗 facebook → FB 匯入嘅食譜顯示唔到。
+const SOCIAL_SOURCE_TYPES = new Set([
+  "instagram", "youtube", "xiaohongshu", "threads", "tiktok", "facebook",
+]);
+
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
   { key: "quick30", label: "⏱ 快手 30 分鐘" },
@@ -476,8 +482,9 @@ export default function RecipesTab() {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [showSortSheet, setShowSortSheet] = useState(false);
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"newest" | "popular" | "cookTime" | "difficulty">("popular");
+  const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("popular");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
@@ -737,12 +744,11 @@ export default function RecipesTab() {
     } else if (viewMode === "user") {
       pool = pool.filter((r: any) => r.source === "custom" && (r.sourceType === "manual" || !r.sourceType));
     } else if (viewMode === "imported") {
-      pool = pool.filter((r: any) => r.source === "custom" && ["instagram", "youtube", "xiaohongshu", "threads", "tiktok"].includes(r.sourceType));
+      // 匯入 = 由社交平台匯入嘅自訂食譜（白名單含 facebook！單一真相見 SOCIAL_SOURCE_TYPES）
+      pool = pool.filter((r: any) => r.source === "custom" && SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
     } else if (viewMode === "kol") {
-      pool = pool.filter((r: any) => {
-        const st = r.sourceType;
-        return st === "kol" || st === "instagram" || st === "youtube" || st === "xiaohongshu" || st === "threads" || st === "tiktok";
-      });
+      // 網紅 = 平台 KOL（唔再重複包社交來源，避免同「匯入」重疊）
+      pool = pool.filter((r: any) => String(r.sourceType ?? "") === "kol");
     }
     // viewMode === "hot": 後端已按 popularity 排序返熱門，前端唔再 filter（直接顯示）
 
@@ -770,6 +776,20 @@ export default function RecipesTab() {
     // Apply sorting
     if (sortBy === "popular") {
       // Backend already sorts by popularity (relevance → popularity → created_at)
+    } else if (sortBy === "newest") {
+      // 最新新增（本地排；未收到後端 createdAt 時保持原序）
+      pool.sort((a: any, b: any) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tb - ta;
+      });
+    } else if (sortBy === "updated") {
+      // 最近編輯
+      pool.sort((a: any, b: any) => {
+        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return tb - ta;
+      });
     } else if (sortBy === "cookTime") {
       pool.sort((a, b) => (a.cookTime || 999) - (b.cookTime || 999));
     } else if (sortBy === "difficulty") {
@@ -909,9 +929,13 @@ export default function RecipesTab() {
           </TouchableOpacity>
         ) : null}
         
-        {/* Sort Dropdown */}
-        <TouchableOpacity onPress={() => setSortBy(sortBy === "popular" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "popular")} style={s.sortBtn}>
-          <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color={BRAND} />
+        {/* Sort menu（唔再一撳循環；顯示當前排序） */}
+        <TouchableOpacity onPress={() => setShowSortSheet(true)} style={s.sortBtn}>
+          <Ionicons
+            name={sortBy === "newest" ? "time-outline" : sortBy === "updated" ? "create-outline" : sortBy === "cookTime" ? "flame-outline" : sortBy === "difficulty" ? "swap-horizontal-outline" : "star-outline"}
+            size={18}
+            color={BRAND}
+          />
         </TouchableOpacity>
         
         {/* Filter Button */}
@@ -1318,6 +1342,37 @@ export default function RecipesTab() {
         userCount={searchCustomCount}
         kolCount={searchKolCount}
       />
+
+      {/* 排序選單 */}
+      <Modal visible={showSortSheet} transparent animationType="slide" onRequestClose={() => setShowSortSheet(false)}>
+        <TouchableOpacity style={s.planOverlay} activeOpacity={1} onPress={() => setShowSortSheet(false)}>
+          <TouchableOpacity style={s.planSheet} activeOpacity={1} onPress={() => {}}>
+            <View style={s.planHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <Text style={{ flex: 1, fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("filter.sort" as any)}</Text>
+              <TouchableOpacity onPress={() => setShowSortSheet(false)}>
+                <Ionicons name="close" size={22} color="#1A1A1A" />
+              </TouchableOpacity>
+            </View>
+            {([
+              { key: "popular", label: t("filter.sortPopular" as any) },
+              { key: "newest", label: t("filter.sortNewest" as any) },
+              { key: "updated", label: t("filter.sortUpdated" as any) },
+              { key: "cookTime", label: t("filter.sortCookTime" as any) },
+              { key: "difficulty", label: t("filter.sortDifficulty" as any) },
+            ] as const).map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14 }}
+                onPress={() => { setSortBy(opt.key); setShowSortSheet(false); }}
+              >
+                <Text style={{ flex: 1, fontSize: 15, fontWeight: sortBy === opt.key ? "800" : "500", color: sortBy === opt.key ? BRAND : "#374151" }}>{opt.label}</Text>
+                {sortBy === opt.key && <Ionicons name="checkmark" size={20} color={BRAND} />}
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
         <View style={s.planOverlay}>

@@ -849,7 +849,13 @@
     "cookTime": "Oras ng pagluluto",
     "tags": "Mga tag",
     "unlimited": "Kahit ano",
-    "reset": "I-reset"
+    "reset": "I-reset",
+    "sort": "Ayusin",
+    "sortPopular": "Sikat",
+    "sortNewest": "Bagong dagdag",
+    "sortUpdated": "Bagong edit",
+    "sortCookTime": "Pinakamabilis",
+    "sortDifficulty": "Pinakamadali"
   },
   "price": {
     "title": "Ihambing ang presyo",

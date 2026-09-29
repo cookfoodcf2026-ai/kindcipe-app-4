@@ -849,7 +849,13 @@
     "cookTime": "烹調時間",
     "tags": "標籤",
     "unlimited": "不限",
-    "reset": "重置"
+    "reset": "重置",
+    "sort": "排序",
+    "sortPopular": "熱門",
+    "sortNewest": "最新新增",
+    "sortUpdated": "最近編輯",
+    "sortCookTime": "最快",
+    "sortDifficulty": "最易"
   },
   "price": {
     "title": "各平台比價",

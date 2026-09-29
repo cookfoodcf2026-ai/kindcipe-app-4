@@ -500,50 +500,8 @@ const soupStyleLabel = (time: MealPlanPreferences["time"]): string => {
   return "煲湯（約 1 小時）";
 };
 
-const detectMealIntent = (text: string): { dishes: number; soups: number; carb: boolean } | null => {
-  const raw = String(text ?? "").trim();
-  if (!raw || raw.length > 40) return null;
-  // 有疑問／動作詞 → 當自由對話，唔 intercept
-  if (/(點|煮法|做法|食譜|邊度|邊到|買|唔食|忌口|點樣|教我|推介|介紹|推介下)/.test(raw)) return null;
-  const carb = /飯|麵|米線|粥|意粉|烏冬|拉麵/.test(raw);
-  const num = "[0-9一二兩三四五六七八九十]+";
-  const dishWord = "[餸送菜]";
-  const soupWord = "湯(?:水)?";
-  const full = raw.match(new RegExp(`(${num})\\s*${dishWord}\\s*(?:同|加|and|,|，|、|\\s)*\\s*(${num})\\s*${soupWord}`));
-  if (full) {
-    const dishes = parseCnOrDigit(full[1]);
-    const soups = parseCnOrDigit(full[2]);
-    if (dishes >= 1 && dishes <= 8 && soups >= 1 && soups <= 8) return { dishes, soups, carb };
-  }
-  const dishOnly = raw.match(new RegExp(`(${num})\\s*${dishWord}`));
-  if (dishOnly) {
-    const dishes = parseCnOrDigit(dishOnly[1]);
-    if (dishes >= 1 && dishes <= 8) return { dishes, soups: 0, carb };
-  }
-  return null;
-};
-
-/**
- * 由自由文字抽「辛辣」等口味 constraint，令 AI 生成/合併食譜時唔會漏。
- * （用戶打「辛辣的3餸1湯」以前會被 library 路徑無視 → 呢度補返。）
- */
-const detectFlavorConstraint = (
-  text: string,
-): { spicy: boolean; light: boolean; exclusions: string[] } => {
-  const raw = String(text ?? "");
-  const neg = /(唔|不|無|冇|別|不要|勿)/;
-  // 「辛辣 / 辣 / 麻辣 / 香辣」但排除「唔辣 / 不辣 / 小辣 / 少辣 / 微辣 / 清淡」
-  const spicy = /辛辣|麻辣|香辣|重辣|大辣/.test(raw) ||
-    (/辣/.test(raw) && !neg.test(raw) && !/小辣|少辣|微辣/.test(raw));
-  const light = /清淡|少油|少鹽|健康|輕盈|清心/.test(raw) || /(唔辣|不辣)/.test(raw);
-  const exclusions: string[] = [];
-  const grab = (re: RegExp) => { const m = raw.match(re); if (m?.[1]) exclusions.push(m[1].trim()); };
-  grab(/唔?食\s*([^\s，,。、！!？?]+)/);
-  grab(/忌口[：:\s]*([^\s，,。、]+)/);
-  grab(/不要\s*([^\s，,。、！!？?]+)/);
-  grab(/(?:唔要|不要)\s*(辣|牛|豬|猪|羊|海鮮|海鲜|蝦|虾|蛋|花生|奶)/);
-  return { spicy, light, exclusions: [...new Set(exclusions.filter(Boolean))] };
-};
+// Meal intent / flavour helpers 已抽出至 lib/mealIntent.js（純函式，可單元測試）
+import { detectMealIntent, detectFlavorConstraint } from "@/lib/mealIntent";
 
 // ─── Helpers ──────────────────────────────────────────────
 

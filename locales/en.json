@@ -849,7 +849,13 @@
     "cookTime": "Cook time",
     "tags": "Tags",
     "unlimited": "Any",
-    "reset": "Reset"
+    "reset": "Reset",
+    "sort": "Sort",
+    "sortPopular": "Popular",
+    "sortNewest": "Recently added",
+    "sortUpdated": "Recently edited",
+    "sortCookTime": "Quickest",
+    "sortDifficulty": "Easiest"
   },
   "price": {
     "title": "Compare prices",

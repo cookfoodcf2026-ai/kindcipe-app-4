@@ -849,7 +849,13 @@
     "cookTime": "Waktu memasak",
     "tags": "Tag",
     "unlimited": "Semua",
-    "reset": "Reset"
+    "reset": "Reset",
+    "sort": "Urutkan",
+    "sortPopular": "Populer",
+    "sortNewest": "Terbaru",
+    "sortUpdated": "Terbaru diedit",
+    "sortCookTime": "Tercepat",
+    "sortDifficulty": "Termudah"
   },
   "price": {
     "title": "Bandingkan harga",

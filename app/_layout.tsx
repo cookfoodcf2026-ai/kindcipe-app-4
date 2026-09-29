@@ -15,7 +15,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { trpc, createTrpcClient } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, TouchableOpacity, Text, Alert, AppState } from "react-native";
@@ -135,18 +136,8 @@ function ShareIntentBridge({ authReady }: { authReady: boolean }) {
   return null;
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 1000 * 60 * 5, // 5 分鐘
-      gcTime: 1000 * 60 * 10, // 10 分鐘，避免 cache 無限累積
-      refetchOnWindowFocus: false, // RN 由 useAppStateRefetch hook 手動觸發
-      refetchOnReconnect: true, // 斷網重連自動 refetch
-      refetchIntervalInBackground: false, // 背景不輪詢
-    },
-  },
-});
+// queryClient 已抽出至 lib/queryClient.ts（logout 需要 queryClient.clear()）
+
 
 const trpcClient = createTrpcClient();
 
@@ -244,7 +235,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // 用 auth.me 確認登入狀態
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
-    staleTime: 1000 * 60 * 5,
+    // 唔可以用 staleTime 保留舊 user：登出後 queryClient.clear() 會清 cache，
+    // 呢度 mount 時一律 refetch，確保唔會用殘留 cache 判定「仲登入」而彈返入 app。
+    staleTime: 0,
+    refetchOnMount: "always",
     enabled: biometricChecked && !biometricFailed,
   });
 

@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
+import { queryClient } from "@/lib/queryClient";
 
 export function useAuth() {
   const router = useRouter();
@@ -87,17 +88,25 @@ export function useAuth() {
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
     } catch { /* ignore */ }
     setActiveFamilyId(null);
-    // 立即清 auth.me cache，否則 AuthGuard 仍然見到舊 user 會彈返入 app（「登出唔到」）
-    try { utils.auth.me.setData(undefined, null as any); } catch { /* ignore */ }
-    utils.invalidate();
+    // 清「所有」cache（唔止 auth.me）：殘留 cache + AuthGuard 會令用戶被彈返 app（「登出唔到」）
+    queryClient.clear();
     router.replace("/login");
-  }, [utils, router]);
+  }, [router]);
 
   const logoutMutation = trpc.auth.logout.useMutation();
 
   const logout = useCallback(() => {
     void localLogout();
     logoutMutation.mutate(); // 後端清 cookie，唔等佢
+  }, [localLogout, logoutMutation]);
+
+  // logoutAsync：同一路徑，但返回 Promise（供 UI 顯示 pending／錯誤）。永不 reject（logout 一定要成功）。
+  const logoutAsync = useCallback(async () => {
+    try {
+      await localLogout();
+    } finally {
+      try { await logoutMutation.mutateAsync(); } catch { /* best-effort */ }
+    }
   }, [localLogout, logoutMutation]);
 
   const refreshAuth = useCallback(async () => {
@@ -109,7 +118,7 @@ export function useAuth() {
     isLoading,
     isAuthenticated,
     logout,
-    logoutAsync: logoutMutation.mutateAsync,
+    logoutAsync,
     logoutPending: logoutMutation.isPending,
     logoutError: logoutMutation.error,
     resetLogout: logoutMutation.reset,
