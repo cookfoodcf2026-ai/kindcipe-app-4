@@ -33,6 +33,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
+import { isWeb } from "@/lib/platform";
 
 const { width, height } = Dimensions.get("window");
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
@@ -53,7 +54,15 @@ export default function OnboardingScreen(
   const { logout } = useAuth();
   const [step, setStep] = useState<OnboardingStep>("signin");
   const [guidePage, setGuidePage] = useState(0);
+  const guideScrollRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
+
+  // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
+  const gotoGuidePage = (page: number) => {
+    const clamped = Math.max(0, Math.min(GUIDE_SLIDES.length - 1, page));
+    setGuidePage(clamped);
+    guideScrollRef.current?.scrollTo({ x: clamped * width, animated: true });
+  };
   
   // 建立廚房表單
   const [kitchenName, setKitchenName] = useState("");
@@ -391,6 +400,7 @@ export default function OnboardingScreen(
           {/* Full-bleed 混合式 Carousel：AI 背景 + 覆蓋標題 + (app UI) + 浮動 CTA */}
           <View style={styles.carouselWrap}>
             <ScrollView
+              ref={guideScrollRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -471,9 +481,41 @@ export default function OnboardingScreen(
 
             <View style={styles.dotsRow}>
               {GUIDE_SLIDES.map((_, i) => (
-                <View key={i} style={[styles.dot, guidePage === i && styles.dotActive]} />
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => gotoGuidePage(i)}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`slide ${i + 1}`}
+                >
+                  <View style={[styles.dot, guidePage === i && styles.dotActive]} />
+                </TouchableOpacity>
               ))}
             </View>
+
+            {/* 桌面（web）用箭咀導航：mouse 冇 touch swipe */}
+            {isWeb && (
+              <View style={styles.webNavRow}>
+                <TouchableOpacity
+                  style={[styles.webNavBtn, guidePage === 0 && styles.webNavBtnDisabled]}
+                  onPress={() => gotoGuidePage(guidePage - 1)}
+                  disabled={guidePage === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="previous slide"
+                >
+                  <Ionicons name="chevron-back" size={22} color={guidePage === 0 ? "#C7C7CC" : "#013E77"} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.webNavBtn, guidePage === GUIDE_SLIDES.length - 1 && styles.webNavBtnDisabled]}
+                  onPress={() => gotoGuidePage(guidePage + 1)}
+                  disabled={guidePage === GUIDE_SLIDES.length - 1}
+                  accessibilityRole="button"
+                  accessibilityLabel="next slide"
+                >
+                  <Ionicons name="chevron-forward" size={22} color={guidePage === GUIDE_SLIDES.length - 1 ? "#C7C7CC" : "#013E77"} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
@@ -970,6 +1012,25 @@ const styles = StyleSheet.create({
   dotActive: {
     backgroundColor: "#013E77",
     width: 20,
+  },
+  webNavRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 14,
+  },
+  webNavBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  webNavBtnDisabled: {
+    opacity: 0.5,
   },
   skipBtn: {
     alignItems: "center",

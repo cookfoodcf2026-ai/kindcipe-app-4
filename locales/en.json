@@ -1514,7 +1514,11 @@
     "purchaseFailed": "Purchase failed. Please try again.",
     "purchaseInProgress": "A purchase is already in progress.",
     "restoreFailed": "Could not restore purchases. Please try again.",
-    "iapUnavailable": "In-app purchases will be available in the public release."
+    "iapUnavailable": "In-app purchases will be available in the public release.",
+    "aiNotConfigured": "AI is temporarily unavailable. Please try again later.",
+    "aiBusy": "Too many AI requests. Please wait a minute and try again.",
+    "aiBadResponse": "The AI response was malformed. Please try again.",
+    "network": "Network problem. Please check your connection and retry."
   },
   "notif": {
     "mealUpdated": "📅 Meal plan updated",

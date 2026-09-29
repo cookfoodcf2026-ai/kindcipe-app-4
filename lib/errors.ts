@@ -16,6 +16,12 @@ const BACKEND_MESSAGE_MAP: Array<[RegExp, string]> = [
   [/NOT_FOUND|找不到/, "error.notFound"],
   [/已存在|duplicate/i, "error.duplicate"],
   [/quota|額度/i, "error.quota"],
+  // AI / LLM failure modes → give the user something actionable
+  [/DASHSCOPE_API_KEY is not set|API key is not set|not configured/i, "error.aiNotConfigured"],
+  [/GEMINI_API_KEY not set/i, "error.aiNotConfigured"],
+  [/rate.?limit|too many requests|429|請求太頻繁/i, "error.aiBusy"],
+  [/Network request failed|Failed to fetch|ECONN|timeout|aborted/i, "error.network"],
+  [/AI returned empty|LLM 回覆格式異常|非 JSON|Unexpected character|JSON Parse/i, "error.aiBadResponse"],
 ];
 
 const TECHNICAL = /Unexpected|JSON|position \d|Cannot read|undefined is not|is not a function|TypeError|SyntaxError|ECONN|Network request failed|aborted|timeout|Failed to fetch|500|stack/i;

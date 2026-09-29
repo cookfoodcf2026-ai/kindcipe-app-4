@@ -1514,7 +1514,11 @@
     "purchaseFailed": "Pembelian gagal. Coba lagi.",
     "purchaseInProgress": "Ada pembelian yang sedang berlangsung.",
     "restoreFailed": "Gagal memulihkan pembelian. Coba lagi.",
-    "iapUnavailable": "Pembelian dalam aplikasi akan tersedia di rilis publik."
+    "iapUnavailable": "Pembelian dalam aplikasi akan tersedia di rilis publik.",
+    "aiNotConfigured": "AI sementara tidak tersedia. Coba lagi nanti.",
+    "aiBusy": "Terlalu banyak permintaan AI. Tunggu satu menit lalu coba lagi.",
+    "aiBadResponse": "Respons AI tidak normal. Coba lagi.",
+    "network": "Ada masalah jaringan. Periksa koneksi lalu coba lagi."
   },
   "notif": {
     "mealUpdated": "📅 Rencana makan diperbarui",

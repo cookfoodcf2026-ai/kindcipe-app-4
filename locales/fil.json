@@ -1514,7 +1514,11 @@
     "purchaseFailed": "Nabigo ang pagbili. Subukan muli.",
     "purchaseInProgress": "May nagaganap nang pagbili.",
     "restoreFailed": "Hindi maibalik ang mga pagbili. Subukan muli.",
-    "iapUnavailable": "Ang in-app purchase ay magiging available sa public release."
+    "iapUnavailable": "Ang in-app purchase ay magiging available sa public release.",
+    "aiNotConfigured": "Pansamantalang hindi available ang AI. Subukan ulit mamaya.",
+    "aiBusy": "Masyadong maraming AI request. Maghintay ng isang minuto at subukan muli.",
+    "aiBadResponse": "May problema sa tugon ng AI. Subukan muli.",
+    "network": "May problema sa network. Suriin ang koneksyon at subukan muli."
   },
   "notif": {
     "mealUpdated": "📅 Na-update ang meal plan",
