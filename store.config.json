@@ -1,0 +1,51 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "info": {
+      "zh-Hant": {
+        "title": "和諧食譜 Kindcipe",
+        "subtitle": "一鍵配好三餸一湯，家人零時差",
+        "description": "【和諧食譜 Kindcipe】一家人，一餐飯，一句「食咩好？」就開始。\n\n無論你係返工好攰、要照顧一家大細，定係想同屋企人／姐姐夾好每日晚餐，Kindcipe 幫你由「諗食咩」到「買齊餸」一次搞掂。\n\n◆ 一鍵三餸一湯\n揀返人數同口味，AI 即刻幫你配好一餐（三餸一湯，湯種按你時間：滾湯、煲湯、老火湯）。\n\n◆ 匯入任何食譜\n見到 Instagram、YouTube、小紅書、Facebook 嘅食譜？複製連結或直接分享入 App，AI 自動整理成食材同步驟。\n\n◆ 週餐單 + 家庭同步\n一家人（同姐姐）共用同一個廚房，一齊睇餐單、一齊確認，減少溝通誤會。\n\n◆ 自動買餸清單\n餐單一撳自動生成購物清單，分好食材類別，仲可以記錄價格同格價。\n\n◆ 食譜庫 + 收藏\n官方 AI 食譜、你自己嘅食譜、KOL 食譜，一個地方搵得返。\n\n◆ 多語言\n繁體中文、English、Filipino、Bahasa Indonesia。\n\n— 訂閱 —\n免費版可用基本功能（可與 1 位家人共用）。升級 Pro 可解鎖更多匯入、AI 出餐同更多家庭成員。\n\n訂閱會透過 App Store 收取；可隨時喺 Apple ID 設定取消。\n私隱政策：https://kindcipe.com/privacy/\n支援：https://kindcipe.com/support/",
+        "keywords": [
+          "食譜",
+          "三餸一湯",
+          "今晚食咩",
+          "買餸",
+          "煮飯",
+          "家庭",
+          "工人",
+          "姐姐",
+          "AI食譜",
+          "週餐單",
+          "購物清單",
+          "helper"
+        ],
+        "promoText": "今晚食咩唔再頭痕。一鍵生成三餸一湯，自動整合買餸清單，同屋企人、姐姐同步，煮飯從此有商有量。",
+        "supportUrl": "https://kindcipe.com/support/",
+        "marketingUrl": "https://kindcipe.com",
+        "privacyPolicyUrl": "https://kindcipe.com/privacy/"
+      },
+      "en-US": {
+        "title": "Kindcipe",
+        "subtitle": "3 dishes + 1 soup, one tap",
+        "description": "Kindcipe — plan dinner together, without the daily \"what's for dinner?\" debate.\n\nFor busy families and domestic helpers, Kindcipe turns \"what should we eat?\" into a ready set of 3 dishes + 1 soup, a shared weekly menu, and an automatic shopping list.\n\n◆ One-tap 3 dishes + 1 soup\nPick servings and taste; AI builds a balanced meal (soup style matches your time).\n\n◆ Import any recipe\nInstagram, YouTube, Xiaohongshu or Facebook? Copy the link or share it into the app — AI extracts ingredients and steps.\n\n◆ Shared weekly menu\nYour whole family (and your helper) share one kitchen: view, confirm and stay in sync.\n\n◆ Auto shopping list\nTurn your menu into a categorised shopping list, with prices and comparisons.\n\n◆ Recipe library\nOfficial AI recipes, your own recipes and creator recipes — all in one place.\n\n◆ Languages\nTraditional Chinese, English, Filipino, Bahasa Indonesia.\n\n— Subscription —\nFree plan includes core features (share with 1 family member). Pro unlocks more imports, AI meal planning and more members.\n\nSubscriptions are billed via the App Store; cancel anytime in your Apple ID settings.\nPrivacy: https://kindcipe.com/privacy/\nSupport: https://kindcipe.com/support/",
+        "keywords": [
+          "recipe",
+          "dinner",
+          "meal plan",
+          "shopping list",
+          "family",
+          "helper",
+          "AI recipe",
+          "cantonese",
+          "hk",
+          "cook"
+        ],
+        "promoText": "Stop asking \"what's for dinner?\". Generate 3 dishes + 1 soup, auto-build your shopping list, and stay in sync with your family and helper.",
+        "supportUrl": "https://kindcipe.com/support/",
+        "marketingUrl": "https://kindcipe.com",
+        "privacyPolicyUrl": "https://kindcipe.com/privacy/"
+      }
+    }
+  }
+}
