@@ -10,18 +10,19 @@ app.kindcipe.com  → Expo Web (SPA, noindex)  ─┐
 kindcipe.com      → Astro (GEO/SEO)       ────┘
 ```
 
-## 1. Backend 環境變數（Railway）— 必須
-未設定 → webapp 登入會被 CORS 擋（目前實測 500）。
-
+## 1. Backend 環境變數（Railway）— ✅ 已完成
 ```
 ALLOWED_ORIGINS=https://kindcipe.com,https://app.kindcipe.com
 COOKIE_DOMAIN=.kindcipe.com
 ```
 
-- `ALLOWED_ORIGINS`：容許嘅 web origin（CORS）
-- `COOKIE_DOMAIN`：令 `api.kindcipe.com` 派嘅 session cookie 可被 `app.kindcipe.com` 讀取
+- `ALLOWED_ORIGINS`：容許嘅 web origin（CORS）。**不可設為 `*`** —— 後端會過濾 `*` 變成空集合，令所有 web 請求 500（且 cookie 模式本身唔容許 `*`）。必須逐一列出，逗號分隔、含 `https://`、結尾無 `/`。
+- `COOKIE_DOMAIN`：令 `api.kindcipe.com` 派嘅 session cookie 可被 `app.kindcipe.com` 讀取（開頭 `.`）。
 
-改完 Railway 會自動 redeploy。
+**已驗證（2026-09-29）：**
+- `OPTIONS` preflight（`Origin: https://kindcipe.com` / `https://app.kindcipe.com`）→ **204/200**，回 `access-control-allow-origin` + `allow-credentials: true`
+- 非白名單 origin（如 `https://evil.com`）→ 仍被擋（500）
+- Native（無 Origin header）→ 200，App 不受影響
 
 ## 2. Google Cloud Console
 OAuth client（Web）→ Authorized JavaScript origins 加：
@@ -52,7 +53,8 @@ npm run build:web      # 產出 dist/
 - Build command：`npm run build:web`
 - Output directory：`dist`
 - 綁 domain：`app.kindcipe.com`
-- `public/_headers` + `public/_redirects` 已備 SPA fallback
+- `public/_headers` 已備 cache/security headers
+- **唔可以有 `public/_redirects`** —— `/* /index.html 200` 會被 Cloudflare 判為無限循環而令 deploy 失敗。SPA fallback 由 `wrangler.jsonc` 嘅 `assets.not_found_handling: "single-page-application"` 處理。
 
 ## 6. 驗證
 - [ ] `curl https://api.kindcipe.com/health` → 200
