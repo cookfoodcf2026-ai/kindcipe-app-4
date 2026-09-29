@@ -27,6 +27,22 @@ export const isIapSupported = Platform.OS === "ios";
 /** Stripe applies to web (and Android, where permitted). Never iOS. */
 export const isStripeSupported = Platform.OS === "web" || Platform.OS === "android";
 
+/**
+ * iOS in-app purchase is NOT wired yet (react-native-iap not bundled).
+ * App Store guidelines require IAP for digital goods — so until R2 lands we must
+ * NOT show any price/purchase UI on iOS (a dead "buy" button = 2.1 rejection).
+ * Flip to true once react-native-iap + receipt verification ship.
+ */
+const IAP_LIVE = false;
+
+/**
+ * Whether this platform can actually complete a purchase right now.
+ * iOS → false until IAP_LIVE. Web/Android → true (Stripe).
+ * Use this (not isIapSupported/isStripeSupported) to decide whether to show price CTAs.
+ */
+export const canPurchaseHere =
+  isStripeSupported || (Platform.OS === "ios" && IAP_LIVE);
+
 export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS];
 
 export const SUBSCRIPTION_TYPE: Record<ProductId, "monthly" | "yearly"> = {

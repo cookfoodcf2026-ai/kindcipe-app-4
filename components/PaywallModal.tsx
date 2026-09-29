@@ -17,12 +17,15 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  Linking,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
-import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, type ProductId } from "../lib/purchase";
+import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, canPurchaseHere, type ProductId } from "../lib/purchase";
 import { trpc } from "../lib/trpc";
+
+const INSTAGRAM_URL = process.env.EXPO_PUBLIC_INSTAGRAM_URL ?? "";
 
 type PaywallFeature =
   | "import_limit"    // 匯入次數超出
@@ -171,7 +174,8 @@ export default function PaywallModal({
           <Text style={styles.title}>{msg.title}</Text>
           <Text style={styles.desc}>{msg.desc}</Text>
 
-          {/* Pricing */}
+          {/* Pricing（只有真係買到先顯示，避免 iOS 死按鈕） */}
+          {canPurchaseHere ? (
           <View style={styles.pricingBox}>
             <View style={styles.pricingRow}>
               <Text style={styles.pricingLabel}>家庭版月費</Text>
@@ -200,6 +204,7 @@ export default function PaywallModal({
               </View>
             </View>
           </View>
+          ) : null}
 
           {/* Error message */}
           {error ? (
@@ -257,37 +262,54 @@ export default function PaywallModal({
           </View>
 
           {/* CTA buttons */}
-          <TouchableOpacity 
-            style={[styles.upgradeBtn, isPurchasing === 'monthly' && styles.upgradeBtnDisabled]} 
-            onPress={() => handlePurchase(PRODUCT_IDS.MONTHLY)}
-            disabled={!!isPurchasing}
-          >
-            {isPurchasing === 'monthly' ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.upgradeBtnText}>
-                {isStripeSupported ? "信用卡訂閱月費 HK$30" : "訂閱月費 HK$30"}
+          {canPurchaseHere ? (
+            <>
+              <TouchableOpacity
+                style={[styles.upgradeBtn, isPurchasing === 'monthly' && styles.upgradeBtnDisabled]}
+                onPress={() => handlePurchase(PRODUCT_IDS.MONTHLY)}
+                disabled={!!isPurchasing}
+              >
+                {isPurchasing === 'monthly' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.upgradeBtnText}>
+                    {isStripeSupported ? "信用卡訂閱月費 HK$30" : "訂閱月費 HK$30"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.yearlyBtn, isPurchasing === 'yearly' && styles.upgradeBtnDisabled]}
+                onPress={() => handlePurchase(PRODUCT_IDS.YEARLY)}
+                disabled={!!isPurchasing}
+              >
+                {isPurchasing === 'yearly' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（最抵，80% 僱主選擇）</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.legalNote}>
+                {isStripeSupported
+                  ? "以信用卡安全付款（Stripe）。可隨時於「管理訂閱」取消。"
+                  : "透過 App Store 付款，可隨時於 Apple 帳戶取消。"}
               </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.yearlyBtn, isPurchasing === 'yearly' && styles.upgradeBtnDisabled]} 
-            onPress={() => handlePurchase(PRODUCT_IDS.YEARLY)}
-            disabled={!!isPurchasing}
-          >
-            {isPurchasing === 'yearly' ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（最抵，80% 僱主選擇）</Text>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.legalNote}>
-            {isStripeSupported
-              ? "以信用卡安全付款（Stripe）。可隨時於「管理訂閱」取消。"
-              : "透過 App Store 付款，可隨時於 Apple 帳戶取消。"}
-          </Text>
+            </>
+          ) : (
+            <View style={styles.igBox}>
+              <Text style={styles.igTitle}>想要 Pro？</Text>
+              <Text style={styles.igDesc}>追蹤我哋 Instagram，即可獲 7 日免費 Pro 體驗碼</Text>
+              {INSTAGRAM_URL ? (
+                <TouchableOpacity
+                  style={styles.upgradeBtn}
+                  onPress={() => { Linking.openURL(INSTAGRAM_URL).catch(() => {}); }}
+                >
+                  <Text style={styles.upgradeBtnText}>追蹤 IG 攞 7 日 Pro</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
             <Text style={styles.cancelBtnText}>
@@ -297,9 +319,11 @@ export default function PaywallModal({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.restoreBtn} onPress={handleManageSubscription}>
-            <Text style={styles.restoreBtnText}>管理訂閱</Text>
-          </TouchableOpacity>
+          {canPurchaseHere ? (
+            <TouchableOpacity style={styles.restoreBtn} onPress={handleManageSubscription}>
+              <Text style={styles.restoreBtnText}>管理訂閱</Text>
+            </TouchableOpacity>
+          ) : null}
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -546,5 +570,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 16,
+  },
+  igBox: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  igTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  igDesc: {
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 14,
+    lineHeight: 19,
   },
 });

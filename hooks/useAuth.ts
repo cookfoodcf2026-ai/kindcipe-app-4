@@ -80,21 +80,25 @@ export function useAuth() {
     return myMember?.familyRole ?? null;
   })();
 
-  // 登出：清除後端 session 與本地 token
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: async () => {
+  // 登出：先清本地（即時、可靠），再通知後端清 session cookie（best-effort）
+  const localLogout = useCallback(async () => {
+    try {
       await clearAuthToken();
       await AsyncStorage.removeItem(FAMILY_ID_KEY);
-      setActiveFamilyId(null);
-      await utils.invalidate();
-      await utils.auth.me.invalidate();
-      router.replace("/login");
-    },
-  });
+    } catch { /* ignore */ }
+    setActiveFamilyId(null);
+    // 立即清 auth.me cache，否則 AuthGuard 仍然見到舊 user 會彈返入 app（「登出唔到」）
+    try { utils.auth.me.setData(undefined, null as any); } catch { /* ignore */ }
+    utils.invalidate();
+    router.replace("/login");
+  }, [utils, router]);
+
+  const logoutMutation = trpc.auth.logout.useMutation();
 
   const logout = useCallback(() => {
-    logoutMutation.mutate();
-  }, [logoutMutation]);
+    void localLogout();
+    logoutMutation.mutate(); // 後端清 cookie，唔等佢
+  }, [localLogout, logoutMutation]);
 
   const refreshAuth = useCallback(async () => {
     await utils.auth.me.invalidate();

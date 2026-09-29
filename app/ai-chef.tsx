@@ -523,6 +523,28 @@ const detectMealIntent = (text: string): { dishes: number; soups: number; carb: 
   return null;
 };
 
+/**
+ * 由自由文字抽「辛辣」等口味 constraint，令 AI 生成/合併食譜時唔會漏。
+ * （用戶打「辛辣的3餸1湯」以前會被 library 路徑無視 → 呢度補返。）
+ */
+const detectFlavorConstraint = (
+  text: string,
+): { spicy: boolean; light: boolean; exclusions: string[] } => {
+  const raw = String(text ?? "");
+  const neg = /(唔|不|無|冇|別|不要|勿)/;
+  // 「辛辣 / 辣 / 麻辣 / 香辣」但排除「唔辣 / 不辣 / 小辣 / 少辣 / 微辣 / 清淡」
+  const spicy = /辛辣|麻辣|香辣|重辣|大辣/.test(raw) ||
+    (/辣/.test(raw) && !neg.test(raw) && !/小辣|少辣|微辣/.test(raw));
+  const light = /清淡|少油|少鹽|健康|輕盈|清心/.test(raw) || /(唔辣|不辣)/.test(raw);
+  const exclusions: string[] = [];
+  const grab = (re: RegExp) => { const m = raw.match(re); if (m?.[1]) exclusions.push(m[1].trim()); };
+  grab(/唔?食\s*([^\s，,。、！!？?]+)/);
+  grab(/忌口[：:\s]*([^\s，,。、]+)/);
+  grab(/不要\s*([^\s，,。、！!？?]+)/);
+  grab(/(?:唔要|不要)\s*(辣|牛|豬|猪|羊|海鮮|海鲜|蝦|虾|蛋|花生|奶)/);
+  return { spicy, light, exclusions: [...new Set(exclusions.filter(Boolean))] };
+};
+
 // ─── Helpers ──────────────────────────────────────────────
 
 type ChatSession = {
@@ -1883,11 +1905,17 @@ export default function AIChefScreen() {
     // 例如用戶打完「只要兩個餸」再撳「食譜庫/AI生成」→ 出 2 卡。
     const lastUserText = [...messages].reverse().find(m => m.role === "user");
     const lastUserContent = lastUserText && typeof lastUserText.content === "string" ? lastUserText.content.trim() : "";
-    // 若最後一句係「3餸1湯」意圖 prompt（問卷/hotkey 生成嗰啲），保留「提供 4 個唔同嘅食譜」結構；
-    // 否則用用戶原話（尊重最新要求），冇原話先 fallback generic
-    const isStructuredMealPrompt = /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
+    // 判斷一餐結構（X餸Y湯/多卡）＋ 口味 constraint；兩者都要保留，唔好被蓋過
+    const mealIntent = detectMealIntent(lastUserContent);
+    const flavor = detectFlavorConstraint(lastUserContent);
+    const isStructuredMealPrompt = !!mealIntent || /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
+    // 有結構化一餐意圖 → 直接用結構化 prompt（帶 count + 口味），確保出夠卡數同尊重 constraint
     const userPrompt = isStructuredMealPrompt
-      ? lastUserContent
+      ? buildMealPrompt(
+          mealStep === "idle" ? { people: 4, hasKids: false, hasElderly: false, time: "normal", dislikes: "" } : mealPrefs,
+          mealIntent ?? { dishes: 3, soups: 1 },
+          flavor,
+        )
       : lastUserContent.length >= 2
         ? lastUserContent
         : activeConfig
@@ -1908,7 +1936,7 @@ export default function AIChefScreen() {
     const searchParam = source === "library" && activeConfig?.search
       ? {
           ...activeConfig.search,
-          count: 1,
+          count: inMealContext ? (mealIntent ? mealIntent.dishes + mealIntent.soups : 4) : 1,
           rank: activeConfig.rank,
           excludeCategories: ["甜品", "湯水"],
         }
@@ -2210,6 +2238,7 @@ export default function AIChefScreen() {
   const buildMealPrompt = (
     prefs: MealPlanPreferences,
     counts: { dishes: number; soups: number; carb?: boolean } = { dishes: 3, soups: 1 },
+    flavor?: { spicy: boolean; light: boolean; exclusions: string[] },
   ) => {
     const { dishes, soups, carb = false } = counts;
     const total = Math.max(1, dishes + soups + (carb ? 1 : 0));
@@ -2228,9 +2257,14 @@ export default function AIChefScreen() {
     if (carb) cats.push("主食（飯/麵/粉/粥）");
     if (soups > 0) cats.push(`湯水（${soupStyleLabel(prefs.time)}）`);
     const catLines = cats.map((c, i) => `${i + 1}. ${c}\n`).join("");
+    const flavorLine =
+      (flavor?.spicy && !flavor?.light ? `口味要求：辛辣、夠味（每道菜都要有辣度，例如辣椒/花椒/麻辣）。` : "") +
+      (flavor?.light ? `口味要求：清淡、少油少鹽、唔辣。` : "") +
+      (flavor?.exclusions?.length ? `避免食材：${flavor.exclusions.join("、")}（完全唔可以用）。` : "");
     return `請為我設計今晚「${titleParts.join(" ")}」晚餐，總共 ${total} 道菜，適合${prefs.people}人食用。` +
       (prefs.hasKids ? "有小朋友，口味要溫和、少辣、容易入口。" : "") +
       (prefs.hasElderly ? "有老人家，食材要易咀嚼、清淡少油鹽。" : "") +
+      flavorLine +
       `煮食時間要求：${timeLabel}。` +
       (prefs.dislikes ? `避免食材/口味：${prefs.dislikes}。` : "") +
       "食材欄每行只寫一種食材，唔好加入功效、備註、口味描述。" +
@@ -2301,10 +2335,22 @@ export default function AIChefScreen() {
   const composeFromLibrary = async (
     intent: { dishes: number; soups: number; carb?: boolean },
     time: MealPlanPreferences["time"] = "normal",
+    flavor?: { spicy: boolean; light: boolean; exclusions: string[] },
   ): Promise<AIRecipe[]> => {
     const excluded: string[] = [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])];
     const seen = new Set<string>();
     const picked: AIRecipe[] = [];
+    // 辛辣/清淡：只用嚟篩食譜名／標籤，唔會硬性排除（library 池可能冇辣菜）
+    const flavorOk = (r: AIRecipe) => {
+      if (!flavor) return true;
+      const hay = `${r.name || ""} ${(r.tags || []).join(" ")}`;
+      if (flavor.exclusions.some((e) => e && hay.includes(e))) return false;
+      if (flavor.spicy && !flavor.light) {
+        // 要辣：唔可以係明顯清湯/清淡菜
+        if (/清|淡|白灼|蒸/.test(hay) && !/辣/.test(hay)) return false;
+      }
+      return true;
+    };
     const trySearch = async (q: string, want?: "soup" | "dish", soupTime?: MealPlanPreferences["time"]) => {
       try {
         const res: any = await apiClient.recipes.search.query({ query: q, limit: 8 });
@@ -2321,17 +2367,19 @@ export default function AIChefScreen() {
             if (excluded.some((e) => e && (e === n || isDuplicateRecipeName(n, [e])))) return false;
             return true;
           });
-        let cands = base;
+        // 口味相符優先（但唔會完全排除，避免抽唔到卡）
+        const flavored = base.filter(flavorOk);
+        let cands = flavored.length > 0 ? flavored : base;
         if (want === "soup" && soupTime) {
           const rule = soupTimeRule(soupTime);
-          const timed = base.filter((r: AIRecipe) => {
+          const timed = cands.filter((r: AIRecipe) => {
             const ct = Number(r.cookTime) || 0;
             if (ct < rule.min) return false;
             if (rule.max !== Infinity && ct > rule.max) return false;
             return true;
           });
           // 有符合時間嘅湯就用；冇就放寬，避免完全抽唔到湯
-          cands = timed.length > 0 ? timed : base;
+          cands = timed.length > 0 ? timed : cands;
         }
         const pick = cands[0];
         if (pick) { picked.push(pick); seen.add((pick.name || "").trim()); return true; }
@@ -2340,14 +2388,22 @@ export default function AIChefScreen() {
       }
       return false;
     };
-    const dishCats = ["肉", "海鮮", "蔬菜", "家常菜"];
+    // 辛辣優先搜「辣」「川」「湘」；清淡優先搜「清」「蒸」
+    const dishCats = flavor?.spicy && !flavor.light
+      ? ["辣", "川", "湘", "肉", "海鮮"]
+      : flavor?.light
+        ? ["清", "蒸", "蔬菜", "肉"]
+        : ["肉", "海鮮", "蔬菜", "家常菜"];
     for (let i = 0; i < intent.dishes; i++) await trySearch(dishCats[i % dishCats.length], "dish");
     if (intent.carb) await trySearch("飯", "dish");
     for (let i = 0; i < intent.soups; i++) await trySearch("湯", "soup", time);
     return picked;
   };
 
-  const generateMealFromIntent = async (intent: { dishes: number; soups: number; carb?: boolean }) => {
+  const generateMealFromIntent = async (
+    intent: { dishes: number; soups: number; carb?: boolean },
+    flavor?: { spicy: boolean; light: boolean; exclusions: string[] },
+  ) => {
     const defaultPrefs: MealPlanPreferences = {
       people: 4, hasKids: false, hasElderly: false, time: "normal", dislikes: "",
     };
@@ -2359,7 +2415,7 @@ export default function AIChefScreen() {
     setRecommendedRecipes([]);
     setMealResult(null);
     try {
-      const picked = await composeFromLibrary(intent, defaultPrefs.time);
+      const picked = await composeFromLibrary(intent, defaultPrefs.time, flavor);
       if (picked.length >= expected) {
         const show = picked.slice(0, expected);
         setMealStep("result");
@@ -2378,8 +2434,8 @@ export default function AIChefScreen() {
       console.error("[AI 助手] Intent library compose failed:", e);
     }
     setLibraryLoading(false);
-    // 唔夠數 → AI fallback（結構化 prompt）
-    const prompt = buildMealPrompt(defaultPrefs, intent);
+    // 唔夠數 → AI fallback（結構化 prompt + 口味 constraint）
+    const prompt = buildMealPrompt(defaultPrefs, intent, flavor);
     const fullMsgs: Message[] = [{ role: "user", content: prompt }];
     updateMessages(prev => [...prev, ...fullMsgs]);
     resetAiNextSteps();
@@ -2930,11 +2986,12 @@ export default function AIChefScreen() {
     } else if (detectMealIntent(trimmed)) {
       // 高信心「X 餸 Y 湯」意圖：直接出返正確數量（唔好當自由對話亂抽 keyword）
       const intent = detectMealIntent(trimmed)!;
+      const flavor = detectFlavorConstraint(trimmed);
       activeHotKeyRef.current = null;
       if (mealStep !== "idle") { setMealStep("idle"); setMealResult(null); }
       updateMessages(prev => [...prev, { role: "user", content: trimmed }]);
       scrollToEnd();
-      void generateMealFromIntent(intent);
+      void generateMealFromIntent(intent, flavor);
     } else {
       const msgs: Message[] = [...messages, { role: "user", content: trimmed }];
       updateMessages(() => msgs);
