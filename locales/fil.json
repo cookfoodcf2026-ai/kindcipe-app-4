@@ -244,7 +244,8 @@
     "linkHint": "Mag-sign in sa parehong Apple/Google account para makuha ang parehong data sa anumang telepono.",
     "billingSuccess": "Matagumpay ang bayad — Pro ka na!",
     "billingPending": "Pinoproseso ang bayad — mag-aactivate agad ang Pro.",
-    "billingCancelled": "Kinansela ang bayad."
+    "billingCancelled": "Kinansela ang bayad.",
+    "manage": "Pamahalaan"
   },
   "errors": {},
   "aiChef": {

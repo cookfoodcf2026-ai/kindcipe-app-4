@@ -425,12 +425,22 @@ export default function SettingsScreen() {
               <Text style={styles.subCardTitle}>{t("settings.subscriptionStatus")}</Text>
               <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{t(subInfo.label as any)}</Text>
             </View>
-            {!subInfo.isPaid && (
+            {!subInfo.isPaid ? (
               <TouchableOpacity
                 style={styles.upgradeSmallBtn}
                 onPress={() => setShowPaywall(true)}
               >
                 <Text style={styles.upgradeSmallBtnText}>{t("settings.upgrade")}</Text>
+              </TouchableOpacity>
+            ) : (
+              // Already Pro: offer a way to manage/cancel. On web/Android this
+              // opens the Stripe Billing Portal; elsewhere it's a no-op-safe
+              // upgrade view (Apple IAP path is unchanged).
+              <TouchableOpacity
+                style={styles.manageSmallBtn}
+                onPress={() => setShowPaywall(true)}
+              >
+                <Text style={styles.manageSmallBtnText}>{t("settings.manage" as any)}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1158,6 +1168,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 16,
   },
   upgradeSmallBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  manageSmallBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#013E77",
+  },
+  manageSmallBtnText: { color: "#013E77", fontSize: 14, fontWeight: "700" },
 
   // 使用統計
   usageCard: {

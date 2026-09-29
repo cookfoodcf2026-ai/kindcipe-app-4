@@ -244,7 +244,8 @@
     "linkHint": "Masuk dengan akun Apple/Google yang sama untuk data yang sama di ponsel mana pun.",
     "billingSuccess": "Pembayaran berhasil — Anda kini Pro!",
     "billingPending": "Pembayaran diproses — Pro akan aktif sebentar lagi.",
-    "billingCancelled": "Pembayaran dibatalkan."
+    "billingCancelled": "Pembayaran dibatalkan.",
+    "manage": "Kelola"
   },
   "errors": {},
   "aiChef": {

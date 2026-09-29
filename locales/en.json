@@ -244,7 +244,8 @@
     "linkHint": "Sign in with the same Apple/Google account to get the same account and data on any phone.",
     "billingSuccess": "Payment successful — you're now Pro!",
     "billingPending": "Payment processing — Pro will activate shortly.",
-    "billingCancelled": "Payment cancelled."
+    "billingCancelled": "Payment cancelled.",
+    "manage": "Manage"
   },
   "errors": {},
   "aiChef": {
