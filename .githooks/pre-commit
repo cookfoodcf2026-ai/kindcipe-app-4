@@ -1,0 +1,31 @@
+#!/bin/sh
+# Auto-rebuild the committed web bundle (dist/) when web/app sources change.
+#
+# Why: Cloudflare Workers Builds ignores wrangler.jsonc's build.command and the
+# dashboard Build command is read-only (=None), so dist/ must be committed and
+# kept up to date. This hook rebuilds and stages dist/ automatically.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+
+set -e
+
+staged=$(git diff --cached --name-only)
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# Rebuild only when web-relevant files are staged.
+needs_build=$(printf '%s\n' "$staged" | grep -E '^(app/|lib/|hooks/|src/|components/|assets/|locales/|constants/|types/|\.env$|app\.json|babel\.config\.js|metro\.config\.js|package\.json)$' || true)
+
+if [ -z "$needs_build" ]; then
+  exit 0
+fi
+
+echo "[pre-commit] Web sources changed → rebuilding dist/ ..."
+npm run build:web >/dev/null 2>&1 || {
+  echo "[pre-commit] ⚠️  build:web failed — commit aborted. Run 'npm run build:web' to see errors." >&2
+  exit 1
+}
+
+git add dist
+echo "[pre-commit] ✅ dist/ rebuilt and staged."
