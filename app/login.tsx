@@ -324,8 +324,17 @@ export default function LoginScreen() {
     }
   };
 
-  // ── Apple Sign In (Web/Android OAuth) ────────────────────────────────────────
+  // ── Apple Sign In (Android + Web via backend OAuth) ──────────────────────────
+  // Android: in-app auth session, backend returns kindcipe:// deep link w/ token.
+  // Web: full-page redirect, backend sets the httpOnly cookie and returns to /login.
+  // iOS native uses handleAppleSignIn (expo-apple-authentication) — unchanged.
   const handleAppleWebSignIn = async () => {
+    if (isWeb) {
+      startAppleWebLogin(
+        typeof window !== "undefined" ? `${window.location.origin}/login` : undefined
+      );
+      return;
+    }
     setIsLoading(true);
     setLoadingType("apple");
     try {
@@ -496,7 +505,7 @@ export default function LoginScreen() {
           ) : (
             /* 用戶：只留 Apple + Google */
             <View style={styles.socialSection}>
-              {(Platform.OS === "ios" || APPLE_WEB_ENABLED) && (
+              {(Platform.OS === "ios" || isWeb || APPLE_WEB_ENABLED) && (
                 <TouchableOpacity
                   style={[styles.appleBtn, ((Platform.OS === "ios" && !appleAvailable) || isLoading) && styles.socialBtnDisabled]}
                   onPress={Platform.OS === "ios" ? handleAppleSignIn : handleAppleWebSignIn}
@@ -512,7 +521,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.googleBtn, (!hasGoogleSignin || isLoading) && styles.socialBtnDisabled]}
+                style={[styles.googleBtn, ((!hasGoogleSignin && !isWeb) || isLoading) && styles.socialBtnDisabled]}
                 onPress={handleGoogleSignIn}
                 disabled={isLoading}
                 activeOpacity={0.85}

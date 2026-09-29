@@ -35,6 +35,23 @@ export function buildRecipeShareUrl(recipeId: string | number): string {
   return `${getWebappUrl()}/recipe/${recipeId}`;
 }
 
+/**
+ * Share URL for a recipe. Official recipes have a public SEO page at
+ * `/recipes/<name>/` (backend-driven static site); everything else falls back
+ * to the app's own recipe route.
+ */
+export function buildRecipeShareUrlFor(recipe: {
+  id: string | number;
+  name?: string | null;
+  source?: string | null;
+}): string {
+  const isOfficial = recipe.source === "official" || recipe.source === "kol";
+  if (isOfficial && recipe.name) {
+    return `${getWebappUrl()}/recipes/${encodeURIComponent(recipe.name.trim())}/`;
+  }
+  return buildRecipeShareUrl(recipe.id);
+}
+
 /** Build the app deep link (native) for a recipe. */
 export function buildRecipeDeepLink(recipeId: string | number): string {
   return `kindcipe://recipe/${recipeId}`;

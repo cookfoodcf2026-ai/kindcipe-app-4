@@ -46,6 +46,7 @@ import { CollectionButton } from "@/src/components/CollectionButton";
 import { isSeasoning, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { friendlyError } from "@/lib/errors";
+import { buildRecipeShareUrlFor } from "@/lib/platform";
 
 export const isValidHttpUrl = (value: unknown): value is string =>
   typeof value === "string" &&
@@ -1126,9 +1127,11 @@ export default function RecipeDetailScreen() {
             <TouchableOpacity
               style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)", right: 112 }]}
               onPress={() => {
-                const webappUrl = process.env.EXPO_PUBLIC_WEBAPP_URL;
-                const storeUrl = process.env.EXPO_PUBLIC_STORE_URL || "https://kindcipe.com";
-                const recipeUrl = webappUrl ? `${webappUrl}/recipe/${recipe?.id}` : storeUrl;
+                const recipeUrl = buildRecipeShareUrlFor({
+                  id: recipe?.id ?? "",
+                  name: recipe?.name,
+                  source: (recipe as any)?.source,
+                });
                 Clipboard.setStringAsync(recipeUrl);
                 showToast(t("recipe.copiedLink"));
               }}
