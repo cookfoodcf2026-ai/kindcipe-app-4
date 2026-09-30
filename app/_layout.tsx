@@ -13,7 +13,7 @@
 import "react-native-gesture-handler";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -92,12 +92,16 @@ const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number
 };
 
 /**
- * 接收系統 Share Sheet（IG / YouTube / 小紅書 / Safari…）分享過嚟嘅內容，
- * 分流去 /import：連結 → clipboardUrl、純文字 → sharedText、圖片 → sharedImageUri。
+ * 接收系統 Share Sheet（IG / YouTube / 小紅書 / Safari…）分享過嚟嘅內容。
+ *
+ * 單一導航擁有者原則：呢度**只負責把分享資料寫入 AsyncStorage（pendingShare）**，
+ * 完全唔做 router.push —— 導航一律交由 AuthGuard 呢個唯一負責人處理。
+ * （避免多個導航者互相爭奪 → 之前 /share timer 蓋走 /import 就係 race。）
  */
-function ShareIntentBridge({ authReady }: { authReady: boolean }) {
+const PENDING_SHARE_KEY = "kindcipe_pending_share";
+
+function ShareIntentBridge() {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
-  const router = useRouter();
 
   useEffect(() => {
     if (!hasShareIntent) return;
@@ -116,22 +120,17 @@ function ShareIntentBridge({ authReady }: { authReady: boolean }) {
         ...(sharedImageUri ? { sharedImageUri } : {}),
       };
       if (Object.keys(params).length > 0) {
-        // 分享期間暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源／弹出誤導 Alert
+        // 暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源／弹出誤導 Alert
         AsyncStorage.setItem("kindcipe_clipboard_snooze", String(Date.now() + 60000)).catch(() => {});
-        if (authReady) {
-          // 已登入 → 直接入匯入頁（唔靠 AuthGuard effect，避免熱啟唔觸發）
-          router.push({ pathname: "/import", params });
-        } else {
-          // 未登入 → 暫存，登入後由 AuthGuard 自動匯入
-          AsyncStorage.setItem("kindcipe_pending_share", JSON.stringify(params)).catch(() => {});
-        }
+        // 只寫資料；由 AuthGuard 統一處理導航（唔理當時登唔登入，登入後自然會消費）
+        AsyncStorage.setItem(PENDING_SHARE_KEY, JSON.stringify(params)).catch(() => {});
       }
     } catch (e) {
       console.warn("[ShareIntent] handle failed:", e);
     } finally {
       resetShareIntent();
     }
-  }, [hasShareIntent, shareIntent, resetShareIntent, authReady, router]);
+  }, [hasShareIntent, shareIntent, resetShareIntent]);
 
   return null;
 }
@@ -180,6 +179,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const router = useRouter();
   const segments = useSegments();
+  const rootNavigationState = useRootNavigationState();
+  const navigationReady = !!rootNavigationState?.key;
+  // segments 最新值（供非同步 callback 讀取，避免 stale closure）
+  const segmentsRef = useRef<string[]>([]);
+  segmentsRef.current = segments as unknown as string[];
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [showDevReset, setShowDevReset] = useState(true); // Always show for testing
@@ -369,21 +373,33 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [isLoggedIn, isTabsGroup, promptClipboardImport]);
 
-  // 分享入嚟（Share Extension）而當時未登入 → 登入後自動匯入
+  // ── 分享導航：唯一負責人（Single Navigator Owner）──────────────────────────
+  // ShareIntentBridge 只寫 pendingShare；呢度係**唯一**會 push /import 嘅地方。
+  // 好處：冇其他頁／timer 爭導航 → 唔會再出現「分析完彈返 home」。
   useEffect(() => {
     if (!isLoggedIn || !onboardingDone) return;
-    (async () => {
+    // 避免導航尚未 ready（首次掛載）就 push
+    if (!navigationReady) return;
+    const tryConsume = async () => {
       try {
         const raw = await AsyncStorage.getItem("kindcipe_pending_share");
         if (!raw) return;
-        await AsyncStorage.removeItem("kindcipe_pending_share");
         const p = JSON.parse(raw);
-        if (p && typeof p === "object") {
-          router.push({ pathname: "/import", params: p });
-        }
+        if (!p || typeof p !== "object") return;
+        // 先清 pending，保證只 push 一次（即使 effect 重跑）
+        await AsyncStorage.removeItem("kindcipe_pending_share");
+        // 若已經喺 /import（deep link 已直接落去）→ 唔重複 push
+        if (segmentsRef.current[0] === "import") return;
+        router.push({ pathname: "/import", params: p });
       } catch { /* ignore */ }
-    })();
-  }, [isLoggedIn, onboardingDone, router]);
+    };
+    void tryConsume();
+    // 亦監聽「由 /import 返回時」可能再有新分享（例如連續分享）
+    const sub = AppState.addEventListener("change", async (s) => {
+      if (s === "active") void tryConsume();
+    });
+    return () => sub.remove();
+  }, [isLoggedIn, onboardingDone, navigationReady, router]);
 
   useEffect(() => {
     (async () => {
@@ -462,7 +478,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
       {children}
-      <ShareIntentBridge authReady={isLoggedIn && onboardingDone} />
+      <ShareIntentBridge />
       <OfflineBanner />
       {showLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
@@ -579,14 +595,6 @@ export default function RootLayout() {
                       headerShown: false,
                       title: "",
                       gestureEnabled: true,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="share"
-                    options={{
-                      headerShown: false,
-                      title: "",
-                      gestureEnabled: false,
                     }}
                   />
                   <Stack.Screen

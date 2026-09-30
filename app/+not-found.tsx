@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useEffect, useRef } from 'react';
 import { useTranslation } from "react-i18next";
-import { Link, Stack, useRouter } from 'expo-router';
+import { Link, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 const BRAND = "#013E77";
@@ -11,33 +10,21 @@ const TEXT = "#1C1C1E";
 /**
  * 兜底頁（+not-found）。
  *
- * 用戶永遠唔應該見到「頁面不存在」——尤其由 Share Sheet（kindcipe://dataUrl=…）
- * 或舊連結入嚟時。呢度唔顯示錯誤，而係**自動 redirect** 返主畫面。
- * （真正嘅分享處理喺 /share 中介頁 + ShareIntentBridge；呢個係最後一層保險。）
+ * 注意：**唔可以自動導航** —— 多個導航者會 race（之前 share timer 蓋走 /import 就係咁）。
+ * 呢頁只顯示友善畫面 + 一個「返主畫面」按鈕，導航完全由用戶撳。
+ * 分享 deep link 已由 +native-intent → /import、AuthGuard 統一處理，正常唔會落到呢頁。
  */
 export default function NotFoundScreen() {
   const { t } = useTranslation();
-  const router = useRouter();
-  const done = useRef(false);
-
-  useEffect(() => {
-    if (done.current) return;
-    done.current = true;
-    // 自動返主畫面（唔留喺錯誤頁）
-    const id = setTimeout(() => {
-      try { router.replace("/(tabs)"); } catch { /* ignore */ }
-    }, 50);
-    return () => clearTimeout(id);
-  }, [router]);
-
   return (
     <>
       <Stack.Screen options={{ title: '', headerShown: false }} />
       <View style={styles.container}>
         <View style={styles.iconBox}>
-          <Ionicons name="hourglass-outline" size={40} color={BRAND} />
+          <Ionicons name="compass-outline" size={40} color={BRAND} />
         </View>
-        <Text style={styles.title}>{t("返回中…" as any)}</Text>
+        <Text style={styles.title}>{t("找不到頁面" as any)}</Text>
+        <Text style={styles.subtitle}>{t("呢個頁面可能已經移咗位。" as any)}</Text>
         <Link href="/(tabs)" asChild>
           <TouchableOpacity style={styles.button}>
             <Ionicons name="home-outline" size={20} color="#fff" />
@@ -70,7 +57,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: TEXT,
-    marginBottom: 24,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 21,
   },
   button: {
     flexDirection: 'row',
