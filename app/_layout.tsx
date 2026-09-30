@@ -38,7 +38,7 @@ import { initIAP } from "@/lib/purchase";
 import { onOfflineChange } from "@/lib/trpc";
 import NetInfo from "@react-native-community/netinfo";
 import { maybeRequestReview } from "@/lib/review";
-import { initAnalytics, identifyUser, resetAnalytics } from "@/lib/analytics";
+import { initAnalytics, identifyUser, resetAnalytics, track, Events } from "@/lib/analytics";
 import { ToastProvider } from "@/src/components/Toast";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
@@ -119,14 +119,24 @@ function ShareIntentBridge() {
         ...(text ? { sharedText: text } : {}),
         ...(sharedImageUri ? { sharedImageUri } : {}),
       };
+      const kind = webUrl ? "url" : sharedImageUri ? "image" : text ? "text" : "empty";
+      // 監控：收到分享（用於上架後偵測分享有冇壞）
+      track(Events.ShareReceived, {
+        kind,
+        platform: webUrl ? (detectPlatform(webUrl) ?? "unknown") : "",
+      });
       if (Object.keys(params).length > 0) {
         // 暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源／弹出誤導 Alert
         AsyncStorage.setItem("kindcipe_clipboard_snooze", String(Date.now() + 60000)).catch(() => {});
         // 只寫資料；由 AuthGuard 統一處理導航（唔理當時登唔登入，登入後自然會消費）
         AsyncStorage.setItem(PENDING_SHARE_KEY, JSON.stringify(params)).catch(() => {});
+      } else {
+        // 收到 share 但冇可用資料 → 記為失敗，方便及早發現
+        track(Events.ShareFailed, { reason: "no_payload" });
       }
     } catch (e) {
       console.warn("[ShareIntent] handle failed:", e);
+      track(Events.ShareFailed, { reason: "exception" });
     } finally {
       resetShareIntent();
     }
@@ -388,6 +398,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         if (!p || typeof p !== "object") return;
         // 先清 pending，保證只 push 一次（即使 effect 重跑）
         await AsyncStorage.removeItem("kindcipe_pending_share");
+        track(Events.ShareConsumed, { keys: Object.keys(p).join(",") });
         // 若已經喺 /import（deep link 已直接落去）→ 唔重複 push
         if (segmentsRef.current[0] === "import") return;
         router.push({ pathname: "/import", params: p });

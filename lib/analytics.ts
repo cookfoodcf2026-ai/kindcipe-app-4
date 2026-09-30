@@ -78,4 +78,8 @@ export const Events = {
   PurchaseCompleted: "purchase_completed",
   PromoRedeemed: "promo_redeemed",
   LanguageChanged: "language_changed",
+  // Share / 匯入診斷（上架後監控分享有冇壞）
+  ShareReceived: "share_received",
+  ShareConsumed: "share_consumed",
+  ShareFailed: "share_failed",
 } as const;
