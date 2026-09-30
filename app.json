@@ -32,7 +32,7 @@
           "id"
         ]
       },
-      "buildNumber": "6"
+      "buildNumber": "7"
     },
     "android": {
       "adaptiveIcon": {
@@ -48,7 +48,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 6
+      "versionCode": 7
     },
     "plugins": [
       "expo-router",
