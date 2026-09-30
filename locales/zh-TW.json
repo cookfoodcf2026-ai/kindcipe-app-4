@@ -855,7 +855,14 @@
     "sortNewest": "最新新增",
     "sortUpdated": "最近編輯",
     "sortCookTime": "最快",
-    "sortDifficulty": "最易"
+    "sortDifficulty": "最易",
+    "srcAll": "全部",
+    "mine": "我的",
+    "kol": "網紅",
+    "mineAll": "全部",
+    "mineManual": "自建",
+    "mineImported": "匯入",
+    "hideAI": "隱藏 AI 生成"
   },
   "price": {
     "title": "各平台比價",

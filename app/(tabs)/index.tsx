@@ -483,6 +483,8 @@ export default function RecipesTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showSortSheet, setShowSortSheet] = useState(false);
+  // 「我的食譜」子篩選：全部 / 自建 / 匯入（取代獨立「匯入」chip）
+  const [mineSub, setMineSub] = useState<"all" | "manual" | "imported">("all");
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("popular");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -742,9 +744,15 @@ export default function RecipesTab() {
     if (viewMode === "official") {
       pool = pool.filter((r: any) => r.source === "official");
     } else if (viewMode === "user") {
-      pool = pool.filter((r: any) => r.source === "custom" && (r.sourceType === "manual" || !r.sourceType));
+      // 「我的食譜」：全部自訂，再按子篩選（全部/自建/匯入）
+      pool = pool.filter((r: any) => r.source === "custom");
+      if (mineSub === "imported") {
+        pool = pool.filter((r: any) => SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
+      } else if (mineSub === "manual") {
+        pool = pool.filter((r: any) => !SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
+      }
     } else if (viewMode === "imported") {
-      // 匯入 = 由社交平台匯入嘅自訂食譜（白名單含 facebook！單一真相見 SOCIAL_SOURCE_TYPES）
+      // 向下兼容：舊有 imported 值 = 我的(匯入)
       pool = pool.filter((r: any) => r.source === "custom" && SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
     } else if (viewMode === "kol") {
       // 網紅 = 平台 KOL（唔再重複包社交來源，避免同「匯入」重疊）
@@ -951,25 +959,44 @@ export default function RecipesTab() {
         </TouchableOpacity>
       </View>
 
-      {/* AI 生成食譜：隱藏 toggle / 一鍵清除 */}
+      {/* 搜尋 bar 主列 chips：全部／我的／網紅（簡化，其餘入篩選 sheet） */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6 }}>
-        <TouchableOpacity
-          onPress={toggleHideAI}
-          style={[s.sortBtn, { paddingHorizontal: 10, width: "auto", flexDirection: "row", gap: 4 }, hideAI && { backgroundColor: BRAND }]}
-        >
-          <Ionicons name="sparkles-outline" size={14} color={hideAI ? "#fff" : BRAND} />
-          <Text style={{ fontSize: 12, color: hideAI ? "#fff" : BRAND, fontWeight: "600" }}>
-            {hideAI ? t("顯示 AI 生成" as any) : t("隱藏 AI 生成" as any)}
-          </Text>
-        </TouchableOpacity>
-        {viewMode === "user" && aiRecipes.length > 0 && (
-          <TouchableOpacity onPress={clearAIRecipes} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
-            <Text style={{ fontSize: 12, color: "#B91C1C", fontWeight: "600" }}>
-              {t("清除 AI 食譜（{{n}}）" as any, { n: aiRecipes.length })}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {([
+          { key: "all", label: t("filter.srcAll" as any) },
+          { key: "user", label: t("filter.mine" as any) },
+          { key: "kol", label: t("filter.kol" as any) },
+        ] as const).map(chip => {
+          const active = viewMode === chip.key || (chip.key === "all" && viewMode === "hot");
+          return (
+            <TouchableOpacity
+              key={chip.key}
+              onPress={() => { setViewMode(chip.key as any); }}
+              style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, active && { backgroundColor: BRAND }]}
+            >
+              <Text style={{ fontSize: 13, color: active ? "#fff" : BRAND, fontWeight: "700" }}>{chip.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+
+      {/* 「我的食譜」子篩選：全部／自建／匯入 */}
+      {viewMode === "user" && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 6 }}>
+          {([
+            { key: "all", label: t("filter.mineAll" as any) },
+            { key: "manual", label: t("filter.mineManual" as any) },
+            { key: "imported", label: t("filter.mineImported" as any) },
+          ] as const).map(sub => (
+            <TouchableOpacity
+              key={sub.key}
+              onPress={() => setMineSub(sub.key)}
+              style={[s.sortBtn, { paddingHorizontal: 10, width: "auto", flexDirection: "row", gap: 4, backgroundColor: mineSub === sub.key ? "#E6EEF7" : "transparent" }]}
+            >
+              <Text style={{ fontSize: 12, color: BRAND, fontWeight: mineSub === sub.key ? "800" : "600" }}>{sub.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Search History Dropdown */}
       {showSearchHistory && (
@@ -1341,6 +1368,10 @@ export default function RecipesTab() {
         officialCount={searchOfficialCount}
         userCount={searchCustomCount}
         kolCount={searchKolCount}
+        hideAI={hideAI}
+        onToggleHideAI={toggleHideAI}
+        aiCount={aiRecipes.length}
+        onClearAI={clearAIRecipes}
       />
 
       {/* 排序選單 */}

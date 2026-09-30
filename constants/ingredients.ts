@@ -39,6 +39,21 @@ export function isSeasoning(name: string): boolean {
 /** 唔會跟住人數縮放嘅類別（調味、醬料） */
 export const NON_SCALABLE_CATS = new Set(["調味料", "醬料", "乾貨"]);
 
+/**
+ * 水類食材（水／冰水／凍水／滾水／熱水／開水／清水…）— 屋企必有，唔應該預設加入購物清單。
+ * 用於加入購物清單時「默認唔勾」。
+ */
+const WATER_KEYWORDS = ["水"];
+const WATER_NEGATIONS = ["水餃", "水麵", "水產", "水梨", "水蜜桃", "水牛", "水牛芝士", "水龍", "水果"];
+export function isWaterIngredient(name: string): boolean {
+  const n = String(name ?? "").trim().toLowerCase();
+  if (!n) return false;
+  if (WATER_NEGATIONS.some((k) => n.includes(k))) return false;
+  // 只有當名好短（例如「水」「冰水」「滾水」）先當水類，避免誤判「水火鍋湯底」
+  if (n.length <= 4 && WATER_KEYWORDS.some((k) => n.includes(k))) return true;
+  return /^(冰|凍|熱|滾|開|清|涼|室溫|常溫)?水$/.test(n);
+}
+
 // ─── 食材分類 ──────────────────────────────────────────
 
 const CATEGORY_RULES: { cat: string; keywords: string[] }[] = [

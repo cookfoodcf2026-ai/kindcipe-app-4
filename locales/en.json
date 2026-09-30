@@ -855,7 +855,14 @@
     "sortNewest": "Recently added",
     "sortUpdated": "Recently edited",
     "sortCookTime": "Quickest",
-    "sortDifficulty": "Easiest"
+    "sortDifficulty": "Easiest",
+    "srcAll": "All",
+    "mine": "Mine",
+    "kol": "Creators",
+    "mineAll": "All",
+    "mineManual": "My own",
+    "mineImported": "Imported",
+    "hideAI": "Hide AI recipes"
   },
   "price": {
     "title": "Compare prices",

@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
-import { categorizeIngredient, isSeasoning } from "@/constants/ingredients";
+import { categorizeIngredient, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
@@ -161,7 +161,7 @@ export default function IngredientPickerModal({
             const key = `${r.id}::${idx}::${normalizedDefaultDate}`;
             if (alreadyAddedKeys?.has(key)) return;
             // 調味料預設唔勾選（用返現有 isSeasoning 邏輯）
-            if (!isSeasoning(ing.name)) {
+            if (!isSeasoning(ing.name) && !isWaterIngredient(ing.name)) {
               def.add(key);
             }
           });
@@ -189,7 +189,7 @@ export default function IngredientPickerModal({
       r.ingredients.forEach((ing, idx) => {
         const key = `${r.id}::${idx}::${date}`;
         if (alreadyAddedKeys?.has(key)) return;
-        if (!isSeasoning(ing.name)) {
+        if (!isSeasoning(ing.name) && !isWaterIngredient(ing.name)) {
           newSet.add(key);
         }
       });

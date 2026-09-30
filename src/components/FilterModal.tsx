@@ -29,6 +29,11 @@ interface FilterModalProps {
   userCount?: number;
   kolCount?: number;
   importedCount?: number;
+  // 「隱藏 AI 生成」（開放所有用戶；搬離主列）
+  hideAI?: boolean;
+  onToggleHideAI?: () => void;
+  aiCount?: number;
+  onClearAI?: () => void;
 }
 
 const ALL_ENTRY: CategoryDef = { key: "all", label: "全部", emoji: "" };
@@ -56,6 +61,10 @@ export default function FilterModal({
   userCount,
   kolCount,
   importedCount,
+  hideAI,
+  onToggleHideAI,
+  aiCount,
+  onClearAI,
 }: FilterModalProps) {
   const { t } = useTranslation();
   const content = (
@@ -77,7 +86,6 @@ export default function FilterModal({
             { key: "official", label: "🍳 官方食譜", count: officialCount },
             { key: "kol", label: "🌟 網紅食譜", count: kolCount },
             { key: "user", label: "📝 我的食譜", count: userCount },
-            { key: "imported", label: "📥 匯入食譜", count: importedCount },
             { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
           ].map(opt => (
             <TouchableOpacity
@@ -155,23 +163,16 @@ export default function FilterModal({
           ))}
         </View>
 
-        {/* Quick Filters (Popular Chips) */}
+        {/* Quick Filters (Popular Chips) — 精簡至 6 個最常用（其餘可用菜系/時間/標籤） */}
         <Text style={s.filterLabel}>{t("filter.quick")}</Text>
         <View style={s.filterQuickRow}>
           {[
-            { key: "quick15", label: "⚡ 15 分鐘內" },
-            { key: "quick30", label: "⏱ 30 分鐘內" },
             { key: "tonight", label: " 今晚食" },
-            { key: "hk-style", label: "🇭🇰 港式家常" },
             { key: "kids", label: "👶 小朋友啱食" },
-            { key: "vegetarian", label: " 素食主義" },
             { key: "light", label: "🥗 清淡少油" },
-            { key: "one-person", label: "👤 一人食" },
-            { key: "high-protein", label: "💪 高蛋白" },
+            { key: "vegetarian", label: " 素食主義" },
             { key: "soup", label: "🍲 湯水" },
-            { key: "low-calorie", label: "🥗 低卡減肥" },
-            { key: "steamed", label: " 蒸餸" },
-            { key: "stir-fry", label: " 小炒" },
+            { key: "quick30", label: "⏱ 30 分鐘內" },
           ].map(chip => {
             const isActive = activePopularChips.includes(chip.key);
             return (
@@ -189,6 +190,24 @@ export default function FilterModal({
             );
           })}
         </View>
+
+        {/* 隱藏 AI 生成（開放所有用戶；默認關） */}
+        {onToggleHideAI && (
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, marginBottom: 4 }}
+            onPress={onToggleHideAI}
+          >
+            <Text style={s.filterLabel}>{t("filter.hideAI" as any)}</Text>
+            <Ionicons name={hideAI ? "toggle" : "toggle-outline"} size={30} color={hideAI ? BRAND : "#9CA3AF"} />
+          </TouchableOpacity>
+        )}
+        {onClearAI && aiCount !== undefined && aiCount > 0 && (
+          <TouchableOpacity onPress={onClearAI} style={{ paddingVertical: 8, marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, color: "#B91C1C", fontWeight: "600" }}>
+              {t("清除 AI 食譜（{{n}}）" as any, { n: aiCount })}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Cook Time Filter */}
         <Text style={s.filterLabel}>{t("filter.cookTime")}</Text>

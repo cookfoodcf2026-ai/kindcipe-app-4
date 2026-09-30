@@ -43,7 +43,7 @@ import CookingTermTooltip from "@/app/components/CookingTermTooltip";
 import { DateUtil } from "@/src/lib/DateUtil";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { CollectionButton } from "@/src/components/CollectionButton";
-import { isSeasoning, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
+import { isSeasoning, isWaterIngredient, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { friendlyError } from "@/lib/errors";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
@@ -900,7 +900,7 @@ export default function RecipeDetailScreen() {
     setEditIngs(ings);
     const defaultSelected = new Set<number>();
     ings.forEach((_: any, i: number) => {
-      if (!isSeasoning(_.name)) defaultSelected.add(i);
+      if (!isSeasoning(_.name) && !isWaterIngredient(_.name)) defaultSelected.add(i);
     });
     setSelectedIngs(defaultSelected);
     // 不重置 lastAddedShoppingDate，讓用戶在彈窗改日期
@@ -1226,7 +1226,7 @@ export default function RecipeDetailScreen() {
                 // 預設只勾非調味料（與 IngredientPickerModal 一致）
                 const defaultSelected = new Set<number>();
                 ings.forEach((_: any, i: number) => {
-                  if (!isSeasoning(_.name)) defaultSelected.add(i);
+                  if (!isSeasoning(_.name) && !isWaterIngredient(_.name)) defaultSelected.add(i);
                 });
                 setSelectedIngs(defaultSelected);
                 
@@ -2151,7 +2151,7 @@ export default function RecipeDetailScreen() {
                 <TouchableOpacity style={s.quickBtn} onPress={() => {
                   const newSet = new Set<number>();
                   editIngs.forEach((ing: any, i: number) => {
-                    if (!isSeasoning(ing.name)) newSet.add(i);
+                    if (!isSeasoning(ing.name) && !isWaterIngredient(ing.name)) newSet.add(i);
                   });
                   setSelectedIngs(newSet);
                 }}>

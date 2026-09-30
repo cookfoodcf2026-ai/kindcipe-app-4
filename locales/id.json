@@ -855,7 +855,14 @@
     "sortNewest": "Terbaru",
     "sortUpdated": "Terbaru diedit",
     "sortCookTime": "Tercepat",
-    "sortDifficulty": "Termudah"
+    "sortDifficulty": "Termudah",
+    "srcAll": "Semua",
+    "mine": "Milik Saya",
+    "kol": "Kreator",
+    "mineAll": "Semua",
+    "mineManual": "Sendiri",
+    "mineImported": "Impor",
+    "hideAI": "Sembunyikan AI"
   },
   "price": {
     "title": "Bandingkan harga",
