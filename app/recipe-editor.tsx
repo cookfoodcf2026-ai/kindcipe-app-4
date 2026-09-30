@@ -166,7 +166,7 @@ const scrollToFocused = useCallback((e: any) => {
       setCategory(normalizeCuisine(r.recipeCategory) ?? "其他");
       setDishType(guardDishTypeByName(r.name || "", r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name || "")));
       setSourceUrl(r.sourceUrl ?? "");
-      setTags(((r.tags || []).length ? r.tags : ["家常菜"]).join(" "));
+      setTags((r.tags || []).join(" "));
       setImageError(false);
       if (r.image || r.thumbnailUrl) setImageUri(r.thumbnailUrl || r.image);
       if (Array.isArray(r.ingredients) && r.ingredients.length > 0) {
@@ -216,7 +216,7 @@ const scrollToFocused = useCallback((e: any) => {
     setCategory(normalizeCuisine(d.recipeCategory) ?? "其他");
     setDishType(guardDishTypeByName(d.name || "", d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name || "")));
     setSourceUrl(d.sourceUrl ?? "");
-    setTags(((d.tags || []).length ? d.tags : ["家常菜"]).join(" "));
+    setTags((d.tags || []).join(" "));
     setImageError(false);
     if (d.image || d.thumbnailUrl) setImageUri(d.thumbnailUrl || d.image);
     if (Array.isArray(d.ingredients) && d.ingredients.length > 0) {

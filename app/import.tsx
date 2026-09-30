@@ -173,7 +173,8 @@ export default function ImportScreen() {
       )
     );
     const parsedTags: string[] = (recipe.tags || []).map((x: any) => String(x)).filter(Boolean);
-    setEditTags((parsedTags.length ? parsedTags : ["家常菜"]).join(" "));
+    // 唔再自動塞「家常菜」：真係抽唔到標籤就留空，逼用戶自己入（儲存時會擋）。
+    setEditTags(parsedTags.join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
         id: `ing_${i}`,

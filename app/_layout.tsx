@@ -582,6 +582,14 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="share"
+                    options={{
+                      headerShown: false,
+                      title: "",
+                      gestureEnabled: false,
+                    }}
+                  />
+                  <Stack.Screen
                     name="recipe-editor"
                     options={{
                       headerShown: false,
