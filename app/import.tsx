@@ -24,7 +24,7 @@ import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
-import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
+import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
@@ -175,8 +175,9 @@ export default function ImportScreen() {
       )
     );
     const parsedTags: string[] = (recipe.tags || []).map((x: any) => String(x)).filter(Boolean);
-    // 自動簡選標籤：AI 有邊個用邊個；冇 → 用菜系 + 菜式類型 backfill（確保正常情況可即時儲存）。
-    // 只有全部皆空（罕有）才留空，交由儲存時的必填檢查擋住並提示。
+    // 自動簡選標籤：把 AI 標籤「對齊」SUGGESTED_TAGS（令 Common tags chips 亮起、可多選）。
+    // canonical（對中詞彙，亮 chip）＋ extras（未對中嘅原始標籤保留）；保證 ≥1 chip。
+    const { canonical, extras } = alignTagsToSuggested(parsedTags);
     const backfillTag = (() => {
       const dishLabel: Record<string, string> = {
         meat: "肉類", seafood: "海鮮", vegetable: "蔬菜", soup: "湯水",
@@ -184,9 +185,13 @@ export default function ImportScreen() {
       };
       return dishLabel[String(guardDishTypeByName(recipe.name || "", recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || "")))] || "";
     })();
-    const finalTags = parsedTags.length > 0
-      ? parsedTags
-      : [normalizeCuisine(recipe.recipeCategory), backfillTag, "家常菜"].filter((x): x is string => !!x && x !== "其他");
+    let finalTags: string[];
+    if (parsedTags.length > 0) {
+      finalTags = [...canonical, ...extras];
+      if (canonical.length === 0) finalTags.push("家常菜"); // 保證至少一個 chip 亮起
+    } else {
+      finalTags = [normalizeCuisine(recipe.recipeCategory), backfillTag, "家常菜"].filter((x): x is string => !!x && x !== "其他");
+    }
     setEditTags(finalTags.join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({

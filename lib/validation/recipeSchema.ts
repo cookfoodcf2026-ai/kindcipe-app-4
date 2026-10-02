@@ -7,7 +7,7 @@
  * 註：原本建議用 Zod，但前端冇安裝 zod，臨近上架唔加新依賴 → 用純 TS 實作同等效果。
  */
 import { isKnownCuisine, normalizeCuisine } from "@/lib/taxonomy";
-import { normalizeDishType, type DishTypeKey } from "@/lib/dishType";
+import { normalizeDishType, DISH_TYPE_KEYS, type DishTypeKey } from "@/lib/dishType";
 
 export type RecipeValidationInput = {
   name: string;
@@ -57,8 +57,10 @@ export function validateRecipeForm(
   // 分類（菜系）
   if (!isKnownCuisine(normalizeCuisine(input.category))) missing.push("分類");
 
-  // 菜式類型
-  if (!input.dishType || !normalizeDishType(input.dishType)) missing.push("菜式類型");
+  // 菜式類型：必須係合法 key（唔可以用 normalizeDishType，因為佢對空值永遠回 "other"）
+  if (!input.dishType || !(DISH_TYPE_KEYS as string[]).includes(String(input.dishType))) {
+    missing.push("菜式類型");
+  }
 
   // 常用標籤
   if (splitTags(input.tags).length === 0) missing.push("常用標籤");

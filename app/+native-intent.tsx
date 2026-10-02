@@ -10,8 +10,10 @@
 export function redirectSystemPath({ path }: { path: string; initial: boolean }): string {
   try {
     const p = String(path ?? "");
-    // 寬鬆：大小寫不拘、dataUrl / sharekey 都認
-    if (/dataurl=/i.test(p) || /sharekey/i.test(p) || /^kindcipe:\/\//i.test(p)) {
+    // 只認真正嘅分享 deep link（dataUrl= / shareKey）。
+    // ⚠️ 唔可以 match 任何 `kindcipe://`：正常啟動時 expo-router 會傳 `kindcipe:///`
+    // （getRootURL fallback），若 match 就會令正常開 app 都閃去 /import。
+    if (/dataurl=/i.test(p) || /sharekey/i.test(p)) {
       return "/import";
     }
     return p || "/";
