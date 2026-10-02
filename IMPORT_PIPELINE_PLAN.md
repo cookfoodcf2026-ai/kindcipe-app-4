@@ -3,6 +3,7 @@
 > 目標：令 Kindcipe 匯入「穩定 + 唔會再 fail」，同時**唔破壞**現有正常功能。
 > 範圍：香港用戶常用平台（IG / YouTube / Facebook / Threads / TikTok / 小紅書 / 一般網頁）。
 > **唔做**：嗶哩嗶哩、抖音、今日頭條。
+> 競品（ReciMe/Albo/Honeydew/Mr. Cook）策略對照見：`COMPETITOR_ANALYSIS.md`。
 
 ---
 

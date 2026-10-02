@@ -1,6 +1,7 @@
 # Kindcipe 商業模式分析與定價策略
 
 > 基於 Mr. Cook 與 Honeydew (EatList) 深度競爭分析
+> 完整競品總覽（含 ReciMe / Albo）：見 `COMPETITOR_ANALYSIS.md`
 
 ---
 
