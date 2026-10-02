@@ -19,6 +19,7 @@ import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCa
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
+import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { friendlyError } from "@/lib/errors";
@@ -412,23 +413,25 @@ const scrollToFocused = useCallback((e: any) => {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) { Alert.alert(t("請輸入食譜名稱" as any)); return; }
+    // 共用驗證（與匯入食譜同一規則來源）；自訂需備料時間
+    const v = validateRecipeForm({
+      name,
+      category,
+      dishType,
+      tags,
+      ingredients,
+      steps,
+      servings,
+      cookTime,
+      prepTime,
+    }, { requirePrepTime: true });
+    if (!v.ok) {
+      const missing = v.missing.map((m) => t(m as any));
+      Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") }));
+      return;
+    }
     const validIngredients = ingredients.filter(i => i.name.trim());
     const validSteps = steps.filter(s => s.instruction.trim());
-    if (validIngredients.length === 0) { Alert.alert(t("請至少輸入一種食材" as any)); return; }
-    if (validSteps.length === 0) { Alert.alert(t("請至少輸入一個步驟" as any)); return; }
-
-    // Numeric field validation (prevent NaN / negative values)
-    const numRe = /^(\d+)$/;
-    if (!numRe.test(servings.trim())) { Alert.alert(t("份量" as any), t("請輸入正整數（例如 2、4）" as any)); return; }
-    if (!numRe.test(cookTime.trim())) { Alert.alert(t("烹調時間" as any), t("請輸入正整數（分鐘）" as any)); return; }
-    if (!numRe.test(prepTime.trim())) { Alert.alert(t("備料時間" as any), t("請輸入正整數（分鐘）" as any)); return; }
-    // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
-    const missing: string[] = [];
-    if (!isKnownCuisine(category)) missing.push(t("分類" as any));
-    if (!dishType) missing.push(t("菜式類型" as any));
-    if (tags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push(t("常用標籤" as any));
-    if (missing.length > 0) { Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") })); return; }
 
     setIsSaving(true);
     setSaveStep(0);

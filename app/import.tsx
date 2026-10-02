@@ -24,6 +24,7 @@ import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
+import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -848,17 +849,25 @@ export default function ImportScreen() {
 
   // Save edited recipe with overlay
   const handleSaveEdited = async () => {
-    if (!editName.trim()) { Alert.alert(t("請輸入食譜名稱" as any)); return; }
-    // 必填：分類 / 菜式類型 / 常用標籤（一次過列出缺漏）
-    const missing: string[] = [];
-    if (!isKnownCuisine(selectedCategory)) missing.push(t("分類" as any));
-    if (!editDishType) missing.push(t("菜式類型" as any));
-    if (editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).filter(Boolean).length === 0) missing.push(t("常用標籤" as any));
-    if (missing.length > 0) { Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") })); return; }
+    // 共用驗證（與自訂食譜同一規則來源）
+    const v = validateRecipeForm({
+      name: editName,
+      category: selectedCategory,
+      dishType: editDishType,
+      tags: editTags,
+      ingredients: editIngredients,
+      steps: editSteps,
+      servings: editServings,
+      cookTime: editCookTime,
+    });
+    if (!v.ok) {
+      const missing = v.missing.map((m) => t(m as any));
+      Alert.alert(t("請填寫必填資料" as any), t("請填：{{fields}}", { fields: missing.join("、") }));
+      return;
+    }
+
     const validIngredients = editIngredients.filter(i => i.name.trim());
     const validSteps = editSteps.filter(s => s.instruction.trim());
-    if (validIngredients.length === 0) { Alert.alert(t("請至少輸入一種食材" as any)); return; }
-    if (validSteps.length === 0) { Alert.alert(t("請至少輸入一個步驟" as any)); return; }
 
     setIsSaving(true);
     setSaveStepIdx(0);
