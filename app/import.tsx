@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation, useFocusEffect, usePreventRemove } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -335,74 +335,112 @@ export default function ImportScreen() {
     };
   }, []);
 
-  // 偵測剪貼板（只對高成功率平台）
-  useEffect(() => {
-    // 有 Share/剪貼板 params 進入 → 停用被動偵測一段時間，避免舊剪貼板內容蓋過分享來源
-    const hasIncoming =
-      !!(params.clipboardUrl || params.sharedText || params.sharedImageUri);
-    if (hasIncoming) {
-      clipboardSkipUntilRef.current = Date.now() + 4000;
-    } else {
-      checkClipboard();
+  // ── 分享匯入：pending-intent queue（每次 focus 主動 pull）────────────────────
+  // 唔再靠 navigation params / mount-once：每次入 /import（focus）都檢查
+  // AsyncStorage "kindcipe_pending_share"，有就解析並**原子清除**。
+  // 咁樣第 1 次、第 2 次、仍喺 import 頁再分享、冷啟、熱啟 —— 全部行同一條路。
+  const handleUniversalParseRef = useRef<((input: string, caption?: string) => void) | null>(null);
+  const applySharePayload = useCallback(async (p: Record<string, string>) => {
+    if (!p || typeof p !== "object") return;
+    const url = p.clipboardUrl ? String(p.clipboardUrl) : "";
+    const caption = p.sharedText ? String(p.sharedText) : undefined;
+    const imgUri = p.sharedImageUri ? String(p.sharedImageUri) : "";
+    const autoParse = p.autoParse === "1";
+
+    if (imgUri) {
+      try {
+        const compressed = await compressImage(imgUri);
+        setPendingScreenshot({ uri: compressed.uri, base64: compressed.base64 || "", mimeType: compressed.mimeType });
+      } catch {
+        setPendingScreenshot({ uri: imgUri, base64: "", mimeType: "image/jpeg" });
+      }
+      setUniversalInput("");
+      setClipboardUrl(null);
+      setDetectedPlatform(null);
+      setStep("input");
+      return;
     }
-    
-    // 如果有 params.clipboardUrl（從首頁提示／系統分享跳轉過來），自動填充
-    if (params.clipboardUrl) {
-      const url = params.clipboardUrl as string;
-      const caption = params.sharedText ? String(params.sharedText) : undefined;
+    if (url) {
       setUniversalInput(url);
       const platform = detectPlatform(url);
       if (platform) {
         setClipboardUrl(url);
         setDetectedPlatform(platform);
-        // 由系統分享入嚟 → 自動開始解析（帶埋 caption，Path A）
-        if (params.autoParse === "1") {
-          isParsingRef.current = false;
-          void handleUniversalParse(url, caption);
-        }
       }
+      if (autoParse) {
+        isParsingRef.current = false;
+        void handleUniversalParseRef.current?.(url, caption);
+      }
+      return;
     }
-
-    // 由系統 Share Sheet 分享過嚟嘅純文字（非連結）
-    // 注意：若同時有 clipboardUrl，會喺上面已用 caption 帶入 → 呢度唔重複處理
-    if (params.sharedText && !params.clipboardUrl) {
-      const txt = String(params.sharedText);
-      if (isValidUrl(txt.trim())) {
-        setUniversalInput(txt.trim());
-        const platform = detectPlatform(txt);
-        if (platform) {
-          setClipboardUrl(txt.trim());
-          setDetectedPlatform(platform);
-          if (params.autoParse === "1") {
-            isParsingRef.current = false;
-            void handleUniversalParse(txt.trim());
-          }
-        }
+    if (caption) {
+      if (isValidUrl(caption.trim())) {
+        setUniversalInput(caption.trim());
+        const platform = detectPlatform(caption);
+        if (platform) { setClipboardUrl(caption.trim()); setDetectedPlatform(platform); }
+        if (autoParse) { isParsingRef.current = false; void handleUniversalParseRef.current?.(caption.trim()); }
       } else {
-        setUniversalInput(txt);
+        setUniversalInput(caption);
       }
     }
+  }, []);
 
-    // 由系統 Share Sheet 分享過嚟嘅圖片 → 當截圖處理
-    if (params.sharedImageUri) {
-      const uri = String(params.sharedImageUri);
+  const consumePendingShare = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem("kindcipe_pending_share");
+      if (!raw) return;
+      // 原子清除：先移除，保證只處理一次（即使 focus 重複觸發）
+      await AsyncStorage.removeItem("kindcipe_pending_share");
+      const p = JSON.parse(raw);
+      await applySharePayload(p);
+    } catch { /* ignore */ }
+  }, [applySharePayload]);
+
+  // 每次 focus（入到 /import）：先消費 pending share（優先於 params），否則 fallback 剪貼板
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
       (async () => {
-        try {
-          const compressed = await compressImage(uri);
-          setPendingScreenshot({
-            uri: compressed.uri,
-            base64: compressed.base64 || "",
-            mimeType: compressed.mimeType,
-          });
-        } catch {
-          setPendingScreenshot({ uri, base64: "", mimeType: "image/jpeg" });
+        const raw = await AsyncStorage.getItem("kindcipe_pending_share").catch(() => null);
+        if (cancelled) return;
+        if (raw) {
+          await consumePendingShare();
+        } else if (!(params.clipboardUrl || params.sharedText || params.sharedImageUri)) {
+          // 冇 pending、又冇 params → 一般被動剪貼板偵測
+          checkClipboard();
         }
-        setUniversalInput("");
-        setClipboardUrl(null);
-        setDetectedPlatform(null);
-        setStep("input");
+      })();
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [consumePendingShare]),
+  );
+
+  // 仍喺 /import 頁時再分享（OS 由背景返嚟）→ AppState active 時再 pull 一次
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void consumePendingShare();
+    });
+    return () => sub.remove();
+  }, [consumePendingShare]);
+
+  // Fallback：直接由 params 帶入（例如首頁「偵測到連結」或舊有 deep link）—— 只喺冇 pending 時用
+  useEffect(() => {
+    const hasIncoming = !!(params.clipboardUrl || params.sharedText || params.sharedImageUri);
+    if (hasIncoming) {
+      clipboardSkipUntilRef.current = Date.now() + 4000;
+      // 若同時有 pending，交由 useFocusEffect 處理，避免重複
+      void (async () => {
+        const raw = await AsyncStorage.getItem("kindcipe_pending_share").catch(() => null);
+        if (raw) return;
+        void applySharePayload({
+          clipboardUrl: params.clipboardUrl ? String(params.clipboardUrl) : "",
+          sharedText: params.sharedText ? String(params.sharedText) : "",
+          sharedImageUri: params.sharedImageUri ? String(params.sharedImageUri) : "",
+          autoParse: params.autoParse ? String(params.autoParse) : "",
+        } as Record<string, string>);
       })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkClipboard = async () => {
@@ -733,6 +771,8 @@ export default function ImportScreen() {
       parseTextMutation.mutate({ text: trimmed, language: i18n.language });
     }
   };
+  // 保持 ref 指向最新嘅 parse handler（供 focus 時 pull 用）
+  handleUniversalParseRef.current = (input: string, caption?: string) => { void handleUniversalParse(input, caption); };
 
   // 貼上按鈕邏輯
   const handlePaste = async () => {

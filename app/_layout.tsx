@@ -399,14 +399,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem("kindcipe_pending_share");
         if (!raw) return;
+        // 若已經喺 /import：唔好移除 pending，交由 import 頁的 focus pull 處理（single source）
+        if (segmentsRef.current[0] === "import") return;
         const p = JSON.parse(raw);
         if (!p || typeof p !== "object") return;
         // 先清 pending，保證只 push 一次（即使 effect 重跑）
         await AsyncStorage.removeItem("kindcipe_pending_share");
         track(Events.ShareConsumed, { keys: Object.keys(p).join(",") });
-        // 若已經喺 /import（deep link 已直接落去）→ 唔重複 push
-        if (segmentsRef.current[0] === "import") return;
-        router.push({ pathname: "/import", params: p });
+        router.push({ pathname: "/import", params: {} });
       } catch { /* ignore */ }
     };
     void tryConsume();
