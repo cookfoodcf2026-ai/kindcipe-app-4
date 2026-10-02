@@ -173,8 +173,20 @@ export default function ImportScreen() {
       )
     );
     const parsedTags: string[] = (recipe.tags || []).map((x: any) => String(x)).filter(Boolean);
-    // 唔再自動塞「家常菜」：真係抽唔到標籤就留空，逼用戶自己入（儲存時會擋）。
-    setEditTags(parsedTags.join(" "));
+    // 自動簡選標籤：AI 有邊個用邊個；冇 → 用菜系 + 菜式類型 backfill（確保正常情況可即時儲存）。
+    // 只有全部皆空（罕有）才留空，交由儲存時的必填檢查擋住並提示。
+    const backfillTag = (() => {
+      const cat = normalizeCuisine(recipe.recipeCategory);
+      const dishLabel: Record<string, string> = {
+        meat: "肉類", seafood: "海鮮", vegetable: "蔬菜", soup: "湯水",
+        carb: "主食", appetizer: "前菜", dessert: "甜品", drink: "飲品",
+      };
+      return dishLabel[String(guardDishTypeByName(recipe.name || "", recipe.dishType ? normalizeDishType(recipe.dishType) : inferDishTypeKeyFromName(recipe.name || "")))] || "";
+    })();
+    const finalTags = parsedTags.length > 0
+      ? parsedTags
+      : [normalizeCuisine(recipe.recipeCategory), backfillTag, "家常菜"].filter((x): x is string => !!x && x !== "其他");
+    setEditTags(finalTags.join(" "));
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
         id: `ing_${i}`,
