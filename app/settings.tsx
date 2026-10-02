@@ -32,6 +32,8 @@ import { ChatBubbleIcon } from "@/src/components/icons";
 import { getHintsDisabled, setHintsDisabled } from "@/src/components/HintBanner";
 import { getAppLogo } from "@/lib/logo";
 import { friendlyError } from "@/lib/errors";
+import { isWeb } from "@/lib/platform";
+import { signInWithGoogleWeb } from "@/lib/socialAuth";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -308,6 +310,62 @@ export default function SettingsScreen() {
     staleTime: 1000 * 60 * 5,
     enabled: isAuthenticated,
   });
+
+  // ── 手動連結登入方式（Apple relay 帳號唯一解法）──
+  const [linkEmailOpen, setLinkEmailOpen] = useState(false);
+  const [linkEmailAddr, setLinkEmailAddr] = useState("");
+  const [linkCode, setLinkCode] = useState("");
+  const [linkStep, setLinkStep] = useState<"email" | "code">("email");
+  const [linkMsg, setLinkMsg] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const linkGoogleM = trpc.auth.linkGoogle.useMutation();
+  const linkEmailStartM = trpc.auth.linkEmailStart.useMutation();
+  const linkEmailVerifyM = trpc.auth.linkEmailVerify.useMutation();
+  const linkedProviders = new Set(((identitiesQuery.data as any[]) ?? []).map((i: any) => i.provider));
+  const hasEmailLinked = linkedProviders.has("otp") || linkedProviders.has("email");
+
+  const handleLinkGoogle = async () => {
+    try {
+      let idToken: string | undefined;
+      if (isWeb) {
+        idToken = await signInWithGoogleWeb();
+      } else {
+        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+        const userInfo = await GoogleSignin.signIn();
+        idToken = userInfo?.data?.idToken ?? userInfo?.idToken;
+      }
+      if (!idToken) throw new Error("no idToken");
+      await linkGoogleM.mutateAsync({ idToken });
+      await utils.auth.identities.invalidate();
+      Alert.alert(t("連結成功" as any));
+    } catch (e: any) {
+      Alert.alert(t("連結失敗" as any), friendlyError(e));
+    }
+  };
+
+  const handleLinkEmailStart = async () => {
+    const email = linkEmailAddr.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setLinkMsg(t("請輸入有效電郵" as any)); return; }
+    setLinkBusy(true); setLinkMsg(null);
+    try {
+      await linkEmailStartM.mutateAsync({ email });
+      setLinkStep("code");
+    } catch (e: any) { setLinkMsg(friendlyError(e)); }
+    finally { setLinkBusy(false); }
+  };
+
+  const handleLinkEmailVerify = async () => {
+    const email = linkEmailAddr.trim().toLowerCase();
+    if (linkCode.trim().length < 4) { setLinkMsg(t("請輸入驗證碼" as any)); return; }
+    setLinkBusy(true); setLinkMsg(null);
+    try {
+      await linkEmailVerifyM.mutateAsync({ email, code: linkCode.trim() });
+      await utils.auth.identities.invalidate();
+      setLinkEmailOpen(false); setLinkEmailAddr(""); setLinkCode(""); setLinkStep("email");
+      Alert.alert(t("連結成功" as any));
+    } catch (e: any) { setLinkMsg(friendlyError(e)); }
+    finally { setLinkBusy(false); }
+  };
   const sub = subscriptionQuery.data;
   const usage = usageQuery.data;
   const usageHistoryByMember = usageHistoryByMemberQuery.data ?? [];
@@ -493,11 +551,11 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* 已連結登入方式 */}
-        {isAuthenticated && (identitiesQuery.data?.length ?? 0) > 0 && (
+        {/* 已連結登入方式 + 手動連結 */}
+        {isAuthenticated && (
           <View style={styles.promoCard}>
             <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>{t("settings.loginMethods" as any)}</Text>
-            {(identitiesQuery.data as any[]).map((id: any) => {
+            {(identitiesQuery.data as any[] ?? []).map((id: any) => {
               const icon = id.provider === "apple" ? "logo-apple" : id.provider === "google" ? "logo-google" : id.provider === "otp" ? "key-outline" : "mail-outline";
               const label = id.provider === "apple" ? t("settings.providerApple" as any) : id.provider === "google" ? t("settings.providerGoogle" as any) : id.provider === "otp" ? t("settings.providerOtp" as any) : t("settings.providerEmail" as any);
               return (
@@ -508,9 +566,67 @@ export default function SettingsScreen() {
                 </View>
               );
             })}
+            {/* 未連結 → 提供手動連結 */}
+            {!linkedProviders.has("google") && (
+              <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, marginTop: 4 }} onPress={handleLinkGoogle}>
+                <Ionicons name="logo-google" size={18} color="#DB4437" />
+                <Text style={{ fontSize: 14, color: "#013E77", fontWeight: "700" }}>{t("連結 Google" as any)}</Text>
+              </TouchableOpacity>
+            )}
+            {!hasEmailLinked && (
+              <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }} onPress={() => { setLinkEmailOpen(true); setLinkStep("email"); setLinkMsg(null); }}>
+                <Ionicons name="mail-outline" size={18} color="#013E77" />
+                <Text style={{ fontSize: 14, color: "#013E77", fontWeight: "700" }}>{t("連結電郵" as any)}</Text>
+              </TouchableOpacity>
+            )}
             <Text style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8, lineHeight: 16 }}>{t("settings.linkHint" as any)}</Text>
           </View>
         )}
+
+        {/* 連結電郵 Modal */}
+        <Modal visible={linkEmailOpen} transparent animationType="fade" onRequestClose={() => setLinkEmailOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#1A1A1A", marginBottom: 12 }}>{t("連結電郵" as any)}</Text>
+              {linkStep === "email" ? (
+                <>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" }}
+                    placeholder={t("auth.emailPlaceholder" as any)}
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    value={linkEmailAddr}
+                    onChangeText={setLinkEmailAddr}
+                  />
+                  {linkMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{linkMsg}</Text> : null}
+                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailStart} disabled={linkBusy}>
+                    {linkBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("auth.sendCode" as any)}</Text>}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: linkEmailAddr })}</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#111827", letterSpacing: 4, textAlign: "center" }}
+                    placeholder="------"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    value={linkCode}
+                    onChangeText={setLinkCode}
+                  />
+                  {linkMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{linkMsg}</Text> : null}
+                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailVerify} disabled={linkBusy}>
+                    {linkBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("確定" as any)}</Text>}
+                  </TouchableOpacity>
+                </>
+              )}
+              <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => setLinkEmailOpen(false)}>
+                <Text style={{ color: "#9CA3AF" }}>{t("取消" as any)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* 使用統計 */}
         {isAuthenticated && activeFamily && usage && (
