@@ -117,11 +117,12 @@ Path B: 貼連結 / 剪貼板（冇 payload）—— 後端
 
 ```
 Step 0  錄 baseline（IMPORT_BASELINE_TEST.md）：IG/YT/FB 現況
-Step 1  前端：Share Path A 優先用 shareIntent.text（IG/YT 唔變）→ OTA
-Step 2  後端：加 metascraper 做 Path B 後備（現有 oEmbed 先試）→ railway up
-Step 3  逐平台開 adapter（feature flag），一個一個驗
-Step 4  加 analytics：分辨 Path A/B + 成功層 + 平台
-Step 5  有問題 → 即 rollback 該平台
+Step 1  前端：Share Path A 優先用 shareIntent.text（caption）→ OTA   【✅ 已做】
+Step 2  後端：parseUrl 收 clientCaption 並優先採用（Threads/TikTok/小紅書）【✅ 已做】
+Step 3  多張截圖匯入（parseImage 收 storageKeys[]）【✅ 已做】
+Step 4  後端：加 metascraper 做 Path B 後備（現有 oEmbed 先試）—— 未做
+Step 5  逐平台開 adapter（feature flag）—— 未做
+Step 6  加 analytics：分辨 Path A/B + 成功層 + 平台 —— 未做
 ```
 
 **任何一步出事，都唔會影響已正常嘅功能。**

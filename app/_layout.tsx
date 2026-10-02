@@ -107,8 +107,12 @@ function ShareIntentBridge() {
     if (!hasShareIntent) return;
     try {
       const rawText = String(shareIntent.text ?? "").trim();
+      // webUrl 可能係 shareIntent.webUrl，或 text 內含嘅 URL
       const webUrl = shareIntent.webUrl || (rawText && isValidUrl(rawText) ? rawText : "");
-      const text = webUrl ? "" : rawText;
+      // Path A 關鍵：分享時 OS 通常一併提供 caption（rawText）。即使有 URL，
+      // 都要保留 caption 做 sharedText —— IG/Threads/TikTok/小紅書 好多時 caption 先有食譜內容。
+      // 若 rawText 只係條 URL（等於 webUrl），就唔當 caption。
+      const caption = rawText && rawText !== webUrl ? rawText : "";
       const imgFile = (shareIntent.files ?? []).find((f: any) =>
         String(f?.mimeType ?? "").startsWith("image/"),
       );
@@ -116,10 +120,11 @@ function ShareIntentBridge() {
       const params: Record<string, string> = {
         // 連結分享 → 入 import 後自動解析（高成功率平台）
         ...(webUrl ? { clipboardUrl: webUrl, autoParse: "1" } : {}),
-        ...(text ? { sharedText: text } : {}),
+        // caption（Path A）；後端會優先採用佢，減少靠後端爬頁面
+        ...(caption ? { sharedText: caption } : {}),
         ...(sharedImageUri ? { sharedImageUri } : {}),
       };
-      const kind = webUrl ? "url" : sharedImageUri ? "image" : text ? "text" : "empty";
+      const kind = sharedImageUri && !webUrl ? "image" : webUrl ? (caption ? "url+caption" : "url") : caption ? "text" : "empty";
       // 監控：收到分享（用於上架後偵測分享有冇壞）
       track(Events.ShareReceived, {
         kind,

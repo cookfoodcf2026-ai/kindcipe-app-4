@@ -81,7 +81,7 @@ export default function ImportScreen() {
   const [parsedRecipe, setParsedRecipe] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
-  const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
+  const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string; extra?: { base64: string; mimeType: string }[] } | null>(null);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
@@ -349,26 +349,28 @@ export default function ImportScreen() {
     // 如果有 params.clipboardUrl（從首頁提示／系統分享跳轉過來），自動填充
     if (params.clipboardUrl) {
       const url = params.clipboardUrl as string;
+      const caption = params.sharedText ? String(params.sharedText) : undefined;
       setUniversalInput(url);
       const platform = detectPlatform(url);
-      if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+      if (platform) {
         setClipboardUrl(url);
         setDetectedPlatform(platform);
-        // 由系統分享入嚟 → 自動開始解析（高成功率平台）
+        // 由系統分享入嚟 → 自動開始解析（帶埋 caption，Path A）
         if (params.autoParse === "1") {
           isParsingRef.current = false;
-          void handleUniversalParse(url);
+          void handleUniversalParse(url, caption);
         }
       }
     }
 
     // 由系統 Share Sheet 分享過嚟嘅純文字（非連結）
-    if (params.sharedText) {
+    // 注意：若同時有 clipboardUrl，會喺上面已用 caption 帶入 → 呢度唔重複處理
+    if (params.sharedText && !params.clipboardUrl) {
       const txt = String(params.sharedText);
       if (isValidUrl(txt.trim())) {
         setUniversalInput(txt.trim());
         const platform = detectPlatform(txt);
-        if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+        if (platform) {
           setClipboardUrl(txt.trim());
           setDetectedPlatform(platform);
           if (params.autoParse === "1") {
@@ -697,7 +699,7 @@ export default function ImportScreen() {
   }
 
   // 通用解析函數（自動偵測 URL 或文字）
-  const handleUniversalParse = async (input: string) => {
+  const handleUniversalParse = async (input: string, caption?: string) => {
     if (isParsingRef.current) return;
     const trimmed = input.trim();
     if (!trimmed) {
@@ -706,6 +708,7 @@ export default function ImportScreen() {
     }
     isParsingRef.current = true;
     setStep("parsing");
+    setUniversalInput(trimmed);
     startParseProgress();
     clientThumbRef.current = null;
     
@@ -724,7 +727,8 @@ export default function ImportScreen() {
       }
       // Reset imageError before parsing
       setImageError(false);
-      parseUrlMutation.mutate({ url: trimmed, language: i18n.language, clientThumbnail });
+      // Path A：把分享時 OS 提供嘅 caption 一併傳後端（Threads/TikTok/小紅書 靠佢）
+      parseUrlMutation.mutate({ url: trimmed, language: i18n.language, clientThumbnail, clientCaption: caption });
     } else {
       parseTextMutation.mutate({ text: trimmed, language: i18n.language });
     }
@@ -768,7 +772,12 @@ export default function ImportScreen() {
     try {
       result = source === "camera"
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+            allowsMultipleSelection: true,
+            selectionLimit: 5, // 可一次揀多張（例如 caption + 留言）
+          });
     } catch (e: any) {
       Alert.alert(t("開啟失敗" as any), friendlyError(e) || t("請重試" as any));
       return;
@@ -776,30 +785,32 @@ export default function ImportScreen() {
       setShowPhotoSourceModal(false);
     }
 
-    if (!result || result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    try {
-      const compressed = await compressImage(asset.uri);
-      setPendingScreenshot({
-        uri: compressed.uri,
-        base64: compressed.base64 || "",
-        mimeType: compressed.mimeType,
-      });
-      setUniversalInput("");
-      setClipboardUrl(null);
-      setDetectedPlatform(null);
-      setStep("input");
-    } catch {
-      setPendingScreenshot({
-        uri: asset.uri,
-        base64: asset.base64 || "",
-        mimeType: asset.mimeType || "image/jpeg",
-      });
-      setUniversalInput("");
-      setClipboardUrl(null);
-      setDetectedPlatform(null);
-      setStep("input");
-    }
+    if (!result || result.canceled || !result.assets?.length) return;
+    // 多張：第一張做封面，其餘做 extra（後端合併解析）
+    const compressAll = async (assets: typeof result.assets) => {
+      const out: { uri: string; base64: string; mimeType: string }[] = [];
+      for (const a of assets) {
+        try {
+          const c = await compressImage(a.uri);
+          out.push({ uri: c.uri, base64: c.base64 || "", mimeType: c.mimeType });
+        } catch {
+          out.push({ uri: a.uri, base64: a.base64 || "", mimeType: a.mimeType || "image/jpeg" });
+        }
+      }
+      return out;
+    };
+    const shots = await compressAll(result.assets);
+    const first = shots[0];
+    setPendingScreenshot({
+      uri: first.uri,
+      base64: first.base64,
+      mimeType: first.mimeType,
+      extra: shots.slice(1).map((s) => ({ base64: s.base64, mimeType: s.mimeType })),
+    });
+    setUniversalInput("");
+    setClipboardUrl(null);
+    setDetectedPlatform(null);
+    setStep("input");
   };
 
   // 確認截圖並開始解析
@@ -807,20 +818,29 @@ export default function ImportScreen() {
     if (!pendingScreenshot) return;
     setStep("parsing");
     startParseProgress();
+    const uploadedKeys: string[] = [];
     try {
-      const uploadResult = await uploadImageMutation.mutateAsync({
-        base64: pendingScreenshot.base64,
-        mimeType: pendingScreenshot.mimeType,
-      });
+      // 主圖 + 附加圖（多張截圖）
+      const all = [
+        { base64: pendingScreenshot.base64, mimeType: pendingScreenshot.mimeType },
+        ...(pendingScreenshot.extra ?? []),
+      ].filter((im) => !!im.base64);
+      for (const im of all) {
+        const up = await uploadImageMutation.mutateAsync({ base64: im.base64, mimeType: im.mimeType });
+        if (up?.key) uploadedKeys.push(up.key);
+      }
+      if (uploadedKeys.length === 0) throw new Error("upload failed");
       try {
-        await parseImageMutation.mutateAsync({ storageKey: uploadResult.key });
+        await parseImageMutation.mutateAsync({ storageKeys: uploadedKeys });
         // parseImageMutation.onSuccess will handle the result
       } catch (parseErr) {
         // 解析失敗時清理已上傳的截圖，避免 R2 孤兒檔案
-        deleteRecipeImageMutation.mutate(
-          { key: uploadResult.key },
-          { onError: (cleanupErr) => console.warn("[handleConfirmScreenshot] 清理失敗截圖失敗:", cleanupErr) }
-        );
+        for (const key of uploadedKeys) {
+          deleteRecipeImageMutation.mutate(
+            { key },
+            { onError: (cleanupErr) => console.warn("[handleConfirmScreenshot] 清理失敗截圖失敗:", cleanupErr) }
+          );
+        }
         throw parseErr;
       }
     } catch (e: any) {
@@ -1504,6 +1524,9 @@ export default function ImportScreen() {
         {pendingScreenshot && (
           <View style={styles.screenshotSection}>
             <Image source={{ uri: pendingScreenshot.uri }} style={styles.screenshotPreview} resizeMode="cover" />
+            {pendingScreenshot.extra && pendingScreenshot.extra.length > 0 && (
+              <Text style={styles.previewHint}>{t("共 {{n}} 張圖，會合併解析" as any, { n: 1 + pendingScreenshot.extra.length })}</Text>
+            )}
             <Text style={styles.previewHint}>{t("importRecipe.previewHint")}</Text>
             <View style={styles.screenshotActions}>
               <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
