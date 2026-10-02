@@ -17,13 +17,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
+import { usePendingShare } from "@/lib/pendingShare";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
-import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
+import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
@@ -177,7 +178,6 @@ export default function ImportScreen() {
     // 自動簡選標籤：AI 有邊個用邊個；冇 → 用菜系 + 菜式類型 backfill（確保正常情況可即時儲存）。
     // 只有全部皆空（罕有）才留空，交由儲存時的必填檢查擋住並提示。
     const backfillTag = (() => {
-      const cat = normalizeCuisine(recipe.recipeCategory);
       const dishLabel: Record<string, string> = {
         meat: "肉類", seafood: "海鮮", vegetable: "蔬菜", soup: "湯水",
         carb: "主食", appetizer: "前菜", dessert: "甜品", drink: "飲品",
@@ -335,17 +335,23 @@ export default function ImportScreen() {
     };
   }, []);
 
-  // ── 分享匯入：pending-intent queue（每次 focus 主動 pull）────────────────────
-  // 唔再靠 navigation params / mount-once：每次入 /import（focus）都檢查
-  // AsyncStorage "kindcipe_pending_share"，有就解析並**原子清除**。
-  // 咁樣第 1 次、第 2 次、仍喺 import 頁再分享、冷啟、熱啟 —— 全部行同一條路。
+  // ── 分享匯入：Reactive Single Source（唯一 reader）──────────────────────────
+  // 唔靠 focus / AppState / mount 時機。ShareIntentBridge（唯一 writer）一收到分享
+  // 就 setPending → 呢度 useEffect([pending]) 立即反應 → 解析 → clearPending。
+  // AsyncStorage 只作冷啟／未登入後登入嘅 fallback（mount 時讀一次）。
+  const { pending: pendingShare, clearPending } = usePendingShare();
   const handleUniversalParseRef = useRef<((input: string, caption?: string) => void) | null>(null);
+  // 去重：同一份 payload 只處理一次（context 主路徑 + AsyncStorage fallback 可能同時命中）
+  const lastAppliedKeyRef = useRef<string>("");
   const applySharePayload = useCallback(async (p: Record<string, string>) => {
     if (!p || typeof p !== "object") return;
     const url = p.clipboardUrl ? String(p.clipboardUrl) : "";
     const caption = p.sharedText ? String(p.sharedText) : undefined;
     const imgUri = p.sharedImageUri ? String(p.sharedImageUri) : "";
     const autoParse = p.autoParse === "1";
+    const dedupeKey = `${url}|${caption ?? ""}|${imgUri}|${(p as any)._ts ?? ""}`;
+    if (dedupeKey === lastAppliedKeyRef.current) return; // 已處理過
+    lastAppliedKeyRef.current = dedupeKey;
 
     if (imgUri) {
       try {
@@ -363,10 +369,7 @@ export default function ImportScreen() {
     if (url) {
       setUniversalInput(url);
       const platform = detectPlatform(url);
-      if (platform) {
-        setClipboardUrl(url);
-        setDetectedPlatform(platform);
-      }
+      if (platform) { setClipboardUrl(url); setDetectedPlatform(platform); }
       if (autoParse) {
         isParsingRef.current = false;
         void handleUniversalParseRef.current?.(url, caption);
@@ -385,63 +388,58 @@ export default function ImportScreen() {
     }
   }, []);
 
-  const consumePendingShare = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem("kindcipe_pending_share");
-      if (!raw) return;
-      // 原子清除：先移除，保證只處理一次（即使 focus 重複觸發）
-      await AsyncStorage.removeItem("kindcipe_pending_share");
-      const p = JSON.parse(raw);
-      await applySharePayload(p);
-    } catch { /* ignore */ }
-  }, [applySharePayload]);
+  // ★ 主路徑：context pending 一變即處理（即時，唔理時機）
+  useEffect(() => {
+    if (!pendingShare) return;
+    clipboardSkipUntilRef.current = Date.now() + 4000;
+    void (async () => {
+      await applySharePayload(pendingShare as Record<string, string>);
+      clearPending();
+      // 清埋 AsyncStorage fallback，避免重複
+      AsyncStorage.removeItem("kindcipe_pending_share").catch(() => {});
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingShare]);
 
-  // 每次 focus（入到 /import）：先消費 pending share（優先於 params），否則 fallback 剪貼板
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        const raw = await AsyncStorage.getItem("kindcipe_pending_share").catch(() => null);
-        if (cancelled) return;
+  // Fallback 1：mount 時讀 AsyncStorage（冷啟／未登入後登入）
+  useEffect(() => {
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem("kindcipe_pending_share");
         if (raw) {
-          await consumePendingShare();
-        } else if (!(params.clipboardUrl || params.sharedText || params.sharedImageUri)) {
-          // 冇 pending、又冇 params → 一般被動剪貼板偵測
-          checkClipboard();
+          await AsyncStorage.removeItem("kindcipe_pending_share");
+          await applySharePayload(JSON.parse(raw));
         }
-      })();
-      return () => { cancelled = true; };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [consumePendingShare]),
-  );
-
-  // 仍喺 /import 頁時再分享（OS 由背景返嚟）→ AppState active 時再 pull 一次
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void consumePendingShare();
-    });
-    return () => sub.remove();
-  }, [consumePendingShare]);
-
-  // Fallback：直接由 params 帶入（例如首頁「偵測到連結」或舊有 deep link）—— 只喺冇 pending 時用
-  useEffect(() => {
-    const hasIncoming = !!(params.clipboardUrl || params.sharedText || params.sharedImageUri);
-    if (hasIncoming) {
-      clipboardSkipUntilRef.current = Date.now() + 4000;
-      // 若同時有 pending，交由 useFocusEffect 處理，避免重複
-      void (async () => {
-        const raw = await AsyncStorage.getItem("kindcipe_pending_share").catch(() => null);
-        if (raw) return;
-        void applySharePayload({
-          clipboardUrl: params.clipboardUrl ? String(params.clipboardUrl) : "",
-          sharedText: params.sharedText ? String(params.sharedText) : "",
-          sharedImageUri: params.sharedImageUri ? String(params.sharedImageUri) : "",
-          autoParse: params.autoParse ? String(params.autoParse) : "",
-        } as Record<string, string>);
-      })();
-    }
+      } catch { /* ignore */ }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fallback 2：由 params 帶入（首頁「偵測到連結」／舊 deep link）
+  useEffect(() => {
+    const hasIncoming = !!(params.clipboardUrl || params.sharedText || params.sharedImageUri);
+    if (!hasIncoming) return;
+    clipboardSkipUntilRef.current = Date.now() + 4000;
+    void applySharePayload({
+      clipboardUrl: params.clipboardUrl ? String(params.clipboardUrl) : "",
+      sharedText: params.sharedText ? String(params.sharedText) : "",
+      sharedImageUri: params.sharedImageUri ? String(params.sharedImageUri) : "",
+      autoParse: params.autoParse ? String(params.autoParse) : "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 若冇任何 incoming（無 pending／params）→ 一般被動剪貼板偵測（focus 時）
+  useFocusEffect(
+    useCallback(() => {
+      if (params.clipboardUrl || params.sharedText || params.sharedImageUri) return;
+      void (async () => {
+        const raw = await AsyncStorage.getItem("kindcipe_pending_share").catch(() => null);
+        if (!raw) checkClipboard();
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
   const checkClipboard = async () => {
     if (Date.now() < clipboardSkipUntilRef.current) return;

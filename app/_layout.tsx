@@ -17,6 +17,7 @@ import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-rout
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { PendingShareProvider, usePendingShare } from "@/lib/pendingShare";
 import { trpc, createTrpcClient } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, TouchableOpacity, Text, Alert, AppState } from "react-native";
@@ -102,6 +103,7 @@ const PENDING_SHARE_KEY = "kindcipe_pending_share";
 
 function ShareIntentBridge() {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const { setPending } = usePendingShare();
 
   useEffect(() => {
     if (!hasShareIntent) return;
@@ -111,32 +113,31 @@ function ShareIntentBridge() {
       const webUrl = shareIntent.webUrl || (rawText && isValidUrl(rawText) ? rawText : "");
       // Path A 關鍵：分享時 OS 通常一併提供 caption（rawText）。即使有 URL，
       // 都要保留 caption 做 sharedText —— IG/Threads/TikTok/小紅書 好多時 caption 先有食譜內容。
-      // 若 rawText 只係條 URL（等於 webUrl），就唔當 caption。
       const caption = rawText && rawText !== webUrl ? rawText : "";
       const imgFile = (shareIntent.files ?? []).find((f: any) =>
         String(f?.mimeType ?? "").startsWith("image/"),
       );
       const sharedImageUri = imgFile?.path ? String(imgFile.path) : "";
+      const hasPayload = !!(webUrl || caption || sharedImageUri);
       const params: Record<string, string> = {
-        // 連結分享 → 入 import 後自動解析（高成功率平台）
         ...(webUrl ? { clipboardUrl: webUrl, autoParse: "1" } : {}),
-        // caption（Path A）；後端會優先採用佢，減少靠後端爬頁面
         ...(caption ? { sharedText: caption } : {}),
         ...(sharedImageUri ? { sharedImageUri } : {}),
+        _ts: String(Date.now()),
       };
       const kind = sharedImageUri && !webUrl ? "image" : webUrl ? (caption ? "url+caption" : "url") : caption ? "text" : "empty";
-      // 監控：收到分享（用於上架後偵測分享有冇壞）
       track(Events.ShareReceived, {
         kind,
         platform: webUrl ? (detectPlatform(webUrl) ?? "unknown") : "",
       });
-      if (Object.keys(params).length > 0) {
-        // 暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源／弹出誤導 Alert
+      if (hasPayload) {
+        // 暫停被動剪貼板偵測，避免舊剪貼板連結蓋過分享來源
         AsyncStorage.setItem("kindcipe_clipboard_snooze", String(Date.now() + 60000)).catch(() => {});
-        // 只寫資料；由 AuthGuard 統一處理導航（唔理當時登唔登入，登入後自然會消費）
+        // 持久 fallback（冷啟／未登入後登入）
         AsyncStorage.setItem(PENDING_SHARE_KEY, JSON.stringify(params)).catch(() => {});
+        // ★ 單一 writer：即時 push 入 store → import reactive reader 立即反應（唔理 focus/timing）
+        setPending(params as any);
       } else {
-        // 收到 share 但冇可用資料 → 記為失敗，方便及早發現
         track(Events.ShareFailed, { reason: "no_payload" });
       }
     } catch (e) {
@@ -145,7 +146,7 @@ function ShareIntentBridge() {
     } finally {
       resetShareIntent();
     }
-  }, [hasShareIntent, shareIntent, resetShareIntent]);
+  }, [hasShareIntent, shareIntent, resetShareIntent, setPending]);
 
   return null;
 }
@@ -196,6 +197,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const rootNavigationState = useRootNavigationState();
   const navigationReady = !!rootNavigationState?.key;
+  const { pending: pendingShare } = usePendingShare();
   // segments 最新值（供非同步 callback 讀取，避免 stale closure）
   const segmentsRef = useRef<string[]>([]);
   segmentsRef.current = segments as unknown as string[];
@@ -391,31 +393,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // ── 分享導航：唯一負責人（Single Navigator Owner）──────────────────────────
   // ShareIntentBridge 只寫 pendingShare；呢度係**唯一**會 push /import 嘅地方。
   // 好處：冇其他頁／timer 爭導航 → 唔會再出現「分析完彈返 home」。
+  // ── 分享導航：唯一負責人（Single Navigator Owner）──────────────────────────
+  // 反應兩種來源：
+  //   1) context pending（reactive，bridge 一收到即觸發）→ 主要
+  //   2) AsyncStorage pending（冷啟／未登入後登入 fallback）
+  // 只有呢度會 push /import；已喺 /import 就唔做（交 import reader 處理）。
   useEffect(() => {
     if (!isLoggedIn || !onboardingDone) return;
-    // 避免導航尚未 ready（首次掛載）就 push
     if (!navigationReady) return;
-    const tryConsume = async () => {
+    if (segmentsRef.current[0] === "import") return; // 已喺 import → 交 reader
+    // context pending（reactive）
+    if (pendingShare) {
+      track(Events.ShareConsumed, { via: "context" });
+      router.push({ pathname: "/import", params: {} });
+      return;
+    }
+    // AsyncStorage fallback（冷啟／未登入）
+    void (async () => {
       try {
         const raw = await AsyncStorage.getItem("kindcipe_pending_share");
         if (!raw) return;
-        // 若已經喺 /import：唔好移除 pending，交由 import 頁的 focus pull 處理（single source）
         if (segmentsRef.current[0] === "import") return;
-        const p = JSON.parse(raw);
-        if (!p || typeof p !== "object") return;
-        // 先清 pending，保證只 push 一次（即使 effect 重跑）
-        await AsyncStorage.removeItem("kindcipe_pending_share");
-        track(Events.ShareConsumed, { keys: Object.keys(p).join(",") });
+        track(Events.ShareConsumed, { via: "storage" });
         router.push({ pathname: "/import", params: {} });
       } catch { /* ignore */ }
-    };
-    void tryConsume();
-    // 亦監聽「由 /import 返回時」可能再有新分享（例如連續分享）
-    const sub = AppState.addEventListener("change", async (s) => {
-      if (s === "active") void tryConsume();
-    });
-    return () => sub.remove();
-  }, [isLoggedIn, onboardingDone, navigationReady, router]);
+    })();
+  }, [isLoggedIn, onboardingDone, navigationReady, pendingShare, router]);
 
   useEffect(() => {
     (async () => {
@@ -567,6 +570,7 @@ export default function RootLayout() {
         resetOnBackground: false,
       }}
     >
+      <PendingShareProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ErrorBoundary fallback={<CrashScreen />}>
           <I18nextProvider i18n={i18n}>
@@ -645,6 +649,7 @@ export default function RootLayout() {
       </I18nextProvider>
       </ErrorBoundary>
       </GestureHandlerRootView>
+      </PendingShareProvider>
     </ShareIntentProvider>
   );
 }
