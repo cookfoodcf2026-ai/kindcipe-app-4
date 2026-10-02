@@ -1,0 +1,14 @@
+diff --git a/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift b/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
+index 0911a9e8..28156f54 100644
+--- a/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
++++ b/node_modules/expo-share-intent/plugin/build/ios/ShareExtensionViewController.swift
+@@ -478,7 +478,8 @@ class ShareViewController: UIViewController {
+   }
+ 
+   private func redirectToHostApp(type: RedirectType) {
+-    let url = URL(string: "\(shareProtocol)://dataUrl=\(sharedKey)#\(type)")!
++    let nonce = UUID().uuidString
++    let url = URL(string: "\(shareProtocol)://dataUrl=\(sharedKey)?nonce=\(nonce)#\(type)")!
+     var responder = self as UIResponder?
+ 
+     while responder != nil {
