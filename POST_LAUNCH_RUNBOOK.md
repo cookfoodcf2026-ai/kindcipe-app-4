@@ -131,3 +131,57 @@ xcrun altool --upload-app -f /tmp/app.ipa -t ios \
 | Bundle id | `com.kindcipe.app` |
 | 後端 | `https://kindcipe-backend-production.up.railway.app` |
 | 隱私/支援 URL | `https://kindcipe.com/privacy/` `https://kindcipe.com/support/` |
+
+---
+
+## 8. 帳號資料遺失 / 換機拎唔返（客服 SOP）
+
+**背景**：用戶可能有多個帳號（例：先用 Apple「隱藏我的電郵」開一個，之後用 Google／電郵又開一個）。
+`resolveUserForIdentity` 只會喺「**已驗證真實 email**」先自動連結；Apple private relay **永遠唔會自動合併**（安全考量）。
+
+### 8.1 分辨情況
+
+```bash
+# 用 email 搵有幾個帳號（會列 id / openId / role）
+railway run node -e '
+const postgres=require("postgres");
+(async()=>{const s=postgres(process.env.DATABASE_URL,{ssl:"require",max:1});
+const email=process.argv[1];
+const u=await s`SELECT id, open_id, email, role, name FROM users WHERE lower(email)=${email}`;
+console.log(u);
+const ids=u.map(x=>String(x.id));
+if(ids.length){console.log(await s`SELECT user_id, provider, provider_user_id, email FROM user_identities WHERE user_id = ANY(${ids})`);}
+await s.end();})().catch(e=>{console.error(e.message);process.exit(1)});
+' "user@example.com"
+```
+
+亦可用後台：`ops.lookupAccount`（客服權限）。
+
+### 8.2 處理方式（由低風險至高）
+
+1. **用戶自助（首選）**：App → 設定 → 「合併帳號」→ 用另一個登入方式（Google／電郵 OTP）證明擁有權 → 自動併入。
+   - 對應 backend `auth.mergeAccount`（transactional）。
+2. **用戶自助連結（只需第二個登入方式，非合併）**：設定 →「登入方式」→ 連結 Google／電郵。
+3. **管理員合併（極端客訴）**：
+   - 先用 `ops.lookupAccount` 核對，確認 canonical（通常係最舊／admin）同要吸收嘅帳號。
+   - 執行 `ops.adminMergeAccounts`（admin）或 CLI：
+   ```bash
+   railway run npx tsx scripts/merge-accounts.ts \
+     --canonical <KEEP_USER_ID> --merge <DROP_USER_ID...>
+   # 確認 dry-run 無誤 → 加 --apply
+   ```
+   - 會自動寫入 `admin_audit_logs`（action=`merge_accounts`）。
+4. **驗證**：請用戶用兩個登入方式各登入一次，確認同一帳號、資料齊全。
+
+### 8.3 稽核
+
+- 所有 admin 合併／解綁寫入 `admin_audit_logs`（append-only）。
+- 稽核員可透過 `ops.auditLogs`（auditor 權限）讀取。
+- 角色：`user` / `cs`（查詢、發起）/ `auditor`（唯讀稽核）/ `admin`（執行）。
+
+### 8.4 監控
+
+- Railway log grep：`[identity.resolve]` → 睇 `outcome`（returning/linked/created/ambiguous）。
+- PostHog：`account_link_prompt_shown` / `account_link_prompt_clicked`。
+- 高危訊號：大量 `created` + `isPrivate:true`（Apple relay 用戶冇連結）。
+

@@ -366,6 +366,62 @@ export default function SettingsScreen() {
     } catch (e: any) { setLinkMsg(friendlyError(e)); }
     finally { setLinkBusy(false); }
   };
+
+  // ── 自助合併帳號（將另一個帳號嘅資料搬入當前帳號）──
+  const mergeAccountM = trpc.auth.mergeAccount.useMutation();
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeStep, setMergeStep] = useState<"email" | "code">("email");
+  const [mergeEmail, setMergeEmail] = useState("");
+  const [mergeCode, setMergeCode] = useState("");
+  const [mergeMsg, setMergeMsg] = useState<string | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
+
+  const handleMergeEmailStart = async () => {
+    const email = mergeEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMergeMsg(t("請輸入有效電郵" as any)); return; }
+    if (email === (identitiesQuery.data as any[] ?? []).find((i: any) => i.provider === "otp" || i.provider === "email")?.email) {
+      setMergeMsg(t("呢個已經係你嘅電郵" as any)); return;
+    }
+    setMergeBusy(true); setMergeMsg(null);
+    try {
+      await linkEmailStartM.mutateAsync({ email });
+      setMergeStep("code");
+    } catch (e: any) { setMergeMsg(friendlyError(e)); }
+    finally { setMergeBusy(false); }
+  };
+
+  const handleMergeEmailVerify = async () => {
+    const email = mergeEmail.trim().toLowerCase();
+    if (mergeCode.trim().length < 4) { setMergeMsg(t("請輸入驗證碼" as any)); return; }
+    setMergeBusy(true); setMergeMsg(null);
+    try {
+      const res: any = await mergeAccountM.mutateAsync({ method: "email", email, code: mergeCode.trim() });
+      await utils.auth.identities.invalidate();
+      setMergeOpen(false); setMergeEmail(""); setMergeCode(""); setMergeStep("email");
+      Alert.alert(t("合併成功" as any), t("已將 {{n}} 個家庭搬入你嘅帳號" as any, { n: String(res?.movedFamilies ?? 0) }));
+    } catch (e: any) { setMergeMsg(friendlyError(e)); }
+    finally { setMergeBusy(false); }
+  };
+
+  const handleMergeGoogle = async () => {
+    setMergeBusy(true); setMergeMsg(null);
+    try {
+      let idToken: string | undefined;
+      if (isWeb) {
+        idToken = await signInWithGoogleWeb();
+      } else {
+        const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+        const userInfo = await GoogleSignin.signIn();
+        idToken = userInfo?.data?.idToken ?? userInfo?.idToken;
+      }
+      if (!idToken) throw new Error("no idToken");
+      const res: any = await mergeAccountM.mutateAsync({ method: "google", idToken });
+      await utils.auth.identities.invalidate();
+      setMergeOpen(false);
+      Alert.alert(t("合併成功" as any), t("已將 {{n}} 個家庭搬入你嘅帳號" as any, { n: String(res?.movedFamilies ?? 0) }));
+    } catch (e: any) { setMergeMsg(friendlyError(e)); }
+    finally { setMergeBusy(false); }
+  };
   const sub = subscriptionQuery.data;
   const usage = usageQuery.data;
   const usageHistoryByMember = usageHistoryByMemberQuery.data ?? [];
@@ -582,6 +638,70 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8, lineHeight: 16 }}>{t("settings.linkHint" as any)}</Text>
           </View>
         )}
+
+        {/* 合併帳號（將另一個帳號嘅資料搬入呢個帳號）*/}
+        {isAuthenticated && (
+          <View style={styles.promoCard}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 4 }}>{t("settings.mergeTitle" as any)}</Text>
+            <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 10, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
+            <TouchableOpacity
+              style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
+              onPress={() => { setMergeOpen(true); setMergeStep("email"); setMergeMsg(null); setMergeEmail(""); setMergeCode(""); }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800" }}>{t("settings.mergeCta" as any)}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 合併帳號 Modal */}
+        <Modal visible={mergeOpen} transparent animationType="fade" onRequestClose={() => setMergeOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#1A1A1A", marginBottom: 6 }}>{t("settings.mergeTitle" as any)}</Text>
+              <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
+              {mergeStep === "email" ? (
+                <>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" }}
+                    placeholder={t("auth.emailPlaceholder" as any)}
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    value={mergeEmail}
+                    onChangeText={setMergeEmail}
+                  />
+                  {mergeMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mergeMsg}</Text> : null}
+                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailStart} disabled={mergeBusy}>
+                    {mergeBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("auth.sendCode" as any)}</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 12 }} onPress={handleMergeGoogle} disabled={mergeBusy}>
+                    <Ionicons name="logo-google" size={18} color="#DB4437" />
+                    <Text style={{ color: "#013E77", fontWeight: "700" }}>{t("settings.mergeViaGoogle" as any)}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: mergeEmail })}</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#111827", letterSpacing: 4, textAlign: "center" }}
+                    placeholder="------"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="number-pad"
+                    value={mergeCode}
+                    onChangeText={setMergeCode}
+                  />
+                  {mergeMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mergeMsg}</Text> : null}
+                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailVerify} disabled={mergeBusy}>
+                    {mergeBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("settings.mergeConfirm" as any)}</Text>}
+                  </TouchableOpacity>
+                </>
+              )}
+              <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => setMergeOpen(false)}>
+                <Text style={{ color: "#9CA3AF" }}>{t("取消" as any)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* 連結電郵 Modal */}
         <Modal visible={linkEmailOpen} transparent animationType="fade" onRequestClose={() => setLinkEmailOpen(false)}>

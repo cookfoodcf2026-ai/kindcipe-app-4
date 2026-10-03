@@ -41,6 +41,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { maybeRequestReview } from "@/lib/review";
 import { initAnalytics, identifyUser, resetAnalytics, track, Events } from "@/lib/analytics";
 import { ToastProvider } from "@/src/components/Toast";
+import { AppleRelayLinkPrompt } from "@/src/components/AppleRelayLinkPrompt";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 
 Sentry.init({
@@ -499,6 +500,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       {children}
       <ShareIntentBridge />
       <OfflineBanner />
+      <AppleRelayLinkPrompt enabled={isLoggedIn && onboardingDone && isTabsGroup} />
       {showLoading && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
           {biometricPrompt ? (

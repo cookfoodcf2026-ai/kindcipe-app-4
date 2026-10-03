@@ -82,4 +82,7 @@ export const Events = {
   ShareReceived: "share_received",
   ShareConsumed: "share_consumed",
   ShareFailed: "share_failed",
+  // Account portability (防止換機遺失資料)
+  AccountLinkPromptShown: "account_link_prompt_shown",
+  AccountLinkPromptClicked: "account_link_prompt_clicked",
 } as const;
