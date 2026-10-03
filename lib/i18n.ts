@@ -17,16 +17,30 @@ const resources = {
   'id': { translation: id },
 };
 
+const languageMap: Record<string, string> = {
+  'zh': 'zh-TW',
+  'en': 'en',
+  'fil': 'fil',
+  'id': 'id',
+};
+
+const mapLocale = (code: string | undefined): string | null => {
+  if (!code) return null;
+  const base = code.toLowerCase().split('-')[0];
+  return languageMap[base] || null;
+};
+
 const getDeviceLanguage = (): string => {
-  const locale = Localization.getLocales()[0]?.languageCode || "en";
-  console.log("[i18n] detected device locale:", locale);
-  const languageMap: Record<string, string> = {
-    'zh': 'zh-TW',
-    'en': 'en',
-    'fil': 'fil',
-    'id': 'id',
-  };
-  return languageMap[locale] || 'en';
+  // Web browsers expose a *list* of preferred languages (navigator.languages).
+  // Take the first one we actually support instead of blindly trusting [0] —
+  // otherwise a browser whose top language is unsupported (or a minor dialect)
+  // would fall back to English even when the user also prefers Chinese.
+  const locales = Localization.getLocales();
+  for (const l of locales) {
+    const mapped = mapLocale(l.languageCode || l.languageTag);
+    if (mapped) return mapped;
+  }
+  return 'en';
 };
 
 i18n
