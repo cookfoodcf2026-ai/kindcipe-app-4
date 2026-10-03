@@ -1156,8 +1156,11 @@ export default function AIChefScreen() {
     return "\n" + recipes.map((r, i) => `${i + 1}. ${getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId).primary}`).join("\n");
   };
 
+  const usageUtils = trpc.useUtils();
+  const [showPaywall, setShowPaywall] = useState(false);
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => {
+      void usageUtils.family.usage.invalidate();
       if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length });
       const { mainText, nextSteps } = parseAssistantResponse(data.content ?? "");
 
@@ -1213,6 +1216,14 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
     },
     onError: (err: any) => {
+      // 達到配額 → 彈 paywall。優先靠 error code（穩定），message regex 只作後備。
+      const code = err?.data?.code ?? err?.shape?.data?.code;
+      if (
+        code === "FORBIDDEN" ||
+        /用量上限|匯入上限|額度|quota|達到本月/i.test(String(err?.message ?? ""))
+      ) {
+        setShowPaywall(true);
+      }
       const rawMsg = friendlyError(err) || err?.data?.message || "";
       const isTransient = /abort|timeout|cancel|JSON Parse error|Unexpected character|Parse error|非 JSON|LLM 回覆格式異常/i.test(rawMsg);
       const msg = isTransient
@@ -1507,7 +1518,6 @@ export default function AIChefScreen() {
   // ─── Plan modal ────────────────────────────────────────
 
   const [showPlan, setShowPlan] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
   const [planRecipe, setPlanRecipe] = useState<AIRecipe | null>(null);
   // 同步 planRecipe，避免 onSuccess 閉包讀到舊值（尤其係 ensureSaved 後帶住 user_<id> 去購物清單）
   const planRecipeRef = useRef<AIRecipe | null>(null);
@@ -1531,6 +1541,7 @@ export default function AIChefScreen() {
       await Promise.all([
         invalidateRecipesAndWeekly(),
         invalidateMealPlanAndCart(),
+        utils.family.usage.invalidate(),
       ]);
     },
   });
@@ -3190,7 +3201,7 @@ export default function AIChefScreen() {
               autoAddIngredients: false,
             });
         } catch (e: any) {
-          Alert.alert("加入排餐失敗", friendlyError(e) || t("請稍後再試" as any));
+          Alert.alert(t("加入排餐失敗" as any), friendlyError(e) || t("請稍後再試" as any));
         }
       })();
     }

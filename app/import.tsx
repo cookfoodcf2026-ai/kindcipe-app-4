@@ -27,6 +27,17 @@ import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishT
 import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import { track, Events } from "@/lib/analytics";
+import PaywallModal from "@/components/PaywallModal";
+
+/** Quota errors come back as FORBIDDEN; surface the paywall instead of a dead end. */
+function isQuotaError(err: any): boolean {
+  const code = err?.data?.code ?? err?.shape?.data?.code;
+  if (code === "FORBIDDEN") {
+    const msg = String(err?.message ?? "");
+    return /上限|額度|quota|limit/i.test(msg);
+  }
+  return false;
+}
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -74,8 +85,10 @@ export default function ImportScreen() {
   const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string; sharedText?: string; sharedImageUri?: string; autoParse?: string }>();
   const isOnboarding = params.onboarding === "true";
   const { user: authUser } = useAuth();
-  
+  const utils = trpc.useUtils();
+
   const [step, setStep] = useState<ImportStep>("input");
+  const [showQuotaPaywall, setShowQuotaPaywall] = useState(false);
   const [universalInput, setUniversalInput] = useState("");
   const [clipboardContent, setClipboardContent] = useState<string | null>(null);
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -516,6 +529,11 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
+      if (isQuotaError(err)) {
+        setShowQuotaPaywall(true);
+        setStep("input");
+        return;
+      }
       setErrorMsg(friendlyError(err) || t("無法連接到解析服務，請稍後重試" as any));
       setFailedInput({ type: "url", value: universalInput });
       setStep("failed");
@@ -544,6 +562,11 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
+      if (isQuotaError(err)) {
+        setShowQuotaPaywall(true);
+        setStep("input");
+        return;
+      }
       setErrorMsg(friendlyError(err) || t("無法解析文字內容" as any));
       setFailedInput({ type: "text", value: universalInput });
       setStep("failed");
@@ -572,6 +595,11 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
+      if (isQuotaError(err)) {
+        setShowQuotaPaywall(true);
+        setStep("input");
+        return;
+      }
       setErrorMsg(friendlyError(err) || t("無法解析圖片，請確保圖片清晰" as any));
       setFailedInput({ type: "url", value: "" });
       setStep("failed");
@@ -583,6 +611,7 @@ export default function ImportScreen() {
 
   const importMutation = trpc.recipes.importUser.useMutation({
     onSuccess: async (data) => {
+      void utils.family.usage.invalidate();
       track(Events.RecipeImported, { onboarding: isOnboarding });
       if (isOnboarding) {
         try {
@@ -1617,6 +1646,11 @@ export default function ImportScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
     {renderPhotoSourceModal()}
+    <PaywallModal
+      visible={showQuotaPaywall}
+      onClose={() => setShowQuotaPaywall(false)}
+      feature="import_limit"
+    />
     </>
   );
 }

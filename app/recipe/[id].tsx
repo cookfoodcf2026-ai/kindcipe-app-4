@@ -409,7 +409,7 @@ export default function RecipeDetailScreen() {
     } else {
       router.back();
     }
-  }, [noteInput, router]);
+  }, [noteInput, router, t]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -683,7 +683,7 @@ export default function RecipeDetailScreen() {
       return { icon: "logo-youtube" as const, label: t("在 YouTube 觀看完整影片" as any), bg: "#FF0000" };
     }
     return { icon: "play-circle-outline" as const, label: t("觀看教學影片" as any), bg: "#6B7280" };
-  }, [sourceUrl]);
+  }, [sourceUrl, t]);
 
   // Image cache props for aggressive offline caching
   const imageCacheProps = {
@@ -726,7 +726,7 @@ export default function RecipeDetailScreen() {
       Alert.alert(t("已刪除" as any), t("食譜已從你的食譜庫刪除" as any));
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
   });
   const deleteOfficialM = trpc.recipes.deleteOfficial.useMutation({
     onSuccess: () => {
@@ -739,7 +739,7 @@ export default function RecipeDetailScreen() {
       Alert.alert(t("已刪除" as any), t("官方 AI 食譜已刪除" as any));
       router.back();
     },
-    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
   });
 
   const handleDelete = () => {
@@ -876,6 +876,7 @@ export default function RecipeDetailScreen() {
 
   const aiEditM = trpc.aiRecipe.previewEdit.useMutation({
     onSuccess: (data) => {
+      void utils.family.usage.invalidate();
       setAIEditPreview(data);
       setAIEditResult(null);
     },
@@ -888,6 +889,7 @@ export default function RecipeDetailScreen() {
       setAIEditPrompt("");
       setAIEditResult(null);
       setAIEditPreview(null);
+      utils.family.usage.invalidate();
       utils.recipes.listUser.invalidate();
       utils.recipes.search.invalidate();
       router.push({ pathname: "/recipe/[id]", params: { id: `user_${data.id}` } });
@@ -950,7 +952,7 @@ export default function RecipeDetailScreen() {
         )}
       </Text>
     );
-  }, [cookingTerms]);
+  }, [cookingTerms, t]);
 
   if (recipeQ.isLoading) {
     return (
@@ -1126,11 +1128,11 @@ export default function RecipeDetailScreen() {
                 ].filter(Boolean).join("\n");
                 
                 const recipeUrl = buildRecipeShareUrlFor({ id: recipe?.id ?? "", name: recipe?.name, source: (recipe as any)?.source });
-                Alert.alert("分享食譜", undefined, [
-                  { text: "分享", onPress: () => { Share.share({ message: shareText, title: recipe?.name ?? "食譜" }); } },
-                  { text: "複製全文", onPress: async () => { await Clipboard.setStringAsync(shareText); showToast("已複製整個食譜"); } },
-                  { text: "複製連結", onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
-                  { text: "取消", style: "cancel" },
+                Alert.alert(t("recipe.shareTitle"), undefined, [
+                  { text: t("recipe.share"), onPress: () => { Share.share({ message: shareText, title: recipe?.name ?? t("食譜" as any) }); } },
+                  { text: t("recipe.copyFull"), onPress: async () => { await Clipboard.setStringAsync(shareText); showToast(t("recipe.copiedFull")); } },
+                  { text: t("recipe.copyLink"), onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
+                  { text: t("取消" as any), style: "cancel" },
                 ]);
               }}
             >
