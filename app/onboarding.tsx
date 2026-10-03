@@ -151,7 +151,7 @@ export default function OnboardingScreen(
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => setStep("choice")}
+            onPress={() => { track(Events.SignupStarted); setStep("choice"); }}
           >
             <Text style={styles.primaryBtnText}>{t("onboarding.start")}</Text>
           </TouchableOpacity>

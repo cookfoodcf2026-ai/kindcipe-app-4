@@ -265,11 +265,24 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   });
 
   // Identify the signed-in user (or reset on logout) for analytics.
+  // Traits are deliberately non-PII (no email/name) to keep analytics clean.
   const analyticsUserId = meQuery.data?.id ? String(meQuery.data.id) : null;
+  const analyticsRole = (meQuery.data as any)?.role as string | undefined;
+  const analyticsCreatedAt = (meQuery.data as any)?.createdAt as string | Date | undefined;
+  const analyticsFamilyRole = (meQuery.data as any)?.activeFamilyRole as string | undefined;
   useEffect(() => {
-    if (analyticsUserId) identifyUser(analyticsUserId);
-    else resetAnalytics();
-  }, [analyticsUserId]);
+    if (analyticsUserId) {
+      identifyUser(analyticsUserId, {
+        role: analyticsRole ?? "user",
+        family_role: analyticsFamilyRole ?? null,
+        signup_at: analyticsCreatedAt ? new Date(analyticsCreatedAt).toISOString() : null,
+        language: i18n.language,
+      });
+    } else {
+      resetAnalytics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsUserId, analyticsRole, analyticsFamilyRole]);
 
   // 在導航 useEffect 中重新檢查 AsyncStorage，確保 finishOnboarding 寫入後能立即反映
   const ensureOnboardingCheck = useCallback(async () => {

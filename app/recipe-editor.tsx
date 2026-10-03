@@ -23,6 +23,7 @@ import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { friendlyError } from "@/lib/errors";
+import { track, Events } from "@/lib/analytics";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -250,6 +251,7 @@ const scrollToFocused = useCallback((e: any) => {
   const createM = trpc.recipes.createBlank.useMutation({
     onSuccess: async (data) => {
       await invalidateRecipesAndWeekly();
+      track(Events.RecipeSaved, { mode: "create" });
       goToRecipeDetail(data?.id);
     },
     onError: (e) => { setIsSaving(false); Alert.alert(t("儲存失敗" as any), friendlyError(e)); },
@@ -257,6 +259,7 @@ const scrollToFocused = useCallback((e: any) => {
   const updateM = trpc.recipes.updateUser.useMutation({
     onSuccess: async () => {
       await invalidateRecipesAndWeekly();
+      track(Events.RecipeSaved, { mode: "update" });
       const hitId =
         draftId != null ? draftId
         : isEditing && editingId ? editingId

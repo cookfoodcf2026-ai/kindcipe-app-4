@@ -26,6 +26,7 @@ import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
+import { track, Events } from "@/lib/analytics";
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
 type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
@@ -582,6 +583,7 @@ export default function ImportScreen() {
 
   const importMutation = trpc.recipes.importUser.useMutation({
     onSuccess: async (data) => {
+      track(Events.RecipeImported, { onboarding: isOnboarding });
       if (isOnboarding) {
         try {
           if (authUser?.id) {

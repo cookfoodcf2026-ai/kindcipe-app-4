@@ -24,6 +24,7 @@ import PriceCompareModal from "@/src/components/PriceCompareModal";
 import HintBanner from "@/src/components/HintBanner";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
+import { track, Events } from "@/lib/analytics";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "待採購", color: "#013E77", bg: "#E8F0FE" },
@@ -484,7 +485,8 @@ export default function ShoppingTab() {
       }
       Alert.alert("操作失敗", friendlyError(e));
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      if (variables?.bought) track(Events.ShoppingItemChecked);
       utils.shopping.list.invalidate();
       utils.purchaseHistory.list.invalidate();
       utils.purchaseHistory.lastPrices.invalidate();

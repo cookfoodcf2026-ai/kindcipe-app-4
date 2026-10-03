@@ -27,6 +27,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { trpc, resolveImageUrl } from "@/lib/trpc";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
+import { trackRecipeEvent } from "@/lib/analytics";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -425,6 +426,15 @@ export default function RecipeDetailScreen() {
   const recipe = recipeQ.data;
   const recipeStringId = id ?? "";
 
+  // Analytics: record a recipe "view" once per recipe id (dedup across re-renders).
+  const viewedRecipeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!recipe?.id || !recipe?.name) return;
+    if (viewedRecipeRef.current === recipe.id) return;
+    viewedRecipeRef.current = recipe.id;
+    trackRecipeEvent(recipe.id, recipe.name, "view");
+  }, [recipe?.id, recipe?.name]);
+
   // KOL whitelist submission
   const kolCreatorQ = (trpc as any).recipes.isKolCreator.useQuery(undefined, { enabled: isAuthenticated });
   const submitKolM = (trpc as any).recipes.submitToKol.useMutation({
@@ -784,6 +794,7 @@ export default function RecipeDetailScreen() {
 
       const continueFlow = () => {
         setShowPlan(false);
+        if (recipe?.id && recipe?.name) trackRecipeEvent(recipe.id, recipe.name, "plan");
         if (ings.length > 0) {
           const shoppingDateForPlan = getDayBefore(planDate ?? toISODate(new Date()));
           setPlanPickerRecipe({

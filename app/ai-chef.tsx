@@ -2951,6 +2951,14 @@ export default function AIChefScreen() {
       scrollToEnd();
       void generateMealFromIntent(intent, flavor);
     } else {
+      // Analytics: a free-text follow-up while recipes already exist is treated
+      // as an "edit/refine" of the previous suggestion.
+      if (
+        recommendedRecipes.filter(isValidRecipe).length > 0 &&
+        /(改|換|轉|調整|少|多|走|加減|唔要|不要|少辣|少甜|素食|拌|炒|蒸|焗|煎|炸|燉)/.test(trimmed)
+      ) {
+        track(Events.AiEditUsed);
+      }
       const msgs: Message[] = [...messages, { role: "user", content: trimmed }];
       updateMessages(() => msgs);
       sendChat(buildBackendMessages(msgs));

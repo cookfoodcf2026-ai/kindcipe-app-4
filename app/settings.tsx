@@ -34,6 +34,7 @@ import { getAppLogo } from "@/lib/logo";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
 import { signInWithGoogleWeb } from "@/lib/socialAuth";
+import { track, Events } from "@/lib/analytics";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -79,7 +80,10 @@ export default function SettingsScreen() {
       {
         text: t("登出" as any),
         style: "destructive",
-        onPress: () => logout(),
+        onPress: () => {
+          track(Events.Logout);
+          logout();
+        },
       },
     ]);
   };
@@ -952,6 +956,7 @@ export default function SettingsScreen() {
                     setShowLangPicker(false);
                     await i18n.changeLanguage(lang.code);
                     await AsyncStorage.setItem(LANG_STORAGE_KEY, lang.code);
+                    track(Events.LanguageChanged, { language: lang.code });
                   }}
                 >
                   <Text style={styles.langFlag}>{lang.flag}</Text>

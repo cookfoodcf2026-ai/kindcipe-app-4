@@ -1,4 +1,5 @@
 import PostHog from "posthog-react-native";
+import { trpc } from "@/lib/trpc";
 
 /**
  * Product analytics (PostHog). Safe no-op when no key is configured, so the app
@@ -53,6 +54,39 @@ export function setUserProperties(properties: Record<string, unknown>): void {
 export function resetAnalytics(): void {
   try {
     client?.reset();
+  } catch {
+    /* noop */
+  }
+}
+
+/**
+ * Recipe interaction tracking → backend `recipe_events` table (powers
+ * trending / ranking). Fire-and-forget: never blocks UI, never throws.
+ */
+export type RecipeEventType = "view" | "plan" | "save" | "cook";
+
+export function trackRecipeEvent(
+  recipeId: string,
+  recipeName: string,
+  eventType: RecipeEventType,
+): void {
+  if (!recipeId || !recipeName) return;
+  try {
+    (trpc as any).recipeEvents?.track?.mutate?.({ recipeId, recipeName, eventType });
+  } catch {
+    /* analytics must never break the app */
+  }
+}
+
+/**
+ * Redirect attribution → backend `redirect_logs` table. Used when the user is
+ * sent out to a creator's platform (IG / YouTube / …) so we can attribute
+ * partner traffic. Fire-and-forget.
+ */
+export function logRedirect(platform: string, keyword?: string): void {
+  if (!platform) return;
+  try {
+    (trpc as any).shopping?.logRedirect?.mutate?.({ platform, keyword });
   } catch {
     /* noop */
   }

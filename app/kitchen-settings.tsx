@@ -12,6 +12,7 @@ import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
+import { track, Events } from "@/lib/analytics";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -64,6 +65,7 @@ export default function KitchenSettingsScreen() {
 
   const createM = trpc.family.create.useMutation({
     onSuccess: async (data) => {
+      track(Events.KitchenCreated);
       await utils.family.list.refetch();
       utils.family.get.refetch();
       setShowCreateModal(false);
@@ -76,6 +78,7 @@ export default function KitchenSettingsScreen() {
 
   const joinM = trpc.family.join.useMutation({
     onSuccess: async (data) => {
+      track(Events.KitchenJoined);
       await utils.family.list.refetch();
       utils.family.get.refetch();
       setShowJoinModal(false);

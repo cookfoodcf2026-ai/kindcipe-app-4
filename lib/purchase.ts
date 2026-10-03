@@ -15,6 +15,7 @@ import { Linking, Platform } from "react-native";
 import i18n from "./i18n";
 import { trpc } from "./trpc";
 import { isWeb } from "./platform";
+import { track, Events } from "./analytics";
 
 export const PRODUCT_IDS = {
   MONTHLY: "kindcipe_monthly_30",
@@ -71,6 +72,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
 
   if (isStripeSupported) {
     try {
+      track(Events.PurchaseStarted, { productId, plan, platform: Platform.OS });
       const returnUrl =
         isWeb && typeof window !== "undefined" ? window.location.origin : undefined;
       const { url } = await trpc.billing.createCheckoutSession.mutate({
@@ -135,7 +137,9 @@ export async function restorePurchases(): Promise<PurchaseResult> {
 export async function confirmStripeCheckout(sessionId: string): Promise<boolean> {
   try {
     const res = await trpc.billing.confirmCheckout.mutate({ sessionId });
-    return res.status === "active";
+    const ok = res.status === "active";
+    if (ok) track(Events.PurchaseCompleted, { via: "stripe", sessionId });
+    return ok;
   } catch {
     return false;
   }
