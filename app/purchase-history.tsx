@@ -259,10 +259,10 @@ export default function PurchaseHistoryScreen() {
     onSuccess: () => {
       utils.shopping.list.invalidate();
       utils.purchaseHistory.list.invalidate();
-      Alert.alert("已移至今日", t("項目已更新為今天的購買日期" as any));
+      Alert.alert(t("已移至今日" as any), t("項目已更新為今天的購買日期" as any));
     },
     onError: (e: Error) => {
-      Alert.alert("更新失敗", friendlyError(e));
+      Alert.alert(t("更新失敗" as any), friendlyError(e));
     },
   });
 
@@ -270,10 +270,10 @@ export default function PurchaseHistoryScreen() {
     onSuccess: () => {
       utils.shopping.list.invalidate();
       utils.purchaseHistory.list.invalidate();
-      Alert.alert("已全部移至今日", t("{{n}} 個項目已更新" as any, { n: missedItems.length }));
+      Alert.alert(t("已全部移至今日" as any), t("{{n}} 個項目已更新" as any, { n: missedItems.length }));
     },
     onError: (e: Error) => {
-      Alert.alert("批量更新失敗", friendlyError(e));
+      Alert.alert(t("批量更新失敗" as any), friendlyError(e));
     },
   });
 
@@ -291,11 +291,11 @@ export default function PurchaseHistoryScreen() {
       setEditPurchaseItem(null);
       setEditPurchasePrice("");
       setEditPurchaseQty("");
-      Alert.alert("已更新", t("購買記錄已更新" as any));
+      Alert.alert(t("已更新" as any), t("購買記錄已更新" as any));
     },
     onError: (e: Error) => {
       console.error('[DEBUG] SAVE PRICE ERROR:', e);
-      Alert.alert("更新失敗", friendlyError(e) || t("請檢查網絡連接" as any));
+      Alert.alert(t("更新失敗" as any), friendlyError(e) || t("請檢查網絡連接" as any));
     },
   });
 
@@ -305,7 +305,7 @@ export default function PurchaseHistoryScreen() {
     const qty = editPurchaseQty.trim() || null;
     
     if (price != null && (isNaN(price) || price <= 0)) {
-      Alert.alert("請輸入有效價格");
+      Alert.alert(t("請輸入有效價格" as any));
       return;
     }
     

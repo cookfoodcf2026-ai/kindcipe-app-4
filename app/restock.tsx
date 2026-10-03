@@ -59,7 +59,7 @@ export default function RestockScreen() {
       utils.shopping.list.invalidate();
       showToast(`「${variables.name}」已加入購物清單`);
     },
-    onError: (e: any) => Alert.alert("失敗", friendlyError(e)),
+    onError: (e: any) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
 
   const toggleInStockM = trpc.pantry.toggleInStock.useMutation({
@@ -101,7 +101,7 @@ export default function RestockScreen() {
   };
 
   const handleMarkAllRestocked = () => {
-    Alert.alert("全部標記為有貨", t("確認將 {{n}} 件商品標記為有貨？" as any, { n: urgentItems.length }), [
+    Alert.alert(t("全部標記為有貨" as any), t("確認將 {{n}} 件商品標記為有貨？" as any, { n: urgentItems.length }), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("確認" as any),
@@ -123,7 +123,7 @@ export default function RestockScreen() {
     <>
       <Stack.Screen
         options={{
-          title: "智能補貨",
+            title: t("智能補貨" as any),
           headerShown: true,
           headerBackTitle: '',
           headerStyle: { backgroundColor: BG },

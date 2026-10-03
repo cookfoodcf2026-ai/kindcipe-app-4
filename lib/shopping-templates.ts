@@ -414,11 +414,12 @@ export function templateToShoppingItems(
   quantityOverrides?: Record<string, number>
 ): Array<{
   name: string;
+  nameEn?: string;
   quantity: string;
   unit: string;
   category: string;
 }> {
-  const items: Array<{ name: string; quantity: string; unit: string; category: string }> = [];
+  const items: Array<{ name: string; nameEn?: string; quantity: string; unit: string; category: string }> = [];
   
   template.categories.forEach(category => {
     category.items.forEach(item => {
@@ -436,6 +437,7 @@ export function templateToShoppingItems(
       const quantity = calculateQuantityByPeople(baseQty, peopleCount);
       items.push({
         name: item.name,
+        nameEn: item.nameEn,
         quantity: quantity.toString(),
         unit: item.unit,
         category: category.id === "soup-base" ? "湯底" : category.id === "meat" ? "肉類" : category.id === "seafood" ? "海鮮" : category.id === "vegetable" ? "蔬菜" : category.id === "staple" ? "主食" : category.id === "sauce" ? "調味料" : category.id === "tools" ? "工具" : "其他",

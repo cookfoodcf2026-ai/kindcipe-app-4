@@ -181,11 +181,11 @@ export default function UnitPicker(
               renderItem={() => null}
               ListHeaderComponent={
                 <>
-                  {renderSection("📏 重量單位", weightUnits)}
-                  {renderSection("📐 體積單位", volumeUnits)}
-                  {renderSection("🔢 數量單位", countUnits)}
-                  {renderSection("📝 其他", otherUnits)}
-                  {customSectionUnits.length > 0 && renderSection("⭐ 自訂單位", customSectionUnits)}
+                  {renderSection(t("unit.weight"), weightUnits)}
+                  {renderSection(t("unit.volume"), volumeUnits)}
+                  {renderSection(t("unit.count"), countUnits)}
+                  {renderSection(t("unit.other"), otherUnits)}
+                  {customSectionUnits.length > 0 && renderSection(t("unit.custom"), customSectionUnits)}
                 </>
               }
               ListFooterComponent={() => (

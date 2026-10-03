@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
+import i18n from '@/lib/i18n';
 
 interface UseImageUploadReturn {
   uploading: boolean;
@@ -21,12 +22,12 @@ export function useImageUpload(): UseImageUploadReturn {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('需要相機權限');
+        Alert.alert(i18n.t('需要相機權限' as any));
         return false;
       }
       return true;
     } catch (e) {
-      Alert.alert('相機權限請求失敗');
+      Alert.alert(i18n.t('相機權限請求失敗' as any));
       return false;
     }
   }, []);
@@ -46,7 +47,7 @@ export function useImageUpload(): UseImageUploadReturn {
       return result.assets[0].uri;
     } catch (e: any) {
       console.error('[useImageUpload] Camera capture failed:', e);
-      Alert.alert('相機無法使用', '請用真機測試，或改用「從相簿選擇」。');
+      Alert.alert(i18n.t('相機無法使用' as any), i18n.t('請用真機測試，或改用「從相簿選擇」。' as any));
       return null;
     }
   }, []);

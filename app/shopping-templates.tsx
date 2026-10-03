@@ -26,6 +26,16 @@ import type {
   TemplateCategory,
 } from "@/lib/shopping-templates";
 import { friendlyError } from "@/lib/errors";
+import { getBilingualName, getLocalizedDescription } from "@/lib/bilingual";
+import { useEnum } from "@/lib/i18nEnums";
+
+// Template data carries zh + en/fil/id fields; pick by current app language.
+const localizeName = (o?: { name?: string | null; nameEn?: string | null; namePh?: string | null; nameId?: string | null } | null) =>
+  getBilingualName(o?.name, o?.nameEn, o?.namePh, o?.nameId).primary;
+const localizeUnit = (o?: { unit?: string | null; unitEn?: string | null; unitPh?: string | null; unitId?: string | null } | null) =>
+  getBilingualName(o?.unit, o?.unitEn, o?.unitPh, o?.unitId).primary;
+const localizeDesc = (o?: { description?: string | null; descriptionEn?: string | null } | null) =>
+  getLocalizedDescription(o?.description, o?.descriptionEn);
 
 const BRAND = "#013E77";
 const BG = "#FFFBF5";
@@ -55,6 +65,7 @@ const safeParseArray = <T,>(raw: string): T[] | null => {
 
 export default function ShoppingTemplatesScreen() {
   const { t } = useTranslation();
+  const { unit: enumUnit } = useEnum();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -120,7 +131,7 @@ export default function ShoppingTemplatesScreen() {
       setQuantityOverrides({});
       setCustomItems([]);
     },
-    onError: (e) => showToast(`加入失敗：${friendlyError(e)}`, "error"),
+    onError: (e) => showToast(t("party.addFailed", { err: friendlyError(e) }), "error"),
   });
   
   // 載入已儲存清單
@@ -142,7 +153,7 @@ export default function ShoppingTemplatesScreen() {
   
   const saveCurrentList = async () => {
     if (!savedListName.trim()) {
-      Alert.alert("請輸入清單名稱");
+      Alert.alert(t("party.enterListName"));
       return;
     }
     
@@ -162,7 +173,7 @@ export default function ShoppingTemplatesScreen() {
     try {
       await AsyncStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("已儲存", `清單「${savedListName}」已儲存，方便下次重用！`);
+      Alert.alert(t("party.savedTitle"), t("party.savedMsg", { name: savedListName }));
       setShowSaveListModal(false);
       setSavedListName("");
     } catch (e) {
@@ -174,7 +185,7 @@ export default function ShoppingTemplatesScreen() {
     // 載入模板
     const template = SHOPPING_TEMPLATES.find(t => t.id === list.template);
     if (!template) {
-      Alert.alert("錯誤", t("找不到對應嘅模板" as any));
+      Alert.alert(t("party.errorTitle"), t("party.templateNotFound"));
       return;
     }
     
@@ -184,13 +195,13 @@ export default function ShoppingTemplatesScreen() {
     setCustomItems(list.customItems || []);
     setExpandedCategories(new Set([template.categories[0]?.id || ""]));
     
-    Alert.alert("已載入", `已載入清單「${list.name}」`);
+    Alert.alert(t("party.loadedTitle"), t("party.loadedMsg", { name: list.name }));
   };
   
   const deleteSavedList = async (listId: string) => {
     Alert.alert(
-      "刪除清單",
-      t("確定要刪除呢個清單？" as any),
+      t("party.deleteListTitle"),
+      t("party.deleteListMsg"),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -305,7 +316,7 @@ export default function ShoppingTemplatesScreen() {
   // 9. 自訂項目添加
   const handleAddCustomItem = (categoryId: string) => {
     if (!customInputName.trim()) {
-      Alert.alert("請輸入項目名稱");
+      Alert.alert(t("party.enterItemName"));
       return;
     }
     const qty = parseFloat(customInputQty) || 1;
@@ -417,13 +428,13 @@ export default function ShoppingTemplatesScreen() {
   const handleConfirmAddToCart = () => {
     if (!selectedTemplate) return;
     if (totalSelectedCount === 0) {
-      Alert.alert("未選取任何食材", t("請至少勾選一項食材" as any));
+      Alert.alert(t("party.noSelectionTitle"), t("party.noSelectionMsg"));
       return;
     }
 
     Alert.alert(
-      "加入購物車",
-      `確定將 ${totalSelectedCount} 項食材加入購物清單嗎？\n預定聚餐日子：${planDateLabel}`,
+      t("party.addToCartTitle"),
+      t("party.addToCartMsg", { n: totalSelectedCount, date: planDateLabel }),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -446,7 +457,7 @@ export default function ShoppingTemplatesScreen() {
 
             addShoppingBatchM.mutate({
               items: finalBatch,
-              fromRecipeName: `${selectedTemplate.name}（${peopleCount}人份）`,
+              fromRecipeName: t("party.servings", { name: localizeName(selectedTemplate), n: peopleCount }),
               plannedDate: planDate === null ? undefined : planDate,
             });
           },
@@ -459,17 +470,17 @@ export default function ShoppingTemplatesScreen() {
   const handleAASplit = () => {
     const total = parseFloat(actualSpent);
     if (isNaN(total) || total <= 0) {
-      Alert.alert("輸入錯誤", t("請輸入正確的消費總金額" as any));
+      Alert.alert(t("party.inputErrorTitle"), t("party.invalidAmount"));
       return;
     }
     const perPerson = (total / peopleCount).toFixed(1);
-    const templateName = selectedTemplate?.name || "打邊爐/BBQ";
-    
-    const message = `📣 【Kindcipe】${templateName}開支分攤：\n📅 日期: ${planDateLabel}\n👥 聚會人數: ${t("dyn.pax", { n: peopleCount })}\n💰 實際總開支: $${total}\n💸 每人分攤: $${perPerson}\n\n唔該晒大家！記得 PayMe / 轉數快比我啦！😘`;
-    
+    const templateName = selectedTemplate ? localizeName(selectedTemplate) : "Hotpot/BBQ";
+
+    const message = `${t("party.aaMsgTitle", { name: templateName })}\n${t("party.aaMsgLine", { date: planDateLabel, pax: t("dyn.pax", { n: peopleCount }), total, perPerson })}`;
+
     Alert.alert(
-      "AA制分攤計算結果",
-      `💰 總金額: $${total}\n👥 人數: ${peopleCount}人\n💸 每人應付: $${perPerson}\n\n已為你自動生成 WhatsApp 分攤訊息！`,
+      t("party.aaResultTitle"),
+      t("party.aaResultMsg", { total, people: peopleCount, perPerson }),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -477,7 +488,7 @@ export default function ShoppingTemplatesScreen() {
           onPress: async () => {
             await Clipboard.setStringAsync(message);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("已複製到剪貼簿", t("可以去 WhatsApp 貼上俾隊友啦！" as any));
+            Alert.alert(t("party.copiedTitle"), t("party.copiedMsg"));
             setShowAASplitModal(false);
             setActualSpent("");
           }
@@ -496,8 +507,15 @@ export default function ShoppingTemplatesScreen() {
       id: `📋 【Kindcipe】Daftar Belanja (Indonesian)`,
       ph: `📋 【Kindcipe】Listahan ng Pamimili (Tagalog)`
     };
+    const labelMap = {
+      zh: { date: "📅 日期", pax: "👥 人數", unit: "人份" },
+      en: { date: "📅 Date", pax: "👥 Guests", unit: "pax" },
+      id: { date: "📅 Tanggal", pax: "👥 Tamu", unit: "pax" },
+      ph: { date: "📅 Petsa", pax: "👥 Bisita", unit: "pax" },
+    };
+    const L = labelMap[lang];
 
-    let text = `${titleMap[lang]}\n📅 日期: ${planDateLabel}\n👥 人數: ${peopleCount}人份\n\n`;
+    let text = `${titleMap[lang]}\n${L.date}: ${planDateLabel}\n${L.pax}: ${peopleCount}${L.unit}\n\n`;
 
     // 輪詢各分類
     selectedTemplate.categories.forEach(category => {
@@ -547,7 +565,7 @@ export default function ShoppingTemplatesScreen() {
 
     await Clipboard.setStringAsync(text);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert("複製成功", t("已生成雙語買餸清單，快去貼上俾姐姐或幫手啦！" as any));
+    Alert.alert(t("party.copySuccessTitle"), t("已生成雙語買餸清單，快去貼上俾姐姐或幫手啦！" as any));
     setShowShareModal(false);
   };
 
@@ -561,8 +579,15 @@ export default function ShoppingTemplatesScreen() {
       id: `📋 【Kindcipe】Daftar Belanja`,
       ph: `📋 【Kindcipe】Listahan ng Pamimili`
     };
+    const labelMap = {
+      zh: { date: "📅 日期", pax: "👥 人數", unit: "人份" },
+      en: { date: "📅 Date", pax: "👥 Guests", unit: "pax" },
+      id: { date: "📅 Tanggal", pax: "👥 Tamu", unit: "pax" },
+      ph: { date: "📅 Petsa", pax: "👥 Bisita", unit: "pax" },
+    };
+    const L = labelMap[lang];
 
-    let text = `${titleMap[lang]}\n📅 日期：${planDateLabel}\n👥 人數：${peopleCount}人份\n\n`;
+    let text = `${titleMap[lang]}\n${L.date}: ${planDateLabel}\n${L.pax}: ${peopleCount}${L.unit}\n\n`;
 
     // 生成清單內容
     selectedTemplate.categories.forEach(category => {
@@ -619,8 +644,8 @@ export default function ShoppingTemplatesScreen() {
       await Clipboard.setStringAsync(text);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        "未安裝 WhatsApp",
-        t("已複製清單到剪貼簿，可以手動貼上到 WhatsApp 或其他 App" as any),
+        t("party.whatsappMissingTitle"),
+        t("party.whatsappMissingMsg"),
         [{ text: t("確定" as any) }]
       );
     }
@@ -671,8 +696,8 @@ export default function ShoppingTemplatesScreen() {
 
     if (hasEdits) {
       Alert.alert(
-        "確定離開？",
-        "你已揀選或修改咗買餸項目，離開後將不會保存。\n\n建議先「儲存清單」，下次可以直接載入重用！",
+        t("party.leaveTitle"),
+        t("party.leaveMsg"),
         [
           { text: t("繼續編輯" as any), style: "cancel" },
           { text: t("儲存清單" as any), onPress: () => setShowSaveListModal(true) },
@@ -696,7 +721,7 @@ export default function ShoppingTemplatesScreen() {
       <>
         <Stack.Screen
           options={{
-            title: "聚會買餸單",
+            title: t("party.title"),
             headerShown: true,
             headerBackTitle: "",
             headerStyle: { backgroundColor: BG },
@@ -743,8 +768,8 @@ export default function ShoppingTemplatesScreen() {
                       }}
                       onPress={() => {
                         Alert.alert(
-                          "載入清單",
-                          `載入「${list.name}」會覆蓋當前選擇，確定嗎？`,
+                          t("party.loadConfirmTitle"),
+                          t("party.loadConfirmMsg", { name: list.name }),
                           [
                             { text: t("取消" as any), style: "cancel" },
                             {
@@ -787,8 +812,8 @@ export default function ShoppingTemplatesScreen() {
                       }}
                       onPress={() => {
                         Alert.alert(
-                          "查看所有清單",
-                          `你共有 ${savedLists.length} 個已儲存清單`,
+                          t("party.viewAllTitle"),
+                          t("party.viewAllMsg", { n: savedLists.length }),
                           [
                             { text: t("確定" as any), style: "cancel" }
                           ]
@@ -796,7 +821,7 @@ export default function ShoppingTemplatesScreen() {
                       }}
                     >
                       <Text style={{ fontSize: 13, fontWeight: "600", color: BRAND }}>
-                        查看多 {savedLists.length - 3} 個清單 →
+                        {t("party.viewMore", { n: savedLists.length - 3 })}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -839,8 +864,8 @@ export default function ShoppingTemplatesScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontWeight: "800", color: TEXT }}>{template.name}</Text>
-                      <Text style={{ fontSize: 12, color: SUB, marginTop: 2 }}>{template.description}</Text>
+                      <Text style={{ fontSize: 16, fontWeight: "800", color: TEXT }}>{localizeName(template)}</Text>
+                      <Text style={{ fontSize: 12, color: SUB, marginTop: 2 }}>{localizeDesc(template)}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={SUB} />
                   </View>
@@ -854,7 +879,7 @@ export default function ShoppingTemplatesScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Ionicons name="information-circle-outline" size={20} color={BRAND} style={{ marginTop: 2 }} />
                   <Text style={{ fontSize: 13, color: BRAND, lineHeight: 18 }}>
-                    選擇模板後，你可以微調人數、購買日子並自由挑選食材。食材可一鍵加入家庭共享購物車，更支援自動 AA 制計數同中英印菲多語言清單分享！儲存咗嘅清單可以隨時重用。
+                    {t("party.tips")}
                   </Text>
                 </View>
               </View>
@@ -870,7 +895,7 @@ export default function ShoppingTemplatesScreen() {
     <>
       <Stack.Screen
         options={{
-          title: selectedTemplate.name,
+          title: localizeName(selectedTemplate),
           headerShown: true,
           headerBackTitle: "",
           headerStyle: { backgroundColor: BG },
@@ -991,7 +1016,7 @@ export default function ShoppingTemplatesScreen() {
                       <Ionicons name={category.icon as any} size={20} color={BRAND} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.categoryName}>{category.name}</Text>
+                      <Text style={s.categoryName}>{localizeName(category)}</Text>
                       <Text style={s.categoryProgress}>{t("dyn.selectedOf", { a: selectedItemsCount + customSelectedCount, b: totalItemsCount + categoryCustomItems.length })}</Text>
                     </View>
                     
@@ -1043,7 +1068,7 @@ export default function ShoppingTemplatesScreen() {
                             {/* Item Info */}
                             <View style={{ flex: 1 }}>
                               <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>
-                                {item.name}
+                                {localizeName(item)}
                                 {item.isOptional && <Text style={{ fontSize: 10, color: SUB, fontWeight: "400" }}>{t("party.optional")}</Text>}
                               </Text>
                             </View>
@@ -1103,7 +1128,7 @@ export default function ShoppingTemplatesScreen() {
                             ) : (
                               <View style={s.quantityRow}>
                                 <Text style={s.quantityDisplay}>{qty} </Text>
-                                <Text style={[s.quantityDisplay, { color: BRAND }]}>{unitOverrides[item.id] || item.unit}</Text>
+                                <Text style={[s.quantityDisplay, { color: BRAND }]}>{unitOverrides[item.id] ? enumUnit(unitOverrides[item.id]) : localizeUnit(item)}</Text>
                               </View>
                             )}
                           </TouchableOpacity>
@@ -1126,8 +1151,8 @@ export default function ShoppingTemplatesScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{item.name}</Text>
                               <Text style={s.itemQty}>
-                                {item.quantity} {item.unit}
-                                {item.price ? ` · $${item.price}` : ''}
+                                {item.quantity} {enumUnit(item.unit)}
+                                {item.price ? ` · ${item.price}` : ''}
                               </Text>
                             </View>
 
@@ -1213,7 +1238,7 @@ export default function ShoppingTemplatesScreen() {
                           }}
                         >
                           <Ionicons name="add" size={14} color={BRAND} />
-                          <Text style={s.addCustomRowText}>{t("dyn.addCustomCategory", { cat: category.name })}</Text>
+                          <Text style={s.addCustomRowText}>{t("dyn.addCustomCategory", { cat: localizeName(category) })}</Text>
                         </TouchableOpacity>
                       )}
 
@@ -1454,7 +1479,7 @@ export default function ShoppingTemplatesScreen() {
                 <View style={s.qrPlaceholderBox}>
                   <Ionicons name="qr-code-outline" size={80} color={BRAND} />
                   <Text style={{ fontSize: 11, color: SUB, marginTop: 8, textAlign: "center" }}>
-                    已開啟家庭自動同步。若幫手無安裝 App，亦可一鍵複製雙語清單至 WhatsApp。
+                    {t("party.qrSync")}
                   </Text>
                 </View>
 
@@ -1588,8 +1613,8 @@ export default function ShoppingTemplatesScreen() {
                               }}
                               onPress={() => {
                                 Alert.alert(
-                                  "載入清單",
-                                  `載入「${list.name}」會覆蓋當前選擇，確定嗎？`,
+                                  t("party.loadConfirmTitle"),
+                                  t("party.loadConfirmMsg", { name: list.name }),
                                   [
                                     { text: t("取消" as any), style: "cancel" },
                                     {

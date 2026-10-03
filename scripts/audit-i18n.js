@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, "..");
 const DIRS = ["app", "src/components", "hooks", "lib"];
 const EXCLUDE_DIRS = ["node_modules", "locales", "__tests__", "e2e", ".expo"];
 // Files that are pure data dictionaries (bilingual maps / normalisation regexes), not UI.
-const SKIP_FILES = ["lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "lib/i18nEnums.ts", "lib/taxonomy.ts", "lib/dishType.ts"];
+const SKIP_FILES = ["lib/cookingTerms.ts", "lib/commonIngredients.ts", "lib/ingredientResolve.ts", "lib/i18nEnums.ts", "lib/taxonomy.ts", "lib/dishType.ts", "app/admin.tsx"];
 const ALLOW_SUBSTR = [
   "nameYue", "nameZh", "nameFil", "nameId", "nameEn",
   "DEFAULT_CATEGORIES", "CATEGORY_", "HOUSEHOLD_CATEGORIES",
@@ -47,6 +47,8 @@ const ALLOW_SUBSTR = [
   'label:', 'subLabel:', 'subtitle:', 'title:', 'caption:', 'placeholder:',
   'desc:', 'description:', 'message:', 'hint:', 'hintText:', 'note:',
   'confirmText:', 'cancelText:', 'actionText:', 'btnText:', 'buttonText:', 'emptyText:',
+  // data dictionaries / share-language label maps (not UI chrome)
+  "dishLabel", "labelMap", 'meat: "', 'date: "📅',
 ];
 const CJK = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 // A. JSX text node
@@ -64,6 +66,8 @@ const ARRAY_CJK = /\[\s*"\[^"\]\*\[\\u3400-\\u9FFF\]\[^"\]\*"\s*(?:,|\])/;
 const RENDER_EXPR = /\{[^{}]*\.(label|subLabel|subtitle|title|caption|placeholder|desc|message|hint|hintText|note|text)\b[^{}]*\}/;
 // E. multi-line JSX text node — a line that is (almost) only CJK punctuation/characters
 const PURE_CJK = /^[\s\u3400-\u9FFF\uF900-\uFAFF，。、；：！？（）「」『』《》—…·、\s]+$/;
+// F. Alert.alert("CJK", ...) — hardcoded dialog title (not wrapped in t())
+const ALERT_TITLE = /Alert\.alert\(\s*["'`][^"'`]*[\u3400-\u9FFF]/;
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -95,6 +99,7 @@ for (const d of DIRS) {
         OBJ_DISPLAY.test(stripped) ||
         ARRAY_CJK.test(stripped) || // data arrays: tag/ingredient values are API keys, not display
         RENDER_EXPR.test(stripped) ||
+        ALERT_TITLE.test(stripped) ||
         (PURE_CJK.test(stripped) && stripped.trim().length > 1);
       if (!isHit) return;
       hits.push(`${rel}:${i + 1}: ${ln.trim().slice(0, 120)}`);

@@ -41,7 +41,7 @@ export default function MarketsPage() {
     <>
       <Stack.Screen 
         options={{ 
-          title: "街市指南",
+            title: t("街市指南" as any),
           headerShown: true,
           headerBackTitle: '',
         }} 

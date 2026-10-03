@@ -423,7 +423,7 @@ export default function IngredientPickerModal({
               onPress={() => {
                 if (maxDate && date > maxDate) {
                   Alert.alert(
-                    "日期無效",
+                    t("日期無效" as any),
                     `購買日期（${date}）不能遲於排餐日期（${maxDate}）`,
                     [{ text: t("確定" as any) }]
                   );

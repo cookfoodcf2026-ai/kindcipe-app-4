@@ -75,7 +75,7 @@ export default function SettingsScreen() {
   }, []);
 
   const handleLogout = () => {
-    Alert.alert("登出", t("確定要登出嗎？" as any), [
+    Alert.alert(t("登出" as any), t("確定要登出嗎？" as any), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("登出" as any),
@@ -96,9 +96,9 @@ export default function SettingsScreen() {
       await utils.invalidate();
       await utils.auth.me.invalidate();
       router.replace("/login");
-      Alert.alert("已刪除", t("帳戶已永久刪除。" as any));
+      Alert.alert(t("已刪除" as any), t("帳戶已永久刪除。" as any));
     },
-    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
   });
 
   // 修改用戶名稱（BUG#14）
@@ -210,7 +210,7 @@ export default function SettingsScreen() {
     await saveMealReminderSetting(next);
     const ok = await applyMealReminder(next);
     if (next.enabled && !ok) {
-      Alert.alert("通知權限", t("未能取得通知權限，提醒未開啟。請到系統設定開啟通知。" as any), [
+      Alert.alert(t("通知權限" as any), t("未能取得通知權限，提醒未開啟。請到系統設定開啟通知。" as any), [
         { text: t("確定" as any) },
       ]);
       setReminderEnabled(false);
@@ -231,7 +231,7 @@ export default function SettingsScreen() {
   const applyReminderTimeText = () => {
     const m = reminderTimeText.trim().match(/^(\d{1,2}):(\d{2})$/);
     if (!m) {
-      Alert.alert("時間格式", t("請輸入 HH:MM（例如 19:30）" as any), [{ text: t("確定" as any) }]);
+      Alert.alert(t("時間格式" as any), t("請輸入 HH:MM（例如 19:30）" as any), [{ text: t("確定" as any) }]);
       return;
     }
     const hour = Math.min(23, Math.max(0, Number(m[1])));
@@ -835,7 +835,7 @@ export default function SettingsScreen() {
                           />
                         </View>
                         <Text style={styles.usageMemberSub}>
-                          AI {member.aiChat} · 匯入 {member.imports}
+                          {t("settings.memberUsageBreak", { ai: member.aiChat, imports: member.imports })}
                         </Text>
                       </View>
                     );
@@ -885,7 +885,7 @@ export default function SettingsScreen() {
                               {formatYearMonthLabel(row.yearMonth)}
                             </Text>
                             <Text style={styles.usageMonthSubtitle}>
-                              AI {row.aiChat} 次 · 匯入 {row.imports} 次
+                              {t("settings.memberUsageBreak", { ai: row.aiChat, imports: row.imports })}
                             </Text>
                           </View>
                           <Ionicons

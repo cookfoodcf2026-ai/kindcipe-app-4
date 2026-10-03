@@ -436,7 +436,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("儲存失敗", friendlyError(e) || t("請檢查網絡連接" as any));
+      Alert.alert(t("儲存失敗" as any), friendlyError(e) || t("請檢查網絡連接" as any));
     },
   });
 
@@ -452,7 +452,7 @@ export default function ShoppingTab() {
       setNewPrice("");
       setNewPlannedDate(null);
       setShowNameSuggestions(false);
-      Alert.alert("已加入購物車", t("{{name}} 已成功加入購物清單" as any, { name: variables.name }));
+      Alert.alert(t("已加入購物車" as any), t("{{name}} 已成功加入購物清單" as any, { name: variables.name }));
       requestNotificationPermission().then((ok) => {
         if (ok) scheduleShoppingNotification(variables.name);
       });
@@ -483,7 +483,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("操作失敗", friendlyError(e));
+      Alert.alert(t("操作失敗" as any), friendlyError(e));
     },
     onSuccess: (_data, variables) => {
       if (variables?.bought) track(Events.ShoppingItemChecked);
@@ -496,7 +496,7 @@ export default function ShoppingTab() {
 
   const deleteItemM = trpc.shopping.delete.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("刪除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
   });
 
   const approveItemM = trpc.shopping.approve.useMutation({
@@ -514,7 +514,7 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("確認失敗", friendlyError(e));
+      Alert.alert(t("確認失敗" as any), friendlyError(e));
     },
     onSuccess: (_data, variables) => {
       utils.shopping.list.invalidate();
@@ -539,24 +539,24 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("拒絕失敗", friendlyError(e));
+      Alert.alert(t("拒絕失敗" as any), friendlyError(e));
     },
   });
 
   const approveAllM = (trpc as any).shopping.approveAll.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("全部已確認", t("所有待確認項目已確認" as any));
+      Alert.alert(t("全部已確認" as any), t("所有待確認項目已確認" as any));
     },
-    onError: (e: Error) => Alert.alert("確認失敗", friendlyError(e)),
+    onError: (e: Error) => Alert.alert(t("確認失敗" as any), friendlyError(e)),
   });
 
   const rejectAllM = (trpc as any).shopping.rejectAll.useMutation({
     onSuccess: () => {
       utils.shopping.list.invalidate();
-      Alert.alert("全部已拒絕", t("所有待確認項目已拒絕" as any));
+      Alert.alert(t("全部已拒絕" as any), t("所有待確認項目已拒絕" as any));
     },
-    onError: (e: Error) => Alert.alert("拒絕失敗", friendlyError(e)),
+    onError: (e: Error) => Alert.alert(t("拒絕失敗" as any), friendlyError(e)),
   });
 
   const updateItemM = trpc.shopping.updateItem.useMutation({
@@ -578,13 +578,13 @@ export default function ShoppingTab() {
       if (context?.current) {
         utils.shopping.list.setData(undefined, context.current);
       }
-      Alert.alert("編輯失敗", friendlyError(e));
+      Alert.alert(t("編輯失敗" as any), friendlyError(e));
     },
     onSuccess: () => {
       utils.shopping.list.invalidate();
       setShowEditModal(false);
       setEditItem(null);
-      Alert.alert("已儲存", t("價格已更新" as any));
+      Alert.alert(t("已儲存" as any), t("價格已更新" as any));
     },
   });
 
@@ -833,12 +833,12 @@ export default function ShoppingTab() {
     if (!name) return;
     const linkedMealDate = getLinkedMealPlanDate(editItem);
     if (linkedMealDate && editPlannedDate && editPlannedDate > linkedMealDate) {
-      Alert.alert("日期超出範圍", t("採購日期不能遲過排餐日（{{date}}）" as any, { date: linkedMealDate }));
+      Alert.alert(t("日期超出範圍" as any), t("採購日期不能遲過排餐日（{{date}}）" as any, { date: linkedMealDate }));
       return;
     }
     const budgetPrice = editBudgetPrice.trim();
     if (budgetPrice && (isNaN(parseInt(budgetPrice, 10)) || parseInt(budgetPrice, 10) <= 0)) {
-      Alert.alert("請輸入有效預算價格");
+      Alert.alert(t("請輸入有效預算價格" as any));
       return;
     }
     (updateItemM.mutate as any)({
@@ -1558,7 +1558,7 @@ export default function ShoppingTab() {
                           style={[styles.submitBtn, { flex: 1 }]}
                           onPress={() => {
                             const price = parseInt(savePriceVal.trim(), 10);
-                            if (isNaN(price) || price <= 0) { Alert.alert("請輸入有效價格"); return; }
+                            if (isNaN(price) || price <= 0) { Alert.alert(t("請輸入有效價格" as any)); return; }
                             setShowSavePrice(false);
                             setSavePriceItem(null);
                             setSavePriceVal("");

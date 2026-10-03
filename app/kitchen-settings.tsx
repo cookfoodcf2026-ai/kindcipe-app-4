@@ -73,7 +73,7 @@ export default function KitchenSettingsScreen() {
       const id = String((data as any).id);
       await switchFamily(id);
     },
-    onError: (e) => Alert.alert("建立失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("建立失敗" as any), friendlyError(e)),
   });
 
   const joinM = trpc.family.join.useMutation({
@@ -86,7 +86,7 @@ export default function KitchenSettingsScreen() {
       const id = String((data as any).family?.id);
       if (id) await switchFamily(id);
     },
-    onError: (e) => Alert.alert("加入失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("加入失敗" as any), friendlyError(e)),
   });
 
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function KitchenSettingsScreen() {
   const handleBack = () => {
     if (editingName && nameInput.trim().length > 0) {
       Alert.alert(
-        "確定離開？",
+        t("確定離開？" as any),
         t("你輸入嘅廚房名稱尚未儲存，離開後將不會保存。" as any),
         [
           { text: t("取消" as any), style: "cancel" },
@@ -133,17 +133,17 @@ export default function KitchenSettingsScreen() {
       utils.family.list.invalidate();
       setEditingName(false);
     },
-    onError: (e) => Alert.alert("改名失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("改名失敗" as any), friendlyError(e)),
   });
 
   const updateRoleM = trpc.family.updateMemberRole.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("修改角色失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("修改角色失敗" as any), friendlyError(e)),
   });
 
   const transferOwnershipM = trpc.family.transferOwnership.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("轉讓失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("轉讓失敗" as any), friendlyError(e)),
   });
 
   const leaveM = trpc.family.leave.useMutation({
@@ -153,17 +153,17 @@ export default function KitchenSettingsScreen() {
       await utils.family.get.invalidate();
       router.replace("/(tabs)");
     },
-    onError: (e) => Alert.alert("離開失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("離開失敗" as any), friendlyError(e)),
   });
 
   const removeMemberM = trpc.family.removeMember.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("移除失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("移除失敗" as any), friendlyError(e)),
   });
 
   const updateSettingsM = trpc.family.updateSettings.useMutation({
     onSuccess: () => utils.family.get.invalidate(),
-    onError: (e) => Alert.alert("更新失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("更新失敗" as any), friendlyError(e)),
   });
 
   const dissolveM = trpc.family.dissolve.useMutation({
@@ -172,7 +172,7 @@ export default function KitchenSettingsScreen() {
       utils.family.list.invalidate();
       router.replace("/(tabs)");
     },
-    onError: (e) => Alert.alert("解散失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("解散失敗" as any), friendlyError(e)),
   });
 
   const settings = (activeFamily as any)?.settings ?? { approvalRequired: false };
@@ -218,7 +218,7 @@ export default function KitchenSettingsScreen() {
 
   const handleRemoveMember = (userId: string, name: string) => {
     if (!activeFamilyId) return;
-    Alert.alert("移除成員", t("確定要將「{{name}}」從廚房移除？" as any, { name }), [
+    Alert.alert(t("移除成員" as any), t("確定要將「{{name}}」從廚房移除？" as any, { name }), [
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("移除" as any),
@@ -258,7 +258,7 @@ export default function KitchenSettingsScreen() {
         [{ text: t("確定" as any) }]
       );
     } catch (e) {
-      Alert.alert("切換失敗", t("無法切換至此廚房，請稍後再試" as any));
+      Alert.alert(t("切換失敗" as any), t("無法切換至此廚房，請稍後再試" as any));
     }
   };
 
@@ -271,7 +271,7 @@ export default function KitchenSettingsScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       <Stack.Screen
         options={{
-          title: "廚房設定",
+            title: t("廚房設定" as any),
           headerShown: true,
           headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
@@ -528,7 +528,7 @@ export default function KitchenSettingsScreen() {
                     const code = (activeFamily as any)?.inviteCode;
                     if (code) {
                       await Clipboard.setStringAsync(code);
-                      Alert.alert("已複製", t("邀請碼 {{code}} 已複製到剪貼簿" as any, { code }));
+                      Alert.alert(t("已複製" as any), t("邀請碼 {{code}} 已複製到剪貼簿" as any, { code }));
                     }
                   }}
                 >

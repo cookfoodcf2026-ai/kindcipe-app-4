@@ -278,7 +278,7 @@ export default function OnboardingScreen(
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("建立廚房失敗:", err);
-                Alert.alert("建立廚房失敗", msg || t("請重試" as any));
+                Alert.alert(t("建立廚房失敗" as any), msg || t("請重試" as any));
               } finally {
                 setLoading(false);
               }
@@ -331,7 +331,7 @@ export default function OnboardingScreen(
                 if (!cameraPermission?.granted) {
                   const perm = await requestCameraPermission();
                   if (!perm.granted) {
-                    Alert.alert("需要相機權限", t("請在設定中允許 Kindcipe 使用相機以掃描 QR Code" as any));
+                    Alert.alert(t("需要相機權限" as any), t("請在設定中允許 Kindcipe 使用相機以掃描 QR Code" as any));
                     return;
                   }
                 }
@@ -361,7 +361,7 @@ export default function OnboardingScreen(
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);
-                Alert.alert("加入廚房失敗", msg || t("請重試" as any));
+                Alert.alert(t("加入廚房失敗" as any), msg || t("請重試" as any));
               } finally {
                 setLoading(false);
               }

@@ -79,11 +79,11 @@ export default function PantryScreen() {
 
   const addItemM = trpc.pantry.add.useMutation({
     onSuccess: () => { utils.pantry.list.invalidate(); setShowAddModal(false); setNewName(""); setNewQty(""); setNewUnit(""); showToast("已加入儲備"); },
-    onError: (e) => Alert.alert("失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
   const deleteItemM = trpc.pantry.delete.useMutation({
     onSuccess: () => utils.pantry.list.invalidate(),
-    onError: (e) => Alert.alert("失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
   const toggleInStockM = trpc.pantry.toggleInStock.useMutation({
     onSuccess: () => utils.pantry.list.invalidate(),
@@ -93,11 +93,11 @@ export default function PantryScreen() {
   });
   const addFromShoppingM = trpc.pantry.addFromShopping.useMutation({
     onSuccess: (result: any) => { utils.pantry.list.invalidate(); showToast(`已將 ${result.count} 件已買商品入庫`); },
-    onError: (e) => Alert.alert("失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.add.useMutation({
     onSuccess: () => utils.shopping.list.invalidate(),
-    onError: (e) => Alert.alert("失敗", friendlyError(e)),
+    onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
 
   const foodItems = useMemo(() => pantryData.filter((i: any) => !HOUSE_CATS.includes(i.category ?? "")), [pantryData]);
@@ -132,7 +132,7 @@ export default function PantryScreen() {
   };
 
   const handleImportBought = () => {
-    if (boughtItems.length === 0) { Alert.alert("目前沒有已買商品可入庫"); return; }
+    if (boughtItems.length === 0) { Alert.alert(t("目前沒有已買商品可入庫" as any)); return; }
     addFromShoppingM.mutate(boughtItems.map((i: any) => ({
       name: i.name, category: i.category ?? undefined, quantity: i.quantity ?? undefined, unit: i.unit ?? undefined,
     })));
@@ -156,7 +156,7 @@ export default function PantryScreen() {
     <>
       <Stack.Screen
         options={{
-          title: "家中儲備",
+            title: t("家中儲備" as any),
           headerShown: true,
           headerBackTitle: '',
           headerStyle: { backgroundColor: BG },
@@ -403,7 +403,7 @@ export default function PantryScreen() {
               <TouchableOpacity
                 style={{ backgroundColor: BRAND, paddingVertical: 14, borderRadius: 14, alignItems: "center", opacity: (addItemM.isPending || !newName.trim()) ? 0.6 : 1 }}
                 onPress={() => {
-                  if (!newName.trim()) { Alert.alert("請輸入商品名稱"); return; }
+                  if (!newName.trim()) { Alert.alert(t("請輸入商品名稱" as any)); return; }
                   const combinedQty = newQty.trim() + (newUnit.trim() ? newUnit.trim() : "");
                   addItemM.mutate({ name: newName.trim(), category: newCategory || "其他", quantity: combinedQty || undefined });
                 }}

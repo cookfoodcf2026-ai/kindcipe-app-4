@@ -806,7 +806,7 @@ export default function RecipesTab() {
     }
 
     return pool;
-  }, [searchRecipes, viewMode, sortBy, draftIdSet, hideAI]);
+  }, [searchRecipes, viewMode, mineSub, sortBy, draftIdSet, hideAI]);
 
   // P3: 背景預載食譜詳情（getById），令「撳落去」即刻見（避免第一次空白 3 秒）
   useEffect(() => {
@@ -1445,7 +1445,7 @@ export default function RecipesTab() {
               onPress={() => {
                 if (!quickPlanRecipe) return;
                 if (!quickPlanDate) {
-                  Alert.alert("日期無效", t("請選擇排餐日期" as any), [{ text: t("確定" as any) }]);
+                  Alert.alert(t("日期無效" as any), t("請選擇排餐日期" as any), [{ text: t("確定" as any) }]);
                   return;
                 }
                 addMealM.mutate({ date: quickPlanDate, mealType: quickPlanMeal as any, recipeId: quickPlanRecipe.id, recipeName: quickPlanRecipe.name, recipeNameEn: quickPlanRecipe.nameEn, recipeNameFil: quickPlanRecipe.nameFil, recipeNameId: quickPlanRecipe.nameId, recipeImage: quickPlanRecipe.image, autoAddIngredients: false });
