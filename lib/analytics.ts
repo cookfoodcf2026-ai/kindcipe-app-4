@@ -1,4 +1,5 @@
 import PostHog from "posthog-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 
 /**
@@ -9,6 +10,47 @@ const KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? "";
 const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
 export const analyticsEnabled = KEY.length > 0;
+
+const OPT_OUT_KEY = "kindcipe_analytics_optout";
+
+/** User opt-out (privacy). Default = enabled. Mirrored to a module var for speed. */
+let optedOut = false;
+
+export function isAnalyticsOptedOut(): boolean {
+  return optedOut;
+}
+
+export async function setAnalyticsOptOut(value: boolean): Promise<void> {
+  optedOut = value;
+  try {
+    await AsyncStorage.setItem(OPT_OUT_KEY, value ? "1" : "0");
+  } catch {
+    /* noop */
+  }
+  if (value) {
+    try {
+      client?.optOut();
+    } catch {
+      /* noop */
+    }
+  } else {
+    try {
+      client?.optIn();
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+/** Load the persisted opt-out preference (call once at app start). */
+export async function loadAnalyticsOptOut(): Promise<boolean> {
+  try {
+    optedOut = (await AsyncStorage.getItem(OPT_OUT_KEY)) === "1";
+  } catch {
+    optedOut = false;
+  }
+  return optedOut;
+}
 
 let client: PostHog | null = null;
 
@@ -21,6 +63,7 @@ export function initAnalytics(): PostHog | null {
       captureAppLifecycleEvents: true,
       enableSessionReplay: false,
     });
+    if (optedOut) client.optOut();
   } catch {
     client = null;
   }
@@ -28,6 +71,7 @@ export function initAnalytics(): PostHog | null {
 }
 
 export function track(event: string, properties?: Record<string, unknown>): void {
+  if (optedOut) return;
   try {
     client?.capture(event, properties as any);
   } catch {
@@ -36,6 +80,7 @@ export function track(event: string, properties?: Record<string, unknown>): void
 }
 
 export function identifyUser(userId: string, properties?: Record<string, unknown>): void {
+  if (optedOut) return;
   try {
     client?.identify(userId, properties as any);
   } catch {

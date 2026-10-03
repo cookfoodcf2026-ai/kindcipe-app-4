@@ -39,7 +39,7 @@ import { initIAP } from "@/lib/purchase";
 import { onOfflineChange } from "@/lib/trpc";
 import NetInfo from "@react-native-community/netinfo";
 import { maybeRequestReview } from "@/lib/review";
-import { initAnalytics, identifyUser, resetAnalytics, track, Events } from "@/lib/analytics";
+import { initAnalytics, identifyUser, resetAnalytics, track, Events, loadAnalyticsOptOut } from "@/lib/analytics";
 import { ToastProvider } from "@/src/components/Toast";
 import { AppleRelayLinkPrompt } from "@/src/components/AppleRelayLinkPrompt";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
@@ -574,7 +574,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void maybeRequestReview();
-    initAnalytics();
+    void loadAnalyticsOptOut().then(() => initAnalytics());
   }, []);
 
   if (!langReady) return null;

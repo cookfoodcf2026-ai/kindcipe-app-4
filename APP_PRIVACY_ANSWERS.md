@@ -50,6 +50,19 @@
 | 是否用第三方 SDK？ | 是（PostHog、Sentry；Apple/Google 登入）|
 | 資料是否加密傳輸？ | 是（HTTPS）|
 | 用戶可否要求刪除資料？ | 是（app 內 `deleteAccount`）|
+| 用戶可否停用分析？ | 是（設定 → 「分享匿名使用數據」toggle）|
+
+## 第三方處理者（Third-party processors）
+| 服務 | 用途 | 收到咩 |
+|---|---|---|
+| **PostHog** | 產品分析 | 內部 user id、事件、非 PII traits（role/語言）|
+| **Sentry** | 錯誤追蹤 | 錯誤堆疊、裝置型號（不含 email/名）|
+| **Apple / Google** | 登入 | OAuth 身份驗證 |
+| **Stripe** | 付款（web/Android）| 付款 session（Apple IAP 另計）|
+| **Resend** | Email OTP | email 地址 |
+| **Railway / R2** | 後端 / 圖片儲存 | 帳號資料、食譜圖片 |
+
+> 呢啲要喺**隱私政策**講清楚（見 `DATA_COMPLIANCE.md`）。
 
 ---
 

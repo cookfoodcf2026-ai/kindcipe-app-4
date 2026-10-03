@@ -34,7 +34,7 @@ import { getAppLogo } from "@/lib/logo";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
 import { signInWithGoogleWeb } from "@/lib/socialAuth";
-import { track, Events } from "@/lib/analytics";
+import { track, Events, loadAnalyticsOptOut, setAnalyticsOptOut } from "@/lib/analytics";
 
 const LANGUAGES = [
   { code: "zh-TW", label: "繁體中文", flag: "🇭🇰" },
@@ -173,6 +173,15 @@ export default function SettingsScreen() {
   const handleToggleHints = async (value: boolean) => {
     setHintsEnabled(value);
     await setHintsDisabled(!value);
+  };
+
+  const [analyticsOn, setAnalyticsOn] = useState(true);
+  useEffect(() => {
+    void loadAnalyticsOptOut().then((out) => setAnalyticsOn(!out));
+  }, []);
+  const handleToggleAnalytics = async (value: boolean) => {
+    setAnalyticsOn(value);
+    await setAnalyticsOptOut(!value);
   };
 
   useEffect(() => {
@@ -1194,6 +1203,21 @@ export default function SettingsScreen() {
               <Text style={styles.settingLabel}>{t("settings.version")}</Text>
             </View>
             <Text style={styles.settingValue}>1.0.0</Text>
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
+                <Ionicons name="stats-chart-outline" size={20} color="#16A34A" />
+              </View>
+              <Text style={styles.settingLabel}>{t("settings.analyticsToggle")}</Text>
+            </View>
+            <Switch
+              value={analyticsOn}
+              onValueChange={handleToggleAnalytics}
+              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
+              thumbColor={analyticsOn ? "#013E77" : "#F9FAFB"}
+            />
           </View>
 
           <TouchableOpacity
