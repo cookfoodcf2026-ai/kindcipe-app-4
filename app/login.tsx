@@ -129,18 +129,34 @@ export default function LoginScreen() {
     router.replace("/admin");
   };
 
-  // Web: the Apple OAuth flow returns to /login?apple=success|error. The session
-  // cookie is already set by the backend, so we just refresh auth state.
+  // Web: the Apple OAuth flow returns to /login?apple=success|error. The backend
+  // sets the httpOnly session cookie AND (because the callback may be on a
+  // different site, where browsers drop the third-party cookie) passes the
+  // session token in the URL fragment (#token=...). We store the fragment token
+  // so auth works regardless of cookie policy; then refresh auth state.
   useEffect(() => {
     if (!isWeb) return;
     const status = params.apple;
     if (!status) return;
+    // Capture the token fragment synchronously BEFORE we rewrite the URL below.
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const tokenMatch = hash.match(/[#&]token=([^&]+)/);
+    const fragmentToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
     if (status === "success") {
-      void onLoginSuccess("apple");
+      void (async () => {
+        try {
+          if (fragmentToken) {
+            await saveAuthTokenFromResponse({ token: fragmentToken } as any);
+          }
+        } catch {
+          /* ignore — cookie may still authenticate */
+        }
+        await onLoginSuccess("apple");
+      })();
     } else {
       Alert.alert(t("auth.appleFailed" as any), t("auth.tryLater"));
     }
-    // Strip the query param so a refresh doesn't re-trigger.
+    // Strip the query param + token fragment so a refresh doesn't re-trigger.
     if (typeof window !== "undefined") {
       window.history.replaceState({}, "", window.location.pathname);
     }
