@@ -51,7 +51,8 @@ export default function OnboardingScreen(
   ) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { logout } = useAuth();
+  const { logout, switchFamily } = useAuth();
+  const utils = trpc.useUtils();
   const [step, setStep] = useState<OnboardingStep>("signin");
   const [guidePage, setGuidePage] = useState(0);
   const guideScrollRef = useRef<ScrollView>(null);
@@ -273,7 +274,25 @@ export default function OnboardingScreen(
                   setStep("guide");
                   return;
                 }
-                await apiClient.family.create.mutate({ name: kitchenName, nickname: userName.trim() || undefined });
+                const created: any = await apiClient.family.create.mutate({ name: kitchenName, nickname: userName.trim() || undefined });
+                // 將用戶填嘅名寫入真正嘅顯示名（users.name）——同 Settings 同一條正式路徑。
+                const trimmedName = userName.trim();
+                if (trimmedName) {
+                  try { await apiClient.auth.updateProfile.mutate({ name: trimmedName }); } catch { /* 唔阻塞建廚房 */ }
+                }
+                // 建立後即刻切換到新廚房，否則 Settings 會停留喺「未加入廚房」＋ 睇唔到 quota。
+                const newId = created?.id != null ? String(created.id) : null;
+                if (newId) {
+                  await switchFamily(newId);
+                } else {
+                  await utils.family.list.invalidate();
+                }
+                await Promise.all([
+                  utils.family.list.invalidate(),
+                  utils.family.get.invalidate(),
+                  utils.family.usage.invalidate(),
+                  utils.auth.me.invalidate(),
+                ]);
                 setStep("guide");
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
@@ -356,7 +375,20 @@ export default function OnboardingScreen(
                   setStep("guide");
                   return;
                 }
-                await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
+                const joined: any = await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
+                // 加入後即刻切換到該廚房，否則 Settings 會停留喺「未加入廚房」＋ 睇唔到 quota。
+                const joinedId = joined?.id != null ? String(joined.id) : null;
+                if (joinedId) {
+                  await switchFamily(joinedId);
+                } else {
+                  await utils.family.list.invalidate();
+                }
+                await Promise.all([
+                  utils.family.list.invalidate(),
+                  utils.family.get.invalidate(),
+                  utils.family.usage.invalidate(),
+                  utils.auth.me.invalidate(),
+                ]);
                 setStep("guide");
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";

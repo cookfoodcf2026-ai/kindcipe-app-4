@@ -59,7 +59,7 @@ export default function SettingsScreen() {
   }>();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
-  const { user, isAuthenticated, logout, familyRole, activeFamily, families } = useAuth();
+  const { user, isAuthenticated, logout, familyRole, activeFamily, activeFamilyId, families } = useAuth();
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showUsageHistory, setShowUsageHistory] = useState(false);
@@ -309,14 +309,17 @@ export default function SettingsScreen() {
   const subscriptionQuery = trpc.family.subscription.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
+    enabled: isAuthenticated && !!activeFamilyId,
   });
   const usageQuery = trpc.family.usage.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
+    enabled: isAuthenticated && !!activeFamilyId,
   });
   const usageHistoryByMemberQuery = trpc.family.usageHistoryByMember.useQuery({ months: 6 }, {
     retry: false,
     staleTime: 1000 * 60 * 5,
+    enabled: isAuthenticated && !!activeFamilyId,
   });
   const identitiesQuery = trpc.auth.identities.useQuery(undefined, {
     retry: false,
@@ -480,7 +483,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.profileInfo}>
               <View style={styles.profileNameRow}>
-                <Text style={styles.profileName}>{user.name || t("dyn.user")}</Text>
+                <Text style={styles.profileName}>{user.name || user.email?.split("@")[0] || t("dyn.user")}</Text>
                 <TouchableOpacity
                   style={styles.editNameButton}
                   onPress={() => {
@@ -528,7 +531,7 @@ export default function SettingsScreen() {
                   <Ionicons name="home-outline" size={20} color="#013E77" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.kitchenName}>{activeFamily?.name || t("settings.notInKitchen")}</Text>
+                  <Text style={styles.kitchenName}>{activeFamily?.name || families[0]?.name || t("settings.notInKitchen")}</Text>
                   <Text style={styles.kitchenSub}>
                     {hasFamily
                       ? t("settings.onlyOneKitchen", { role: t(`settings.role_${familyRole || "member"}` as any) })
