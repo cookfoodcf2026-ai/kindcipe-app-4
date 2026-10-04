@@ -393,7 +393,6 @@ export default function LoginScreen() {
             />
             <Text style={styles.appName}>{t("auth.appName" as any)}</Text>
             <Text style={styles.slogan}>{t("auth.slogan" as any)}</Text>
-            <Text style={styles.dataNote}>{t("auth.dataFollowsLogin" as any)}</Text>
           </View>
 
           {mode === "admin" ? (
@@ -628,7 +627,6 @@ const styles = StyleSheet.create({
   logoSection: { alignItems: "center", marginBottom: 32 },
   appName: { fontSize: 20, fontWeight: "800", color: BRAND, marginTop: 4 },
   slogan: { fontSize: 14, color: "#6B7280", marginTop: 10, textAlign: "center", lineHeight: 20, paddingHorizontal: 12 },
-  dataNote: { fontSize: 11.5, color: "#9CA3AF", marginTop: 8, textAlign: "center", lineHeight: 16, paddingHorizontal: 16 },
 
   // Form (admin)
   form: { gap: 12 },
