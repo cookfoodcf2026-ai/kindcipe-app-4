@@ -8,3 +8,14 @@ dist
 docs
 *.log
 .DS_Store
+
+# Local tooling / large non-source dirs (bloat the build archive)
+.kilo
+.opencode
+.kilocode
+package-lock.json.backup
+package-lock 2.json
+ccmf-application
+*.ipa
+*.apk
+*.aab
