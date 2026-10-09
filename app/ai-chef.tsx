@@ -644,20 +644,27 @@ function renderMarkdown(text: string, styles: any): React.ReactNode[] {
     }
 
     // Recipe header: 食譜一：類別 —— 名稱（約XX分鐘）
-    // 注意：bullet 行（- / • 等）唔可以當 recipe header，否則會誤 render
+    // 注意：bullet 行（- / • 等）唔可以當 recipe header，否則會誤 render。
+    // 只認「食譜N：」前綴 或「——」雙破折號；唔可以用單一 ASCII "-"，
+    // 否則英文／菲文句入面嘅 hyphen（例如 "mag-type"、"self-service"）會被誤判並截斷。
     const isBulletLine = /^[-–—*•·]\s/.test(trimmed);
-    const recipeHeaderMatch = isBulletLine
+    const withPrefix = isBulletLine
       ? null
-      : trimmed.match(/^(?:食譜[一二三四五六七八九十\d]+[：:]\s*)?(.+?)[——\-]\s*(.+?)(?:（約?(\d+)分鐘）)?$/);
+      : trimmed.match(/^食譜\s*[一二三四五六七八九十\d]+\s*[：:]\s*(.+?)\s*(?:——|—|--|：)\s*(.+?)(?:[（(]約?\s*(\d+)\s*分鐘[）)])?$/);
+    const noPrefix = !withPrefix && !isBulletLine && trimmed.includes("——")
+      ? trimmed.match(/^(.+?)\s*——\s*(.+?)(?:[（(]約?\s*(\d+)\s*分鐘[）)])?$/)
+      : null;
+    const recipeHeaderMatch = withPrefix || noPrefix;
     if (recipeHeaderMatch) {
+      const recipeTitle = (recipeHeaderMatch[2]?.trim() || trimmed).replace(/^[—\-]+\s*/, "");
       elements.push(
         <View key={key++} style={{ marginTop: 12, marginBottom: 4 }}>
           <Text selectable style={[styles.mdRecipeTitle, { color: BRAND, fontWeight: "700", fontSize: 16 }]}>
-            {recipeHeaderMatch[2]?.trim() || trimmed}
+            {recipeTitle}
           </Text>
           {recipeHeaderMatch[3] && (
             <Text selectable style={[styles.mdRecipeTime, { color: SUB, fontSize: 12, marginTop: 2 }]}>
-              約 {recipeHeaderMatch[3]} 分鐘
+              {i18n.t("dyn.minutes", { n: recipeHeaderMatch[3] })}
             </Text>
           )}
         </View>
@@ -2471,7 +2478,7 @@ export default function AIChefScreen() {
         console.error("[AI 助手] Pantry library search failed:", e);
       }
       setLibraryLoading(false);
-      addBotMessage(`食譜庫暫時冇配合你雪櫃食材嘅食譜，我用 AI 幫你諗：`);
+      addBotMessage(t("aiChef.pantryNoMatch"));
       const prompt = `我雪櫃有：${ingredientList}，可以煮咩？`;
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(prev => [...prev, { role: "user", content: prompt }]);
@@ -3384,22 +3391,22 @@ export default function AIChefScreen() {
   const renderMealHotKeys = () => {
     if (!isMealAnswering) return null;
     let options: { label: string; value: string }[] = [];
-    if (mealStep === "people") options = PEOPLE_OPTIONS.map(n => ({ label: n + "人", value: n }));
-    else if (mealStep === "audience") options = AUDIENCE_OPTIONS.map(o => ({ label: o.label, value: o.label }));
-    else if (mealStep === "time") options = TIME_OPTIONS.map(o => ({ label: o.label, value: o.label }));
+    if (mealStep === "people") options = PEOPLE_OPTIONS.map(n => ({ label: t("aiChef.peopleN", { n }), value: n }));
+    else if (mealStep === "audience") options = AUDIENCE_OPTIONS.map(o => ({ label: t(o.label as any), value: o.label }));
+    else if (mealStep === "time") options = TIME_OPTIONS.map(o => ({ label: t(o.label as any), value: o.label }));
     else if (mealStep === "dislike") options = [
-      { label: "冇", value: "冇" },
-      { label: "唔食辣", value: "唔食辣" },
-      { label: "唔食豬肉", value: "唔食豬肉" },
-      { label: "唔食魚", value: "唔食魚" },
-      { label: "清淡為主", value: "清淡為主" },
+      { label: t("aiChef.dislikeNone"), value: "冇" },
+      { label: t("aiChef.dislikeSpicy"), value: "唔食辣" },
+      { label: t("aiChef.dislikePork"), value: "唔食豬肉" },
+      { label: t("aiChef.dislikeFish"), value: "唔食魚" },
+      { label: t("aiChef.dislikeLight"), value: "清淡為主" },
     ];
     return (
       <View style={s.hotKeyBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
           {options.map((o, i) => (
             <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => handleMealAnswer(o.value)} disabled={chatMutation.isPending}>
-              <Text style={s.hotKeyChipTxt}>{t(o.label as any)}</Text>
+              <Text style={s.hotKeyChipTxt}>{o.label}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={[s.hotKeyChip, { backgroundColor: "#7C3AED" }]} onPress={() => handleSkipMealQuestions()} disabled={chatMutation.isPending}>

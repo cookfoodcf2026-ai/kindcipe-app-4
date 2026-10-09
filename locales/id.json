@@ -346,7 +346,14 @@
     "hk_healthyPrompt": "Masakan ringan & sehat, sedikit minyak",
     "hk_ricecookerPrompt": "Resep mudah rice cooker",
     "hk_kidsPrompt": "Masakan untuk anak, tidak pedas",
-    "hk_guestPrompt": "Hidangan istimewa untuk tamu"
+    "hk_guestPrompt": "Hidangan istimewa untuk tamu",
+    "peopleN": "{{n}} org",
+    "dislikeNone": "Tidak ada",
+    "dislikeSpicy": "Tanpa pedas",
+    "dislikePork": "Tanpa babi",
+    "dislikeFish": "Tanpa ikan",
+    "dislikeLight": "Makanan ringan",
+    "pantryNoMatch": "Tidak ada resep di pustaka yang cocok dengan isi kulkasmu — aku tanya AI:"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

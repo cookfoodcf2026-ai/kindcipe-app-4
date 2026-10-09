@@ -346,7 +346,14 @@
     "hk_healthyPrompt": "Magaan at healthy, kaunting mantika",
     "hk_ricecookerPrompt": "Madaling recipe sa rice cooker",
     "hk_kidsPrompt": "Pagkain para sa bata, banayad",
-    "hk_guestPrompt": "Masarap na handa para sa bisita"
+    "hk_guestPrompt": "Masarap na handa para sa bisita",
+    "peopleN": "{{n}} pax",
+    "dislikeNone": "Wala",
+    "dislikeSpicy": "Walang maanghang",
+    "dislikePork": "Walang baboy",
+    "dislikeFish": "Walang isda",
+    "dislikeLight": "Magaan na pagkain",
+    "pantryNoMatch": "Walang tugmang recipe sa library para sa laman ng ref mo — tatanungin ko ang AI:"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

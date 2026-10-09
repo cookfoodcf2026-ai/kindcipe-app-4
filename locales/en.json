@@ -346,7 +346,14 @@
     "hk_healthyPrompt": "Light, healthy home-style dishes, less oil & salt",
     "hk_ricecookerPrompt": "Easy one-pot rice cooker recipes",
     "hk_kidsPrompt": "Kid-friendly home-style dishes, mild, less spicy",
-    "hk_guestPrompt": "Impressive home-style dishes for guests"
+    "hk_guestPrompt": "Impressive home-style dishes for guests",
+    "peopleN": "{{n}} pax",
+    "dislikeNone": "None",
+    "dislikeSpicy": "No spicy",
+    "dislikePork": "No pork",
+    "dislikeFish": "No fish",
+    "dislikeLight": "Light food",
+    "pantryNoMatch": "No library recipe matches your fridge ingredients — I’ll ask AI:"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

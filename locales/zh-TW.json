@@ -346,7 +346,14 @@
     "hk_healthyPrompt": "清淡健康嘅家常菜，少油少鹽",
     "hk_ricecookerPrompt": "用電飯煲一鍋煮嘅懶人食譜",
     "hk_kidsPrompt": "小朋友喜歡食嘅家常菜，口味溫和、少辣",
-    "hk_guestPrompt": "宴客/有朋友嚟，體面啲嘅家常大菜"
+    "hk_guestPrompt": "宴客/有朋友嚟，體面啲嘅家常大菜",
+    "peopleN": "{{n}} 人",
+    "dislikeNone": "冇",
+    "dislikeSpicy": "唔食辣",
+    "dislikePork": "唔食豬肉",
+    "dislikeFish": "唔食魚",
+    "dislikeLight": "清淡為主",
+    "pantryNoMatch": "食譜庫暫時冇配合你雪櫃食材嘅食譜，我用 AI 幫你諗："
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
