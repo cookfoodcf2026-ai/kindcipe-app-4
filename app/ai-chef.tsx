@@ -3710,8 +3710,7 @@ export default function AIChefScreen() {
                                   <View key={ingIdx} style={s.recCardIngRow}>
                                     <View style={s.recCardIngDot} />
                                     <Text style={s.recCardIngTxt}>
-                                      {ing.name}
-                                      {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return bn.secondary ? ` (${bn.secondary})` : ""; })()}
+                                      {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return bn.secondary ? `${bn.primary} (${bn.secondary})` : bn.primary; })()}
                                       {ing.quantity ? ` ${ing.quantity}` : ""}
                                       {(() => { const raw = String(ing.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}
                                     </Text>
@@ -3956,7 +3955,7 @@ export default function AIChefScreen() {
                 {(planRecipe.ingredients || []).slice(0, 5).map((ing, i) => {
                   const n = normalizeIngredient(ing);
                   if (!n) return null;
-                  return <Text key={i} style={m.previewItem}>· {n.name} {n.quantity}{(() => { const raw = String(n.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}</Text>;
+                  return <Text key={i} style={m.previewItem}>· {getBilingualName(n.name, n.nameEn, n.nameFil, n.nameId).primary} {n.quantity}{(() => { const raw = String(n.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}</Text>;
                 })}
                 {(planRecipe.ingredients || []).length > 5 && <Text style={m.previewMore}>{t("aiChef.morePreview", { n: (planRecipe.ingredients || []).length - 5 })}</Text>}
               </View>
