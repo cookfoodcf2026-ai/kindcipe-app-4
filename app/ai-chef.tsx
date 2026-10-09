@@ -3689,7 +3689,7 @@ export default function AIChefScreen() {
                           <View style={s.recCardTags} testID={`recipe-card-tags-${i}`}>
                             {(r.tags || []).slice(0, 4).map((tag, tagIdx) => (
                               <View key={tagIdx} style={s.recTagPill}>
-                                <Text style={s.recTagTxt} numberOfLines={1}>{tag}</Text>
+                                <Text style={s.recTagTxt} numberOfLines={1}>{enumT.tag(tag)}</Text>
                               </View>
                             ))}
                           </View>

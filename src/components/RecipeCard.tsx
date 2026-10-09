@@ -187,7 +187,7 @@ export default function RecipeCard(
                     );
                   }}
                 >
-                  <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{trimmedTag}</Text>
+                  <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{enu.tag(trimmedTag)}</Text>
                 </TouchableOpacity>
               );
             })}

@@ -22,6 +22,20 @@ const UNIT_ZH_TO_KEY: Record<string, string> = { ...reverse(UNIT_KEY_TO_LABEL), 
 const DIFFICULTY_ZH_TO_KEY: Record<string, string> = { "簡單": "easy", "中等": "medium", "困難": "hard" };
 const MEAL_ZH_TO_KEY: Record<string, string> = { "早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "小食": "snack" };
 
+// Recipe tag (free-form Chinese) → stable key. Unknown tags fall back to the raw string.
+const TAG_ZH_TO_KEY: Record<string, string> = {
+  "蒸": "steam", "炒": "stirfry", "炆": "braise", "焗": "bake", "煎": "panfry", "炸": "fry",
+  "燉": "stew", "涼拌": "cold", "烤": "grill", "紅燒": "braiseSoy",
+  "清淡": "light", "鹹香": "savory", "酸甜": "sweetSour", "辛辣": "spicy", "鮮味": "umami",
+  "椰香": "coconut", "香濃": "rich", "清甜": "mildSweet", "惹味": "savory",
+  "家常菜": "homeStyle", "家常": "homeStyle", "快手菜": "quick", "快手": "quick", "宴客菜": "party",
+  "港式": "hkStyle", "中式": "chinese", "西式": "western", "日式": "japanese", "韓式": "korean",
+  "東南亞": "sea", "湯水": "soup", "蔬菜": "vegetable", "老火湯": "slowSoup",
+  "高蛋白": "highProtein", "低卡": "lowCal", "素食": "vegetarian", "減脂餐": "diet",
+  "小朋友": "kids", "30 分鐘內": "within30", "30分鐘內": "within30",
+  "祛濕": "dampness", "健脾": "spleen", "潤肺": "lungs", "清熱": "heatClear", "養生": "nourish",
+};
+
 // 中文難度 → key（同時支援已係 key 嘅值）
 const DIFFICULTY_ANY: Record<string, string> = { ...DIFFICULTY_ZH_TO_KEY, easy: "easy", medium: "medium", hard: "hard" };
 
@@ -54,6 +68,13 @@ export const enumT = {
     const out = String(i18n.t(k as any));
     return out === k ? fallback : out;
   },
+  tag: (v: string): string => {
+    const { key, fallback } = resolve("tag", TAG_ZH_TO_KEY, v);
+    if (!key) return fallback;
+    const k = `enums.tag.${key}`;
+    const out = String(i18n.t(k as any));
+    return out === k ? fallback : out;
+  },
   meal: (v: string): string => {
     const { key, fallback } = resolve("meal", MEAL_ZH_TO_KEY, v);
     if (!key) return fallback;
@@ -78,6 +99,7 @@ export function useEnum() {
     category: (v: string): string => tr("category", CATEGORY_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
     unit: (v: string): string => tr("unit", UNIT_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
     difficulty: (v: string): string => tr("difficulty", DIFFICULTY_ANY[String(v ?? "").trim()], String(v ?? "")),
+    tag: (v: string): string => tr("tag", TAG_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
     meal: (v: string): string => tr("meal", MEAL_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
     weekday: (n: number): string => t(`enums.weekday.${n}` as any),
     month: (m: number): string => t(`enums.month.${m}` as any),

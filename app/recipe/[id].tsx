@@ -1630,7 +1630,7 @@ export default function RecipeDetailScreen() {
                   <View style={s.tagsRow}>
                     {displayTags.map((tag: string, i: number) => (
                       <View key={i} style={s.tagChip}>
-                        <Text style={s.tagChipTxt}>{tag}</Text>
+                        <Text style={s.tagChipTxt}>{enumT.tag(tag)}</Text>
                       </View>
                     ))}
                   </View>
