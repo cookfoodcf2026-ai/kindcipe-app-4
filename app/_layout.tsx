@@ -415,13 +415,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoggedIn || !onboardingDone) return;
     if (!navigationReady) return;
-    if (segmentsRef.current[0] === "import") return; // 已喺 import → 交 reader
+    const onImportAlready = segmentsRef.current[0] === "import"; // 冷啟：+native-intent 已帶入 /import
     // context pending（reactive）
     if (pendingShare) {
-      track(Events.ShareConsumed, { via: "context" });
-      router.push({ pathname: "/import", params: {} });
+      // 冷啟時 route 已經係 /import → 唔重複 push，但都要 track（修正 telemetry 盲點）
+      track(Events.ShareConsumed, { via: onImportAlready ? "context-coldstart" : "context" });
+      if (!onImportAlready) router.push({ pathname: "/import", params: {} });
       return;
     }
+    if (onImportAlready) return; // 已喺 import → 交 reader
     // AsyncStorage fallback（冷啟／未登入）
     void (async () => {
       try {
@@ -448,6 +450,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const inResetPassword = segments[0] === "reset-password";
       const inVerifyEmail = segments[0] === "verify-email";
       const inOnboarding = segments[0] === "onboarding";
+      const inImport = segments[0] === "import";
       const seg0 = segments[0] as string;
       const isLoggedIn = !!meQuery.data;
 
@@ -481,7 +484,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
             const key = getOnboardingKey(meQuery.data.id);
             AsyncStorage.setItem(key, "true");
             setOnboardingDone(true);
-            router.replace("/(tabs)");
+            // 匯入進行中（冷啟分享）時唔好重定向走，否則會蓋走 /import
+            // （症狀：顯示匯入第一步後彈返主頁）。/import 自己負責完成後續導航。
+            if (!inImport) router.replace("/(tabs)");
           } else if (!inOnboarding && (inLoginPage || inTabsGroup)) {
             if (inTabsGroup) {
               ensureOnboardingCheck();
