@@ -129,9 +129,9 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
     if (idx === 0) {
       const date = DateUtil.parseDate(m.date);
       const diffDays = DateUtil.daysBetween(todayStr, m.date);
-      if (diffDays === 0) badge = "今天";
-      else if (diffDays === 1) badge = "明天";
-      else if (diffDays === 2) badge = "後天";
+      if (diffDays === 0) badge = t("今天" as any);
+      else if (diffDays === 1) badge = t("明天" as any);
+      else if (diffDays === 2) badge = t("後天" as any);
       else badge = `${date.getMonth() + 1}月${date.getDate()}日`;
     }
     
@@ -237,9 +237,9 @@ function ShoppingListPreview({ router }: {
     
     const diffDays = DateUtil.daysBetween(todayStr, firstItemDate);
     
-    if (diffDays === 0) return "今天";
-    if (diffDays === 1) return "明天";
-    if (diffDays === 2) return "後天";
+    if (diffDays === 0) return i18n.t("今天" as any);
+    if (diffDays === 1) return i18n.t("明天" as any);
+    if (diffDays === 2) return i18n.t("後天" as any);
     
     // Show full date (e.g., 8 月 10 日)
     const date = new Date(firstItemDate);
@@ -673,12 +673,12 @@ export default function RecipesTab() {
           fromMealPlanId: result.newPlanId,
         });
       } else {
-        showToast("已加入排餐", "info");
+        showToast(t("已加入排餐" as any), "info");
       }
 
       void invalidateMealPlanAndCart();
     },
-    onError: (e) => showToast(`加入失敗：${friendlyError(e)}`, "error"),
+    onError: (e) => showToast(t("dyn.addFailed" as any, { msg: friendlyError(e) }), "error"),
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -868,19 +868,19 @@ export default function RecipesTab() {
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
-    if (viewMode === "user") parts.push("我的食譜");
-    else if (viewMode === "official") parts.push("官方食譜");
-    else if (viewMode === "kol") parts.push("🌟 網紅食譜");
-    else if (viewMode === "hot") parts.push("🔥 熱門食譜");
-    else if (viewMode === "imported") parts.push("📥 匯入食譜");
+    if (viewMode === "user") parts.push(t("我的食譜" as any));
+    else if (viewMode === "official") parts.push(t("官方食譜" as any));
+    else if (viewMode === "kol") parts.push(t("🌟 網紅食譜" as any));
+    else if (viewMode === "hot") parts.push(t("🔥 熱門食譜" as any));
+    else if (viewMode === "imported") parts.push(t("📥 匯入食譜" as any));
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
-      parts.push(cat?.label || activeCategory);
+      parts.push(cat?.label ? t(cat.label as any) : activeCategory);
     }
     if (activePopularChips.length > 0) {
       activePopularChips.forEach(chipKey => {
         const chip = POPULAR_CHIPS.find(c => c.key === chipKey);
-        parts.push(chip?.label.replace(/^[^\s]+\s/, "") || chipKey);
+        parts.push(t(`chips.${chip?.key || chipKey}` as any));
       });
     }
     if (activeTagFilters.length > 0) {
@@ -888,11 +888,11 @@ export default function RecipesTab() {
     }
     if (activeIngredientCategory) {
       const ingCat = INGREDIENT_CATEGORIES.find(c => c.key === activeIngredientCategory);
-      parts.push(ingCat?.label || activeIngredientCategory);
+      parts.push(ingCat?.label ? t(ingCat.label as any) : activeIngredientCategory);
     }
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
-  }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories]);
+  }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories, t]);
 
   const ListHeader = (
     <View style={s.listHeaderOuter}>
@@ -1050,7 +1050,7 @@ export default function RecipesTab() {
             {activeCategory !== "all" && (
               <View style={s.smartToken}>
                 <Text style={s.smartTokenTxt}>
-                  {categories.find(c => c.key === activeCategory)?.emoji || "🍽️"} {categories.find(c => c.key === activeCategory)?.label || activeCategory}
+                  {categories.find(c => c.key === activeCategory)?.emoji || "🍽️"} {(() => { const l = categories.find(c => c.key === activeCategory)?.label; return l ? t(l as any) : activeCategory; })()}
                 </Text>
                 <TouchableOpacity onPress={() => setActiveCategory("all")}>
                   <Ionicons name="close" size={12} color="#fff" />
@@ -1061,7 +1061,7 @@ export default function RecipesTab() {
             {activeIngredientCategory !== undefined && (
               <View style={s.smartToken}>
                 <Text style={s.smartTokenTxt}>
-                  {INGREDIENT_CATEGORIES.find(c => c.key === activeIngredientCategory)?.label || activeIngredientCategory}
+                  {(() => { const l = INGREDIENT_CATEGORIES.find(c => c.key === activeIngredientCategory)?.label; return l ? t(l as any) : activeIngredientCategory; })()}
                 </Text>
                 <TouchableOpacity onPress={() => setActiveIngredientCategory(undefined)}>
                   <Ionicons name="close" size={12} color="#fff" />
@@ -1485,12 +1485,12 @@ export default function RecipesTab() {
             });
           } else {
             setPlanPickerRecipe(null);
-            showToast("排餐已記錄", "info");
+            showToast(t("排餐已記錄" as any), "info");
           }
         }}
         onSkip={() => {
           setPlanPickerRecipe(null);
-          showToast("已跳過食材", "info");
+          showToast(t("已跳過食材" as any), "info");
         }}
       />
 

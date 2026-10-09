@@ -1764,6 +1764,7 @@ export default function AIChefScreen() {
           ];
           const recognizeRes = await apiClient.aiRecipe.chat.mutate({
             messages: buildBackendMessages(recognizeMsg),
+            lang: i18n.language,
           });
           const recognizeText = typeof recognizeRes?.content === "string" ? recognizeRes.content : "";
           const ingredients = recognizeText
@@ -1784,7 +1785,7 @@ export default function AIChefScreen() {
               updateMessages(prev => [...prev, imageMsg]);
               setRecommendedRecipes(libraryRecipes);
               recordSeenRecipes(libraryRecipes);
-              addBotMessage(`我認到你雪櫃有：${ingredients.join("、")}。喺食譜庫搵到 ${libraryRecipes.length} 個配合嘅食譜：`);
+              addBotMessage(t("aiChef.pantryRecognized", { items: ingredients.join("、"), n: libraryRecipes.length }));
               setLibraryLoading(false);
               scrollToEnd();
               return;
@@ -2103,18 +2104,19 @@ export default function AIChefScreen() {
     return {};
   };
 
-  const handleMealAnswer = (text: string) => {
+  const handleMealAnswer = (text: string, displayLabel?: string) => {
     resetAiNextSteps();
+    const display = displayLabel ?? text;
     const update = parseMealAnswer(text);
     // 人數答非數字 → 重新問，唔好靜靜 default 4
     if (mealStep === "people" && update.people === -1) {
-      addUserMessage(text);
+      addUserMessage(display);
       addBotMessage(t("aiChef.q_people_invalid" as any));
       return;
     }
     const nextPrefs = { ...mealPrefs, ...update };
     setMealPrefs(nextPrefs);
-    const msgs = addUserMessage(text);
+    const msgs = addUserMessage(display);
     if (mealStep === "dislike") {
       setMealStep("generating");
       generateMealPlan(nextPrefs, msgs);
@@ -2173,6 +2175,7 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: t(config.aiPrompt as any) }],
           mode: "library",
+          lang: i18n.language,
           search: {
             query: config.search.query,
             tags: config.search.tags,
@@ -2196,7 +2199,7 @@ export default function AIChefScreen() {
           setChatStarted(true);
           recordSeenRecipes(picked);
           const label = config.search.query || config.search.tags?.join("、") || "呢類";
-          addBotMessage(`我喺食譜庫搵到呢個配合「${label}」嘅食譜：` + recipeNameList(picked));
+          addBotMessage(t("aiChef.libMatchLabel", { q: label }) + recipeNameList(picked));
           setLibraryLoading(false);
           return;
         }
@@ -2206,7 +2209,7 @@ export default function AIChefScreen() {
     }
     setLibraryLoading(false);
     const label = config.search?.query || config.search?.tags?.join("、") || t(config.aiPrompt as any);
-    addBotMessage(`食譜庫暫時冇配合「${label}」嘅食譜，我用 AI 幫你諗：`);
+    addBotMessage(t("aiChef.libNoMatchLabel", { q: label }));
     // 單菜 AI 生成（唔行 chat，保證 1 卡）；requestInstantRecipes 會用 activeHotKeyRef 個 aiPrompt
     requestInstantRecipes("ai");
   };
@@ -2259,6 +2262,7 @@ export default function AIChefScreen() {
       const res = await apiClient.aiRecipe.chat.mutate({
         messages: [{ role: "user", content: buildMealPrompt(prefs) }],
         mode: "library",
+        lang: i18n.language,
         excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       });
       const rawRecipes = Array.isArray(res?.recipes) ? res.recipes : [];
@@ -2272,7 +2276,7 @@ export default function AIChefScreen() {
         setRecommendedRecipes(recipesToShow);
         recordSeenRecipes(recipesToShow);
         addUserMessage(`${t("aiChef.userMsg3", { n: prefs.people })}`);
-        addBotMessage((res?.content || `我喺食譜庫搵到呢套 3 餸 1 湯：`) + recipeNameList(recipesToShow));
+        addBotMessage((res?.content || t("aiChef.foundMealDishesSoup", { dishes: 3, soups: 1 })) + recipeNameList(recipesToShow));
         setLibraryLoading(false);
         return;
       }
@@ -2459,6 +2463,7 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: searchPrompt }],
           mode: "library",
+          lang: i18n.language,
           search: { query: ingredientNames, count: 6 },
           excludeNames: sessionSeenRecipeNames,
         });
@@ -2470,7 +2475,7 @@ export default function AIChefScreen() {
           addUserMessage(searchPrompt);
           setRecommendedRecipes(libraryRecipes);
           recordSeenRecipes(libraryRecipes);
-          addBotMessage(`我喺食譜庫搵到 ${libraryRecipes.length} 個配合你雪櫃食材嘅食譜：`);
+          addBotMessage(t("aiChef.pantryMatchN", { n: libraryRecipes.length }));
           setLibraryLoading(false);
           return;
         }
@@ -2486,7 +2491,7 @@ export default function AIChefScreen() {
       scrollToEnd();
     } else {
       setAskingIngredients(true);
-      addBotMessage("你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。");
+      addBotMessage(t("aiChef.askFridgeIngredients"));
     }
   };
 
@@ -2688,6 +2693,7 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
           mode: "library",
+          lang: i18n.language,
           // 瘦身：7 日去重由後端 cache 負責；前端只排除「其他卡 + 現卡 + 已換過」（sessionAvoidNames 太肥會爆池錯誤 fallback AI）
           excludeNames: [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])],
         });
@@ -2744,6 +2750,7 @@ export default function AIChefScreen() {
             const res = await apiClient.aiRecipe.chat.mutate({
               messages: [{ role: "user", content: `${prompt}${extra}` }],
               mode: "ai",
+              lang: i18n.language,
               excludeNames: [...sessionAvoidNames, ...swappedRecipeNames],
             });
 
@@ -3405,7 +3412,7 @@ export default function AIChefScreen() {
       <View style={s.hotKeyBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
           {options.map((o, i) => (
-            <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => handleMealAnswer(o.value)} disabled={chatMutation.isPending}>
+            <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => handleMealAnswer(o.value, o.label)} disabled={chatMutation.isPending}>
               <Text style={s.hotKeyChipTxt}>{o.label}</Text>
             </TouchableOpacity>
           ))}
@@ -3706,7 +3713,7 @@ export default function AIChefScreen() {
                                       {ing.name}
                                       {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return bn.secondary ? ` (${bn.secondary})` : ""; })()}
                                       {ing.quantity ? ` ${ing.quantity}` : ""}
-                                      {ing.unit ? ` ${ing.unit}` : ""}
+                                      {(() => { const raw = String(ing.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}
                                     </Text>
                                   </View>
                               ))}
@@ -3949,7 +3956,7 @@ export default function AIChefScreen() {
                 {(planRecipe.ingredients || []).slice(0, 5).map((ing, i) => {
                   const n = normalizeIngredient(ing);
                   if (!n) return null;
-                  return <Text key={i} style={m.previewItem}>· {n.name} {n.quantity}{n.unit}</Text>;
+                  return <Text key={i} style={m.previewItem}>· {n.name} {n.quantity}{(() => { const raw = String(n.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}</Text>;
                 })}
                 {(planRecipe.ingredients || []).length > 5 && <Text style={m.previewMore}>{t("aiChef.morePreview", { n: (planRecipe.ingredients || []).length - 5 })}</Text>}
               </View>

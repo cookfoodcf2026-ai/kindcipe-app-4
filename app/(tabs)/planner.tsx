@@ -104,8 +104,6 @@ const isPast = (d: Date) => {
 };
 
 // ─── AI Weekly Menu constants and helpers ───────────────────────
-const DAY_LABELS = ["", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
-const DAY_SHORT = ["", "一", "二", "三", "四", "五", "六", "日"];
 
 type SlotType = "meat" | "seafood" | "veg" | "soup";
 
@@ -148,7 +146,7 @@ function getDateForDowShort(weekStart: string, dow: number): string {
 }
 
 function getWeekDayLabel(weekStart: string, dow: number): string {
-  return `${DAY_LABELS[dow]} · ${getDateForDowShort(weekStart, dow)}`;
+  return `${enumT.weekday(dow % 7)} · ${getDateForDowShort(weekStart, dow)}`;
 }
 
 function normalizeName(value: any): string {
@@ -506,7 +504,7 @@ export default function PlannerTab() {
 
       // 詢問用戶下一步操作（關鍵：分離排餐和購物清單）
       Alert.alert(
-        t("✅ 已套用{{day}}的晚餐推薦" as any, { day: DAY_LABELS[item.dayOfWeek] }),
+        t("✅ 已套用{{day}}的晚餐推薦" as any, { day: enumT.weekday(item.dayOfWeek % 7) }),
         t("排餐已記錄！下一步要做什麼？" as any),
         [
           {
@@ -539,7 +537,7 @@ export default function PlannerTab() {
 
                 setPickerRecipe({
                   id: `day_${item.dayOfWeek}_ai`,
-                  name: `${DAY_LABELS[item.dayOfWeek]} 晚餐推薦食材`,
+                  name: `${enumT.weekday(item.dayOfWeek % 7)} 晚餐推薦食材`,
                   ingredients: mergedIngredients,
                   // date = 排餐日（meal date）。購物日由 modal 用 defaultBuyDate=排餐日前一日 計算，
                   // 避免之前 double getDayBefore 導致 off-by-one。
@@ -1716,7 +1714,7 @@ export default function PlannerTab() {
                     onPress={() => setPickerSourceFilter(key)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.pickerSourceChipTxt, active && styles.pickerSourceChipTxtActive]}>{label}</Text>
+                    <Text style={[styles.pickerSourceChipTxt, active && styles.pickerSourceChipTxtActive]}>{t(label as any)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -2057,7 +2055,7 @@ export default function PlannerTab() {
                       style={{ alignItems: "center", width: 44, paddingVertical: 6, borderRadius: 10, backgroundColor: isCurrent ? "#FF8C00" : "transparent" }}
                       onPress={() => setRecommendCurrentDay(d)}
                     >
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: isCurrent ? "#fff" : "#4B5563" }}>{DAY_SHORT[d]}</Text>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: isCurrent ? "#fff" : "#4B5563" }}>{t(`enums.weekdayShort.${d % 7}` as any)}</Text>
                       <Text style={{ fontSize: 9, color: isCurrent ? "#FFF3E0" : "#9CA3AF", marginTop: 2 }}>{getDateForDowShort(startDate, d)}</Text>
                       <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: has ? (isCurrent ? "#fff" : "#FF8C00") : "transparent", marginTop: 4 }} />
                     </TouchableOpacity>
@@ -2517,7 +2515,7 @@ function SlotPickerModal({
                     style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: aiStyle === style ? "#7C3AED" : "#F3F4F6" }}
                     onPress={() => setAiStyle(aiStyle === style ? "" : style)}
                   >
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: aiStyle === style ? "#fff" : "#6B7280" }}>{style}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: aiStyle === style ? "#fff" : "#6B7280" }}>{t(style as any)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -2660,7 +2658,7 @@ function AISuggestModalRN({
   const handleClearSlot = (dayOfWeek: number, slotType: SlotType) => {
     Alert.alert(
       t("清空菜式" as any),
-      t("確定要清空週{{day}}{{slot}}？" as any, { day: DAY_SHORT[dayOfWeek], slot: t(SLOT_META[slotType].label as any) }),
+      t("確定要清空週{{day}}{{slot}}？" as any, { day: t(`enums.weekdayShort.${dayOfWeek % 7}` as any), slot: t(SLOT_META[slotType].label as any) }),
       [
         { text: t("取消" as any), style: "cancel" },
         {
@@ -2975,7 +2973,7 @@ function AISuggestModalRN({
             }
             handleSwap(swapPreview.day, swapPreview.slot, swapPreview.dish);
             setSwapPreview(null);
-            Alert.alert(t("週{{day}}{{slot}} 已更新" as any, { day: DAY_SHORT[swapPreview.day], slot: t(SLOT_META[swapPreview.slot].label as any) }));
+            Alert.alert(t("週{{day}}{{slot}} 已更新" as any, { day: t(`enums.weekdayShort.${swapPreview.day % 7}` as any), slot: t(SLOT_META[swapPreview.slot].label as any) }));
           }}
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];

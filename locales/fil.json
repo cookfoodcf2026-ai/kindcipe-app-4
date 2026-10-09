@@ -353,7 +353,12 @@
     "dislikePork": "Walang baboy",
     "dislikeFish": "Walang isda",
     "dislikeLight": "Magaan na pagkain",
-    "pantryNoMatch": "Walang tugmang recipe sa library para sa laman ng ref mo — tatanungin ko ang AI:"
+    "pantryNoMatch": "Walang tugmang recipe sa library para sa laman ng ref mo — tatanungin ko ang AI:",
+    "pantryRecognized": "Nakita ko sa ref mo: {{items}}. May {{n}} tugmang recipe sa library:",
+    "libMatchLabel": "Nakahanap ako ng recipe sa library na tumutugma sa “{{q}}”:",
+    "libNoMatchLabel": "Wala pang tugmang recipe sa library para sa “{{q}}” — tatanungin ko ang AI:",
+    "pantryMatchN": "May {{n}} recipe sa library na tumutugma sa laman ng ref mo:",
+    "askFridgeIngredients": "Anong sangkap ang mayroon ka?\n\nSabihin mo, hal. itlog, tokwa, kamatis — magsusuggest ako ng recipe."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
@@ -538,6 +543,15 @@
       "10": "Okt",
       "11": "Nob",
       "12": "Dis"
+    },
+    "weekdayShort": {
+      "0": "Lin",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Miy",
+      "4": "Huw",
+      "5": "Biy",
+      "6": "Sab"
     }
   },
   "tabs": {
@@ -1160,7 +1174,15 @@
     "deselectAll": "Alisin lahat",
     "perPerson": "💸 Hati bawat isa: {{price}}",
     "aiGen": "AI generated",
-    "officialRecipe": "Opisyal na recipe"
+    "officialRecipe": "Opisyal na recipe",
+    "addFailed": "Nabigo ang pagdagdag: {{msg}}",
+    "minutesAgo": "{{n}} min ang nakalipas",
+    "hoursAgo": "{{n}} oras ang nakalipas",
+    "yearMonth": "{{month}}/{{year}}",
+    "memberCount": "{{n}} miyembro",
+    "you": "Ikaw",
+    "logoutFailed": "Nabigo ang pag-log out, subukan ulit.",
+    "kitchen": "Kusina"
   },
   "15 分鐘內": "Loob ng 15 Minuto",
   "15分鐘內": "Loob ng 15 Minuto",
@@ -1872,5 +1894,11 @@
   "清除全部 AI 食譜": "Clear all AI recipes",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "Delete all AI-generated recipes? This cannot be undone.",
   "清除 AI 食譜（{{n}}）": "Clear AI recipes ({{n}})",
-  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}"
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}",
+  "明天": "Bukas",
+  "後天": "Samakalawa",
+  "官方": "Opisyal",
+  "網紅": "KOL",
+  "我的": "Akin",
+  "模板": "Template"
 }

@@ -353,7 +353,12 @@
     "dislikePork": "Tanpa babi",
     "dislikeFish": "Tanpa ikan",
     "dislikeLight": "Makanan ringan",
-    "pantryNoMatch": "Tidak ada resep di pustaka yang cocok dengan isi kulkasmu — aku tanya AI:"
+    "pantryNoMatch": "Tidak ada resep di pustaka yang cocok dengan isi kulkasmu — aku tanya AI:",
+    "pantryRecognized": "Saya mengenali ini di kulkasmu: {{items}}. Ada {{n}} resep yang cocok di pustaka:",
+    "libMatchLabel": "Saya menemukan resep pustaka yang cocok dengan “{{q}}”:",
+    "libNoMatchLabel": "Belum ada resep pustaka yang cocok dengan “{{q}}” — aku tanya AI:",
+    "pantryMatchN": "Saya menemukan {{n}} resep pustaka yang cocok dengan isi kulkasmu:",
+    "askFridgeIngredients": "Bahan apa yang kamu punya?\n\nBeri tahu, mis. telur, tahu, tomat — saya sarankan resep."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
@@ -538,6 +543,15 @@
       "10": "Okt",
       "11": "Nov",
       "12": "Des"
+    },
+    "weekdayShort": {
+      "0": "Min",
+      "1": "Sen",
+      "2": "Sel",
+      "3": "Rab",
+      "4": "Kam",
+      "5": "Jum",
+      "6": "Sab"
     }
   },
   "tabs": {
@@ -1160,7 +1174,15 @@
     "deselectAll": "Hapus semua",
     "perPerson": "💸 Bagi per orang: {{price}}",
     "aiGen": "AI generated",
-    "officialRecipe": "Resep resmi"
+    "officialRecipe": "Resep resmi",
+    "addFailed": "Gagal menambahkan: {{msg}}",
+    "minutesAgo": "{{n}} menit lalu",
+    "hoursAgo": "{{n}} jam lalu",
+    "yearMonth": "{{month}}/{{year}}",
+    "memberCount": "{{n}} anggota",
+    "you": "Kamu",
+    "logoutFailed": "Gagal keluar, coba lagi.",
+    "kitchen": "Dapur"
   },
   "15 分鐘內": "Dalam 15 Menit",
   "15分鐘內": "Dalam 15 Menit",
@@ -1872,5 +1894,11 @@
   "清除全部 AI 食譜": "Clear all AI recipes",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "Delete all AI-generated recipes? This cannot be undone.",
   "清除 AI 食譜（{{n}}）": "Clear AI recipes ({{n}})",
-  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}"
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}",
+  "明天": "Besok",
+  "後天": "Lusa",
+  "官方": "Resmi",
+  "網紅": "KOL",
+  "我的": "Milikku",
+  "模板": "Templat"
 }

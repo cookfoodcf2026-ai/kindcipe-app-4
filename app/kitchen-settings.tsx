@@ -251,7 +251,7 @@ export default function KitchenSettingsScreen() {
     try {
       const targetFamily = families.find((f: any) => String(f.id) === id);
       await switchFamily(id);
-      const newFamilyName = targetFamily?.name || "廚房";
+      const newFamilyName = targetFamily?.name || t("dyn.kitchen" as any);
       Alert.alert(
         t("已切換廚房" as any),
         t("現在使用：{{name}}" as any, { name: newFamilyName }),
@@ -328,7 +328,7 @@ export default function KitchenSettingsScreen() {
                           {item.name}
                         </Text>
                         <Text style={s.kitchenMeta}>
-                          {t(ROLE_LABEL[item.role] as any) ?? item.role} · {item.memberCount ?? 0} 位成員
+                          {t(ROLE_LABEL[item.role] as any) ?? item.role} · {t("dyn.memberCount" as any, { n: item.memberCount ?? 0 })}
                         </Text>
                       </View>
                       {isActive && <Ionicons name="checkmark-circle" size={20} color={BRAND} />}

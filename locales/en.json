@@ -353,7 +353,12 @@
     "dislikePork": "No pork",
     "dislikeFish": "No fish",
     "dislikeLight": "Light food",
-    "pantryNoMatch": "No library recipe matches your fridge ingredients — I’ll ask AI:"
+    "pantryNoMatch": "No library recipe matches your fridge ingredients — I’ll ask AI:",
+    "pantryRecognized": "I recognized these in your fridge: {{items}}. Found {{n}} matching recipes in the library:",
+    "libMatchLabel": "I found a library recipe matching “{{q}}”:",
+    "libNoMatchLabel": "No library recipe matches “{{q}}” yet — I’ll ask AI:",
+    "pantryMatchN": "I found {{n}} library recipes matching your fridge ingredients:",
+    "askFridgeIngredients": "What ingredients do you have?\n\nTell me, e.g. eggs, tofu, tomatoes — I’ll suggest recipes."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
@@ -538,6 +543,15 @@
       "10": "Oct",
       "11": "Nov",
       "12": "Dec"
+    },
+    "weekdayShort": {
+      "0": "Su",
+      "1": "Mo",
+      "2": "Tu",
+      "3": "We",
+      "4": "Th",
+      "5": "Fr",
+      "6": "Sa"
     }
   },
   "tabs": {
@@ -1160,7 +1174,15 @@
     "deselectAll": "Deselect all",
     "perPerson": "💸 Split per person: {{price}} / pax",
     "aiGen": "AI generated",
-    "officialRecipe": "Official recipe"
+    "officialRecipe": "Official recipe",
+    "addFailed": "Failed to add: {{msg}}",
+    "minutesAgo": "{{n}} min ago",
+    "hoursAgo": "{{n}} hr ago",
+    "yearMonth": "{{month}}/{{year}}",
+    "memberCount": "{{n}} members",
+    "you": "You",
+    "logoutFailed": "Logout failed, please try again.",
+    "kitchen": "Kitchen"
   },
   "15 分鐘內": "Within 15 Mins",
   "15分鐘內": "Within 15 Mins",
@@ -1872,5 +1894,11 @@
   "清除全部 AI 食譜": "Clear all AI recipes",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "Delete all AI-generated recipes? This cannot be undone.",
   "清除 AI 食譜（{{n}}）": "Clear AI recipes ({{n}})",
-  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}"
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}",
+  "明天": "Tomorrow",
+  "後天": "Day after tomorrow",
+  "官方": "Official",
+  "網紅": "KOL",
+  "我的": "Mine",
+  "模板": "Templates"
 }

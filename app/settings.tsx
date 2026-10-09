@@ -47,7 +47,7 @@ const LANG_STORAGE_KEY = "kindcipe_language";
 
 function formatYearMonthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split("-");
-  return `${year} 年 ${Number(month)} 月`;
+  return i18n.t("dyn.yearMonth" as any, { year, month: Number(month) });
 }
 
 export default function SettingsScreen() {
@@ -826,7 +826,7 @@ export default function SettingsScreen() {
                             {member.name}
                           </Text>
                           <Text style={styles.usageMemberCount}>
-                            {total} 次
+                            {t("dyn.times" as any, { n: total })}
                           </Text>
                         </View>
                         <View style={styles.usageMemberBarTrack}>

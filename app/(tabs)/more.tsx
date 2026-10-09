@@ -134,7 +134,7 @@ export default function MoreTab() {
     return raw.split(/\s+/)[0];
   }, [user?.name]);
 
-  const greetingName = firstName || "你";
+  const greetingName = firstName || t("dyn.you" as any);
 
   const cardWidth = useMemo(() => {
     const horizontal = 20;
@@ -168,7 +168,7 @@ export default function MoreTab() {
     try {
       await logoutAsync();
     } catch (e: any) {
-      setLogoutMsg(friendlyError(e) || "登出失敗，請再試一次。");
+      setLogoutMsg(friendlyError(e) || t("dyn.logoutFailed" as any));
     }
   };
 

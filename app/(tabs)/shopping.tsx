@@ -89,11 +89,11 @@ const formatTimeAgo = (dateStr?: string | number | Date | null) => {
   }
   const now = Date.now();
   const diff = Math.floor((now - thenMs) / 1000);
-  if (diff < 0) return "剛剛";
-  if (diff < 60) return "剛剛";
-  if (diff < 3600) return `${Math.floor(diff / 60)}分鐘前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}小時前`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
+  if (diff < 0) return i18n.t("剛剛" as any);
+  if (diff < 60) return i18n.t("剛剛" as any);
+  if (diff < 3600) return i18n.t("dyn.minutesAgo" as any, { n: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t("dyn.hoursAgo" as any, { n: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t("dyn.daysAgo" as any, { n: Math.floor(diff / 86400) });
   return DateUtil.formatDate(String(dateStr));
 };
 

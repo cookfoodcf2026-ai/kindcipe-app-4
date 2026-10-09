@@ -353,7 +353,12 @@
     "dislikePork": "唔食豬肉",
     "dislikeFish": "唔食魚",
     "dislikeLight": "清淡為主",
-    "pantryNoMatch": "食譜庫暫時冇配合你雪櫃食材嘅食譜，我用 AI 幫你諗："
+    "pantryNoMatch": "食譜庫暫時冇配合你雪櫃食材嘅食譜，我用 AI 幫你諗：",
+    "pantryRecognized": "我認到你雪櫃有：{{items}}。喺食譜庫搵到 {{n}} 個配合嘅食譜：",
+    "libMatchLabel": "我喺食譜庫搵到呢個配合「{{q}}」嘅食譜：",
+    "libNoMatchLabel": "食譜庫暫時冇配合「{{q}}」嘅食譜，我用 AI 幫你諗：",
+    "pantryMatchN": "我喺食譜庫搵到 {{n}} 個配合你雪櫃食材嘅食譜：",
+    "askFridgeIngredients": "你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
@@ -538,6 +543,15 @@
       "10": "10月",
       "11": "11月",
       "12": "12月"
+    },
+    "weekdayShort": {
+      "0": "日",
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "5": "五",
+      "6": "六"
     }
   },
   "tabs": {
@@ -1105,7 +1119,7 @@
     "planned": "計劃：{{date}}",
     "undecided": "未定",
     "boughtTimes": "買過 {{n}} 次",
-    "daysAgo": "{{n}}天前",
+    "daysAgo": "{{n}} 天前",
     "purchaseTimes": "購買 {{n}} 次",
     "avgHK": "平均 HK${{price}}",
     "shoppingHasBought": "購物清單有 {{n}} 件已買商品",
@@ -1160,7 +1174,15 @@
     "deselectAll": "全消",
     "perPerson": "💸 每人分攤：{{price}} / 人",
     "aiGen": "AI 生成",
-    "officialRecipe": "官方食譜"
+    "officialRecipe": "官方食譜",
+    "addFailed": "加入失敗：{{msg}}",
+    "minutesAgo": "{{n}} 分鐘前",
+    "hoursAgo": "{{n}} 小時前",
+    "yearMonth": "{{year}} 年 {{month}} 月",
+    "memberCount": "{{n}} 位成員",
+    "you": "你",
+    "logoutFailed": "登出失敗，請再試一次。",
+    "kitchen": "廚房"
   },
   "15 分鐘內": "15 分鐘內",
   "15分鐘內": "15分鐘內",
@@ -1872,5 +1894,11 @@
   "清除全部 AI 食譜": "清除全部 AI 食譜",
   "確定刪除所有 AI 生成食譜？此動作無法還原。": "確定刪除所有 AI 生成食譜？此動作無法還原。",
   "清除 AI 食譜（{{n}}）": "清除 AI 食譜（{{n}}）",
-  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}"
+  "加入食材失敗：{{msg}}": "加入食材失敗：{{msg}}",
+  "明天": "明天",
+  "後天": "後天",
+  "官方": "官方",
+  "網紅": "網紅",
+  "我的": "我的",
+  "模板": "模板"
 }
