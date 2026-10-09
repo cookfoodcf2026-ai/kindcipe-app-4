@@ -502,7 +502,8 @@
       "root": "ugat",
       "flower": "bulaklak",
       "set": "set",
-      "row": "hilera"
+      "row": "hilera",
+      "toTaste": "ayon sa lasa"
     },
     "difficulty": {
       "easy": "Madali",
@@ -890,7 +891,8 @@
     "volume": "📐 Dami",
     "count": "🔢 Bilang",
     "other": "📝 Iba pa",
-    "custom": "⭐ Custom"
+    "custom": "⭐ Custom",
+    "none": "Yunit"
   },
   "card": {
     "mine": "Akin",

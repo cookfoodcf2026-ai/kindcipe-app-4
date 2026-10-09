@@ -22,6 +22,7 @@ import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } fro
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
+import { enumT } from "@/lib/i18nEnums";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 
@@ -775,7 +776,7 @@ const scrollToFocused = useCallback((e: any) => {
                   <TouchableOpacity key={d}
                     style={[st.chip, st.chipFlex, difficulty === d && st.chipActive]}
                     onPress={() => setDifficulty(d)}>
-                    <Text style={[st.chipTxt, difficulty === d && st.chipTxtActive]}>{d}</Text>
+                    <Text style={[st.chipTxt, difficulty === d && st.chipTxtActive]}>{enumT.difficulty(d)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

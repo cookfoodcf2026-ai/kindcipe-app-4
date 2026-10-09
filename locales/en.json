@@ -502,7 +502,8 @@
       "root": "root",
       "flower": "flower",
       "set": "set",
-      "row": "row"
+      "row": "row",
+      "toTaste": "to taste"
     },
     "difficulty": {
       "easy": "Easy",
@@ -890,7 +891,8 @@
     "volume": "📐 Volume",
     "count": "🔢 Count",
     "other": "📝 Other",
-    "custom": "⭐ Custom"
+    "custom": "⭐ Custom",
+    "none": "Unit"
   },
   "card": {
     "mine": "Mine",

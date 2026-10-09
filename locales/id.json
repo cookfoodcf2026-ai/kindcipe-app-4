@@ -502,7 +502,8 @@
       "root": "akar",
       "flower": "bunga",
       "set": "set",
-      "row": "baris"
+      "row": "baris",
+      "toTaste": "secukupnya"
     },
     "difficulty": {
       "easy": "Mudah",
@@ -890,7 +891,8 @@
     "volume": "📐 Volume",
     "count": "🔢 Jumlah",
     "other": "📝 Lainnya",
-    "custom": "⭐ Custom"
+    "custom": "⭐ Custom",
+    "none": "Satuan"
   },
   "card": {
     "mine": "Saya",

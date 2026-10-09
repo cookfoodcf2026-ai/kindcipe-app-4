@@ -160,7 +160,7 @@ export default function UnitPicker(
         onPress={() => setOpen(true)}
       >
         <Text style={[s_unit.triggerTxt, !selected && !value && { color: "#9CA3AF" }]}>
-          {t(typeof selected === "string" ? selected : selected?.label || value || "單位" as any)}
+          {t(typeof selected === "string" ? selected : selected?.label || value || ("unit.none" as any))}
         </Text>
       </TouchableOpacity>
 

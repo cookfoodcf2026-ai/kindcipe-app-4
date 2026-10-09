@@ -502,7 +502,8 @@
       "root": "根",
       "flower": "朵",
       "set": "套",
-      "row": "排"
+      "row": "排",
+      "toTaste": "適量"
     },
     "difficulty": {
       "easy": "簡單",
@@ -890,7 +891,8 @@
     "volume": "📐 體積單位",
     "count": "🔢 數量單位",
     "other": "📝 其他",
-    "custom": "⭐ 自訂單位"
+    "custom": "⭐ 自訂單位",
+    "none": "單位"
   },
   "card": {
     "mine": "我的",

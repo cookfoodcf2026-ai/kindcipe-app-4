@@ -1111,7 +1111,7 @@ export default function RecipeDetailScreen() {
                   "",
                   recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
                   `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
-                  (recipe as any).difficulty ? `📊 ${(recipe as any).difficulty}` : "",
+                  (recipe as any).difficulty ? `📊 ${enumT.difficulty((recipe as any).difficulty)}` : "",
                   "",
                   `🛒 食材清單：`,
                   ingText,
@@ -1162,7 +1162,7 @@ export default function RecipeDetailScreen() {
                 )}
                 {(recipe as any).difficulty && (
                   <View style={s.metaChip}>
-                    <Text style={s.metaChipTxt}>{(recipe as any).difficulty}</Text>
+                    <Text style={s.metaChipTxt}>{enumT.difficulty((recipe as any).difficulty)}</Text>
                   </View>
                 )}
               </View>
@@ -1460,14 +1460,20 @@ export default function RecipeDetailScreen() {
                             {(() => { const lu = ingredientBilingual.resolve(ing.name) || (ing.nameEn ? ingredientBilingual.resolve(ing.nameEn) : undefined); const bn = getBilingualName(ing.name, ing.nameEn || lu?.en, ing.nameFil || lu?.fil, ing.nameId || lu?.id); return bn.primary; })()}
                           </Text>
                           {(() => { const lu = ingredientBilingual.resolve(ing.name) || (ing.nameEn ? ingredientBilingual.resolve(ing.nameEn) : undefined); const bn = getBilingualName(ing.name, ing.nameEn || lu?.en, ing.nameFil || lu?.fil, ing.nameId || lu?.id); return bn.secondary ? (<Text style={s.ingNameEn} selectable>{bn.secondary}</Text>) : null; })()}
-                          {ing.category && (
+                          {ing.category && ing.category !== "食材" && (
                             <View style={[s.ingCatTag, { backgroundColor: isPackaged ? "#E8F0FA" : "#E8F5E9" }]}>
                               <Text style={[s.ingCatTxt, { color: isPackaged ? "#012D56" : "#166534" }]}>{enumT.category(ing.category)}</Text>
                             </View>
                           )}
                         </View>
                         <Text style={[s.ingQty, isScaled && { color: COPPER, fontWeight: "700" }]}>
-                          {ing.unit === "適量" ? "適量" : `${ing.adjustedQty} ${enumT.unit(ing.unit)}`}
+                          {(() => {
+                            const raw = String(ing.unit ?? "").trim();
+                            const unit = (raw === "/" || raw === "-" || raw === "null" || raw === "undefined") ? "" : raw;
+                            if (!unit) return ing.adjustedQty;
+                            if (unit === "適量" || unit === "少許") return enumT.unit(unit);
+                            return `${ing.adjustedQty} ${enumT.unit(unit)}`;
+                          })()}
                         </Text>
                         {recordedPrice !== null && (
                           <View style={s.ingPriceBadge}>

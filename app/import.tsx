@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
+import { enumT } from "@/lib/i18nEnums";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
@@ -1186,7 +1187,7 @@ export default function ImportScreen() {
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               {["簡單", "中等", "困難"].map(d => (
                 <TouchableOpacity key={d} style={[es.chip, editDifficulty === d && es.chipActive]} onPress={() => setEditDifficulty(d)}>
-                  <Text style={[es.chipTxt, editDifficulty === d && es.chipTxtActive]}>{d}</Text>
+                  <Text style={[es.chipTxt, editDifficulty === d && es.chipTxtActive]}>{enumT.difficulty(d)}</Text>
                 </TouchableOpacity>
               ))}
             </View>

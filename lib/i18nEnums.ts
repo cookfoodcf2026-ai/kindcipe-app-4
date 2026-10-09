@@ -15,6 +15,7 @@ const EXTRA_UNITS: Record<string, string> = {
   "克": "g", "公斤": "kg", "毫升": "ml", "湯匙": "tbsp", "茶匙": "tsp",
   "碗": "bowl", "碟": "plate", "盤": "plate", "份": "serving", "粒": "grain",
   "根": "root", "朵": "flower", "隻": "piece", "套": "set", "排": "row",
+  "適量": "toTaste", "少許": "toTaste",
 };
 const UNIT_ZH_TO_KEY: Record<string, string> = { ...reverse(UNIT_KEY_TO_LABEL), ...EXTRA_UNITS };
 
