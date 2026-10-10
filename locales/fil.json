@@ -511,7 +511,10 @@
       "flower": "bulaklak",
       "set": "set",
       "row": "hilera",
-      "toTaste": "ayon sa lasa"
+      "toTaste": "ayon sa lasa",
+      "spoon": "kutsara",
+      "tael": "tael",
+      "mace": "mace"
     },
     "difficulty": {
       "easy": "Madali",
@@ -1643,7 +1646,8 @@
   "麵": "Noodles",
   "麻婆豆腐": "Mapo Tofu",
   "🇰 港式家常": "HK Home Style",
-  "🌟 網紅食譜": "Mga Viral na Recipe",
+  "🌟 網紅食譜": "Mga KOL Recipe",
+  "🔥 熱門食譜": "Mga Sikat na Recipe",
   "🍄 菌菇": "Kabute",
   "🍚 主食": "Pangunahing Pagkain",
   "🍢 經典 BBQ 燒烤聚會": "Klasikong BBQ",
@@ -1963,5 +1967,25 @@
     "fish": "Isda",
     "rice": "Bigas",
     "noodle": "Pancit"
+  },
+  "aiEditPreset": {
+    "vegetarian": "Gawing vegetarian",
+    "translateEn": "Isalin sa English",
+    "simplifySteps": "Pasimplehin ang steps",
+    "lowCalorie": "Low-calorie version",
+    "highProtein": "High-protein version",
+    "noEggDairy": "Walang itlog/dairy",
+    "glutenFree": "Gluten-free",
+    "kidsFriendly": "Pambata",
+    "elderlySoft": "Malambot para sa matatanda",
+    "budget": "Murang sangkap",
+    "steamOven": "Steam oven version",
+    "riceCooker": "Rice cooker version"
+  },
+  "analyticsConsent": {
+    "title": "Tumulong sa pagpapabuti ng Kindcipe",
+    "body": "Nangongolekta kami ng anonymous na data ng paggamit (walang pangalan, email o personal na detalye) para mapabuti ang pag-import ng recipe at rekomendasyon. Puwede mong i-off anumang oras sa Settings.",
+    "toggle": "Ibahagi ang anonymous na data",
+    "continue": "Magpatuloy"
   }
 }

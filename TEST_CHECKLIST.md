@@ -1,121 +1,92 @@
-# Kindcipe — 完整測試清單 (Test Checklist)
+# Kindcipe — One-Pass Test Checklist (P0–P5 + S series)
 
-> 對應 iOS build **5**（提交版將為 **build 6**）/ OTA branch `production`。
-> **每次 OTA 後：完全關閉 app，再開兩次**（第一次下載、第二次生效）。
-> 結果欄：✅ 通過 / ❌ 失敗 / ⏭ 略過；失敗請註明裝置 + 步驟 + 截圖。
+> 一次過驗收已上線批次。逐項回報：`項目｜語言｜預期｜實際｜截圖`
 
-## 前置
-- [ ] iOS：TestFlight 裝最新 build（5，或提交版 6）
-- [ ] Android：裝最新 preview APK（見下）
-- [ ] 帳號：Apple、Google、Email（**同一個 email** 測自動連結）
-- [ ] 後端 production 在線（Railway `kindcipe-backend`）
+## 0. 準備
+- **完全關 app → 開兩次**（食 OTA）。
+- 測 **Filipino** 為主，另抽驗 **中文回歸**。
 
-### Android 下載
-- EAS build 頁（完成後）：`npx eas-cli build:list --platform android --limit 1 --json` → `applicationArchiveUrl`（.apk）
-- 傳去手機安裝（允許「未知來源」）；確認版本 **1.0.0 (5/6)**
+## A. AI Chef（fil）— 最重點
+| # | 步驟 | 預期 |
+|---|---|---|
+| A1 | 撳 hero「一鍵生成 3 餸一湯」答問卷 | 助理問句**完整**（唔會被裁成 `type…`） |
+| A2 | 人數 chips | `1 pax / 2 pax…`（唔再「1人」） |
+| A3 | 忌口 chips | `None / No spicy…`（唔再「唔食辣」） |
+| A4 | 答完生成 | 回覆標題係**菲文**（如 `Nakahanap ako…`），**冇中文字** |
+| A5 | 食譜卡 | 名/步驟/食材/tags 本地化（唔再中文） |
+| A6 | 食材 chips 列 | `Itlog/Tokwa/Kamatis…`（唔再中文） |
+| A7 | 用戶訊息（食材搜尋） | 菲文（唔再「我想用以下食材…」） |
+| A8 | 撳「換/Palitan」 | 換到**同類**食譜；冇同類 → AI 生成 |
+| A9 | 有空時：見自己**自訂/匯入**食譜 | 有機會出カ（custom 優先） |
 
----
+## B. 搜尋 & 分類（fil + zh）
+| # | 步驟 | 預期 |
+|---|---|---|
+| B1 | 主頁頂部 | 見一排**菜系 chips**（全部/中菜/…/台式/泰式） |
+| B2 | 撳「台式 / 港式 / 泰式」 | 出返相應食譜（之前撳唔到） |
+| B3 | 搜尋打 `Japanese` / `Hapon` / `Tomato` | **有結果** |
+| B4 | 搜尋打「日式」 | 出日式（match 菜系） |
+| B5 | 來源 tab 全部/官方/我的/網紅/熱門 | 一切照常 |
+| B6 | 「我的」子篩選 全部/自建/匯入 | 照常 |
 
-## P0（上架必要，必須全部通過）
+## C. 食譜詳情（fil）
+| # | 步驟 | 預期 |
+|---|---|---|
+| C1 | 難度 chip | `Easy/Medium/Hard`（唔再「簡單」） |
+| C2 | 無單位食材 | **唔顯示** `/` 或中文「單位」 |
+| C3 | `適量` | 本地化（`to taste`） |
+| C4 | 通用「食材」tag | 唔再逐行出現 |
+| C5 | 步驟/食材/tags | Filipino |
 
-### A. 登入 / 帳號（P0）
-- [ ] 登入頁只有 Apple / Google / Email（無 email 密碼表單）
-- [ ] iOS：Apple 原生登入成功
-- [ ] iOS/Android：Google 登入成功
-- [ ] **Email OTP**：「使用電郵繼續」→ 收 6 位碼 → 登入
-- [ ] 登出 → 再登入 → 資料仍在
-- [ ] 設定頁刪除帳號流程正常
-- [ ] **Admin（你）**：瀏覽器開 `kindcipe://login?mode=admin` → email 管理員登入 → Admin panel
+## D. 翻譯生命週期（fil）
+| # | 步驟 | 預期 |
+|---|---|---|
+| D1 | 改（編輯）自己食譜改名/步驟 → 儲存 | 菲文**跟住更新**（唔 stale） |
+| D2 | 加 AI 食譜入排餐/收藏 | 之後菲文正常 |
 
-### B. 帳號連結 / 跨 provider（P0）
-- [ ] 設定頁「登入方式」顯示已連結（Apple/Google/Email）
-- [ ] 同 email：先 Google 註冊 → 再 Apple 登入 → **自動連結同一帳號**（資料在）
-- [ ] **Android**：Apple（Web）登入 → 返 app 已登入
-- [ ] iPhone(Apple) ↔ Android(Apple) → 同一帳號、資料一致
-- [ ] Apple「Hide My Email」帳號 → Email OTP 可搵返資料
+## E. 各 tab（fil）
+| # | 位置 | 預期 |
+|---|---|---|
+| E1 | 主頁 | 篩選 chips、日期 badge（今天/明天）本地化 |
+| E2 | 排餐 | 星期、來源/風格 chips 本地化 |
+| E3 | 購物 | 相對時間（剛剛/分鐘前）本地化 |
+| E4 | 設定 | 年月、次數；**用量統計仍顯示** |
+| E5 | 廚房設定 | 成員數本地化 |
+| E6 | 更多 | 問候、登出錯誤本地化 |
 
-### C. Onboarding（P0）
-- [ ] 新帳號 → 建廚房 / 加入廚房（QR / 邀請碼）
-- [ ] 舊戶口（已完成）→ 直入 tabs
+## F. 帳號 / Onboarding
+| # | 步驟 | 預期 |
+|---|---|---|
+| F1 | 新帳號 onboarding 填名 + 建廚房 | 設定顯示**你填嘅名**；顯示廚房；**quota 行出現** |
+| F2 | OTP 註冊（新 email） | `users.name` 唔再係 email 前綴 |
 
-### D. 匯入 + 分類（P0）
-- [ ] IG reel 匯入 → 自動填 菜系 / 菜式類型 / 標籤
-- [ ] **湯麵** → 飯麵/主食；`湯圓/糖水`→甜品；`薏米水/檸檬茶`→飲品；`羅宋湯/煲湯`→湯水
-- [ ] `laksa/ramen/냉면` → 主食
-- [ ] **圖片 fallback 預期**：reel 應顯示**真圖**；若真係抓唔到 → **中性佔位**（**唔會**再出隨機分類圖）
-- [ ] 兩條測試 reel：`DddAcCMFDtH`、`DdtYSpCBjfb` → 真圖
-- [ ] **hashtag → tags**：匯入 IG 後標籤含 hashtag；AI Chef 打相關字可命中
-- [ ] YouTube / 小紅書 / **Facebook Reel** 匯入
-- [ ] 圖片匯入、貼上文字匯入
-- [ ] 必填缺漏 → 一次過列出 + 擋住儲存
+## G. 分享匯入
+| # | 步驟 | 預期 |
+|---|---|---|
+| G1 | **完全關 app** → IG 分享去 Kindcipe | 停留 `/import` 完成匯入（**唔彈返主頁**） |
 
-### E. Share Extension（P0，需 native build）
-- [ ] IG 撳紙飛機 → 分享清單 → Kindcipe → **直入匯入頁並自動開始解析**（**唔再「頁面不存在」，亦唔使再撳解析**）
-- [ ] **熱啟**（app 已喺背景／已登入）分享 → **一樣自動匯入**（呢個係之前壞咗嘅情況）
-- [ ] Safari 分享 URL → 直入匯入 + 自動解析
-- [ ] 分享**圖片** → 當截圖匯入
-- [ ] **未登入時分享** → 登入後自動匯入
-- [ ] 分享清單要「更多 → Edit」先見到 Kindcipe（記住）
+## H. 配額
+| # | 步驟 | 預期 |
+|---|---|---|
+| H1 | 中文：單純用食譜庫（library 命中） | **唔扣** AI |
+| H2 | 菲文：搜到食譜庫命中 | **唔扣**（搜尋修好後應一致） |
+| H3 | 真生成（LLM） | 正常扣 |
 
-### F. AI Chef（P0）
-- [ ] 問卷 → 出 3餸1湯（4 卡）
-- [ ] 「一送一湯」→ 出 **2 卡**
-- [ ] 湯種跟時間（quick 滾湯 / normal 煲湯 / leisure 老火湯）
-- [ ] **AI 食譜唔會自動入庫**（除非收藏 / 加排餐 / 加購物）
-- [ ] 多輪對話唔會 session 錯亂
+## I. 中文回歸（必做）
+- 主頁搜尋「**清淡 / 湯**」→ 結果**同以前一樣**（只會多、唔會少）。
+- 全中文介面一切照常。
+- 現有食譜名/步驟/tags 顯示正常。
 
-### G. 核心功能（P0）
-- [ ] 食譜列表、食譜詳情（編輯/刪除）
-- [ ] 排餐：加/確認/拒絕/刪除、購物日期同步、外出衝突
-- [ ] 購物清單：加/編輯/刪除、確認/拒絕、價格、購買記錄
-- [ ] 登入守衛（未登入自動去 login）
-- [ ] 冷啟無 crash
+## 已知限制（**唔算 bug**，唔使報）
+- **用戶由中文 IG 匯入**嘅食譜，來源本身中文（除非已翻譯）。
+- `quick-plan`（卡上加入排餐）**刻意隱藏**。
+- pantry/restock/category-manager/coming-soon **刻意隱藏**。
+- 推送/後端錯誤/日期 → **未做（P6）**。
+- `BETA_ALL_PAID=true`（硬擋未生效）。
 
-### H. 會員（P0）
-- [ ] Free 廚房可邀 **1 位**（共 2 人）正常共用
-- [ ] 第 3 人被擋 + 升級 / 追 IG 提示
-- [ ] **promo code** 兌換 7 日 Pro
-
-### I. 翻譯（P0）
-- [ ] 切 **en** 走一次主要流程（登入 / 匯入 / AI Chef / 購物 / 排餐 / 設定）→ 無中文殘留
-
----
-
-## P1（重要，可緊隨）
-
-### J. 食譜 tab / 我的食譜
-- [ ] 排序（熱門/時間/難度）、篩選（菜系/標籤/chips/食材類別）
-- [ ] **隱藏 AI 生成** toggle（記住設定）
-- [ ] **清除 AI 食譜**
-- [ ] 複製連結（`kindcipe.com/recipe/<id>`；站係舊版 → 可能係通用頁，屬已知）
-
-### K. Share / 剪貼板
-- [ ] 複製 IG/YouTube 連結 → 開 app → 彈偵測；同連結 24h 唔重複彈
-
-### L. Build / 外觀
-- [ ] App icon 已放大、清晰
-- [ ] 離線 banner / 重連
-- [ ] 推送提醒 (meal reminder)
-- [ ] 生物認證（Face ID）
-
-### M. Android 專屬
-- [ ] Android Apple Web 登入
-- [ ] Android share（如果 build 有 intent filter）
+## 回報格式
+`項目(如 A4)｜語言｜預期｜實際｜截圖`
 
 ---
 
-## 已知限制（非 bug）
-- `kindcipe.com` 已上線；但**舊版**：`/recipe/<id>` 可能唔係真食譜頁（**post-launch 改善**）。
-- 圖片抓唔到時 → **中性佔位**（唔會誤導）；AI 出圖暫未啟用（DashScope 無圖像模型）。
-- 跨 provider 同 email 會**自動連結**；Apple「Hide My Email」例外 → 用 Email OTP。
-- Android Apple 登入需 `EXPO_PUBLIC_ENABLE_APPLE_WEB=1`（build profile 已設）。
-
----
-
-## 提交前（App Store）
-- [ ] Privacy URL：`https://kindcipe.com/privacy/`
-- [ ] Support URL：`https://kindcipe.com/support/`
-- [ ] IAP：`kindcipe_monthly_30`（HK$30/月）、`kindcipe_yearly_288`（HK$288/年）
-- [ ] 截圖（6.9" 1290×2796）
-- [ ] App Privacy 問卷
-- [ ] 登入測試帳號可用
+測完冇問題 → 續做 **S-C + P6**（P6 需批准加 nullable `language` 欄）。

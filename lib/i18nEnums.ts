@@ -16,8 +16,31 @@ const EXTRA_UNITS: Record<string, string> = {
   "碗": "bowl", "碟": "plate", "盤": "plate", "份": "serving", "粒": "grain",
   "根": "root", "朵": "flower", "隻": "piece", "套": "set", "排": "row",
   "適量": "toTaste", "少許": "toTaste",
+  // 常見漏譯單位
+  "小匙": "tsp", "大匙": "tbsp", "匙": "spoon", "顆": "piece", "公克": "g",
+  "兩": "tael", "錢": "mace",
 };
 const UNIT_ZH_TO_KEY: Record<string, string> = { ...reverse(UNIT_KEY_TO_LABEL), ...EXTRA_UNITS };
+
+// 複合單位（例如「片 (約300-350g)」）→ 譯前綴單位 token，其餘數字/重量原樣保留
+function localizeUnitValue(raw: string, translate: (key: string) => string | undefined): string {
+  const v = String(raw ?? "").trim();
+  if (!v) return "";
+  const exact = UNIT_ZH_TO_KEY[v];
+  if (exact) return translate(exact) ?? v;
+  const m = v.match(/^([\u4e00-\u9fff]+)\s*(.*)$/);
+  if (m) {
+    const lead = UNIT_ZH_TO_KEY[m[1]];
+    if (lead) {
+      const out = translate(lead);
+      if (out) {
+        const rest = m[2].replace(/約/g, "~").replace(/左右/g, "").replace(/\s+/g, " ").trim();
+        return rest ? `${out} ${rest}` : out;
+      }
+    }
+  }
+  return v;
+}
 
 const DIFFICULTY_ZH_TO_KEY: Record<string, string> = { "簡單": "easy", "中等": "medium", "困難": "hard" };
 const MEAL_ZH_TO_KEY: Record<string, string> = { "早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "小食": "snack" };
@@ -57,11 +80,11 @@ export const enumT = {
     return out === k ? fallback : out;
   },
   unit: (v: string): string => {
-    const { key, fallback } = resolve("unit", UNIT_ZH_TO_KEY, v);
-    if (!key) return fallback;
-    const k = `enums.unit.${key}`;
-    const out = String(i18n.t(k as any));
-    return out === k ? fallback : out;
+    return localizeUnitValue(v, (key) => {
+      const k = `enums.unit.${key}`;
+      const out = String(i18n.t(k as any));
+      return out === k ? undefined : out;
+    });
   },
   difficulty: (v: string): string => {
     const { key, fallback } = resolve("difficulty", DIFFICULTY_ANY, v);
@@ -99,7 +122,12 @@ export function useEnum() {
   };
   return {
     category: (v: string): string => tr("category", CATEGORY_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
-    unit: (v: string): string => tr("unit", UNIT_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
+    unit: (v: string): string =>
+      localizeUnitValue(v, (key) => {
+        const k = `enums.unit.${key}`;
+        const out = t(k as any);
+        return out === k ? undefined : out;
+      }),
     difficulty: (v: string): string => tr("difficulty", DIFFICULTY_ANY[String(v ?? "").trim()], String(v ?? "")),
     tag: (v: string): string => tr("tag", TAG_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
     meal: (v: string): string => tr("meal", MEAL_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),

@@ -511,7 +511,10 @@
       "flower": "flower",
       "set": "set",
       "row": "row",
-      "toTaste": "to taste"
+      "toTaste": "to taste",
+      "spoon": "spoon",
+      "tael": "tael",
+      "mace": "mace"
     },
     "difficulty": {
       "easy": "Easy",
@@ -1643,7 +1646,8 @@
   "麵": "Noodles",
   "麻婆豆腐": "Mapo Tofu",
   "🇰 港式家常": "HK Home Style",
-  "🌟 網紅食譜": "Viral Recipes",
+  "🌟 網紅食譜": "KOL Recipes",
+  "🔥 熱門食譜": "Popular Recipes",
   "🍄 菌菇": "Mushrooms",
   "🍚 主食": "Staples",
   "🍢 經典 BBQ 燒烤聚會": "Classic BBQ",
@@ -1963,5 +1967,25 @@
     "fish": "Fish",
     "rice": "Rice",
     "noodle": "Noodles"
+  },
+  "aiEditPreset": {
+    "vegetarian": "Make it vegetarian",
+    "translateEn": "Translate to English",
+    "simplifySteps": "Simplify steps",
+    "lowCalorie": "Low-calorie version",
+    "highProtein": "High-protein version",
+    "noEggDairy": "Egg & dairy free",
+    "glutenFree": "Gluten-free",
+    "kidsFriendly": "Kid-friendly",
+    "elderlySoft": "Soft for elderly",
+    "budget": "Budget ingredients",
+    "steamOven": "Steam oven version",
+    "riceCooker": "Rice cooker version"
+  },
+  "analyticsConsent": {
+    "title": "Help improve Kindcipe",
+    "body": "We collect anonymous usage data (no name, email or personal details) to improve recipe importing and recommendations. You can turn this off anytime in Settings.",
+    "toggle": "Share anonymous usage data",
+    "continue": "Continue"
   }
 }

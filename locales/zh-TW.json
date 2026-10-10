@@ -511,7 +511,10 @@
       "flower": "朵",
       "set": "套",
       "row": "排",
-      "toTaste": "適量"
+      "toTaste": "適量",
+      "spoon": "匙",
+      "tael": "兩",
+      "mace": "錢"
     },
     "difficulty": {
       "easy": "簡單",
@@ -1644,6 +1647,7 @@
   "麻婆豆腐": "麻婆豆腐",
   "🇰 港式家常": "🇰 港式家常",
   "🌟 網紅食譜": "🌟 網紅食譜",
+  "🔥 熱門食譜": "🔥 熱門食譜",
   "🍄 菌菇": "🍄 菌菇",
   "🍚 主食": "🍚 主食",
   "🍢 經典 BBQ 燒烤聚會": "🍢 經典 BBQ 燒烤聚會",
@@ -1963,5 +1967,25 @@
     "fish": "魚",
     "rice": "米",
     "noodle": "麵"
+  },
+  "aiEditPreset": {
+    "vegetarian": "改成素食版",
+    "translateEn": "翻譯成英文",
+    "simplifySteps": "簡化步驟",
+    "lowCalorie": "低卡路里版",
+    "highProtein": "高蛋白版",
+    "noEggDairy": "無蛋奶過敏版",
+    "glutenFree": "無麩質版",
+    "kidsFriendly": "小朋友啱食版",
+    "elderlySoft": "老人家軟腍版",
+    "budget": "用平價食材版",
+    "steamOven": "蒸焗爐版",
+    "riceCooker": "電飯煲版"
+  },
+  "analyticsConsent": {
+    "title": "幫助改善 Kindcipe",
+    "body": "我們會收集匿名使用數據（不含姓名、電郵等個人資料），用嚟改善食譜匯入同推薦。你可隨時喺設定關閉。",
+    "toggle": "分享匿名使用數據",
+    "continue": "繼續"
   }
 }

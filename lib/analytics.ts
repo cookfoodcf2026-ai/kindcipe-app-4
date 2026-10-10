@@ -52,6 +52,25 @@ export async function loadAnalyticsOptOut(): Promise<boolean> {
   return optedOut;
 }
 
+const CONSENT_KEY = "kindcipe_analytics_consent";
+
+/** 首啟同意卡是否已處理過（預設未處理 = false）。 */
+export async function hasAnsweredAnalyticsConsent(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(CONSENT_KEY)) === "1";
+  } catch {
+    return true;
+  }
+}
+
+export async function markAnalyticsConsentAnswered(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CONSENT_KEY, "1");
+  } catch {
+    /* noop */
+  }
+}
+
 let client: PostHog | null = null;
 
 export function initAnalytics(): PostHog | null {

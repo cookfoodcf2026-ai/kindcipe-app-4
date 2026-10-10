@@ -511,7 +511,10 @@
       "flower": "bunga",
       "set": "set",
       "row": "baris",
-      "toTaste": "secukupnya"
+      "toTaste": "secukupnya",
+      "spoon": "sendok",
+      "tael": "tael",
+      "mace": "mace"
     },
     "difficulty": {
       "easy": "Mudah",
@@ -1643,7 +1646,8 @@
   "麵": "Mie",
   "麻婆豆腐": "Mapo Tofu",
   "🇰 港式家常": "Rumahan HK",
-  "🌟 網紅食譜": "Resep Viral",
+  "🌟 網紅食譜": "Resep KOL",
+  "🔥 熱門食譜": "Resep Populer",
   "🍄 菌菇": "Jamur",
   "🍚 主食": "Makanan Pokok",
   "🍢 經典 BBQ 燒烤聚會": "BBQ Klasik",
@@ -1963,5 +1967,25 @@
     "fish": "Ikan",
     "rice": "Beras",
     "noodle": "Mie"
+  },
+  "aiEditPreset": {
+    "vegetarian": "Jadikan vegetarian",
+    "translateEn": "Terjemahkan ke Inggris",
+    "simplifySteps": "Sederhanakan langkah",
+    "lowCalorie": "Versi rendah kalori",
+    "highProtein": "Versi tinggi protein",
+    "noEggDairy": "Tanpa telur/susu",
+    "glutenFree": "Bebas gluten",
+    "kidsFriendly": "Ramah anak",
+    "elderlySoft": "Lembut untuk lansia",
+    "budget": "Bahan murah",
+    "steamOven": "Versi steam oven",
+    "riceCooker": "Versi rice cooker"
+  },
+  "analyticsConsent": {
+    "title": "Bantu tingkatkan Kindcipe",
+    "body": "Kami mengumpulkan data penggunaan anonim (tanpa nama, email, atau data pribadi) untuk meningkatkan impor resep dan rekomendasi. Anda dapat mematikannya kapan saja di Pengaturan.",
+    "toggle": "Bagikan data penggunaan anonim",
+    "continue": "Lanjutkan"
   }
 }

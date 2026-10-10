@@ -1579,7 +1579,7 @@ export default function AIChefScreen() {
     const saved = await saveRecipeM.mutateAsync({
       name: recipe.name, description: recipe.description,
       cookTime: recipe.cookTime, servings: overrideServings ?? recipe.servings,
-      difficulty: recipe.difficulty,
+      difficulty: recipe.difficulty || "中等",
       image: "", thumbnailUrl: "",
       recipeCategory: recipe.recipeCategory || "其他",
       dishType: getDishType(recipe),

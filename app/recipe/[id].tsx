@@ -1227,7 +1227,7 @@ export default function RecipeDetailScreen() {
                 setShowPlan(true);
               }}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
-                <Text style={s.btnPriTxt}>{t("recipe.addToPlan")}</Text>
+                <Text style={s.btnPriTxt} numberOfLines={1}>{t("recipe.addToPlan")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.btnSecondary, addedToCart && s.btnSecondaryDone]} onPress={() => {
                 if (!isAuthenticated) { router.push("/login"); return; }
@@ -1249,7 +1249,7 @@ export default function RecipeDetailScreen() {
                 setShowIngPicker(true);
               }}>
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
-                <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]}>{addedToCart ? t("picker.added") : t("recipe.addToShopping")}</Text>
+                <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]} numberOfLines={1}>{addedToCart ? t("picker.added") : t("recipe.addToShopping")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.btnAI} onPress={() => { setAIEditPrompt(""); setAIEditResult(null); setAIEditPreview(null); setShowAIEdit(true); }}>
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
@@ -1470,9 +1470,13 @@ export default function RecipeDetailScreen() {
                           {(() => {
                             const raw = String(ing.unit ?? "").trim();
                             const unit = (raw === "/" || raw === "-" || raw === "null" || raw === "undefined") ? "" : raw;
-                            if (!unit) return ing.adjustedQty;
-                            if (unit === "適量" || unit === "少許") return enumT.unit(unit);
-                            return `${ing.adjustedQty} ${enumT.unit(unit)}`;
+                            const qty = String(ing.adjustedQty ?? "").trim();
+                            // 「適量/少許」可能放喺 unit 或 quantity，亦可能係複合單位（片 (約300-350g)）
+                            if (unit === "適量" || unit === "少許" || qty === "適量" || qty === "少許") {
+                              return enumT.unit(unit || qty);
+                            }
+                            if (!unit) return /^[\d.\s]+$/.test(qty) ? qty : enumT.unit(qty);
+                            return `${qty} ${enumT.unit(unit)}`.trim();
                           })()}
                         </Text>
                         {recordedPrice !== null && (
@@ -1984,9 +1988,22 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                {["改成素食版", "翻譯成英文", "簡化步驟", "低卡路里版", "高蛋白版", "無蛋奶過敏版", "無麩質版", "小朋友啱食版", "老人家軟腍版", "用平價食材版", "蒸焗爐版", "電飯煲版"].map(p => (
-                  <TouchableOpacity key={p} style={{ backgroundColor: "#F5F3FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#DDD6FE" }} onPress={() => setAIEditPrompt(p)}>
-                    <Text style={{ fontSize: 12, color: "#7C3AED", fontWeight: "600" }}>{p}</Text>
+                {([
+                  { key: "vegetarian", value: "改成素食版" },
+                  { key: "translateEn", value: "翻譯成英文" },
+                  { key: "simplifySteps", value: "簡化步驟" },
+                  { key: "lowCalorie", value: "低卡路里版" },
+                  { key: "highProtein", value: "高蛋白版" },
+                  { key: "noEggDairy", value: "無蛋奶過敏版" },
+                  { key: "glutenFree", value: "無麩質版" },
+                  { key: "kidsFriendly", value: "小朋友啱食版" },
+                  { key: "elderlySoft", value: "老人家軟腍版" },
+                  { key: "budget", value: "用平價食材版" },
+                  { key: "steamOven", value: "蒸焗爐版" },
+                  { key: "riceCooker", value: "電飯煲版" },
+                ] as const).map(p => (
+                  <TouchableOpacity key={p.key} style={{ backgroundColor: "#F5F3FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#DDD6FE" }} onPress={() => setAIEditPrompt(p.value)}>
+                    <Text style={{ fontSize: 12, color: "#7C3AED", fontWeight: "600" }}>{t(`aiEditPreset.${p.key}` as any)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -2477,11 +2494,11 @@ const s = StyleSheet.create({
 
   // Action buttons
   actionRow: { flexDirection: "row", gap: 8, marginTop: 16, flexWrap: "wrap" },
-  btnPrimary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: BRAND, paddingVertical: 14, borderRadius: 14, shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  btnPriTxt: { color: "#fff", fontSize: 14, fontWeight: "800" },
-  btnSecondary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: CARD, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: BRAND },
+  btnPrimary: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: BRAND, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  btnPriTxt: { color: "#fff", fontSize: 14, fontWeight: "800", flexShrink: 1 },
+  btnSecondary: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: CARD, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1.5, borderColor: BRAND },
   btnSecondaryDone: { borderColor: GREEN, backgroundColor: "#F0FDF4" },
-  btnSecTxt: { color: BRAND, fontSize: 13, fontWeight: "800" },
+  btnSecTxt: { color: BRAND, fontSize: 13, fontWeight: "800", flexShrink: 1 },
   btnAI: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, backgroundColor: "#F5F3FF", paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#DDD6FE" },
   btnAITxt: { color: "#7C3AED", fontSize: 12, fontWeight: "800" },
 

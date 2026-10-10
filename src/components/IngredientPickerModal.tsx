@@ -642,6 +642,7 @@ const s = StyleSheet.create({
     gap: 6,
     backgroundColor: BRAND,
     paddingVertical: 14,
+    paddingHorizontal: 12,
     borderRadius: 14,
   },
   confirmBtnDisabled: {
@@ -651,6 +652,8 @@ const s = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "800",
+    flexShrink: 1,
+    textAlign: "center",
   },
   confirmTxtDisabled: {
     color: SUB,

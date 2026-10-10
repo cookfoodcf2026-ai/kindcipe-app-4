@@ -5,6 +5,7 @@ import {
   StyleSheet,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { enumT } from "@/lib/i18nEnums";
 
 const COMMON_UNITS = [
   { label: "克", value: "克", category: "weight" },
@@ -99,8 +100,6 @@ export default function UnitPicker(
     }
   };
 
-  const selected = COMMON_UNITS.find(u => u.value === value) || customUnits.find(u => u === value);
-
   const handleUnitChange = (newUnit: string) => {
     if (onUnitChange && quantity !== undefined && onQuantityChange) {
       onUnitChange(value, newUnit);
@@ -139,7 +138,7 @@ export default function UnitPicker(
             style={[s_unit.opt, value === item.value && s_unit.optActive]}
             onPress={() => handleUnitChange(item.value)}
           >
-            <Text style={[s_unit.optTxt, value === item.value && s_unit.optTxtActive]}>{t(item.label as any)}</Text>
+            <Text style={[s_unit.optTxt, value === item.value && s_unit.optTxtActive]}>{enumT.unit(item.value)}</Text>
             {value === item.value && <Text style={s_unit.check}>✓</Text>}
           </TouchableOpacity>
         ))}
@@ -159,8 +158,8 @@ export default function UnitPicker(
         style={[s_unit.trigger, style]}
         onPress={() => setOpen(true)}
       >
-        <Text style={[s_unit.triggerTxt, !selected && !value && { color: "#9CA3AF" }]}>
-          {t(typeof selected === "string" ? selected : selected?.label || value || ("unit.none" as any))}
+        <Text style={[s_unit.triggerTxt, !value && { color: "#9CA3AF" }]}>
+          {value ? enumT.unit(value) : t("unit.none" as any)}
         </Text>
       </TouchableOpacity>
 

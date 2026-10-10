@@ -43,8 +43,11 @@ const BG = "#FAF8F5";
 // 社交平台來源白名單（單一真相）：用於「匯入食譜」篩選。
 // 之前漏咗 facebook → FB 匯入嘅食譜顯示唔到。
 const SOCIAL_SOURCE_TYPES = new Set([
-  "instagram", "youtube", "xiaohongshu", "threads", "tiktok", "facebook",
+  "instagram", "youtube", "xiaohongshu", "threads", "tiktok", "facebook", "import",
 ]);
+// 「匯入」= 任何社交/連結匯入（有 sourceUrl 亦計，兼容舊資料）
+const isImportedRecipe = (r: any): boolean =>
+  SOCIAL_SOURCE_TYPES.has(String(r?.sourceType ?? "")) || !!String(r?.sourceUrl ?? "").trim();
 
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
@@ -747,9 +750,9 @@ export default function RecipesTab() {
       // 「我的食譜」：全部自訂，再按子篩選（全部/自建/匯入）
       pool = pool.filter((r: any) => r.source === "custom");
       if (mineSub === "imported") {
-        pool = pool.filter((r: any) => SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
+        pool = pool.filter((r: any) => isImportedRecipe(r));
       } else if (mineSub === "manual") {
-        pool = pool.filter((r: any) => !SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
+        pool = pool.filter((r: any) => !isImportedRecipe(r));
       }
     } else if (viewMode === "imported") {
       // 向下兼容：舊有 imported 值 = 我的(匯入)
