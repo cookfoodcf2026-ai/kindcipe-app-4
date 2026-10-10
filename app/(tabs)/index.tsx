@@ -998,6 +998,28 @@ export default function RecipesTab() {
         </View>
       )}
 
+      {/* 菜系 chips（canonical）— 由篩選 sheet 升上頂部，方便直接撳菜系 */}
+      {categories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 6 }}>
+          <TouchableOpacity
+            onPress={() => setActiveCategory("all")}
+            style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, activeCategory === "all" && { backgroundColor: BRAND }]}
+          >
+            <Text style={{ fontSize: 13, color: activeCategory === "all" ? "#fff" : BRAND, fontWeight: "700" }}>{t("全部" as any)}</Text>
+          </TouchableOpacity>
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat.key}
+              onPress={() => setActiveCategory(activeCategory === cat.key ? "all" : cat.key)}
+              style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, activeCategory === cat.key && { backgroundColor: BRAND }]}
+            >
+              <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
+              <Text style={{ fontSize: 13, color: activeCategory === cat.key ? "#fff" : BRAND, fontWeight: "700" }}>{t(cat.label as any)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Search History Dropdown */}
       {showSearchHistory && (
         <View style={s.searchHistoryWrap}>

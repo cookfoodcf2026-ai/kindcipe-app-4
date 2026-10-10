@@ -44,10 +44,11 @@ without hitting Chinese-only leaks or dead search results.
 - Keep a fallback to user custom categories if stored (don't break legacy).
 - Provide emoji for the extra 4 (港式 / 台式 / 泰式 / 印度).
 
-### S-E2 — Backfill legacy `recipeCategory` (BUG, optional but recommended) — backend/DB
-- Old official recipes may store **English ingredient-category** values
-  (`poultry/pork/beef/seafood/vegetable/egg/carb/mixed`) in `recipeCategory`.
-- Backfill → canonical cuisine via `scripts/backfill-recipe-classification.ts` (verify it covers this).
+### S-E2 — Backfill legacy `recipeCategory` — NOT NEEDED
+- Verified against prod: `official_recipes` and `custom_recipes.recipe_category` already store
+  canonical Chinese cuisines (中菜/西餐/日式/韓式/東南亞/港式/台式/泰式/甜品/飲品/其他). No English
+  legacy values. The only gap was the **filter offering 8 of the 12** (港式/台式/泰式 were unfilterable)
+  — fixed by S-E1. No backfill required.
 
 ### S-E3 — Search matches cuisine — backend
 - Add `recipeCategory` to the keyword OR conditions so typing “日式 / Japanese / Hapon” finds it.
