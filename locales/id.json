@@ -358,7 +358,10 @@
     "libMatchLabel": "Saya menemukan resep pustaka yang cocok dengan “{{q}}”:",
     "libNoMatchLabel": "Belum ada resep pustaka yang cocok dengan “{{q}}” — aku tanya AI:",
     "pantryMatchN": "Saya menemukan {{n}} resep pustaka yang cocok dengan isi kulkasmu:",
-    "askFridgeIngredients": "Bahan apa yang kamu punya?\n\nBeri tahu, mis. telur, tahu, tomat — saya sarankan resep."
+    "askFridgeIngredients": "Bahan apa yang kamu punya?\n\nBeri tahu, mis. telur, tahu, tomat — saya sarankan resep.",
+    "libMatched": "Saya menemukan resep-resep ini di pustaka:",
+    "libNoMatch": "Belum ada resep yang cocok di pustaka — aku tanya AI:",
+    "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
@@ -594,7 +597,12 @@
       "spleen": "Memperkuat limpa",
       "lungs": "Menyehatkan paru",
       "heatClear": "Menurunkan panas",
-      "nourish": "Menyehatkan"
+      "nourish": "Menyehatkan",
+      "seafood": "Makanan laut",
+      "healthy": "Sehat",
+      "nutritious": "Bergizi",
+      "shunde": "Shunde",
+      "fresh": "Segar"
     }
   },
   "tabs": {
@@ -1943,5 +1951,17 @@
   "官方": "Resmi",
   "網紅": "KOL",
   "我的": "Milikku",
-  "模板": "Templat"
+  "模板": "Templat",
+  "ingredients": {
+    "egg": "Telur",
+    "tofu": "Tahu",
+    "tomato": "Tomat",
+    "onion": "Bawang bombay",
+    "veg": "Sayur",
+    "pork": "Babi",
+    "chicken": "Ayam",
+    "fish": "Ikan",
+    "rice": "Beras",
+    "noodle": "Mie"
+  }
 }

@@ -358,7 +358,10 @@
     "libMatchLabel": "Nakahanap ako ng recipe sa library na tumutugma sa “{{q}}”:",
     "libNoMatchLabel": "Wala pang tugmang recipe sa library para sa “{{q}}” — tatanungin ko ang AI:",
     "pantryMatchN": "May {{n}} recipe sa library na tumutugma sa laman ng ref mo:",
-    "askFridgeIngredients": "Anong sangkap ang mayroon ka?\n\nSabihin mo, hal. itlog, tokwa, kamatis — magsusuggest ako ng recipe."
+    "askFridgeIngredients": "Anong sangkap ang mayroon ka?\n\nSabihin mo, hal. itlog, tokwa, kamatis — magsusuggest ako ng recipe.",
+    "libMatched": "Nakahanap ako ng mga recipe na ito sa library:",
+    "libNoMatch": "Wala pang angkop na recipe sa library — tatanungin ko ang AI:",
+    "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
@@ -594,7 +597,12 @@
       "spleen": "Pampalakas ng pali",
       "lungs": "Pampalusog ng baga",
       "heatClear": "Nag-aalis ng init",
-      "nourish": "Pampalusog"
+      "nourish": "Pampalusog",
+      "seafood": "Pagkaing-dagat",
+      "healthy": "Malusog",
+      "nutritious": "Masustansya",
+      "shunde": "Shunde",
+      "fresh": "Sariwang"
     }
   },
   "tabs": {
@@ -1943,5 +1951,17 @@
   "官方": "Opisyal",
   "網紅": "KOL",
   "我的": "Akin",
-  "模板": "Template"
+  "模板": "Template",
+  "ingredients": {
+    "egg": "Itlog",
+    "tofu": "Tokwa",
+    "tomato": "Kamatis",
+    "onion": "Sibuyas",
+    "veg": "Gulay",
+    "pork": "Baboy",
+    "chicken": "Manok",
+    "fish": "Isda",
+    "rice": "Bigas",
+    "noodle": "Pancit"
+  }
 }

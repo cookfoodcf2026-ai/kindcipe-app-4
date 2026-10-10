@@ -24,10 +24,12 @@ const MEAL_ZH_TO_KEY: Record<string, string> = { "早餐": "breakfast", "午餐"
 
 // Recipe tag (free-form Chinese) → stable key. Unknown tags fall back to the raw string.
 const TAG_ZH_TO_KEY: Record<string, string> = {
-  "蒸": "steam", "炒": "stirfry", "炆": "braise", "焗": "bake", "煎": "panfry", "炸": "fry",
+  "蒸": "steam", "蒸製": "steam", "炒": "stirfry", "炆": "braise", "焗": "bake", "煎": "panfry", "香煎": "panfry", "炸": "fry",
   "燉": "stew", "涼拌": "cold", "烤": "grill", "紅燒": "braiseSoy",
   "清淡": "light", "鹹香": "savory", "酸甜": "sweetSour", "辛辣": "spicy", "鮮味": "umami",
   "椰香": "coconut", "香濃": "rich", "清甜": "mildSweet", "惹味": "savory",
+  "鮮甜": "fresh", "健康": "healthy", "有營": "nutritious",
+  "海鮮": "seafood", "順德菜": "shunde",
   "家常菜": "homeStyle", "家常": "homeStyle", "快手菜": "quick", "快手": "quick", "宴客菜": "party",
   "港式": "hkStyle", "中式": "chinese", "西式": "western", "日式": "japanese", "韓式": "korean",
   "東南亞": "sea", "湯水": "soup", "蔬菜": "vegetable", "老火湯": "slowSoup",

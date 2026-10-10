@@ -954,7 +954,11 @@ export default function AIChefScreen() {
     return added;
   }, [batchPickerRecipes, shoppingItems, shopRecipes]);
 
-  const COMMON_INGREDIENT_CHIPS = ["雞蛋", "豆腐", "番茄", "洋蔥", "青菜", "豬肉", "雞肉", "魚", "米", "麵"];
+  const COMMON_INGREDIENT_CHIPS = [
+    { value: "雞蛋", k: "egg" }, { value: "豆腐", k: "tofu" }, { value: "番茄", k: "tomato" },
+    { value: "洋蔥", k: "onion" }, { value: "青菜", k: "veg" }, { value: "豬肉", k: "pork" },
+    { value: "雞肉", k: "chicken" }, { value: "魚", k: "fish" }, { value: "米", k: "rice" }, { value: "麵", k: "noodle" },
+  ];
 
   const buildRecipeTags = (
     name: string,
@@ -2198,8 +2202,7 @@ export default function AIChefScreen() {
           setRecommendedRecipes(picked);
           setChatStarted(true);
           recordSeenRecipes(picked);
-          const label = config.search.query || config.search.tags?.join("、") || "呢類";
-          addBotMessage(t("aiChef.libMatchLabel", { q: label }) + recipeNameList(picked));
+          addBotMessage(t("aiChef.libMatched") + recipeNameList(picked));
           setLibraryLoading(false);
           return;
         }
@@ -2208,8 +2211,7 @@ export default function AIChefScreen() {
       }
     }
     setLibraryLoading(false);
-    const label = config.search?.query || config.search?.tags?.join("、") || t(config.aiPrompt as any);
-    addBotMessage(t("aiChef.libNoMatchLabel", { q: label }));
+    addBotMessage(t("aiChef.libNoMatch"));
     // 單菜 AI 生成（唔行 chat，保證 1 卡）；requestInstantRecipes 會用 activeHotKeyRef 個 aiPrompt
     requestInstantRecipes("ai");
   };
@@ -2961,7 +2963,7 @@ export default function AIChefScreen() {
       // handled client-side; do not send to AI
     } else if (askingIngredients) {
       setAskingIngredients(false);
-      const prompt = `我想用以下食材煮餸：${trimmed}。請推薦可以用到呢啲食材嘅食譜。`;
+      const prompt = t("aiChef.pantryPrompt", { items: trimmed });
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(() => msgs);
       sendChat(buildBackendMessages(msgs));
@@ -3008,7 +3010,7 @@ export default function AIChefScreen() {
       handleMealAnswer(p);
     } else if (askingIngredients) {
       setAskingIngredients(false);
-      const prompt = `我想用以下食材煮餸：${p}。請推薦可以用到呢啲食材嘅食譜。`;
+      const prompt = t("aiChef.pantryPrompt", { items: p });
       const msgs: Message[] = [...messages, { role: "user", content: prompt }];
       updateMessages(() => msgs);
       sendChat(buildBackendMessages(msgs));
@@ -3832,11 +3834,11 @@ export default function AIChefScreen() {
         {askingIngredients && (
           <View style={s.hotKeyBar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hotKeyScroll}>
-              {COMMON_INGREDIENT_CHIPS.map((ing, i) => (
+              {COMMON_INGREDIENT_CHIPS.map((c, i) => (
                 <TouchableOpacity key={i} style={s.hotKeyChip} onPress={() => {
-                  setInput(prev => prev ? `${prev}、${ing}` : ing);
+                  setInput(prev => prev ? `${prev}、${c.value}` : c.value);
                 }} disabled={chatMutation.isPending}>
-                  <Text style={s.hotKeyChipTxt}>{ing}</Text>
+                  <Text style={s.hotKeyChipTxt}>{t(`ingredients.${c.k}` as any)}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

@@ -358,7 +358,10 @@
     "libMatchLabel": "我喺食譜庫搵到呢個配合「{{q}}」嘅食譜：",
     "libNoMatchLabel": "食譜庫暫時冇配合「{{q}}」嘅食譜，我用 AI 幫你諗：",
     "pantryMatchN": "我喺食譜庫搵到 {{n}} 個配合你雪櫃食材嘅食譜：",
-    "askFridgeIngredients": "你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。"
+    "askFridgeIngredients": "你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。",
+    "libMatched": "我喺食譜庫搵到呢啲食譜：",
+    "libNoMatch": "食譜庫暫時冇合適食譜，我用 AI 幫你諗：",
+    "pantryPrompt": "我想用以下食材煮餸：{{items}}。請推薦可以用到呢啲食材嘅食譜。"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
@@ -594,7 +597,12 @@
       "spleen": "健脾",
       "lungs": "潤肺",
       "heatClear": "清熱",
-      "nourish": "養生"
+      "nourish": "養生",
+      "seafood": "海鮮",
+      "healthy": "健康",
+      "nutritious": "有營",
+      "shunde": "順德菜",
+      "fresh": "鮮甜"
     }
   },
   "tabs": {
@@ -1943,5 +1951,17 @@
   "官方": "官方",
   "網紅": "網紅",
   "我的": "我的",
-  "模板": "模板"
+  "模板": "模板",
+  "ingredients": {
+    "egg": "雞蛋",
+    "tofu": "豆腐",
+    "tomato": "番茄",
+    "onion": "洋蔥",
+    "veg": "青菜",
+    "pork": "豬肉",
+    "chicken": "雞肉",
+    "fish": "魚",
+    "rice": "米",
+    "noodle": "麵"
+  }
 }

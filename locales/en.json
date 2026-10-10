@@ -358,7 +358,10 @@
     "libMatchLabel": "I found a library recipe matching “{{q}}”:",
     "libNoMatchLabel": "No library recipe matches “{{q}}” yet — I’ll ask AI:",
     "pantryMatchN": "I found {{n}} library recipes matching your fridge ingredients:",
-    "askFridgeIngredients": "What ingredients do you have?\n\nTell me, e.g. eggs, tofu, tomatoes — I’ll suggest recipes."
+    "askFridgeIngredients": "What ingredients do you have?\n\nTell me, e.g. eggs, tofu, tomatoes — I’ll suggest recipes.",
+    "libMatched": "I found these recipes in the library:",
+    "libNoMatch": "No suitable recipe in the library yet — I’ll ask AI:",
+    "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
@@ -594,7 +597,12 @@
       "spleen": "Strengthens spleen",
       "lungs": "Nourishes lungs",
       "heatClear": "Clears heat",
-      "nourish": "Nourishing"
+      "nourish": "Nourishing",
+      "seafood": "Seafood",
+      "healthy": "Healthy",
+      "nutritious": "Nutritious",
+      "shunde": "Shunde",
+      "fresh": "Fresh"
     }
   },
   "tabs": {
@@ -1943,5 +1951,17 @@
   "官方": "Official",
   "網紅": "KOL",
   "我的": "Mine",
-  "模板": "Templates"
+  "模板": "Templates",
+  "ingredients": {
+    "egg": "Egg",
+    "tofu": "Tofu",
+    "tomato": "Tomato",
+    "onion": "Onion",
+    "veg": "Vegetables",
+    "pork": "Pork",
+    "chicken": "Chicken",
+    "fish": "Fish",
+    "rice": "Rice",
+    "noodle": "Noodles"
+  }
 }
