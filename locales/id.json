@@ -1690,7 +1690,19 @@
     "aiNotConfigured": "AI sementara tidak tersedia. Coba lagi nanti.",
     "aiBusy": "Terlalu banyak permintaan AI. Tunggu satu menit lalu coba lagi.",
     "aiBadResponse": "Respons AI tidak normal. Coba lagi.",
-    "network": "Ada masalah jaringan. Periksa koneksi lalu coba lagi."
+    "network": "Ada masalah jaringan. Periksa koneksi lalu coba lagi.",
+    "recipeEmpty": "Konten resep kurang (tanpa bahan atau langkah). Tambahkan manual.",
+    "verifyEmail": "Verifikasi email Anda terlebih dahulu.",
+    "codeInvalid": "Kode salah atau kedaluwarsa.",
+    "tooMany": "Terlalu banyak percobaan. Coba lagi nanti.",
+    "emailTaken": "Email ini sudah terdaftar. Masuk atau gabungkan akun.",
+    "googleLinked": "Ada masalah dengan penautan Google. Coba metode lain.",
+    "kitchenLimit": "Batas dapur tercapai (maks 2 per akun).",
+    "needFamily": "Buat atau gabung dapur keluarga dulu.",
+    "notMember": "Anda bukan anggota dapur ini.",
+    "dateOrder": "Tanggal belanja tidak boleh lebih lambat dari tanggal makan.",
+    "imageInvalid": "Masalah gambar (format tidak didukung atau terlalu besar).",
+    "authFailed": "Kredensial salah. Coba lagi."
   },
   "notif": {
     "mealUpdated": "📅 Rencana makan diperbarui",

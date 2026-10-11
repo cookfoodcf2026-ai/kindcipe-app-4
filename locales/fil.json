@@ -1690,7 +1690,19 @@
     "aiNotConfigured": "Pansamantalang hindi available ang AI. Subukan ulit mamaya.",
     "aiBusy": "Masyadong maraming AI request. Maghintay ng isang minuto at subukan muli.",
     "aiBadResponse": "May problema sa tugon ng AI. Subukan muli.",
-    "network": "May problema sa network. Suriin ang koneksyon at subukan muli."
+    "network": "May problema sa network. Suriin ang koneksyon at subukan muli.",
+    "recipeEmpty": "Kulang ang nilalaman ng recipe (walang sangkap o steps). Paki-add manually.",
+    "verifyEmail": "Paki-verify muna ang iyong email.",
+    "codeInvalid": "Mali o expired ang code.",
+    "tooMany": "Sobrang dami ng pagtatangka. Subukan mamaya.",
+    "emailTaken": "Nakarehistro na ang email na ito. Mag-sign in o pagsamahin ang account.",
+    "googleLinked": "May problema sa pag-link ng Google. Subukan ang ibang paraan.",
+    "kitchenLimit": "Naabot na ang limitasyon ng kusina (max 2 kada account).",
+    "needFamily": "Gumawa o sumali muna sa family kitchen.",
+    "notMember": "Hindi ka miyembro ng kusinang ito.",
+    "dateOrder": "Hindi pwedeng mas huli ang shopping date sa meal date.",
+    "imageInvalid": "May problema sa larawan (hindi suportado o masyadong malaki).",
+    "authFailed": "Mali ang credentials. Subukan muli."
   },
   "notif": {
     "mealUpdated": "📅 Na-update ang meal plan",

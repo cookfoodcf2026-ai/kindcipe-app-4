@@ -1690,7 +1690,19 @@
     "aiNotConfigured": "AI is temporarily unavailable. Please try again later.",
     "aiBusy": "Too many AI requests. Please wait a minute and try again.",
     "aiBadResponse": "The AI response was malformed. Please try again.",
-    "network": "Network problem. Please check your connection and retry."
+    "network": "Network problem. Please check your connection and retry.",
+    "recipeEmpty": "Not enough recipe content (no ingredients or steps). Please add them manually.",
+    "verifyEmail": "Please verify your email first.",
+    "codeInvalid": "The code is incorrect or expired.",
+    "tooMany": "Too many attempts. Please try again later.",
+    "emailTaken": "This email is already registered. Please sign in or merge accounts.",
+    "googleLinked": "There's an issue with Google linking. Please try another sign-in method.",
+    "kitchenLimit": "Kitchen limit reached (max 2 per account).",
+    "needFamily": "Please create or join a family kitchen first.",
+    "notMember": "You are not a member of this kitchen.",
+    "dateOrder": "Shopping date cannot be later than the meal date.",
+    "imageInvalid": "Image problem (unsupported format or too large).",
+    "authFailed": "Incorrect credentials. Please try again."
   },
   "notif": {
     "mealUpdated": "📅 Meal plan updated",
