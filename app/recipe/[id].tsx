@@ -396,6 +396,11 @@ export default function RecipeDetailScreen() {
   });
 
   // 返回：若烹飪備註有未送出嘅文字，先提醒用戶
+  const goBackSafe = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  }, [router]);
+
   const handleBack = useCallback(() => {
     if (noteInput.trim().length > 0) {
       Alert.alert(
@@ -403,13 +408,13 @@ export default function RecipeDetailScreen() {
         t("你輸入嘅烹飪備註尚未送出，離開後將不會保存。" as any),
         [
           { text: t("取消" as any), style: "cancel" },
-          { text: t("離開" as any), style: "destructive", onPress: () => router.back() },
+          { text: t("離開" as any), style: "destructive", onPress: () => goBackSafe() },
         ]
       );
     } else {
-      router.back();
+      goBackSafe();
     }
-  }, [noteInput, router, t]);
+  }, [noteInput, goBackSafe, t]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {

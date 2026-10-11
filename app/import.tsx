@@ -123,6 +123,7 @@ export default function ImportScreen() {
   const [recipeImageBase64, setRecipeImageBase64] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [savedRecipeId, setSavedRecipeId] = useState<number | null>(null);
   const [saveStepIdx, setSaveStepIdx] = useState(0);
   const saveStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -614,6 +615,7 @@ export default function ImportScreen() {
     onSuccess: async (data) => {
       void utils.family.usage.invalidate();
       track(Events.RecipeImported, { onboarding: isOnboarding });
+      setSavedRecipeId(Number(data.id));
       if (isOnboarding) {
         try {
           if (authUser?.id) {
@@ -1419,8 +1421,11 @@ export default function ImportScreen() {
             <TouchableOpacity
               style={styles.successPrimaryBtn}
               onPress={() => {
-                if (parsedRecipe?.id) {
-                  router.replace({ pathname: "/recipe/[id]", params: { id: `user_${parsedRecipe.id}` } });
+                const id = savedRecipeId ?? parsedRecipe?.id;
+                if (id) {
+                  router.replace({ pathname: "/recipe/[id]", params: { id: `user_${id}` } });
+                } else {
+                  router.replace("/(tabs)");
                 }
               }}
             >
