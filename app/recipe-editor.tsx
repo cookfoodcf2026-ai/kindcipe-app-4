@@ -23,6 +23,11 @@ import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { enumT } from "@/lib/i18nEnums";
+import i18n from "@/lib/i18n";
+import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
+
+const normLang = (l: string): string =>
+  l.startsWith("zh") ? "zh-TW" : l.startsWith("fil") ? "fil" : l.startsWith("id") ? "id" : "en";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 
@@ -160,8 +165,9 @@ const scrollToFocused = useCallback((e: any) => {
         const parsed = parseInt(String(r.id).replace("user_", ""), 10);
         setDraftId(isNaN(parsed) ? null : parsed);
       }
-      setName(r.name ?? "");
-      setDescription(r.description ?? "");
+      const L = i18n.language;
+      setName(pickName(L, r.name, r.nameEn, r.nameFil, r.nameId).primary ?? "");
+      setDescription(pickDescription(L, r.description, r.descriptionEn, r.descriptionFil, r.descriptionId) ?? "");
       setServings(String(r.servings ?? 4));
       setPrepTime(String(r.prepTime ?? 15));
       setCookTime(String(r.cookTime ?? 30));
@@ -175,17 +181,18 @@ const scrollToFocused = useCallback((e: any) => {
       if (Array.isArray(r.ingredients) && r.ingredients.length > 0) {
         setIngredients(r.ingredients.map((ing: any, i: number) => ({
           id: `ing_${i}`,
-          name: ing.name ?? "",
+          name: pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "",
           quantity: String(ing.quantity ?? ""),
           unit: ing.unit ?? "克",
         })));
       }
       if (Array.isArray(r.steps) && r.steps.length > 0) {
-        setSteps(r.steps.map((s: any, i: number) => ({
+        const stepTexts = r.steps.map((s: any) => (typeof s === "string" ? s : (s.instruction ?? s.description ?? "")));
+        setSteps(pickSteps(L, stepTexts, r.stepsEn, r.stepsFil, r.stepsId).map((t: string, i: number) => ({
           id: i + 1,
-          instruction: typeof s === "string" ? s : (s.instruction ?? s.description ?? ""),
-          duration: s.duration ?? 0,
-          imageUri: s.image || undefined,
+          instruction: t,
+          duration: r.steps[i]?.duration ?? 0,
+          imageUri: r.steps[i]?.image || undefined,
           imageBase64: undefined,
         })));
       }
@@ -485,6 +492,7 @@ const scrollToFocused = useCallback((e: any) => {
           image: stepImages[i] || undefined,
         })),
         isDraft: false as const,
+        inputLang: normLang(i18n.language),
       };
 
       clearInterval(timer);

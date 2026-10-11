@@ -22,6 +22,10 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
+import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
+
+const normLang = (l: string): string =>
+  l.startsWith("zh") ? "zh-TW" : l.startsWith("fil") ? "fil" : l.startsWith("id") ? "id" : "en";
 import { enumT } from "@/lib/i18nEnums";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
@@ -175,10 +179,12 @@ export default function ImportScreen() {
     </Modal>
   );
 
-  // Initialize editable states when parsedRecipe is set
+  // Initialize editable states when parsedRecipe is set（按當前語言顯示；儲存時以該語言為「作者語言」）
   const initEditFromParsed = (recipe: any) => {
-    setEditName(recipe.name || "");
-    setEditDesc(recipe.description || "");
+    const L = i18n.language;
+    const stepTexts = (recipe.steps || []).map((s: any) => (typeof s === "string" ? s : (s.instruction || s.description || "")));
+    setEditName(pickName(L, recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary || "");
+    setEditDesc(pickDescription(L, recipe.description, recipe.descriptionEn, recipe.descriptionFil, recipe.descriptionId) || "");
     setEditCookTime(String(recipe.cookTime || 30));
     setEditServings(String(recipe.servings || 4));
     setEditDifficulty(recipe.difficulty || "中等");
@@ -212,17 +218,17 @@ export default function ImportScreen() {
     setEditIngredients(
       (recipe.ingredients || []).map((ing: any, i: number) => ({
         id: `ing_${i}`,
-        name: ing.name || "",
+        name: pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "",
         quantity: String(ing.quantity || ""),
         unit: ing.unit || "",
       }))
     );
     setEditSteps(
-      (recipe.steps || []).map((s: any, i: number) => ({
+      pickSteps(L, stepTexts, recipe.stepsEn, recipe.stepsFil, recipe.stepsId).map((t: string, i: number) => ({
         id: i + 1,
-        instruction: typeof s === "string" ? s : (s.instruction || s.description || ""),
-        duration: s.duration || 0,
-        imageUri: s.image || undefined,
+        instruction: t,
+        duration: recipe.steps?.[i]?.duration || 0,
+        imageUri: recipe.steps?.[i]?.image || undefined,
         imageBase64: undefined,
       }))
     );
@@ -1033,6 +1039,7 @@ export default function ImportScreen() {
         tags,
         sourceUrl: parsedRecipe?.sourceUrl || "",
         sourceAuthor: parsedRecipe?.sourceAuthor || "",
+        inputLang: normLang(i18n.language),
         visibility: "private" as const,
       });
     } catch (e: any) {
