@@ -302,7 +302,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
     <TouchableOpacity
       style={s.tonightHeroWrap}
       activeOpacity={0.85}
-      onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily" } } as any)}
+      onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily", t: String(Date.now()) } } as any)}
     >
       <View style={s.tonightHero}>
         <ExpoImage

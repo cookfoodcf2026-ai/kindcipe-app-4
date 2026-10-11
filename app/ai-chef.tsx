@@ -1318,7 +1318,8 @@ export default function AIChefScreen() {
 
         const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
-        setActiveChatId(activeId && all.find(s => s.id === activeId) ? activeId : all[0].id);
+        // 用 functional update：若 Hero 已搶先開咗新 session（prev 已有值），唔好被還原覆蓋。
+        setActiveChatId(prev => prev || (activeId && all.find(s => s.id === activeId) ? activeId : all[0].id));
       } catch { /* ignore */ }
       setLoaded(true);
     })();
@@ -1987,21 +1988,25 @@ export default function AIChefScreen() {
   // 消費後即刻用 setParams 清走 action，避免 param persist 令「之後所有 entry 都當 daily」。
   // 1) 等 `loaded` 先開新 session，避免同 session-load effect 競賽而覆蓋新 session；
   // 2) 追蹤「上次已處理嘅 action」，當 heroAction 變返唔係 daily 就 reset → 下次 daily 再觸發。
-  const heroParams = useLocalSearchParams<{ action?: string }>();
+  const heroParams = useLocalSearchParams<{ action?: string; t?: string }>();
   const heroAction = Array.isArray(heroParams.action) ? heroParams.action[0] : heroParams.action;
-  const lastHandledActionRef = useRef<string | undefined>(undefined);
+  const heroToken = Array.isArray(heroParams.t) ? heroParams.t[0] : heroParams.t;
+  const lastHandledTokenRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!loaded) return;
-    if (heroAction === "daily" && lastHandledActionRef.current !== "daily") {
-      lastHandledActionRef.current = "daily";
+    if (heroAction === "daily") {
+      // 用每次撳嘅唯一 token（e.g. timestamp）做 key：確保「每次撳 hero = 開新對話」
+      const token = heroToken || "daily";
+      if (lastHandledTokenRef.current === token) return;
+      lastHandledTokenRef.current = token;
       isSoupModeRef.current = true;
       startMealFlowInNewSession();
-      router.setParams({ action: undefined }); // 消費後清走，令之後 entries 唔再係 daily
-    } else if (heroAction !== "daily") {
-      lastHandledActionRef.current = undefined; // reset：下次新 daily 再觸發
+      router.setParams({ action: undefined, t: undefined }); // 消費後清走
+    } else {
+      lastHandledTokenRef.current = undefined; // reset：下次新 daily 再觸發
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, heroAction]);
+  }, [loaded, heroAction, heroToken]);
 
   const askMealQuestion = (step: MealPlanStep) => {
     const stepMap: Record<MealPlanStep, number> = { idle: 0, people: 1, audience: 2, time: 3, dislike: 4, generating: 0, result: 0 };
@@ -2700,16 +2705,12 @@ export default function AIChefScreen() {
           excludeNames: [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])],
         });
         const candidates = collectCandidates(res);
-        // 來源一致優先：strict 搵「同類別 + 新」；冇就接受「同類別」（哪怕睇過）；跨類一律唔收
+        // 來源一致優先：搵「同類別 + 唔撞其他卡／現卡／已換過」；冇就接受同類別；跨類唔收。
+        // 注意：唔好用 sessionAvoidNames（30 日 + 全部對話歷史）→ 池被過度收窄 → 誤 fallback AI。
         return (
           candidates.find((cand) =>
             getDishType(cand) === cardDishType &&
-            !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || "", ...sessionAvoidNames]) &&
-            !swappedRecipeNames.has(cand.name)
-          ) ??
-          candidates.find((cand) =>
-            getDishType(cand) === cardDishType &&
-            !isDuplicateRecipeName(cand.name, [recipe.name || "", ...otherNames]) &&
+            !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || ""]) &&
             !swappedRecipeNames.has(cand.name)
           ) ??
           null
@@ -3679,7 +3680,7 @@ export default function AIChefScreen() {
                           <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>
                             {(() => { const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.primary; })()}
                           </Text>
-                          {(() => { const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.secondary ? (
+                          {(() => { if (i18n.language === "zh") return null; const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.secondary ? (
                             <Text style={s.recCardNameEn} numberOfLines={1}>{bn.secondary}</Text>
                           ) : null; })()}
                           <View style={s.recCardMeta}>
@@ -3712,7 +3713,7 @@ export default function AIChefScreen() {
                                   <View key={ingIdx} style={s.recCardIngRow}>
                                     <View style={s.recCardIngDot} />
                                     <Text style={s.recCardIngTxt}>
-                                      {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return bn.secondary ? `${bn.primary} (${bn.secondary})` : bn.primary; })()}
+                                      {(() => { const bn = getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId); return (bn.secondary && i18n.language !== "zh") ? `${bn.primary} (${bn.secondary})` : bn.primary; })()}
                                       {ing.quantity ? ` ${ing.quantity}` : ""}
                                       {(() => { const raw = String(ing.unit ?? "").trim(); const u = (raw === "/" || raw === "-" || raw === "null") ? "" : raw; return u ? ` ${enumT.unit(u)}` : ""; })()}
                                     </Text>

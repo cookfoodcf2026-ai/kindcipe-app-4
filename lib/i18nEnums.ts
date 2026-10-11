@@ -66,8 +66,14 @@ const DIFFICULTY_ANY: Record<string, string> = { ...DIFFICULTY_ZH_TO_KEY, easy: 
 
 function resolve(kind: string, map: Record<string, string>, value: string): { key: string | undefined; fallback: string } {
   const v = String(value ?? "").trim();
-  const key = map[v];
+  const key = map[v] ?? map[v.toLowerCase()]; // 大小寫不敏感（例："Medium" → medium）
   return { key, fallback: v };
+}
+
+/** 大小寫不敏感 lookup（用於 useEnum）。 */
+function lookup(map: Record<string, string>, value: string): string | undefined {
+  const v = String(value ?? "").trim();
+  return map[v] ?? map[v.toLowerCase()];
 }
 
 /** 非組件用（helper / constants）：用 i18n.t，搵唔到顯示原文 */
@@ -121,16 +127,16 @@ export function useEnum() {
     return out === k ? fallback : out;
   };
   return {
-    category: (v: string): string => tr("category", CATEGORY_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
+    category: (v: string): string => tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? "")),
     unit: (v: string): string =>
       localizeUnitValue(v, (key) => {
         const k = `enums.unit.${key}`;
         const out = t(k as any);
         return out === k ? undefined : out;
       }),
-    difficulty: (v: string): string => tr("difficulty", DIFFICULTY_ANY[String(v ?? "").trim()], String(v ?? "")),
-    tag: (v: string): string => tr("tag", TAG_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
-    meal: (v: string): string => tr("meal", MEAL_ZH_TO_KEY[String(v ?? "").trim()], String(v ?? "")),
+    difficulty: (v: string): string => tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? "")),
+    tag: (v: string): string => tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? "")),
+    meal: (v: string): string => tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? "")),
     weekday: (n: number): string => t(`enums.weekday.${n}` as any),
     month: (m: number): string => t(`enums.month.${m}` as any),
   };
