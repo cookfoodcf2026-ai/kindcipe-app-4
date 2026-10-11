@@ -45,8 +45,9 @@
   - ⚠️ 環境係 **Node 20**，Astro 6 要 Node ≥22.12，所以**鎖 Astro 5.18.2**。
 - [ ] **2.2 內容遷移**（**進行中**）：
   - ✅ 已建 `Layout.astro` + i18n + 首頁（zh/en）；共用 Layout 自動修好 **EN nav 指錯**、**語言 toggle 自指**、加返 **hreflang**。
-  - ✅ **首批：Features 頁**（`features.astro` + `en/features.astro` + `FeatureGrid.astro`）＋全站 CTA。
-  - 仍需搬入 pricing/faq/support/privacy + blog（10 篇重寫）+ recipes（20 條）。
+  - ✅ **Batch 1：Features 頁**（`features.astro` + `en/features.astro` + `FeatureGrid.astro`）＋全站 CTA。
+  - ✅ **Batch 2：pricing / faq / support / privacy**（zh/en）＋元件（`PricingTable` / `FaqList`）＋設計系統樣式（12 頁）。
+  - 仍需：**Batch 3 blog**（10 篇重寫，重用舊 slug，zh/en）＋ **Batch 4 recipes**（20 條）→ 之後一次過發佈。
   - **網站定位**：功能展示 + 單一 CTA 導去 webapp 登入。**基本設計系統即落，進階 UX/UI polish 延後。**
 - [x] **2.3 Build 掛鈎**：root `package.json` 加 `marketing:dev` / `marketing:build`；`.githooks/pre-commit` 加 `marketing/**` 觸發，**以 `marketing/.publish` 為閘**（避免未遷移完就 wipe 咗 docs/）。
 - [x] **2.4 SEO 資產**：`og-default.png`（暫用 logo，待出正式 1200×630）、`hreflang`、canonical、sitemap、`robots.txt`（SEO+GEO 開放）、`llms.txt`。

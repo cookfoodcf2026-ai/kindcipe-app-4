@@ -1,0 +1,22 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import FaqList from "../../components/FaqList.astro";
+import { useTranslations, ctaUrl } from "../../i18n/ui";
+
+const lang = "en" as const;
+const t = useTranslations(lang);
+const cta = ctaUrl("faq");
+---
+
+<Layout lang={lang} title={`${t("faq.title")} — ${t("site.name")}`} description={t("faq.title")}>
+  <section class="page-hero">
+    <h1>{t("faq.title")}</h1>
+  </section>
+
+  <section class="section container">
+    <FaqList lang={lang} prefix="faq" count={4} />
+    <p style="text-align:center;margin-top:2rem">
+      <a class="btn btn-primary" href={cta}>{t("faq.cta")}</a>
+    </p>
+  </section>
+</Layout>

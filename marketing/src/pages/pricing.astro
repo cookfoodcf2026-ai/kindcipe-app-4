@@ -1,0 +1,23 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PricingTable from "../components/PricingTable.astro";
+import { useTranslations } from "../i18n/ui";
+
+const lang = "zh-HK" as const;
+const t = useTranslations(lang);
+---
+
+<Layout
+  lang={lang}
+  title={`${t("pricing.title")} — ${t("site.name")}`}
+  description={t("pricing.subtitle")}
+>
+  <section class="page-hero">
+    <h1>{t("pricing.title")}</h1>
+    <p class="sub">{t("pricing.subtitle")}</p>
+  </section>
+
+  <section class="section container">
+    <PricingTable lang={lang} />
+  </section>
+</Layout>

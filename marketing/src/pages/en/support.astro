@@ -1,0 +1,44 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import FaqList from "../../components/FaqList.astro";
+import { useTranslations, localizePath } from "../../i18n/ui";
+
+const lang = "en" as const;
+const t = useTranslations(lang);
+---
+
+<Layout
+  lang={lang}
+  title={`${t("support.title")} — ${t("site.name")}`}
+  description={t("support.intro")}
+>
+  <section class="page-hero">
+    <h1>{t("support.title")}</h1>
+    <p class="sub">{t("support.intro")}</p>
+  </section>
+
+  <section class="section container">
+    <div class="support-block">
+      <h2>{t("support.contactTitle")}</h2>
+      <p>📧 <a href="mailto:support@kindcipe.com">support@kindcipe.com</a></p>
+      <p class="note">{t("support.contactNote")}</p>
+    </div>
+
+    <h2 class="support-heading">{t("support.faqTitle")}</h2>
+    <FaqList lang={lang} prefix="support" count={5} />
+
+    <div class="support-block" style="margin-top:1.5rem">
+      <h2>{t("support.privacyTitle")}</h2>
+      <p>{t("support.privacyNote")} <a href={localizePath("/privacy/", lang)}>kindcipe.com/privacy</a></p>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .support-heading {
+    max-width: 720px;
+    margin: 0 auto 1rem;
+    color: var(--color-primary);
+    font-size: 1.2rem;
+  }
+</style>
