@@ -2041,7 +2041,7 @@
     "f3": "Hanggang 4 miyembro ng pamilya",
     "f4": "Mag-import ng recipe mula sa screenshot",
     "f5": "Paghahanap ng sangkap",
-    "f6": "Maraming wika (English / Indonesian)",
+    "f6": "Maraming wika (English / Filipino / Indonesian)",
     "f7": "Gumagana offline",
     "f8": "Walang ads",
     "ctaMonthlyStripe": "Mag-subscribe buwanan HK$30 via card",
@@ -2056,13 +2056,88 @@
     "later": "Mamaya na",
     "manage": "Pamahalaan ang subscription",
     "feature": {
-      "import_limit": { "title": "Naabot ang free import limit", "desc": "Ang free plan ay hanggang 20 import/buwan\nMag-upgrade para sa hanggang 300" },
-      "recipe_limit": { "title": "Naabot ang free storage limit", "desc": "Ang free plan ay hanggang 20 recipe/buwan\nMag-upgrade para sa unlimited" },
-      "member_limit": { "title": "Naabot ang member limit", "desc": "Ang free plan ay 1 miyembro\nMag-upgrade para sa hanggang 4" },
-      "screenshot": { "title": "Bayad na feature ang screenshot import", "desc": "Mag-upgrade para mag-import\nmula sa camera o screenshot, walang tina-type" },
-      "ingredient_search": { "title": "Bayad na feature ang ingredient search", "desc": "Mag-upgrade para maghanap ng recipe\nsa pangalan ng sangkap" },
-      "multilang": { "title": "Bayad na feature ang multi-language", "desc": "Mag-upgrade para makita ng helper\nang recipe sa English o Indonesian" },
-      "generic": { "title": "Mag-upgrade para gamitin ito", "desc": "Mag-upgrade sa Family plan para ma-unlock lahat" }
+      "import_limit": {
+        "title": "Naabot ang free import limit",
+        "desc": "Ang free plan ay hanggang 20 import/buwan\nMag-upgrade para sa hanggang 300"
+      },
+      "recipe_limit": {
+        "title": "Naabot ang free storage limit",
+        "desc": "Ang free plan ay hanggang 20 recipe/buwan\nMag-upgrade para sa unlimited"
+      },
+      "member_limit": {
+        "title": "Naabot ang member limit",
+        "desc": "Ang free plan ay 1 miyembro\nMag-upgrade para sa hanggang 4"
+      },
+      "screenshot": {
+        "title": "Bayad na feature ang screenshot import",
+        "desc": "Mag-upgrade para mag-import\nmula sa camera o screenshot, walang tina-type"
+      },
+      "ingredient_search": {
+        "title": "Bayad na feature ang ingredient search",
+        "desc": "Mag-upgrade para maghanap ng recipe\nsa pangalan ng sangkap"
+      },
+      "multilang": {
+        "title": "Bayad na feature ang multi-language",
+        "desc": "Mag-upgrade para makita ng helper\nang recipe sa English, Filipino o Indonesian"
+      },
+      "generic": {
+        "title": "Mag-upgrade para gamitin ito",
+        "desc": "Mag-upgrade sa Family plan para ma-unlock lahat"
+      }
     }
-  }
+  },
+  " · 主人": " · May-ari",
+  " · 幫手": " · Katulong",
+  " · 成員": " · Miyembro",
+  " · 管理員": " · Admin",
+  "• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe": "• Siguraduhing may buong sangkap at steps ang post\n• Kung puro larawan, gamitin ang screenshot upload\n• Subukan ang Instagram TV version",
+  "一起規劃餐單、同步購物清單": "Magplano ng pagkain nang sabay, i-sync ang listahan",
+  "保存": "I-save",
+  "全部已加入購物清單": "Nasa listahan na lahat",
+  "共 {{n}} 張圖，會合併解析": "{{n}} larawan — pagsasamahin at i-parse",
+  "其他平台搜尋": "Maghanap sa ibang platform",
+  "加入中...": "Idinaragdag...",
+  "加入食材到購物清單": "Magdagdag ng sangkap sa listahan",
+  "合併成功": "Naisama na",
+  "呢個已經係你嘅電郵": "Ito na ang email mo",
+  "呢個頁面可能已經移咗位。": "Baka nailipat na ang page na ito.",
+  "呢日仲未加入購物車食材": "Wala pang sangkap na naidagdag sa cart ngayong araw",
+  "官方食譜": "Opisyal na Recipe",
+  "已將 {{n}} 個家庭搬入你嘅帳號": "Inilipat ang {{n}} pamilya sa account mo",
+  "我的食譜": "Mga Recipe Ko",
+  "找不到": "Walang mahanap",
+  "找不到頁面": "Hindi mahanap ang page",
+  "換一張照片（拍清晰食物本體）": "Subukan ang ibang larawan (malinaw na kuha ng ulam)",
+  "搜尋": "Maghanap",
+  "收起": "I-collapse",
+  "暫無記錄": "Wala pang record",
+  "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。": "Presyo mula sa Consumer Council online price tool, araw-araw na update. Aktwal na presyo bawat platform.",
+  "此裝置（例如 iOS 模擬器）冇可用相機。\n\n請用真機測試，或改用「從相簿選擇」。": "Walang camera sa device na ito (hal. iOS simulator).\n\nGumamit ng totoong device, o pumili mula sa album.",
+  "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。": "Sakop ng Consumer Council ang mga supermarket (Wellcome, ParknShop); hindi kasama ang HKTVmall, pandamart, at sariwang palengke.",
+  "直接前往平台搜尋": "Maghanap sa platform",
+  "確定刪除「{{name}}」？": "Burahin ang \"{{name}}\"?",
+  "編輯備註": "I-edit ang note",
+  "自訂購物日期（唔可以遲過排餐日）": "Custom shopping date (hindi lalampas sa meal date)",
+  "請輸入有效電郵": "Maglagay ng valid na email",
+  "請輸入驗證碼": "Ilagay ang code",
+  "購買日期（{{date}}）不能遲於排餐日期（{{meal}}）\n\n建議選擇 {{suggest}} 或更早的日期": "Hindi pwedeng mas huli ang shopping date ({{date}}) sa meal date ({{meal}}).\n\nPumili ng {{suggest}} o mas maaga.",
+  "連結 Google": "I-link ang Google",
+  "連結失敗": "Nabigo ang pag-link",
+  "連結成功": "Naka-link",
+  "連結電郵": "I-link ang email",
+  "重試": "Subukan muli",
+  "錯誤：{{msg}}\n\n請檢查網絡連接，或嘗試再次點擊。": "Error: {{msg}}\n\nSuriin ang koneksyon, o subukan muli.",
+  "間超市": "supermarket",
+  "顯示全部": "Ipakita lahat",
+  "食譜、餐單、購買即時同步": "Agad na nag-sync ang recipes, plano at listahan",
+  "📥 匯入食譜": "📥 Mga Imported na Recipe",
+  "已設定": "Nai-save",
+  "載入食譜中，請再試一次": "Naglo-load ng recipe, subukan muli",
+  "無法獲取食譜食材": "Hindi ma-load ang sangkap",
+  "已取消衝突排餐": "Kinansela ang conflict na pagkain",
+  "⚠️ 已批量加入排餐，但列表可能需要手動刷新": "⚠️ Naidagdag sa plano, baka kailangan i-refresh ang listahan",
+  "正在上傳圖片...": "Nag-a-upload ng larawan...",
+  "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ Walang katulad na recipe; sinubukan ang AI, pindutin muli",
+  "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 Walang bagong katulad sa library; AI na lang",
+  "已提交到網紅頁 🎉": "Naisumite sa KOL page 🎉"
 }

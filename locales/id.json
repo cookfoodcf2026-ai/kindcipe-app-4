@@ -2041,7 +2041,7 @@
     "f3": "Hingga 4 anggota keluarga",
     "f4": "Impor resep dari tangkapan layar",
     "f5": "Pencarian bahan",
-    "f6": "Multi-bahasa (Inggris / Indonesia)",
+    "f6": "Multi-bahasa (Inggris / Filipino / Indonesia)",
     "f7": "Bisa offline",
     "f8": "Tanpa iklan",
     "ctaMonthlyStripe": "Langganan bulanan HK$30 via kartu",
@@ -2056,13 +2056,88 @@
     "later": "Nanti saja",
     "manage": "Kelola langganan",
     "feature": {
-      "import_limit": { "title": "Batas impor gratis tercapai", "desc": "Paket gratis hingga 20 impor/bulan\nUpgrade hingga 300" },
-      "recipe_limit": { "title": "Batas penyimpanan gratis tercapai", "desc": "Paket gratis hingga 20 resep/bulan\nUpgrade tanpa batas" },
-      "member_limit": { "title": "Batas anggota tercapai", "desc": "Paket gratis 1 anggota\nUpgrade hingga 4 anggota" },
-      "screenshot": { "title": "Fitur berbayar: impor tangkapan layar", "desc": "Upgrade untuk impor resep\ndari kamera/tangkapan layar, tanpa mengetik" },
-      "ingredient_search": { "title": "Fitur berbayar: pencarian bahan", "desc": "Upgrade untuk mencari resep\nberdasarkan nama bahan" },
-      "multilang": { "title": "Fitur berbayar: multi-bahasa", "desc": "Upgrade agar asisten bisa melihat\nresep dalam bahasa Inggris/Indonesia" },
-      "generic": { "title": "Upgrade untuk memakai fitur ini", "desc": "Upgrade ke paket Keluarga untuk membuka semua" }
+      "import_limit": {
+        "title": "Batas impor gratis tercapai",
+        "desc": "Paket gratis hingga 20 impor/bulan\nUpgrade hingga 300"
+      },
+      "recipe_limit": {
+        "title": "Batas penyimpanan gratis tercapai",
+        "desc": "Paket gratis hingga 20 resep/bulan\nUpgrade tanpa batas"
+      },
+      "member_limit": {
+        "title": "Batas anggota tercapai",
+        "desc": "Paket gratis 1 anggota\nUpgrade hingga 4 anggota"
+      },
+      "screenshot": {
+        "title": "Fitur berbayar: impor tangkapan layar",
+        "desc": "Upgrade untuk impor resep\ndari kamera/tangkapan layar, tanpa mengetik"
+      },
+      "ingredient_search": {
+        "title": "Fitur berbayar: pencarian bahan",
+        "desc": "Upgrade untuk mencari resep\nberdasarkan nama bahan"
+      },
+      "multilang": {
+        "title": "Fitur berbayar: multi-bahasa",
+        "desc": "Upgrade agar asisten bisa melihat\nresep dalam bahasa Inggris, Filipino, atau Indonesia"
+      },
+      "generic": {
+        "title": "Upgrade untuk memakai fitur ini",
+        "desc": "Upgrade ke paket Keluarga untuk membuka semua"
+      }
     }
-  }
+  },
+  " · 主人": " · Pemilik",
+  " · 幫手": " · Asisten",
+  " · 成員": " · Anggota",
+  " · 管理員": " · Admin",
+  "• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe": "• Pastikan postingan punya bahan dan langkah lengkap\n• Jika hanya foto, gunakan unggah tangkapan layar\n• Coba versi Instagram TV",
+  "一起規劃餐單、同步購物清單": "Rencanakan makan bersama, sinkronkan daftar belanja",
+  "保存": "Simpan",
+  "全部已加入購物清單": "Semua sudah di daftar belanja",
+  "共 {{n}} 張圖，會合併解析": "{{n}} gambar — akan digabung dan dianalisis",
+  "其他平台搜尋": "Cari di platform lain",
+  "加入中...": "Menambahkan...",
+  "加入食材到購物清單": "Tambahkan bahan ke daftar belanja",
+  "合併成功": "Berhasil digabung",
+  "呢個已經係你嘅電郵": "Ini sudah email Anda",
+  "呢個頁面可能已經移咗位。": "Halaman ini mungkin sudah dipindahkan.",
+  "呢日仲未加入購物車食材": "Belum ada bahan ditambahkan ke keranjang hari ini",
+  "官方食譜": "Resep Resmi",
+  "已將 {{n}} 個家庭搬入你嘅帳號": "Memindahkan {{n}} keluarga ke akun Anda",
+  "我的食譜": "Resep Saya",
+  "找不到": "Tidak ditemukan",
+  "找不到頁面": "Halaman tidak ditemukan",
+  "換一張照片（拍清晰食物本體）": "Coba foto lain (foto jelas makanannya)",
+  "搜尋": "Cari",
+  "收起": "Tutup",
+  "暫無記錄": "Belum ada catatan",
+  "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。": "Harga dari alat harga online Consumer Council, diperbarui harian. Harga aktual sesuai platform.",
+  "此裝置（例如 iOS 模擬器）冇可用相機。\n\n請用真機測試，或改用「從相簿選擇」。": "Tidak ada kamera di perangkat ini (mis. simulator iOS).\n\nGunakan perangkat asli, atau pilih dari galeri.",
+  "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。": "Harga Consumer Council mencakup supermarket (Wellcome, ParknShop); tidak termasuk HKTVmall, pandamart, dan pasar segar.",
+  "直接前往平台搜尋": "Cari di platform",
+  "確定刪除「{{name}}」？": "Hapus \"{{name}}\"?",
+  "編輯備註": "Edit catatan",
+  "自訂購物日期（唔可以遲過排餐日）": "Tanggal belanja khusus (tidak melebihi tanggal makan)",
+  "請輸入有效電郵": "Masukkan email yang valid",
+  "請輸入驗證碼": "Masukkan kode",
+  "購買日期（{{date}}）不能遲於排餐日期（{{meal}}）\n\n建議選擇 {{suggest}} 或更早的日期": "Tanggal belanja ({{date}}) tidak boleh melebihi tanggal makan ({{meal}}).\n\nPilih {{suggest}} atau lebih awal.",
+  "連結 Google": "Tautkan Google",
+  "連結失敗": "Gagal menautkan",
+  "連結成功": "Berhasil ditautkan",
+  "連結電郵": "Tautkan email",
+  "重試": "Coba lagi",
+  "錯誤：{{msg}}\n\n請檢查網絡連接，或嘗試再次點擊。": "Kesalahan: {{msg}}\n\nPeriksa koneksi, atau coba lagi.",
+  "間超市": "supermarket",
+  "顯示全部": "Tampilkan semua",
+  "食譜、餐單、購買即時同步": "Resep, rencana, dan belanja tersinkron instan",
+  "📥 匯入食譜": "📥 Resep Impor",
+  "已設定": "Tersimpan",
+  "載入食譜中，請再試一次": "Memuat resep, coba lagi",
+  "無法獲取食譜食材": "Gagal memuat bahan resep",
+  "已取消衝突排餐": "Makanan bentrok dibatalkan",
+  "⚠️ 已批量加入排餐，但列表可能需要手動刷新": "⚠️ Ditambahkan ke rencana, daftar mungkin perlu refresh",
+  "正在上傳圖片...": "Mengunggah gambar...",
+  "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ Tidak ada resep serupa; sudah coba AI, tekan lagi",
+  "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 Tidak ada alternatif serupa di library; pakai AI",
+  "已提交到網紅頁 🎉": "Dikirim ke halaman KOL 🎉"
 }

@@ -2041,7 +2041,7 @@
     "f3": "Up to 4 family members",
     "f4": "Import recipes from screenshots",
     "f5": "Ingredient search",
-    "f6": "Multi-language (English / Indonesian)",
+    "f6": "Multi-language (English / Filipino / Indonesian)",
     "f7": "Works offline",
     "f8": "No ads",
     "ctaMonthlyStripe": "Subscribe monthly HK$30 by card",
@@ -2056,13 +2056,88 @@
     "later": "Maybe later",
     "manage": "Manage subscription",
     "feature": {
-      "import_limit": { "title": "Free import limit reached", "desc": "Free plan imports up to 20 recipes/month\nUpgrade for up to 300" },
-      "recipe_limit": { "title": "Free recipe storage limit reached", "desc": "Free plan creates up to 20 recipes/month\nUpgrade for unlimited" },
-      "member_limit": { "title": "Member limit reached", "desc": "Free plan allows 1 member\nUpgrade for up to 4 members" },
-      "screenshot": { "title": "Screenshot import is a paid feature", "desc": "Upgrade to import recipes\nfrom camera or screenshots, no typing" },
-      "ingredient_search": { "title": "Ingredient search is a paid feature", "desc": "Upgrade to search recipes\nby ingredient name" },
-      "multilang": { "title": "Multi-language is a paid feature", "desc": "Upgrade so helpers can view\nrecipes in English or Indonesian" },
-      "generic": { "title": "Upgrade to use this feature", "desc": "Upgrade to the Family plan to unlock everything" }
+      "import_limit": {
+        "title": "Free import limit reached",
+        "desc": "Free plan imports up to 20 recipes/month\nUpgrade for up to 300"
+      },
+      "recipe_limit": {
+        "title": "Free recipe storage limit reached",
+        "desc": "Free plan creates up to 20 recipes/month\nUpgrade for unlimited"
+      },
+      "member_limit": {
+        "title": "Member limit reached",
+        "desc": "Free plan allows 1 member\nUpgrade for up to 4 members"
+      },
+      "screenshot": {
+        "title": "Screenshot import is a paid feature",
+        "desc": "Upgrade to import recipes\nfrom camera or screenshots, no typing"
+      },
+      "ingredient_search": {
+        "title": "Ingredient search is a paid feature",
+        "desc": "Upgrade to search recipes\nby ingredient name"
+      },
+      "multilang": {
+        "title": "Multi-language is a paid feature",
+        "desc": "Upgrade so helpers can view\nrecipes in English, Filipino or Indonesian"
+      },
+      "generic": {
+        "title": "Upgrade to use this feature",
+        "desc": "Upgrade to the Family plan to unlock everything"
+      }
     }
-  }
+  },
+  " · 主人": " · Owner",
+  " · 幫手": " · Helper",
+  " · 成員": " · Member",
+  " · 管理員": " · Admin",
+  "• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe": "• Make sure the post has full ingredients and steps\n• If it's photos only, use screenshot upload\n• Try the Instagram TV version",
+  "一起規劃餐單、同步購物清單": "Plan meals together, sync shopping lists",
+  "保存": "Save",
+  "全部已加入購物清單": "All added to shopping list",
+  "共 {{n}} 張圖，會合併解析": "{{n}} images — will be combined and parsed",
+  "其他平台搜尋": "Search other platforms",
+  "加入中...": "Adding...",
+  "加入食材到購物清單": "Add ingredients to shopping list",
+  "合併成功": "Merged",
+  "呢個已經係你嘅電郵": "This is already your email",
+  "呢個頁面可能已經移咗位。": "This page may have moved.",
+  "呢日仲未加入購物車食材": "No ingredients added to cart for this day yet",
+  "官方食譜": "Official Recipes",
+  "已將 {{n}} 個家庭搬入你嘅帳號": "Moved {{n}} families into your account",
+  "我的食譜": "My Recipes",
+  "找不到": "Not found",
+  "找不到頁面": "Page not found",
+  "換一張照片（拍清晰食物本體）": "Try another photo (clear shot of the dish)",
+  "搜尋": "Search",
+  "收起": "Collapse",
+  "暫無記錄": "No records yet",
+  "格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。": "Prices from the Consumer Council's online price tool, updated daily. Actual prices per platform.",
+  "此裝置（例如 iOS 模擬器）冇可用相機。\n\n請用真機測試，或改用「從相簿選擇」。": "No camera available on this device (e.g. iOS simulator).\n\nUse a real device, or choose from library.",
+  "消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。": "Consumer Council prices cover supermarkets (Wellcome, ParknShop); excludes HKTVmall, pandamart and wet-market fresh goods.",
+  "直接前往平台搜尋": "Search on the platform",
+  "確定刪除「{{name}}」？": "Delete \"{{name}}\"?",
+  "編輯備註": "Edit note",
+  "自訂購物日期（唔可以遲過排餐日）": "Custom shopping date (must not be later than the meal date)",
+  "請輸入有效電郵": "Enter a valid email",
+  "請輸入驗證碼": "Enter the code",
+  "購買日期（{{date}}）不能遲於排餐日期（{{meal}}）\n\n建議選擇 {{suggest}} 或更早的日期": "Shopping date ({{date}}) can't be later than the meal date ({{meal}}).\n\nChoose {{suggest}} or earlier.",
+  "連結 Google": "Link Google",
+  "連結失敗": "Linking failed",
+  "連結成功": "Linked",
+  "連結電郵": "Link email",
+  "重試": "Retry",
+  "錯誤：{{msg}}\n\n請檢查網絡連接，或嘗試再次點擊。": "Error: {{msg}}\n\nCheck your connection, or try again.",
+  "間超市": "supermarkets",
+  "顯示全部": "Show all",
+  "食譜、餐單、購買即時同步": "Recipes, meal plan and shopping sync instantly",
+  "📥 匯入食譜": "📥 Imported Recipes",
+  "已設定": "Saved",
+  "載入食譜中，請再試一次": "Loading recipes, please try again",
+  "無法獲取食譜食材": "Couldn't load recipe ingredients",
+  "已取消衝突排餐": "Conflicting meal cancelled",
+  "⚠️ 已批量加入排餐，但列表可能需要手動刷新": "⚠️ Added to plan, but the list may need a refresh",
+  "正在上傳圖片...": "Uploading image...",
+  "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ No similar recipe found; tried AI generation, please tap again",
+  "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 No new similar library alternative; using AI generation",
+  "已提交到網紅頁 🎉": "Submitted to the KOL page 🎉"
 }
