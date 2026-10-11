@@ -20,6 +20,7 @@ import {
   Linking,
 } from "react-native";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
 import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, canPurchaseHere, type ProductId } from "../lib/purchase";
@@ -43,42 +44,14 @@ interface PaywallModalProps {
   trialDaysLeft?: number; // 試用期剩餘天數（如果在試用中）
 }
 
-const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; title: string; desc: string }> = {
-  import_limit: {
-    emoji: "📥",
-    title: "已達免費匯入上限",
-    desc: "免費版每月最多匯入 20 個食譜\n升級後可匯入最多 300 個",
-  },
-  recipe_limit: {
-    emoji: "📚",
-    title: "已達食譜儲存上限",
-    desc: "免費版每月最多建立 20 個食譜\n升級後可無限儲存",
-  },
-  member_limit: {
-    emoji: "👨‍👩‍👧",
-    title: "已達成員上限",
-    desc: "免費版最多 1 位成員\n升級後最多可加入 4 位成員",
-  },
-  screenshot: {
-    emoji: "📸",
-    title: "截圖匯入為付費功能",
-    desc: "升級後可用相機或截圖\n直接匯入食譜，無需手動輸入",
-  },
-  ingredient_search: {
-    emoji: "🔍",
-    title: "食材搜尋為付費功能",
-    desc: "升級後可輸入食材名稱\n搜尋所有相關食譜",
-  },
-  multilang: {
-    emoji: "🌏",
-    title: "多語言為付費功能",
-    desc: "升級後工人姐姐可用\n英文或印尼文查看食譜",
-  },
-  generic: {
-    emoji: "⭐",
-    title: "升級以使用此功能",
-    desc: "升級至家庭版，解鎖所有功能",
-  },
+const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; key: PaywallFeature }> = {
+  import_limit: { emoji: "📥", key: "import_limit" },
+  recipe_limit: { emoji: "📚", key: "recipe_limit" },
+  member_limit: { emoji: "👨‍👩‍👧", key: "member_limit" },
+  screenshot: { emoji: "📸", key: "screenshot" },
+  ingredient_search: { emoji: "🔍", key: "ingredient_search" },
+  multilang: { emoji: "🌏", key: "multilang" },
+  generic: { emoji: "⭐", key: "generic" },
 };
 
 export default function PaywallModal({
@@ -87,6 +60,7 @@ export default function PaywallModal({
   feature = "generic",
   trialDaysLeft,
 }: PaywallModalProps) {
+  const { t } = useTranslation();
   const msg = FEATURE_MESSAGES[feature];
   const [isPurchasing, setIsPurchasing] = useState<"monthly" | "yearly" | null>(null);
   const [promoCode, setPromoCode] = useState("");
@@ -97,7 +71,7 @@ export default function PaywallModal({
   const redeemM = trpc.subscription.redeemTrialCode.useMutation({
     onSuccess: async (res) => {
       setPromoState("done");
-      setPromoMsg(res.expiresAt ? `已啟用 7 日免費試用（至 ${new Date(res.expiresAt).toLocaleDateString()}）` : "已啟用 7 日免費試用");
+      setPromoMsg(res.expiresAt ? t("paywall.promoDone", { date: new Date(res.expiresAt).toLocaleDateString() }) : t("paywall.promoDoneShort"));
       await utils.invalidate();
       track(Events.PromoRedeemed, {});
     },
@@ -171,35 +145,35 @@ export default function PaywallModal({
 
           {/* Content */}
           <Text style={styles.emoji}>{msg.emoji}</Text>
-          <Text style={styles.title}>{msg.title}</Text>
-          <Text style={styles.desc}>{msg.desc}</Text>
+          <Text style={styles.title}>{t(`paywall.feature.${msg.key}.title` as any)}</Text>
+          <Text style={styles.desc}>{t(`paywall.feature.${msg.key}.desc` as any)}</Text>
 
           {/* Pricing（只有真係買到先顯示，避免 iOS 死按鈕） */}
           {canPurchaseHere ? (
           <View style={styles.pricingBox}>
             <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>家庭版月費</Text>
+              <Text style={styles.pricingLabel}>{t("paywall.monthlyLabel" as any)}</Text>
               <View style={styles.pricingRight}>
                 <Text style={styles.price}>HK$30</Text>
-                <Text style={styles.pricePer}>/月</Text>
+                <Text style={styles.pricePer}>{t("paywall.perMonth" as any)}</Text>
               </View>
             </View>
             <View style={styles.divider} />
             <View style={styles.pricingRow}>
               <View style={styles.pricingLabelRow}>
-                <Text style={styles.pricingLabel}>家庭版年費（最抵）</Text>
+                <Text style={styles.pricingLabel}>{t("paywall.yearlyLabel" as any)}</Text>
                 <View style={styles.mostPopularBadge}>
-                  <Text style={styles.mostPopularText}>80% 僱主選擇</Text>
+                  <Text style={styles.mostPopularText}>{t("paywall.mostPopular" as any)}</Text>
                 </View>
               </View>
               <View style={styles.pricingRight}>
                 <View style={styles.priceWrap}>
                   <Text style={styles.priceStrike}>HK$360</Text>
                   <Text style={styles.price}>HK$288</Text>
-                  <Text style={styles.pricePer}>/年</Text>
+                  <Text style={styles.pricePer}>{t("paywall.perYear" as any)}</Text>
                 </View>
                 <View style={styles.saveBadge}>
-                  <Text style={styles.saveText}>立省 20% · ≈HK$24/月</Text>
+                  <Text style={styles.saveText}>{t("paywall.saveBadge" as any)}</Text>
                 </View>
               </View>
             </View>
@@ -217,7 +191,7 @@ export default function PaywallModal({
               <View style={styles.promoRow}>
                 <TextInput
                   style={styles.promoInput}
-                  placeholder="輸入 IG 試用碼"
+                  placeholder={t("paywall.promoPlaceholder" as any)}
                   placeholderTextColor="#9CA3AF"
                   autoCapitalize="characters"
                   value={promoCode}
@@ -232,7 +206,7 @@ export default function PaywallModal({
                   {promoState === "redeeming" ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.promoBtnText}>兌換</Text>
+                    <Text style={styles.promoBtnText}>{t("paywall.redeem" as any)}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -244,19 +218,10 @@ export default function PaywallModal({
 
           {/* Features list */}
           <View style={styles.featuresList}>
-            {[
-              "每月最多 300 個食譜匯入",
-              "無限儲存食譜",
-              "最多 4 位家庭成員",
-              "截圖匯入食譜",
-              "食材搜尋功能",
-              "多語言支援（英文 / 印尼文）",
-              "離線可用",
-              "無廣告",
-            ].map((f) => (
-              <View key={f} style={styles.featureRow}>
+            {["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"].map((fk) => (
+              <View key={fk} style={styles.featureRow}>
                 <Text style={styles.checkmark}>✓</Text>
-                <Text style={styles.featureText}>{f}</Text>
+                <Text style={styles.featureText}>{t(`paywall.${fk}` as any)}</Text>
               </View>
             ))}
           </View>
@@ -273,7 +238,7 @@ export default function PaywallModal({
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.upgradeBtnText}>
-                    {isStripeSupported ? "信用卡訂閱月費 HK$30" : "訂閱月費 HK$30"}
+                    {isStripeSupported ? t("paywall.ctaMonthlyStripe" as any) : t("paywall.ctaMonthly" as any)}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -286,26 +251,26 @@ export default function PaywallModal({
                 {isPurchasing === 'yearly' ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.yearlyBtnText}>訂閱年費 HK$288（最抵，80% 僱主選擇）</Text>
+                  <Text style={styles.yearlyBtnText}>{t("paywall.ctaYearly" as any)}</Text>
                 )}
               </TouchableOpacity>
 
               <Text style={styles.legalNote}>
                 {isStripeSupported
-                  ? "以信用卡安全付款（Stripe）。可隨時於「管理訂閱」取消。"
-                  : "透過 App Store 付款，可隨時於 Apple 帳戶取消。"}
+                  ? t("paywall.legalStripe" as any)
+                  : t("paywall.legalApple" as any)}
               </Text>
             </>
           ) : (
             <View style={styles.igBox}>
-              <Text style={styles.igTitle}>想要 Pro？</Text>
-              <Text style={styles.igDesc}>追蹤我哋 Instagram，即可獲 7 日免費 Pro 體驗碼</Text>
+              <Text style={styles.igTitle}>{t("paywall.igTitle" as any)}</Text>
+              <Text style={styles.igDesc}>{t("paywall.igDesc" as any)}</Text>
               {INSTAGRAM_URL ? (
                 <TouchableOpacity
                   style={styles.upgradeBtn}
                   onPress={() => { Linking.openURL(INSTAGRAM_URL).catch(() => {}); }}
                 >
-                  <Text style={styles.upgradeBtnText}>追蹤 IG 攞 7 日 Pro</Text>
+                  <Text style={styles.upgradeBtnText}>{t("paywall.igCta" as any)}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -314,14 +279,14 @@ export default function PaywallModal({
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
             <Text style={styles.cancelBtnText}>
               {trialDaysLeft && trialDaysLeft > 0
-                ? `繼續試用（剩餘 ${trialDaysLeft} 天）`
-                : "稍後再說"}
+                ? t("paywall.continueTrial", { n: trialDaysLeft })
+                : t("paywall.later")}
             </Text>
           </TouchableOpacity>
 
           {canPurchaseHere ? (
             <TouchableOpacity style={styles.restoreBtn} onPress={handleManageSubscription}>
-              <Text style={styles.restoreBtnText}>管理訂閱</Text>
+              <Text style={styles.restoreBtnText}>{t("paywall.manage" as any)}</Text>
             </TouchableOpacity>
           ) : null}
         </TouchableOpacity>
