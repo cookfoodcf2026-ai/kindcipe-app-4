@@ -14,8 +14,9 @@ if [ -z "$staged" ]; then
   exit 0
 fi
 
-# Rebuild only when web-relevant files are staged.
-needs_build=$(printf '%s\n' "$staged" | grep -E '^(app/|lib/|hooks/|src/|components/|assets/|locales/|constants/|types/|\.env$|app\.json|babel\.config\.js|metro\.config\.js|package\.json)$' || true)
+# Rebuild only when web-relevant files are staged. Directory prefixes must be
+# matched with a trailing "/" (not "$") so files UNDER them trigger a rebuild.
+needs_build=$(printf '%s\n' "$staged" | grep -E '^(app|lib|hooks|src|components|assets|locales|constants|types)/|^(\.env|app\.json|babel\.config\.js|metro\.config\.js|package\.json)$' || true)
 
 if [ -z "$needs_build" ]; then
   exit 0
