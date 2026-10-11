@@ -49,7 +49,7 @@ type EditableIngredient = { id: string; name: string; quantity: string; unit: st
 type EditableStep = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
 
 // 高成功率平台清單（顯示 Magic Card）
-const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
+const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Facebook"];
 
 // 判斷係咪我哋自己 storage（R2 / backend proxy）嘅 URL；否則視為外部（可能過期）
 function isOwnStorageUrl(url: string): boolean {
@@ -518,13 +518,8 @@ export default function ImportScreen() {
         setDetectedPlatform(null);
         setStep("failed");
       } else {
-        const platform = detectPlatform(universalInput);
         let msg = t("無法讀取此連結的內容，可能需要登入或內容已被刪除。" as any);
-        if (platform === "小紅書") {
-          msg += t("\n\n小紅書限制了自動讀取，請改用「截圖上傳」或「貼上文字」功能。" as any);
-        } else {
-          msg += t("\n\n建議改用截圖上傳。" as any);
-        }
+        msg += t("\n\n建議改用截圖上傳。" as any);
         setErrorMsg(msg);
         setFailedInput({ type: "url", value: universalInput });
         setClipboardUrl(null);
@@ -661,8 +656,6 @@ export default function ImportScreen() {
     const u = url.toLowerCase();
     if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
     if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
-    if (u.includes("xiaohongshu.com") || u.includes("xhslink.com") || u.includes("xhslink.cn")) return "小紅書";
-    if (u.includes("threads.net") || u.includes("threads.com")) return "Threads";
     if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
     if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
     if (u.includes("weibo.com")) return "微博";
@@ -674,8 +667,6 @@ export default function ImportScreen() {
     const tips: Record<string, string> = {
       "Instagram": t("• 確認帖子包含詳細食材和步驟\n• 如只有相片，請用截圖上傳\n• 可嘗試 IG TV 版本的 Recipe" as any),
       "YouTube": t("• 確保影片描述區有食材清單\n• 某些食譜影片只用口述，建議截圖\n• 可複製影片描述文字用文字貼上" as any),
-      "小紅書": t("• 小紅書限制了自動讀取，請改用「貼上文字」功能\n• 複製筆記中的文字貼上即可解析\n• 或截圖上傳帖子關鍵內容" as any),
-      "Threads": t("• Threads 帖子內容可透過連結直接讀取\n• 確保帖子包含完整食材和步驟\n• 如內文較短，建議複製文字貼上解析" as any),
       "Facebook": t("• 確認帖子有文字版的食材步驟\n• 部分食譜以圖片/影片為主無法解析\n• 試試截圖上傳或複製文字" as any),
       "TikTok/抖音": t("• 確認影片描述有食材清單\n• 部分影片僅展示製作過程\n• 建議截圖關鍵畫面後上傳" as any),
     };

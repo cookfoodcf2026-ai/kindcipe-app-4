@@ -73,8 +73,6 @@ function detectPlatform(url: string): string | null {
   const u = url.toLowerCase();
   if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
   if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
-  if (u.includes("xiaohongshu.com") || u.includes("xhslink.com") || u.includes("xhslink.cn")) return "小紅書";
-  if (u.includes("threads.net") || u.includes("threads.com")) return "Threads";
   if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
   if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
   if (u.includes("weibo.com")) return "微博";
@@ -83,7 +81,7 @@ function detectPlatform(url: string): string | null {
 }
 
 // 高成功率平台清單（顯示提示）
-const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Threads", "Facebook"];
+const SUPPORTED_PLATFORMS = ["Instagram", "YouTube", "Facebook"];
 
 const safeParseClipboardHint = (raw: string): { url?: string; timestamp?: number } | null => {
   try {
