@@ -463,8 +463,8 @@ export default function PlannerTab() {
     }
 
     try {
-      showToast(`正在將本日推薦導入排餐中...`, "info");
-    const allMeals: { date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeImage?: string | null }[] = [];
+      showToast(t("正在將本日推薦導入排餐中..." as any), "info");
+    const allMeals: { date: string; mealType: "dinner"; recipeId: string; recipeName: string; recipeNameEn?: string | null; recipeNameFil?: string | null; recipeNameId?: string | null; recipeImage?: string | null }[] = [];
       const pickerRecipes: PickerRecipe[] = [];
 
       for (const slot of toAdd) {
@@ -476,15 +476,18 @@ export default function PlannerTab() {
         const recipeId = dishId.startsWith("user_") || dishId.startsWith("user:")
           ? `user_${numId}`
           : `official_${numId}`;
+        const official = officialRecipes.find((r: any) => r.id === numId);
         allMeals.push({
           date: itemDateStr,
           mealType: "dinner" as const,
           recipeId,
           recipeName: dishName,
+          recipeNameEn: (item as any)[`${slot}NameEn`] ?? official?.nameEn ?? undefined,
+          recipeNameFil: (item as any)[`${slot}NameFil`] ?? official?.nameFil ?? undefined,
+          recipeNameId: (item as any)[`${slot}NameId`] ?? official?.nameId ?? undefined,
           recipeImage: dishImage,
         });
 
-        const official = officialRecipes.find((r: any) => r.id === numId);
         if (official && Array.isArray(official.ingredients) && official.ingredients.length > 0) {
           pickerRecipes.push({
             id: dishId,
