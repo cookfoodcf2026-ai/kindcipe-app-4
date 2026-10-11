@@ -130,7 +130,7 @@ export default function RestockScreen() {
           headerTintColor: BRAND,
           headerTitleStyle: { fontWeight: "800", color: TEXT },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={{ marginLeft: 4 }}>
               <Ionicons name="chevron-back" size={24} color={TEXT} />
             </TouchableOpacity>
           ),

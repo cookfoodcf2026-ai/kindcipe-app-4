@@ -690,7 +690,7 @@ export default function ShoppingTemplatesScreen() {
         setCustomItems([]);
         setExpandedCategories(new Set());
       } else {
-        router.back();
+        if (router.canGoBack()) router.back(); else router.replace("/(tabs)");
       }
     };
 

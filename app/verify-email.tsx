@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { saveAuthTokenFromResponse } from "@/lib/auth";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
+import { getPendingVerificationEmail, clearPendingVerificationEmail } from "@/lib/pending-verification";
 
 const BRAND = "#013E77";
 const COPPER = "#F5A823";
@@ -22,7 +23,8 @@ export default function VerifyEmailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ email?: string }>();
-  const email = String(params.email ?? "");
+  // Prefer the in-memory handoff so the email never appears in the URL.
+  const email = getPendingVerificationEmail() ?? String(params.email ?? "");
 
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
@@ -43,6 +45,7 @@ export default function VerifyEmailScreen() {
   const verifyM = trpc.auth.verifyEmail.useMutation({
     onSuccess: async (data: any) => {
       await saveAuthTokenFromResponse(data);
+      clearPendingVerificationEmail();
       track(Events.LoginCompleted, { method: "email_verified" });
       Alert.alert(t("verify.success" as any), t("verify.successMsg" as any), [
         { text: t("知道了" as any), onPress: () => router.replace("/(tabs)" as any) },
@@ -68,7 +71,7 @@ export default function VerifyEmailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[s.content, { paddingTop: Math.max(insets.top + 24, 48) }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.back} hitSlop={12}>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={s.back} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={BRAND} />
         </TouchableOpacity>
 

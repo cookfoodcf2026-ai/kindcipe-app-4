@@ -5,7 +5,7 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Image, Modal,
-  KeyboardAvoidingView, Platform, Keyboard, AppState,
+  KeyboardAvoidingView, Platform, Keyboard, AppState, BackHandler,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +20,7 @@ import { trpc } from "@/lib/trpc";
 import { usePendingShare } from "@/lib/pendingShare";
 import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
+import { useGoBackSafe } from "@/hooks/useGoBackSafe";
 import { compressImage } from "@/lib/image-utils";
 import i18n from "@/lib/i18n";
 import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
@@ -89,6 +90,7 @@ export default function ImportScreen() {
   const navigation = useNavigation();
   const params = useLocalSearchParams<{ onboarding?: string; clipboardUrl?: string; sharedText?: string; sharedImageUri?: string; autoParse?: string }>();
   const isOnboarding = params.onboarding === "true";
+  const goBackSafe = useGoBackSafe(isOnboarding ? "/onboarding" : "/(tabs)");
   const { user: authUser } = useAuth();
   const utils = trpc.useUtils();
 
@@ -1091,6 +1093,16 @@ export default function ImportScreen() {
     }
   );
 
+  // Android 硬件返回：無未存內容就直接安全返回（無 history → 去主頁），有未存內容就交返 usePreventRemove 顯示確認
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (hasUnsavedImport && !allowLeaveImport) return false;
+      goBackSafe();
+      return true;
+    });
+    return () => sub.remove();
+  }, [goBackSafe, hasUnsavedImport, allowLeaveImport]);
+
   // ── 解析中畫面 ──
   if (step === "parsing") {
     return (
@@ -1453,6 +1465,12 @@ export default function ImportScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
         >
           <ScrollView style={styles.container} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+            <View style={{ height: insets.top + 8 }} />
+            <View style={{ flexDirection: "row", paddingHorizontal: 16 }}>
+              <TouchableOpacity onPress={goBackSafe} style={{ padding: 8, marginLeft: -8 }} accessibilityRole="button">
+                <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.centerContainer}>
               <Ionicons name="alert-circle" size={64} color="#EF4444" />
               <Text style={styles.failedTitle}>{t("importRecipe.parseFailed")}</Text>
@@ -1525,7 +1543,7 @@ export default function ImportScreen() {
         {/* Header */}
         <View style={[styles.headerSection, { paddingTop: insets.top + 12 }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")} style={{ padding: 4, marginLeft: -4 }}>
+            <TouchableOpacity onPress={goBackSafe} style={{ padding: 4, marginLeft: -4 }}>
               <Ionicons name="chevron-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={[styles.pageTitle, { marginBottom: 0 }]}>{t("more.addTitle")}</Text>

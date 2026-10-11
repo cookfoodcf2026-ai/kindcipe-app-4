@@ -249,7 +249,7 @@ export default function RecipesPage() {
       {/* Header */}
       <View style={[s.header, { paddingTop: 16 }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))}
           style={s.backBtn}
           accessibilityLabel={t("recipes.back")}
         >
