@@ -1970,7 +1970,6 @@
   },
   "aiEditPreset": {
     "vegetarian": "Make it vegetarian",
-    "translateEn": "Translate to English",
     "simplifySteps": "Simplify steps",
     "lowCalorie": "Low-calorie version",
     "highProtein": "High-protein version",
@@ -1987,5 +1986,11 @@
     "body": "We collect anonymous usage data (no name, email or personal details) to improve recipe importing and recommendations. You can turn this off anytime in Settings.",
     "toggle": "Share anonymous usage data",
     "continue": "Continue"
+  },
+  "aiEdit": {
+    "noChangeTitle": "Couldn't apply your request",
+    "noChangeBody": "AI couldn't make that change. Try being more specific, e.g. \"make it a soup\", \"make it spicy\", \"use pork\", \"vegetarian\", \"simplify steps\".",
+    "regenerate": "Regenerate",
+    "disclaimer": "AI edits based on your request; please review the ingredients and steps."
   }
 }

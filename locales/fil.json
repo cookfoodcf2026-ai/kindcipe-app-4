@@ -1970,7 +1970,6 @@
   },
   "aiEditPreset": {
     "vegetarian": "Gawing vegetarian",
-    "translateEn": "Isalin sa English",
     "simplifySteps": "Pasimplehin ang steps",
     "lowCalorie": "Low-calorie version",
     "highProtein": "High-protein version",
@@ -1987,5 +1986,11 @@
     "body": "Nangongolekta kami ng anonymous na data ng paggamit (walang pangalan, email o personal na detalye) para mapabuti ang pag-import ng recipe at rekomendasyon. Puwede mong i-off anumang oras sa Settings.",
     "toggle": "Ibahagi ang anonymous na data",
     "continue": "Magpatuloy"
+  },
+  "aiEdit": {
+    "noChangeTitle": "Hindi maipatupad ang request",
+    "noChangeBody": "Hindi nagawa ng AI ang pagbabago. Subukang maging mas tiyak, hal. \"gawing sopas\", \"gawing maanghang\", \"gamitin ang baboy\", \"vegetarian\", \"pasimplehin ang steps\".",
+    "regenerate": "Muling gawin",
+    "disclaimer": "Nag-eedit ang AI base sa iyong request; paki-check ang mga sangkap at steps."
   }
 }

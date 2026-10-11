@@ -1970,7 +1970,6 @@
   },
   "aiEditPreset": {
     "vegetarian": "改成素食版",
-    "translateEn": "翻譯成英文",
     "simplifySteps": "簡化步驟",
     "lowCalorie": "低卡路里版",
     "highProtein": "高蛋白版",
@@ -1987,5 +1986,11 @@
     "body": "我們會收集匿名使用數據（不含姓名、電郵等個人資料），用嚟改善食譜匯入同推薦。你可隨時喺設定關閉。",
     "toggle": "分享匿名使用數據",
     "continue": "繼續"
+  },
+  "aiEdit": {
+    "noChangeTitle": "未能依你嘅指示修改",
+    "noChangeBody": "AI 今次改唔到。可以試下講清楚啲，例如「改成湯」「加辣」「改用豬肉」「做素食」「簡化步驟」。",
+    "regenerate": "重新生成",
+    "disclaimer": "AI 依你指示修改，內容僅供參考，請核對食材及步驟。"
   }
 }

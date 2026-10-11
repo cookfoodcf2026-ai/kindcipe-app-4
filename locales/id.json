@@ -1970,7 +1970,6 @@
   },
   "aiEditPreset": {
     "vegetarian": "Jadikan vegetarian",
-    "translateEn": "Terjemahkan ke Inggris",
     "simplifySteps": "Sederhanakan langkah",
     "lowCalorie": "Versi rendah kalori",
     "highProtein": "Versi tinggi protein",
@@ -1987,5 +1986,11 @@
     "body": "Kami mengumpulkan data penggunaan anonim (tanpa nama, email, atau data pribadi) untuk meningkatkan impor resep dan rekomendasi. Anda dapat mematikannya kapan saja di Pengaturan.",
     "toggle": "Bagikan data penggunaan anonim",
     "continue": "Lanjutkan"
+  },
+  "aiEdit": {
+    "noChangeTitle": "Tidak dapat menerapkan permintaan",
+    "noChangeBody": "AI tidak dapat melakukan perubahan itu. Coba lebih spesifik, mis. \"jadikan sup\", \"buat pedas\", \"pakai daging babi\", \"vegetarian\", \"sederhanakan langkah\".",
+    "regenerate": "Buat ulang",
+    "disclaimer": "AI mengedit sesuai permintaan Anda; mohon periksa bahan dan langkah."
   }
 }

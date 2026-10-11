@@ -882,10 +882,28 @@ export default function RecipeDetailScreen() {
   const aiEditM = trpc.aiRecipe.previewEdit.useMutation({
     onSuccess: (data) => {
       void utils.family.usage.invalidate();
+      if ((data as any).unchanged) {
+        // AI 改唔到（打咗無關嘢／模型唔跟）→ 明確講 + 建議，唔當成功、唔誤存
+        Alert.alert(
+          t("aiEdit.noChangeTitle" as any),
+          t("aiEdit.noChangeBody" as any),
+          [{ text: t("知道了" as any), style: "cancel" }],
+        );
+        return;
+      }
       setAIEditPreview(data);
       setAIEditResult(null);
     },
-    onError: (e) => Alert.alert(t("AI Edit 失敗" as any), friendlyError(e)),
+    onError: (e) => {
+      Alert.alert(
+        t("AI Edit 失敗" as any),
+        friendlyError(e),
+        [
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("重試" as any), onPress: () => startAiEdit() },
+        ],
+      );
+    },
   });
 
   const saveEditedRecipeM = trpc.aiRecipe.saveEditedRecipe.useMutation({
@@ -901,6 +919,30 @@ export default function RecipeDetailScreen() {
     },
     onError: (e) => Alert.alert(t("儲存失敗" as any), friendlyError(e)),
   });
+
+  function buildAiEditSource() {
+    return {
+      name: recipe?.name ?? "",
+      description: (recipe as any)?.description ?? "",
+      image: (recipe as any)?.image ?? "",
+      thumbnailUrl: (recipe as any)?.thumbnailUrl ?? (recipe as any)?.image ?? "",
+      cookTime: recipe?.cookTime ?? undefined,
+      servings: recipe?.servings ?? undefined,
+      difficulty: (recipe as any)?.difficulty ?? "",
+      recipeCategory: (recipe as any)?.recipeCategory ?? "",
+      ingredients: ingredients.map((i: any) => ({ name: i.name, quantity: i.quantity ?? "", unit: i.unit ?? "", category: i.category ?? "" })),
+      steps: steps.map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? ""), duration: typeof s === "string" ? 0 : (s.duration ?? 0), tip: typeof s === "string" ? "" : (s.tip ?? "") })),
+      tags: Array.isArray((recipe as any)?.tags) ? (recipe as any).tags : [],
+      sourceAuthor: (recipe as any)?.sourceAuthor ?? "",
+    };
+  }
+
+  function startAiEdit() {
+    if (!aiEditPrompt.trim() || !recipe) return;
+    setAIEditPreview(null);
+    setAIEditResult(null);
+    aiEditM.mutate({ editPrompt: aiEditPrompt, recipe: buildAiEditSource() });
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -1995,7 +2037,6 @@ export default function RecipeDetailScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 {([
                   { key: "vegetarian", value: "改成素食版" },
-                  { key: "translateEn", value: "翻譯成英文" },
                   { key: "simplifySteps", value: "簡化步驟" },
                   { key: "lowCalorie", value: "低卡路里版" },
                   { key: "highProtein", value: "高蛋白版" },
@@ -2022,38 +2063,7 @@ export default function RecipeDetailScreen() {
               />
               <TouchableOpacity
                 style={{ backgroundColor: "#7C3AED", paddingVertical: 13, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 16, opacity: aiEditM.isPending || !aiEditPrompt.trim() ? 0.6 : 1 }}
-                onPress={() => {
-                  if (!aiEditPrompt.trim()) return;
-                  if (!recipe) return;
-                  setAIEditPreview(null);
-                  setAIEditResult(null);
-                  aiEditM.mutate({
-                    editPrompt: aiEditPrompt,
-                    recipe: {
-                      name: recipe.name,
-                      description: (recipe as any).description ?? "",
-                      image: (recipe as any).image ?? "",
-                      thumbnailUrl: (recipe as any).thumbnailUrl ?? (recipe as any).image ?? "",
-                      cookTime: recipe.cookTime ?? undefined,
-                      servings: recipe.servings ?? undefined,
-                      difficulty: (recipe as any).difficulty ?? "",
-                      recipeCategory: (recipe as any).recipeCategory ?? "",
-                      ingredients: ingredients.map((i: any) => ({
-                        name: i.name,
-                        quantity: i.quantity ?? "",
-                        unit: i.unit ?? "",
-                        category: i.category ?? "",
-                      })),
-                      steps: steps.map((s: any) => ({
-                        instruction: typeof s === "string" ? s : (s.instruction ?? ""),
-                        duration: typeof s === "string" ? 0 : (s.duration ?? 0),
-                        tip: typeof s === "string" ? "" : (s.tip ?? ""),
-                      })),
-                      tags: Array.isArray((recipe as any).tags) ? (recipe as any).tags : [],
-                      sourceAuthor: (recipe as any).sourceAuthor ?? "",
-                    },
-                  });
-                }}
+                onPress={startAiEdit}
                 disabled={aiEditM.isPending || !aiEditPrompt.trim()}
               >
                 {aiEditM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="sparkles" size={16} color="#fff" />}
@@ -2099,31 +2109,33 @@ export default function RecipeDetailScreen() {
                   <TouchableOpacity
                     style={{ backgroundColor: BRAND, paddingVertical: 13, borderRadius: 12, alignItems: "center", opacity: saveEditedRecipeM.isPending ? 0.6 : 1 }}
                     onPress={() => {
-                      if (!recipe || saveEditedRecipeM.isPending) return;
+                      if (!recipe || !aiEditPreview || saveEditedRecipeM.isPending) return;
+                      const p = aiEditPreview as any;
                       saveEditedRecipeM.mutate({
                         editPrompt: aiEditPrompt,
                         recipe: {
-                          name: aiEditPreview?.name ?? recipe.name,
-                          description: (aiEditPreview as any)?.description ?? (recipe as any).description ?? "",
-                           image: "",
-                           thumbnailUrl: "",
-                          cookTime: aiEditPreview?.cookTime ?? recipe.cookTime ?? undefined,
-                          servings: aiEditPreview?.servings ?? recipe.servings ?? undefined,
-                          difficulty: (aiEditPreview as any)?.difficulty ?? (recipe as any).difficulty ?? "",
-                          recipeCategory: (aiEditPreview as any)?.recipeCategory ?? (recipe as any).recipeCategory ?? "",
-                          ingredients: ingredients.map((i: any) => ({
-                            name: i.name,
-                            quantity: i.quantity ?? "",
-                            unit: i.unit ?? "",
-                            category: i.category ?? "",
-                          })),
-                          steps: steps.map((s: any) => ({
-                            instruction: typeof s === "string" ? s : (s.instruction ?? ""),
-                            duration: typeof s === "string" ? 0 : (s.duration ?? 0),
-                            tip: typeof s === "string" ? "" : (s.tip ?? ""),
-                          })),
-                          tags: Array.isArray((recipe as any).tags) ? (recipe as any).tags : [],
-                          sourceAuthor: (recipe as any).sourceAuthor ?? "",
+                          name: p.name ?? recipe.name,
+                          nameEn: p.nameEn,
+                          nameFil: p.nameFil,
+                          nameId: p.nameId,
+                          description: p.description ?? (recipe as any).description ?? "",
+                          descriptionEn: p.descriptionEn,
+                          descriptionFil: p.descriptionFil,
+                          descriptionId: p.descriptionId,
+                          image: (recipe as any)?.image ?? "",
+                          thumbnailUrl: (recipe as any)?.thumbnailUrl ?? (recipe as any)?.image ?? "",
+                          cookTime: p.cookTime ?? recipe.cookTime ?? 30,
+                          servings: p.servings ?? recipe.servings ?? 4,
+                          difficulty: p.difficulty ?? (recipe as any).difficulty ?? "中等",
+                          recipeCategory: p.recipeCategory ?? (recipe as any).recipeCategory ?? "其他",
+                          dishType: p.dishType,
+                          ingredients: Array.isArray(p.ingredients) ? p.ingredients : [],
+                          steps: Array.isArray(p.steps) ? p.steps : [],
+                          stepsEn: p.stepsEn,
+                          stepsFil: p.stepsFil,
+                          stepsId: p.stepsId,
+                          tags: Array.isArray(p.tags) ? p.tags : [],
+                          sourceAuthor: (recipe as any)?.sourceAuthor ?? "",
                         },
                       });
                     }}
@@ -2131,6 +2143,15 @@ export default function RecipeDetailScreen() {
                   >
                     {saveEditedRecipeM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 14, fontWeight: "800" }}>{t("recipe.saveAsMine")}</Text>}
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ borderWidth: 1.5, borderColor: "#7C3AED", paddingVertical: 11, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, opacity: aiEditM.isPending ? 0.6 : 1 }}
+                    onPress={startAiEdit}
+                    disabled={aiEditM.isPending}
+                  >
+                    <Ionicons name="reload" size={15} color="#7C3AED" />
+                    <Text style={{ color: "#7C3AED", fontSize: 14, fontWeight: "800" }}>{t("aiEdit.regenerate" as any)}</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 11, color: HINT, textAlign: "center" }}>{t("aiEdit.disclaimer" as any)}</Text>
                 </View>
               )}
             </View>
