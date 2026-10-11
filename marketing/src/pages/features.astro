@@ -1,0 +1,25 @@
+---
+import Layout from "../layouts/Layout.astro";
+import FeatureGrid from "../components/FeatureGrid.astro";
+import { useTranslations, ctaUrl } from "../i18n/ui";
+
+const lang = "zh-HK" as const;
+const t = useTranslations(lang);
+const cta = ctaUrl("features");
+---
+
+<Layout
+  lang={lang}
+  title={`${t("features.title")} — ${t("site.name")}`}
+  description={t("features.subtitle")}
+>
+  <section class="page-hero">
+    <h1>{t("features.title")}</h1>
+    <p class="sub">{t("features.subtitle")}</p>
+    <a class="btn btn-primary" href={cta}>{t("features.cta")}</a>
+  </section>
+
+  <section class="section container">
+    <FeatureGrid lang={lang} />
+  </section>
+</Layout>

@@ -1,0 +1,159 @@
+---
+import "../styles/global.css";
+import {
+  getLangFromUrl,
+  useTranslations,
+  localizePath,
+  stripLocale,
+  ctaUrl,
+  languages,
+  type Lang,
+} from "../i18n/ui";
+
+export interface Props {
+  title: string;
+  description?: string;
+  lang?: Lang;
+}
+
+const { title, description = "", lang = getLangFromUrl(Astro.url) } = Astro.props;
+const t = useTranslations(lang);
+
+const barePath = stripLocale(Astro.url.pathname);
+const otherLang: Lang = lang === "en" ? "zh-HK" : "en";
+const otherHref = localizePath(barePath, otherLang);
+
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const zhHref = new URL(localizePath(barePath, "zh-HK"), Astro.site).href;
+const enHref = new URL(localizePath(barePath, "en"), Astro.site).href;
+const ogImage = new URL("/og-default.png", Astro.site).href;
+
+const navItems: Array<{ key: keyof typeof import("../i18n/ui").ui["zh-HK"]; path: string }> = [
+  { key: "nav.features", path: "/features/" },
+  { key: "nav.pricing", path: "/pricing/" },
+  { key: "nav.blog", path: "/blog/" },
+  { key: "nav.recipes", path: "/recipes/" },
+  { key: "nav.faq", path: "/faq/" },
+];
+
+const getStarted = ctaUrl("nav");
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="zh-HK" href={zhHref} />
+    <link rel="alternate" hreflang="en" href={enHref} />
+    <link rel="alternate" hreflang="x-default" href={zhHref} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kindcipe" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    {description && <meta name="twitter:description" content={description} />}
+    <meta name="twitter:image" content={ogImage} />
+    <link rel="icon" href="/favicon.png" />
+  </head>
+  <body>
+    <header>
+      <nav class="container">
+        <a class="brand" href={localizePath("/", lang)}>{t("site.name")}</a>
+        <div class="nav-links">
+          {
+            navItems.map((item) => (
+              <a href={localizePath(item.path, lang)}>{t(item.key)}</a>
+            ))
+          }
+          <a class="lang-toggle" href={otherHref} aria-label="Switch language">
+            {languages[otherLang]}
+          </a>
+          <a class="btn btn-primary nav-cta" href={getStarted}>{t("nav.cta")}</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer>
+      <div class="container">
+        <p>{t("footer.rights")}</p>
+        <p class="footer-links">
+          <a href={localizePath("/privacy/", lang)}>{t("footer.privacy")}</a>
+          <a href={localizePath("/support/", lang)}>{t("footer.support")}</a>
+          <a href="mailto:support@kindcipe.com">support@kindcipe.com</a>
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  header {
+    border-bottom: 1px solid #eee;
+    background: var(--color-surface);
+  }
+
+  nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    font-weight: 800;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 1.05rem;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: var(--color-primary);
+    font-weight: 500;
+    font-size: 0.95rem;
+  }
+
+  .lang-toggle {
+    color: var(--color-text-secondary) !important;
+    font-weight: 600;
+  }
+
+  .nav-cta {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  footer {
+    text-align: center;
+    padding: 2.5rem 1.25rem;
+    color: #666;
+    font-size: 0.875rem;
+  }
+
+  .footer-links a {
+    margin: 0 0.6rem;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+</style>

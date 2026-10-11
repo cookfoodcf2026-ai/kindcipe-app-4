@@ -1,0 +1,12 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Home from "../../components/Home.astro";
+import { useTranslations } from "../../i18n/ui";
+
+const lang = "en" as const;
+const t = useTranslations(lang);
+---
+
+<Layout lang={lang} title={`${t("site.name")} — ${t("home.title")}`} description={t("home.description")}>
+  <Home lang={lang} />
+</Layout>

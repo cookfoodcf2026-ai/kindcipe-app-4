@@ -43,8 +43,11 @@
 
 - [x] **2.1 Astro 骨架**：`marketing/`（astro@5、`@astrojs/sitemap`）；`outDir: ../docs`（可用 `MARKETING_OUT_DIR` override 做安全驗證）。
   - ⚠️ 環境係 **Node 20**，Astro 6 要 Node ≥22.12，所以**鎖 Astro 5.18.2**。
-- [ ] **2.2 內容遷移**（**進行中**）：現時已建 `Layout.astro` + i18n + 首頁（zh/en）。仍需搬入 features/pricing/faq/support/privacy + blog（10 篇）+ recipes（40 條）。
-  - ✅ 已驗證：共用 Layout 自動修好 **EN nav 指錯**、**語言 toggle 自指**、加返 **hreflang**。
+- [ ] **2.2 內容遷移**（**進行中**）：
+  - ✅ 已建 `Layout.astro` + i18n + 首頁（zh/en）；共用 Layout 自動修好 **EN nav 指錯**、**語言 toggle 自指**、加返 **hreflang**。
+  - ✅ **首批：Features 頁**（`features.astro` + `en/features.astro` + `FeatureGrid.astro`）＋全站 CTA。
+  - 仍需搬入 pricing/faq/support/privacy + blog（10 篇重寫）+ recipes（20 條）。
+  - **網站定位**：功能展示 + 單一 CTA 導去 webapp 登入。**基本設計系統即落，進階 UX/UI polish 延後。**
 - [x] **2.3 Build 掛鈎**：root `package.json` 加 `marketing:dev` / `marketing:build`；`.githooks/pre-commit` 加 `marketing/**` 觸發，**以 `marketing/.publish` 為閘**（避免未遷移完就 wipe 咗 docs/）。
 - [x] **2.4 SEO 資產**：`og-default.png`（暫用 logo，待出正式 1200×630）、`hreflang`、canonical、sitemap、`robots.txt`（SEO+GEO 開放）、`llms.txt`。
 
@@ -52,7 +55,7 @@
 
 ## Phase 3 — CTA 改 webapp + 內容更新
 
-- [ ] 全站 CTA → `https://app.kindcipe.com/welcome?utm_source=kindcipe-site`。
+- [x] 全站 CTA → `https://app.kindcipe.com/login?utm_source=kindcipe-site`（`ctaUrl()` 統一，2026-10 改為直去 `/login`，跳過 welcome）。
 - [ ] 刪除所有「App 即將上架 / coming soon / waitlist」（ZH + EN）。
 - [ ] blog「下載」變真連結；pricing 文案更新；移除未驗證數據；修正 privacy 嘅 IAP 描述。
 
@@ -67,11 +70,12 @@
 
 ---
 
-## Phase 5 — Webapp 匿名 welcome/signup
+## Phase 5 — Webapp 匿名 welcome/signup（**deferred**）
 
-- [ ] 新增 `app/welcome.tsx`（公開）：價值主張 + 「今晚食咩」示範 + 開始使用/登入。
-- [ ] 改 `AuthGuard` allowlist（`app/_layout.tsx:446-464`）加入 `welcome`；公開頁零私人資料請求。
-- [ ] CTA 落點 = welcome → signup → onboarding。
+- 已決定 CTA 直接去 `/login`，**跳過 welcome**（0 影響 native app）。如日後想要更好匿名體驗先做：
+  - [ ] 新增 `app/welcome.tsx`（公開）：價值主張 + 「今晚食咩」示範 + 開始使用/登入。
+  - [ ] 改 `AuthGuard` allowlist（`app/_layout.tsx:446-464`）加入 `welcome`。
+  - [ ] CTA 落點 = welcome → signup → onboarding。
 
 ---
 
