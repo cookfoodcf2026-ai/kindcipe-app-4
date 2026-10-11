@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import i18n from "@/lib/i18n";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -105,7 +106,7 @@ export default function Toast({ visible, message, type = "success", onHide, dura
       <View style={[styles.toast, { backgroundColor: bgColor }]}>
         <View style={styles.row}>
           <Ionicons name={icon} size={16} color="#fff" />
-          <Text style={styles.message} numberOfLines={2}>{message}</Text>
+          <Text style={styles.message} numberOfLines={2}>{i18n.t(message as any)}</Text>
         </View>
         {action ? (
           <Pressable
@@ -113,7 +114,7 @@ export default function Toast({ visible, message, type = "success", onHide, dura
             style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
             hitSlop={8}
           >
-            <Text style={styles.actionTxt}>{action.label}</Text>
+            <Text style={styles.actionTxt}>{i18n.t(action.label as any)}</Text>
           </Pressable>
         ) : null}
       </View>

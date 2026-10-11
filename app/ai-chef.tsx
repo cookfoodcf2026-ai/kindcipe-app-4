@@ -589,6 +589,10 @@ function makeSessionTitle(msgs: Message[]): string {
   const firstUser = msgs.find(m => m.role === "user");
   if (!firstUser) return i18n.t("新對話" as any);
   const t = contentToText(firstUser.content).trim();
+  // 內部系統提示（app 自動推送、唔係用戶打字）→ 唔好攞嚟做標題，用通用標題（避免中文標題）
+  if (/^(請為我設計|請從食譜庫|請再提供|我雪櫃有|提供 ?1 ?個|請設計|庫內搜尋|請換|幫我設計)/.test(t)) {
+    return i18n.t("新對話" as any);
+  }
   return t.length > 30 ? t.slice(0, 30) + "..." : t;
 }
 
@@ -3501,7 +3505,7 @@ export default function AIChefScreen() {
                       {preview ? <Text style={d.sessionPreview} numberOfLines={1}>{preview}</Text> : null}
                       <Text style={d.sessionDate}>
                         {new Date(item.createdAt).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}
-                        {item.messages.length > 0 ? ` · ${item.messages.length} 條` : ""}
+                        {item.messages.length > 0 ? ` · ${item.messages.length} ${t("條" as any)}` : ""}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={d.sessionDelete} onPress={() => handleDeleteChat(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

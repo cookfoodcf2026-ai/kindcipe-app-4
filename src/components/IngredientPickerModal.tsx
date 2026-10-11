@@ -9,6 +9,7 @@ import { categorizeIngredient, isSeasoning, isWaterIngredient } from "@/constant
 import { DateUtil } from "@/src/lib/DateUtil";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
+import { getBilingualName } from "@/lib/bilingual";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#013E77";
@@ -244,7 +245,7 @@ export default function IngredientPickerModal({
 
   const multiRecipe = recipes.length > 1;
   const modalTitle = title || (multiRecipe
-    ? `加入食材到購物清單（${recipes.length} 個食譜）`
+    ? t("加入食材到購物清單（{{n}} 個食譜）" as any, { n: recipes.length })
     : t("加入食材到購物清單" as any));
 
   // 日期標籤 Helper：解析食譜嘅日期同餐別
@@ -262,7 +263,7 @@ export default function IngredientPickerModal({
       const d = new Date(iso + "T12:00:00");
       const month = d.getMonth() + 1;
       const day = d.getDate();
-      const weekday = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][d.getDay()];
+      const weekday = enumT.weekday(d.getDay());
       return `${month}/${day} (${weekday})`;
     };
     
@@ -367,7 +368,7 @@ export default function IngredientPickerModal({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 }}>
               <Ionicons name="warning" size={14} color="#DC2626" />
               <Text style={{ fontSize: 12, color: "#DC2626", fontWeight: "600" }}>
-                ⚠️ 購買日期（{date}）晚於排餐日期（{maxDate}）
+                {t("⚠️ 購買日期（{{date}}）晚於排餐日期（{{max}}）" as any, { date, max: maxDate })}
               </Text>
             </View>
           )}
@@ -402,7 +403,7 @@ export default function IngredientPickerModal({
                           {isOn && <Ionicons name="checkmark" size={12} color="#fff" />}
                         </View>
                         <Text style={[s.ingName, isAdded && s.ingNameAdded]} numberOfLines={1}>
-                          {ing.name}
+                          {getBilingualName(ing.name, (ing as any).nameEn, (ing as any).nameFil, (ing as any).nameId).primary}
                         </Text>
                         {isAdded ? (
                           <Text style={s.addedTag}>{t("picker.added")}</Text>
@@ -424,7 +425,7 @@ export default function IngredientPickerModal({
                 if (maxDate && date > maxDate) {
                   Alert.alert(
                     t("日期無效" as any),
-                    `購買日期（${date}）不能遲於排餐日期（${maxDate}）`,
+                    t("購買日期（{{date}}）不能遲於排餐日期（{{max}}）" as any, { date, max: maxDate }),
                     [{ text: t("確定" as any) }]
                   );
                   return;
@@ -442,7 +443,7 @@ export default function IngredientPickerModal({
                 {loading
                   ? t("加入中..." as any)
                   : confirmItems.length > 0
-                  ? `加入 ${confirmItems.length} 項食材`
+                  ? t("加入 {{n}} 項食材" as any, { n: confirmItems.length })
                   : alreadyAddedKeys && alreadyAddedKeys.size > 0
                   ? t("全部已加入購物清單" as any)
                   : t("picker.skipCount", { n: totalIngredients })}

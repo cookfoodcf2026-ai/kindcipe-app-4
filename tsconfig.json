@@ -18,6 +18,9 @@
   ],
   "exclude": [
     "node_modules",
-    "backend-handoff"
+    "backend-handoff",
+    "marketing",
+    "docs",
+    "dist"
   ]
 }

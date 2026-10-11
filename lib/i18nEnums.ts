@@ -57,7 +57,9 @@ const TAG_ZH_TO_KEY: Record<string, string> = {
   "港式": "hkStyle", "中式": "chinese", "西式": "western", "日式": "japanese", "韓式": "korean",
   "東南亞": "sea", "湯水": "soup", "蔬菜": "vegetable", "老火湯": "slowSoup",
   "高蛋白": "highProtein", "低卡": "lowCal", "素食": "vegetarian", "減脂餐": "diet",
-  "小朋友": "kids", "30 分鐘內": "within30", "30分鐘內": "within30",
+  "小朋友": "kids", "30 分鐘內": "within30", "30分鐘內": "within30", "15 分鐘內": "within15", "15分鐘內": "within15",
+  "電飯煲料理": "riceCooker", "電飯煲懶人": "riceCooker", "電飯煲版": "riceCooker", "電飯煲": "riceCooker",
+  "AI 生成": "aiGenerated", "AI生成": "aiGenerated", "焗烤": "bake", "清蒸": "steam", "快炒": "stirfry", "宴客": "party",
   "祛濕": "dampness", "健脾": "spleen", "潤肺": "lungs", "清熱": "heatClear", "養生": "nourish",
 };
 

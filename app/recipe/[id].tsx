@@ -1127,12 +1127,15 @@ export default function RecipeDetailScreen() {
             <TouchableOpacity
               style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)" }]}
               onPress={() => {
+                const localizedName = recipe
+                  ? getBilingualName(recipe.name, (recipe as any).nameEn, (recipe as any).nameFil, (recipe as any).nameId).primary
+                  : t("食譜" as any);
                 // 處理食材 - 使用 adjustedQty (已調整份量)
                 const ingText = adjustedIngredients
                   .map((i: any) => {
-                    const name = i.name ?? t("未知食材" as any);
+                    const name = getBilingualName(i.name, i.nameEn, i.nameFil, i.nameId).primary || t("未知食材" as any);
                     const qty = i.adjustedQty ?? i.quantity ?? "";
-                    const unit = i.unit ?? "";
+                    const unit = i.unit ? enumT.unit(i.unit) : "";
                     return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
                   })
                   .join("\n");
@@ -1142,7 +1145,7 @@ export default function RecipeDetailScreen() {
                   .map((s: any, i: number) => {
                     const instruction = typeof s === "string" 
                       ? s 
-                      : (s.instruction ?? s.description ?? s.step ?? `步驟 ${i + 1}`);
+                      : (s.instruction ?? s.description ?? s.step ?? t("步驟 {{n}}" as any, { n: i + 1 }));
                     const tip = s.tip ?? s.tips ?? "";
                     
                     let result = `${i + 1}. ${instruction}`;
@@ -1153,30 +1156,30 @@ export default function RecipeDetailScreen() {
                 
                 // 組合完整分享文字
                 const shareText = [
-                  `🍽️ ${recipe?.name ?? t("食譜" as any)}`,
+                  `🍽️ ${localizedName}`,
                   (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
                   recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
                   `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
                   (recipe as any).difficulty ? `📊 ${enumT.difficulty((recipe as any).difficulty)}` : "",
                   "",
-                  `🛒 食材清單：`,
+                  `🛒 ${t("食材清單：" as any)}`,
                   ingText,
                   "",
-                  `👨‍🍳 烹飪步驟：`,
+                  `👨‍🍳 ${t("烹飪步驟：" as any)}`,
                   stepText,
                   "",
-                  (recipe as any).housewifeTips ? `💡 主婦貼士：${(recipe as any).housewifeTips}` : "",
+                  (recipe as any).housewifeTips ? `💡 ${t("主婦貼士：" as any)}${(recipe as any).housewifeTips}` : "",
                   (recipe as any).tags && (recipe as any).tags.length > 0 
-                    ? `🏷️ 標籤：${(recipe as any).tags.join(", ")}` 
+                    ? `🏷️ ${t("標籤：" as any)}${(recipe as any).tags.join(", ")}` 
                     : "",
                   "",
-                  `— 來自 Kindcipe 家庭廚房`,
+                  t("— 來自 Kindcipe 家庭廚房" as any),
                 ].filter(Boolean).join("\n");
                 
                 const recipeUrl = buildRecipeShareUrlFor({ id: recipe?.id ?? "", name: recipe?.name, source: (recipe as any)?.source });
                 Alert.alert(t("recipe.shareTitle"), undefined, [
-                  { text: t("recipe.share"), onPress: () => { Share.share({ message: shareText, title: recipe?.name ?? t("食譜" as any) }); } },
+                  { text: t("recipe.share"), onPress: () => { Share.share({ message: shareText, title: localizedName }); } },
                   { text: t("recipe.copyFull"), onPress: async () => { await Clipboard.setStringAsync(shareText); showToast(t("recipe.copiedFull")); } },
                   { text: t("recipe.copyLink"), onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
                   { text: t("取消" as any), style: "cancel" },
