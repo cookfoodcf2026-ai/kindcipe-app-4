@@ -40,6 +40,14 @@ package-lock.json.backup
 !dist/
 !dist/**
 
+# Webapp deploy only needs the web bundle. A full `expo export`
+# (no --platform) also emits native bundles — never commit those.
+dist/_expo/static/js/android/
+dist/_expo/static/js/ios/
+dist/**/*.js.map
+dist/assetmap.json
+dist/metadata.json
+
 # Marketing site (Astro source in marketing/). The built output is committed to
 # docs/ for GitHub Pages, so only the local build artifacts are ignored here.
 /marketing/dist/
