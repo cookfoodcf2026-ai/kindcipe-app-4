@@ -2432,6 +2432,9 @@ export default function RecipeDetailScreen() {
               addShoppingM.mutate({
                 items: items.map((i) => ({
                   name: i.name,
+                  nameEn: (i as any).nameEn,
+                  nameFil: (i as any).nameFil,
+                  nameId: (i as any).nameId,
                   quantity: i.quantity,
                   unit: i.unit,
                   category: i.category,

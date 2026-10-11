@@ -1832,6 +1832,9 @@ export default function PlannerTab() {
             addShoppingBatchM.mutate({
               items: items.map((i) => ({
                 name: i.name,
+                nameEn: (i as any).nameEn,
+                nameFil: (i as any).nameFil,
+                nameId: (i as any).nameId,
                 quantity: i.quantity,
                 unit: i.unit,
                 category: i.category,
@@ -2267,6 +2270,9 @@ export default function PlannerTab() {
               addShoppingBatchM.mutate({
                 items: ings.map((ing: any) => ({
                   name: ing.name,
+                  nameEn: ing.nameEn,
+                  nameFil: ing.nameFil,
+                  nameId: ing.nameId,
                   quantity: ing.quantity,
                   unit: ing.unit,
                   category: ing.category || "其他",
@@ -2985,6 +2991,9 @@ function AISuggestModalRN({
               addShoppingBatchM.mutate({
                 items: ings.map((ing: any) => ({
                   name: ing.name,
+                  nameEn: ing.nameEn,
+                  nameFil: ing.nameFil,
+                  nameId: ing.nameId,
                   quantity: ing.quantity,
                   unit: ing.unit,
                   category: ing.category || "其他",

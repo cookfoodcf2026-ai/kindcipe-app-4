@@ -54,6 +54,9 @@ export type ConfirmedItem = {
   recipeId: string;
   recipeName: string;
   name: string;
+  nameEn?: string;
+  nameFil?: string;
+  nameId?: string;
   quantity: string;
   unit: string;
   category: string;
@@ -225,6 +228,9 @@ export default function IngredientPickerModal({
             recipeId: r.id,
             recipeName: r.name,
             name: ing.name,
+            nameEn: (ing as any).nameEn,
+            nameFil: (ing as any).nameFil,
+            nameId: (ing as any).nameId,
             quantity: String(ing.quantity ?? ""),
             unit: ing.unit || "",
             category: ing.category || detectCategory(ing.name),
