@@ -1,5 +1,5 @@
 ---
-import { useTranslations, ctaUrl, localizePath, type Lang } from "../i18n/ui";
+import { useTranslations, ctaUrl, localizePath, INSTAGRAM_URL, type Lang } from "../i18n/ui";
 
 export interface Props {
   lang: Lang;
@@ -18,6 +18,19 @@ const primary = ctaUrl("home");
     <a class="btn btn-secondary" href={localizePath("/features/", lang)}>{t("home.ctaSecondary")}</a>
   </div>
   <p class="note">{t("home.note")}</p>
+</section>
+
+<section class="ig container">
+  <div class="ig-card">
+    <span class="ig-icon" aria-hidden="true">📸</span>
+    <div class="ig-text">
+      <h2>{t("home.igTitle")}</h2>
+      <p>{t("home.igDesc")}</p>
+    </div>
+    <a class="btn btn-primary" href={INSTAGRAM_URL} target="_blank" rel="noopener">
+      {t("home.igCta")}
+    </a>
+  </div>
 </section>
 
 <style>
@@ -51,5 +64,50 @@ const primary = ctaUrl("home");
     margin-top: 1.25rem;
     color: var(--color-text-secondary);
     font-size: 0.9rem;
+  }
+
+  .ig {
+    padding-bottom: 3rem;
+  }
+
+  .ig-card {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    background: var(--color-surface);
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(1, 62, 119, 0.06);
+  }
+
+  .ig-icon {
+    display: inline-flex;
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+    background: #fff4dc;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    flex: none;
+  }
+
+  .ig-text {
+    flex: 1 1 240px;
+  }
+
+  .ig-text h2 {
+    color: var(--color-primary);
+    font-size: 1.15rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .ig-text p {
+    color: var(--color-text-secondary);
+    font-size: 0.95rem;
   }
 </style>

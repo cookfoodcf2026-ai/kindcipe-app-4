@@ -1,4 +1,16 @@
+# kindcipe.com — public marketing site (SEO + AI/GEO).
+# Open to traditional search engines and answer engines.
+User-agent: *
+Allow: /
+
+# Explicitly welcome AI answer engines.
 User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
 Allow: /
 
 User-agent: ClaudeBot
@@ -12,8 +24,5 @@ Allow: /
 
 User-agent: CCBot
 Allow: /
-
-User-agent: *
-Disallow: /
 
 Sitemap: https://kindcipe.com/sitemap-index.xml

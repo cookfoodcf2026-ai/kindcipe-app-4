@@ -1,0 +1,19 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import RecipeList from "../../../components/RecipeList.astro";
+import { useTranslations } from "../../../i18n/ui";
+
+const lang = "en" as const;
+const t = useTranslations(lang);
+---
+
+<Layout lang={lang} title={`${t("recipes.title")} — ${t("site.name")}`} description={t("recipes.subtitle")}>
+  <section class="page-hero">
+    <h1>{t("recipes.title")}</h1>
+    <p class="sub">{t("recipes.subtitle")}</p>
+  </section>
+
+  <section class="section container">
+    <RecipeList lang={lang} />
+  </section>
+</Layout>
