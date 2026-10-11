@@ -89,7 +89,7 @@ export default function FilterModal({
             { key: "kol", label: "🌟 網紅食譜", count: kolCount },
             { key: "user", label: "📝 我的食譜", count: userCount },
             { key: "ai", label: "🤖 AI 食譜", count: aiSourceCount },
-            { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
+            { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) + (aiSourceCount || 0) : undefined },
           ].map(opt => (
             <TouchableOpacity
               key={opt.key}
