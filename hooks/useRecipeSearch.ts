@@ -8,7 +8,7 @@ interface UseRecipeSearchOptions {
   cookTimeMax?: number;
   popularChips?: string[];
   ingredientCategory?: string;
-  source?: "all" | "official" | "user" | "kol";
+  source?: "all" | "official" | "user" | "kol" | "hot" | "ai";
   limit?: number;
 }
 
@@ -61,6 +61,10 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     return result.data?.pages[0]?.kolCount ?? 0;
   }, [result.data]);
 
+  const aiCount = useMemo(() => {
+    return result.data?.pages[0]?.aiCount ?? 0;
+  }, [result.data]);
+
   const fetchNextPage = useCallback(() => {
     if (result.hasNextPage && !result.isFetchingNextPage) {
       result.fetchNextPage();
@@ -73,6 +77,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     officialCount,
     customCount,
     kolCount,
+    aiCount,
     isLoading: result.isLoading,
     isFetching: result.isFetching,
     isFetchingNextPage: result.isFetchingNextPage,

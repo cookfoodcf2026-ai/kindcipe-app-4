@@ -22,7 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import { useTranslation } from "react-i18next";
 
-type SourceType = "official" | "kol" | "user" | "all" | "hot" | "imported";
+type SourceType = "official" | "kol" | "user" | "all" | "hot" | "imported" | "ai";
 
 const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;

@@ -48,6 +48,9 @@ const SOCIAL_SOURCE_TYPES = new Set([
 // 「匯入」= 任何社交/連結匯入（有 sourceUrl 亦計，兼容舊資料）
 const isImportedRecipe = (r: any): boolean =>
   SOCIAL_SOURCE_TYPES.has(String(r?.sourceType ?? "")) || !!String(r?.sourceUrl ?? "").trim();
+// 「AI 生成」= 新欄位優先，舊資料靠 tag 兼容
+const isAIRecipe = (r: any): boolean =>
+  !!r?.isAiGenerated || (Array.isArray(r?.tags) && r.tags.includes("AI 生成"));
 
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
@@ -478,7 +481,7 @@ export default function RecipesTab() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol" | "hot" | "imported">("all");
+  const [viewMode, setViewMode] = useState<"all" | "official" | "user" | "kol" | "hot" | "imported" | "ai">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [activePopularChips, setActivePopularChips] = useState<string[]>([]);
@@ -602,6 +605,7 @@ export default function RecipesTab() {
     officialCount: searchOfficialCount,
     customCount: searchCustomCount,
     kolCount: searchKolCount,
+    aiCount: searchAiCount,
     isLoading: searchLoading,
     isFetchingNextPage,
     fetchNextPage,
@@ -615,7 +619,7 @@ export default function RecipesTab() {
     cookTimeMax: activePopularChips.includes("quick15") ? 15 : activePopularChips.includes("quick30") ? 30 : filterCookTimeMax,
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
-    source: (viewMode === "imported" ? "user" : viewMode) as any,  // imported 由前端 filter；後端只認 all/official/user/kol/hot
+    source: (viewMode === "imported" ? "user" : viewMode) as any,  // imported 由前端 filter；後端認 all/official/user/kol/hot/ai
     limit: 20,
   });
 
@@ -747,13 +751,16 @@ export default function RecipesTab() {
     if (viewMode === "official") {
       pool = pool.filter((r: any) => r.source === "official");
     } else if (viewMode === "user") {
-      // 「我的食譜」：全部自訂，再按子篩選（全部/自建/匯入）
-      pool = pool.filter((r: any) => r.source === "custom");
+      // 「我的食譜」：自訂（排除 AI），再按子篩選（全部/自建/匯入）
+      pool = pool.filter((r: any) => r.source === "custom" && !isAIRecipe(r));
       if (mineSub === "imported") {
         pool = pool.filter((r: any) => isImportedRecipe(r));
       } else if (mineSub === "manual") {
         pool = pool.filter((r: any) => !isImportedRecipe(r));
       }
+    } else if (viewMode === "ai") {
+      // 「AI 食譜」：只顯示 AI 生成
+      pool = pool.filter((r: any) => r.source === "custom" && isAIRecipe(r));
     } else if (viewMode === "imported") {
       // 向下兼容：舊有 imported 值 = 我的(匯入)
       pool = pool.filter((r: any) => r.source === "custom" && SOCIAL_SOURCE_TYPES.has(String(r.sourceType ?? "")));
@@ -779,9 +786,9 @@ export default function RecipesTab() {
       });
     }
 
-    // 隱藏 AI 生成食譜（用戶選擇）
-    if (hideAI) {
-      pool = pool.filter((r: any) => !(Array.isArray(r.tags) ? r.tags : []).includes("AI 生成"));
+    // 隱藏 AI 生成食譜（用戶選擇）— 但「AI 食譜」檢視唔可以隱藏（否則清空）
+    if (hideAI && viewMode !== "ai") {
+      pool = pool.filter((r: any) => !isAIRecipe(r));
     }
 
     // Apply sorting
@@ -876,6 +883,7 @@ export default function RecipesTab() {
     else if (viewMode === "kol") parts.push(t("🌟 網紅食譜" as any));
     else if (viewMode === "hot") parts.push(t("🔥 熱門食譜" as any));
     else if (viewMode === "imported") parts.push(t("📥 匯入食譜" as any));
+    else if (viewMode === "ai") parts.push(t("filter.ai" as any));
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label ? t(cat.label as any) : activeCategory);
@@ -968,6 +976,7 @@ export default function RecipesTab() {
           { key: "all", label: t("filter.srcAll" as any) },
           { key: "user", label: t("filter.mine" as any) },
           { key: "kol", label: t("filter.kol" as any) },
+          { key: "ai", label: t("filter.ai" as any) },
         ] as const).map(chip => {
           const active = viewMode === chip.key || (chip.key === "all" && viewMode === "hot");
           return (
@@ -1393,6 +1402,7 @@ export default function RecipesTab() {
         officialCount={searchOfficialCount}
         userCount={searchCustomCount}
         kolCount={searchKolCount}
+        aiSourceCount={searchAiCount}
         hideAI={hideAI}
         onToggleHideAI={toggleHideAI}
         aiCount={aiRecipes.length}

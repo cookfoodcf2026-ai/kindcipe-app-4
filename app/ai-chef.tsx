@@ -1588,6 +1588,7 @@ export default function AIChefScreen() {
       nameEn: recipe.nameEn, nameFil: recipe.nameFil, nameId: recipe.nameId,
       stepsEn: recipe.stepsEn, stepsFil: recipe.stepsFil, stepsId: recipe.stepsId,
       tags: recipe.source === "official" || recipe.source === "custom" ? (recipe.tags ?? []) : [...(recipe.tags ?? []), "AI 生成"],
+      isAiGenerated: true,
       ingredients: (scaledIngredients ?? recipe.ingredients)
         .map(ing => normalizeIngredient(ing))
         .filter((ing): ing is { name: string; quantity: string; unit: string } => !!ing)

@@ -23,11 +23,12 @@ interface FilterModalProps {
   setActivePopularChips: (chips: string[] | ((prev: string[]) => string[])) => void;
   activePopularChips: string[];
   setSortBy: (sort: "popular" | "cookTime" | "difficulty") => void;
-  viewMode: "all" | "official" | "user" | "kol" | "hot" | "imported";
-  setViewMode: (mode: "all" | "official" | "user" | "kol" | "hot" | "imported") => void;
+  viewMode: "all" | "official" | "user" | "kol" | "hot" | "imported" | "ai";
+  setViewMode: (mode: "all" | "official" | "user" | "kol" | "hot" | "imported" | "ai") => void;
   officialCount?: number;
   userCount?: number;
   kolCount?: number;
+  aiSourceCount?: number;
   importedCount?: number;
   // 「隱藏 AI 生成」（開放所有用戶；搬離主列）
   hideAI?: boolean;
@@ -60,6 +61,7 @@ export default function FilterModal({
   officialCount,
   userCount,
   kolCount,
+  aiSourceCount,
   importedCount,
   hideAI,
   onToggleHideAI,
@@ -86,6 +88,7 @@ export default function FilterModal({
             { key: "official", label: "🍳 官方食譜", count: officialCount },
             { key: "kol", label: "🌟 網紅食譜", count: kolCount },
             { key: "user", label: "📝 我的食譜", count: userCount },
+            { key: "ai", label: "🤖 AI 食譜", count: aiSourceCount },
             { key: "all", label: "全部食譜", count: officialCount !== undefined && userCount !== undefined ? officialCount + userCount + (kolCount || 0) : undefined },
           ].map(opt => (
             <TouchableOpacity
