@@ -653,14 +653,6 @@ export default function RootLayout() {
                       headerBackTitle: '',
                     }}
                   />
-                  <Stack.Screen
-                    name="coming-soon"
-                    options={{
-                      headerShown: false,
-                      title: '',
-                      gestureEnabled: true,
-                    }}
-                  />
                 </Stack>
               </AuthGuard>
             </ToastProvider>

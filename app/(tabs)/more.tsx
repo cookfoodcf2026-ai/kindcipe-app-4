@@ -157,12 +157,6 @@ export default function MoreTab() {
     });
   };
 
-  const goToComingSoon = (title: string, subtitle: string, message: string) => {
-    navigate(() => {
-      router.push({ pathname: "/coming-soon", params: { title, subtitle, message } } as any);
-    });
-  };
-
   const handleLogoutConfirm = async () => {
     setLogoutMsg(null);
     try {

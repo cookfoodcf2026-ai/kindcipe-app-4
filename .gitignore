@@ -21,8 +21,9 @@ node_modules/.package-lock.json
 package-lock.json.backup
 
 # Environment variables
-# `.env` is committed on purpose: it only holds EXPO_PUBLIC_* values which are
-# embedded in the client bundle anyway. Keep any real secrets in .env.local.
+# `.env` is NOT committed: keep local values in `.env.local` (or in the
+# untracked `.env` on disk). `.env.example` is the canonical template.
+.env
 .env.local
 .env.*.local
 
@@ -38,3 +39,8 @@ package-lock.json.backup
 # See docs/WEBAPP_DEPLOY.md.
 !dist/
 !dist/**
+
+# Marketing site (Astro source in marketing/). The built output is committed to
+# docs/ for GitHub Pages, so only the local build artifacts are ignored here.
+/marketing/dist/
+/marketing/.astro/

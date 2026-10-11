@@ -89,8 +89,8 @@ cd ios && pod install && cd ..
 - 唔好將密碼貼到對話或上傳到 repo
 - 建議使用 `.env.local` 儲存：
   ```bash
-  E2E_EMAIL=test@kindcipe.com
-  E2E_PASSWORD=測試密碼
+  E2E_EMAIL=<your-disposable-test-account>
+  E2E_PASSWORD=<your-test-password>
   ```
 
 ---

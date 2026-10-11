@@ -36,8 +36,8 @@ echo "✅ CocoaPods reinstalled"
 echo ""
 
 echo "5. Building app..."
-export E2E_EMAIL='test29@gmail.com'
-export E2E_PASSWORD='12345678'
+: "${E2E_EMAIL:?Set E2E_EMAIL to a disposable test account before running}"
+: "${E2E_PASSWORD:?Set E2E_PASSWORD for the test account before running}"
 EXPO_PUBLIC_E2E=1 npm run e2e:build:ios
 
 if [ $? -eq 0 ]; then

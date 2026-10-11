@@ -26,6 +26,7 @@ import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
 import { signInWithGoogleWeb, startAppleWebLogin } from "@/lib/socialAuth";
+import { setPendingVerificationEmail } from "@/lib/pending-verification";
 const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
 const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
 
@@ -192,7 +193,8 @@ export default function LoginScreen() {
           name: name.trim(),
         }) as { token?: string; requiresVerification?: boolean; email?: string };
         if (reg?.requiresVerification) {
-          router.push({ pathname: "/verify-email", params: { email: reg.email ?? email.trim() } } as any);
+          setPendingVerificationEmail(reg.email ?? email.trim());
+          router.push("/verify-email" as any);
           return;
         }
         result = reg;
@@ -207,7 +209,8 @@ export default function LoginScreen() {
     } catch (err: any) {
       if (err?.data?.code === "PRECONDITION_FAILED") {
         setIsLoading(false);
-        router.push({ pathname: "/verify-email", params: { email: email.trim() } } as any);
+        setPendingVerificationEmail(email.trim());
+        router.push("/verify-email" as any);
         return;
       }
       if (mode === "register" && err?.data?.code === "CONFLICT") {

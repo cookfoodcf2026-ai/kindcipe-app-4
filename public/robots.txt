@@ -1,0 +1,4 @@
+# app.kindcipe.com is the login-gated web app — keep it out of search indexes.
+# Public, crawlable content lives on the marketing site (https://kindcipe.com).
+User-agent: *
+Disallow: /

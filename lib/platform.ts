@@ -57,8 +57,3 @@ export function buildRecipeShareUrlFor(recipe: {
   }
   return buildRecipeShareUrl(recipe.id);
 }
-
-/** Build the app deep link (native) for a recipe. */
-export function buildRecipeDeepLink(recipeId: string | number): string {
-  return `kindcipe://recipe/${recipeId}`;
-}

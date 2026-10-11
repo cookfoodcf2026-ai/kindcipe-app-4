@@ -69,9 +69,9 @@ rm -rf ios/build
 # 2. 重新安裝 Pods
 cd ios && pod deintegrate && pod install && cd ..
 
-# 3. 設定測試帳戶
-export E2E_EMAIL='test29@gmail.com'
-export E2E_PASSWORD='12345678'
+# 3. 設定測試帳戶（用即棄測試帳號，切勿用真實帳號）
+export E2E_EMAIL='<your-disposable-test-account>'
+export E2E_PASSWORD='<your-test-password>'
 
 # 4. Build 同測試
 npm run e2e:build:ios

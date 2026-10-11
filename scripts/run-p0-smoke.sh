@@ -90,8 +90,8 @@ echo ""
 echo "🧪 Running P0 Smoke Tests (Scenarios 1-4)..."
 echo ""
 
-export E2E_EMAIL="${E2E_EMAIL:-test@kindcipe.com}"
-export E2E_PASSWORD="${E2E_PASSWORD:-testpassword}"
+: "${E2E_EMAIL:?Set E2E_EMAIL to a disposable test account before running}"
+: "${E2E_PASSWORD:?Set E2E_PASSWORD for the test account before running}"
 
 # Run only P0 tests
 EXPO_PUBLIC_E2E=1 detox test -c ios.sim.debug e2e/p0-smoke.test.js

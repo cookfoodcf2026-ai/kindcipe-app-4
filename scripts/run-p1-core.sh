@@ -58,8 +58,8 @@ fi
 echo "🧪 Running P1 Core Tests (Scenarios 5-10)..."
 echo ""
 
-export E2E_EMAIL="${E2E_EMAIL:-test@kindcipe.com}"
-export E2E_PASSWORD="${E2E_PASSWORD:-testpassword}"
+: "${E2E_EMAIL:?Set E2E_EMAIL to a disposable test account before running}"
+: "${E2E_PASSWORD:?Set E2E_PASSWORD for the test account before running}"
 
 # Run only P1 tests
 EXPO_PUBLIC_E2E=1 detox test -c ios.sim.debug e2e/p1-core.test.js
