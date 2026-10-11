@@ -10,6 +10,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { trpc } from "@/lib/trpc";
+import { enumT } from "@/lib/i18nEnums";
 import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { loadCustomCategories } from "@/lib/category-storage";
@@ -1126,7 +1127,7 @@ export default function RecipesTab() {
             {/* Tag Tokens */}
             {activeTagFilters.map(tag => (
               <View key={tag} style={s.smartToken}>
-                <Text style={s.smartTokenTxt}>#{tag}</Text>
+                <Text style={s.smartTokenTxt}>#{enumT.tag(tag)}</Text>
                 <TouchableOpacity onPress={() => setActiveTagFilters(prev => prev.filter(t => t !== tag))}>
                   <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
@@ -1171,7 +1172,7 @@ export default function RecipesTab() {
                   );
                 }}
               >
-                <Text style={[s.filterPillTxt, isActive && s.filterPillTxtActive]}>#{tag}</Text>
+                <Text style={[s.filterPillTxt, isActive && s.filterPillTxtActive]}>#{enumT.tag(tag)}</Text>
               </TouchableOpacity>
             );
           })}

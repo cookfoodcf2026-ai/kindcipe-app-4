@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { enumT } from "@/lib/i18nEnums";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { CategoryDef } from "@/lib/category-storage";
@@ -260,7 +261,7 @@ export default function FilterModal({
                       );
                     }}
                   >
-                    <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{tag}</Text>
+                    <Text style={[s.filterTagChipTxt, isActive && s.filterTagChipTxtActive]}>#{enumT.tag(tag)}</Text>
                   </TouchableOpacity>
                 );
               })}
