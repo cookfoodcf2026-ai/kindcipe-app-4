@@ -266,7 +266,7 @@ export default function SettingsScreen() {
   const redeemPromoM = trpc.subscription.redeemTrialCode.useMutation({
     onSuccess: async (res) => {
       setPromoState("done");
-      setPromoMsg(res.expiresAt ? t("settings.promoDone", { date: new Date(res.expiresAt).toLocaleDateString() }) : t("settings.promoDoneShort"));
+      setPromoMsg(res.expiresAt ? t("settings.promoDone", { date: new Date(res.expiresAt).toLocaleDateString(i18n.language) }) : t("settings.promoDoneShort"));
       await Promise.all([
         utils.auth.me.invalidate(),
         utils.family.subscription.invalidate(),

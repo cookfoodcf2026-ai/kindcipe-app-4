@@ -3500,7 +3500,7 @@ export default function AIChefScreen() {
                       </Text>
                       {preview ? <Text style={d.sessionPreview} numberOfLines={1}>{preview}</Text> : null}
                       <Text style={d.sessionDate}>
-                        {new Date(item.createdAt).toLocaleDateString("zh-HK", { month: "short", day: "numeric" })}
+                        {new Date(item.createdAt).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}
                         {item.messages.length > 0 ? ` · ${item.messages.length} 條` : ""}
                       </Text>
                     </TouchableOpacity>

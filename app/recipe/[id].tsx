@@ -1711,7 +1711,7 @@ export default function RecipeDetailScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
                         <Text style={s.noteName}>{note.userName ?? t("dyn.familyMember")}</Text>
-                        <Text style={s.noteDate}>{new Date(note.createdAt).toLocaleDateString("zh-HK", { month: "short", day: "numeric" })}</Text>
+                        <Text style={s.noteDate}>{new Date(note.createdAt).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })}</Text>
                       </View>
                       <Text style={s.noteContent}>{note.content}</Text>
                     </View>
