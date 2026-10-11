@@ -102,10 +102,26 @@
 - [ ] 全中文介面正常；AI Chef 中文單一語言。
 - [ ] 舊食譜（如「蘋果玉米牛肉湯」「大蒜帕瑪森牛排義大利麵」）切語言正常。
 
-## K. 已知限制（唔算 bug）
+## K. 返回 / 導航（今次改動）
+| # | 步驟 | 預期 | 結果 |
+|---|---|---|---|
+| K1⭐ | 匯入失敗畫面（解析唔到） | 左上角有**返回掣**；撳到、返到上一頁（或主頁） |
+| K2 | 匯入畫面由左邊 swipe-back | 正常返到上一頁 |
+| K3 | 由 onboarding 入匯入、再失敗 | 返回掣 → 返 onboarding（唔會卡死） |
+| K4 | Android 硬件返回（匯入各步） | 正常返回；有未存內容會先問 |
+| K5 | recipes / settings / pantry / restock / shopping-templates / forgot / reset / verify / change-password | 左上返回都正常（無 history 時去主頁） |
+
+## L. Webapp（app.kindcipe.com）
+| # | 項目 | 預期 | 結果 |
+|---|---|---|---|
+| L1 | `robots.txt` / response header | `Disallow: /` + `X-Robots-Tag: noindex`（唔想被搜尋引擎收錄） |
+| L2 | verify-email 網址 | 唔再帶 `?email=`（私隱） |
+
+## 已知限制（唔算 bug）
 - Consent 卡 + PostHog **未生效**（未設 key，要 build 10）。
 - 推送/電郵語言（P6）**未做**。
 - quick-plan、pantry/restock 等**刻意隱藏**。
+- `coming-soon` route 已移除（本身冇入口）。
 
 ## 回報
 `項目｜語言｜預期｜實際｜截圖`
