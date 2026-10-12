@@ -1723,7 +1723,13 @@
     "notMember": "Anda bukan anggota dapur ini.",
     "dateOrder": "Tanggal belanja tidak boleh lebih lambat dari tanggal makan.",
     "imageInvalid": "Masalah gambar (format tidak didukung atau terlalu besar).",
-    "authFailed": "Kredensial salah. Coba lagi."
+    "authFailed": "Kredensial salah. Coba lagi.",
+    "adminAuth": "Kredensial admin salah.",
+    "needOldPassword": "Masukkan kata sandi Anda saat ini.",
+    "accountNotFound": "Tidak ada akun untuk email ini.",
+    "nameEmpty": "Nama tidak boleh kosong.",
+    "mergeFailed": "Gagal menyelesaikan penggabungan. Coba lagi.",
+    "trial": "Kode trial tidak valid atau kedaluwarsa."
   },
   "notif": {
     "mealUpdated": "📅 Rencana makan diperbarui",

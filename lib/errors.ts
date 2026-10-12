@@ -29,6 +29,23 @@ const BACKEND_MESSAGE_MAP: Array<[RegExp, string]> = [
   [/NOT_FOUND|找不到/, "error.notFound"],
   [/已存在|duplicate/i, "error.duplicate"],
   [/quota|額度/i, "error.quota"],
+  // Purchases / subscriptions / trial codes
+  [/網上付款暫時未開放|iapUnavailable/i, "error.iapUnavailable"],
+  [/購買憑證驗證失敗|App Store 交易憑證|產品 ID 不符|未知產品 ID|Bundle ID 不符|未有訂閱記錄/, "error.purchaseFailed"],
+  [/請輸入試用碼|試用碼無效|試用碼已過期|試用碼已用盡|試用已到期|兌換過試用碼/, "error.trial"],
+  // Permissions / admin
+  [/管理員帳號或密碼錯誤/, "error.adminAuth"],
+  [/無權存取此檔案|需要客服權限|需要稽核權限/, "error.forbidden"],
+  // Account / profile
+  [/請輸入舊密碼/, "error.needOldPassword"],
+  [/此 email 未有帳號|此 email 已有帳號|未有帳號|找不到此帳號/, "error.accountNotFound"],
+  [/名稱不能為空/, "error.nameEmpty"],
+  [/呢個登入方式已經係你嘅帳號/, "error.emailTaken"],
+  [/此食譜已在你的食譜庫中/, "error.duplicate"],
+  [/target 與 source 不可相同|無法識別要合併的帳號/, "error.mergeFailed"],
+  [/太頻繁/, "error.tooMany"],
+  [/家庭不存在/, "error.noFamily"],
+  [/AI 未返回結果|AI 返回格式錯誤/, "error.aiBadResponse"],
   // AI / LLM failure modes → give the user something actionable
   [/DASHSCOPE_API_KEY is not set|API key is not set|not configured/i, "error.aiNotConfigured"],
   [/GEMINI_API_KEY not set/i, "error.aiNotConfigured"],
@@ -46,9 +63,15 @@ export function friendlyError(e: unknown, fallbackKey = "error.generic"): string
   for (const [re, key] of BACKEND_MESSAGE_MAP) {
     if (re.test(raw)) return i18n.t(key as any);
   }
-  // Intentional user-facing message (short, Chinese, not technical) → show it.
+  // Intentional user-facing message (short, Chinese, not technical).
+  // Only surface it verbatim to Chinese users; for other languages fall back to a
+  // localized generic message so raw Chinese never leaks into fil/id/en UI.
   const hasCJK = /[\u3400-\u9FFF\uF900-\uFAFF]/.test(raw);
-  if (hasCJK && raw.length <= 80 && !TECHNICAL.test(raw)) return raw;
+  if (hasCJK && raw.length <= 80 && !TECHNICAL.test(raw)) {
+    const lang = String((i18n as any)?.language || "zh").toLowerCase();
+    if (lang.startsWith("zh")) return raw;
+    return i18n.t(fallbackKey as any);
+  }
 
   return i18n.t(fallbackKey as any);
 }

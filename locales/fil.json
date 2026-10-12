@@ -1723,7 +1723,13 @@
     "notMember": "Hindi ka miyembro ng kusinang ito.",
     "dateOrder": "Hindi pwedeng mas huli ang shopping date sa meal date.",
     "imageInvalid": "May problema sa larawan (hindi suportado o masyadong malaki).",
-    "authFailed": "Mali ang credentials. Subukan muli."
+    "authFailed": "Mali ang credentials. Subukan muli.",
+    "adminAuth": "Mali ang admin credentials.",
+    "needOldPassword": "Ilagay ang iyong kasalukuyang password.",
+    "accountNotFound": "Walang account para sa email na ito.",
+    "nameEmpty": "Hindi pwedeng walang laman ang pangalan.",
+    "mergeFailed": "Hindi makumpleto ang merge. Subukan muli.",
+    "trial": "Di-wasto o expired na trial code."
   },
   "notif": {
     "mealUpdated": "📅 Na-update ang meal plan",
