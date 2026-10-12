@@ -37,9 +37,11 @@
 
 ---
 
-## Phase 2 — 重建 marketing source pipeline
+## Phase 2 — ~~重建 marketing source pipeline~~（**已移至 `kindcipe-site`**）
 
-目標：`marketing/`（Astro source）→ `npm run marketing:build` → 輸出 `docs/`。
+> ⚠️ **更正**：kindcipe.com 嘅真正 source 係**另一個 repo** `cookfoodcf2026-ai/kindcipe-site`（Cloudflare），**唔係**呢個 repo 嘅 `docs/`。
+> 呢個 repo 曾建嘅 `marketing/` + `docs/` 係多餘，已移除 `marketing/`（`docs/` 待 app-4 GitHub Pages 關閉後再刪）。詳見 `WEBSITE_HANDOFF.md`。
+> 以下 Phase 2/3/4/6 嘅網站工作**應喺 `kindcipe-site` 做**。
 
 - [x] **2.1 Astro 骨架**：`marketing/`（astro@5、`@astrojs/sitemap`）；`outDir: ../docs`（可用 `MARKETING_OUT_DIR` override 做安全驗證）。
   - ⚠️ 環境係 **Node 20**，Astro 6 要 Node ≥22.12，所以**鎖 Astro 5.18.2**。

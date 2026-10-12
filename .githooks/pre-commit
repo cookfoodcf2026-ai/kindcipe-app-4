@@ -1,10 +1,12 @@
 #!/bin/sh
-# Auto-rebuild committed build outputs when their sources change.
+# Auto-rebuild the committed web app bundle (dist/) when web sources change.
 #
-#  1) Web app bundle (dist/) — Cloudflare Workers serves the committed dist/,
-#     so it must be kept fresh. See docs/WEBAPP_DEPLOY.md.
-#  2) Marketing site (docs/) — Astro source lives in marketing/ and builds to
-#     docs/ for GitHub Pages (kindcipe.com).
+# Why: Cloudflare Workers Builds ignores wrangler.jsonc's build.command and the
+# dashboard Build command is read-only (=None), so dist/ must be committed and
+# kept up to date. This hook rebuilds and stages dist/ automatically.
+#
+# The marketing site (kindcipe.com) is a separate project — see
+# https://github.com/cookfoodcf2026-ai/kindcipe-site.
 #
 # Enable once per clone:  git config core.hooksPath .githooks
 
@@ -15,33 +17,19 @@ if [ -z "$staged" ]; then
   exit 0
 fi
 
-# --- 1) Web app bundle (dist/) --------------------------------------------
 # Directory prefixes must be matched with a trailing "/" (not "$") so files
 # UNDER them trigger a rebuild.
 needs_build=$(printf '%s\n' "$staged" | grep -E '^(app|lib|hooks|src|components|assets|locales|constants|types)/|^(\.env|app\.json|babel\.config\.js|metro\.config\.js|package\.json)$' || true)
 
-if [ -n "$needs_build" ]; then
-  echo "[pre-commit] Web sources changed → rebuilding dist/ ..."
-  npm run build:web >/dev/null 2>&1 || {
-    echo "[pre-commit] ⚠️  build:web failed — commit aborted. Run 'npm run build:web' to see errors." >&2
-    exit 1
-  }
-  git add dist
-  echo "[pre-commit] ✅ dist/ rebuilt and staged."
+if [ -z "$needs_build" ]; then
+  exit 0
 fi
 
-# --- 2) Marketing site (docs/) --------------------------------------------
-# Gated on marketing/.publish: a partial Astro build would wipe the live docs/,
-# so auto-rebuild only activates once the content migration is complete
-# (create marketing/.publish to enable).
-needs_marketing=$(printf '%s\n' "$staged" | grep -E '^marketing/' || true)
+echo "[pre-commit] Web sources changed → rebuilding dist/ ..."
+npm run build:web >/dev/null 2>&1 || {
+  echo "[pre-commit] ⚠️  build:web failed — commit aborted. Run 'npm run build:web' to see errors." >&2
+  exit 1
+}
 
-if [ -n "$needs_marketing" ] && [ -f marketing/.publish ]; then
-  echo "[pre-commit] Marketing sources changed → rebuilding docs/ ..."
-  npm run marketing:build >/dev/null 2>&1 || {
-    echo "[pre-commit] ⚠️  marketing:build failed — commit aborted. Run 'npm run marketing:build' to see errors." >&2
-    exit 1
-  }
-  git add docs
-  echo "[pre-commit] ✅ docs/ rebuilt and staged."
-fi
+git add dist
+echo "[pre-commit] ✅ dist/ rebuilt and staged."
