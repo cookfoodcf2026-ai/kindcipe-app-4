@@ -410,11 +410,11 @@ export default function PlannerTab() {
       }
     },
     onError: (e) => {
-      let message = "設定外出失敗";
+      let message = t("設定外出失敗" as any);
       if (friendlyError(e)?.includes("請先加入家庭廚房")) {
-        message = "請先加入家庭廚房才能設定外出";
+        message = t("請先加入家庭廚房才能設定外出" as any);
       } else if (e.data?.code === "FORBIDDEN") {
-        message = "權限不足，請聯繫管理員";
+        message = t("權限不足，請聯繫管理員" as any);
       }
       showToast(message, "error");
     },
@@ -1416,7 +1416,7 @@ export default function PlannerTab() {
               <TouchableOpacity
                 style={styles.rejectBtn}
                 onPress={() => {
-                  Alert.alert(t("拒絕餐點" as any), `確定要拒絕「${mp.recipeName}」？`, [
+                  Alert.alert(t("拒絕餐點" as any), t("確定要拒絕「{{name}}」？" as any, { name: mp.recipeName }), [
                     { text: t("取消" as any), style: "cancel" },
                     {
                       text: t("拒絕" as any),
@@ -1434,7 +1434,7 @@ export default function PlannerTab() {
             <View style={styles.waitingRow}>
               <Ionicons name="time-outline" size={10} color="#CA8A04" />
               <Text style={styles.waitingText}>
-                等待 {mp.proposedByName || "管理員"} 確認
+                {t("等待 {{name}} 確認" as any, { name: mp.proposedByName || t("管理員" as any) })}
               </Text>
             </View>
           )
@@ -2114,7 +2114,7 @@ export default function PlannerTab() {
                             <View style={{ flex: 1 }}>
                               <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{t(meta.label as any)}</Text>
                               <Text style={{ fontSize: 13, fontWeight: "800", color: hasDish ? "#1A1A1A" : "#9CA3AF", marginTop: 1 }} numberOfLines={1}>
-                                {hasDish ? dishName : `請添加${t(meta.label as any)}`}
+                                {hasDish ? dishName : t("請添加{{label}}" as any, { label: t(meta.label as any) })}
                               </Text>
                             </View>
                             {/* Image preview */}
@@ -2649,7 +2649,7 @@ function AISuggestModalRN({
       if (friendlyError(e)?.includes("食譜庫")) {
         message = friendlyError(e);
       } else if (friendlyError(e)?.includes("權限")) {
-        message = "請先加入家庭廚房或聯繫管理員";
+        message = t("請先加入家庭廚房或聯繫管理員" as any);
       } else if (friendlyError(e)?.includes("AI")) {
         message = friendlyError(e);
       }

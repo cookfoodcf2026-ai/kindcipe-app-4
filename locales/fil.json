@@ -2139,5 +2139,18 @@
   "正在上傳圖片...": "Nag-a-upload ng larawan...",
   "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ Walang katulad na recipe; sinubukan ang AI, pindutin muli",
   "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 Walang bagong katulad sa library; AI na lang",
-  "已提交到網紅頁 🎉": "Naisumite sa KOL page 🎉"
+  "已提交到網紅頁 🎉": "Naisumite sa KOL page 🎉",
+  "未知項目": "Hindi kilalang item",
+  "昨天": "Kahapon",
+  "7 日": "7 araw",
+  "30 日": "30 araw",
+  "{{n}}分鐘前": "{{n}} min ang nakalipas",
+  "{{n}}小時前": "{{n}} oras ang nakalipas",
+  "{{n}}天前": "{{n}} araw ang nakalipas",
+  "設定外出失敗": "Nabigo ang pagtatakda ng day off",
+  "請先加入家庭廚房才能設定外出": "Sumali muna sa family kitchen para magtakda ng day off",
+  "權限不足，請聯繫管理員": "Kulang ang permiso, kontakin ang admin",
+  "請先加入家庭廚房或聯繫管理員": "Sumali muna sa family kitchen o kontakin ang admin",
+  "等待 {{name}} 確認": "Naghihintay ng kumpirmasyon ni {{name}}",
+  "請添加{{label}}": "Magdagdag ng {{label}}"
 }

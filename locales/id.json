@@ -2139,5 +2139,18 @@
   "正在上傳圖片...": "Mengunggah gambar...",
   "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ Tidak ada resep serupa; sudah coba AI, tekan lagi",
   "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 Tidak ada alternatif serupa di library; pakai AI",
-  "已提交到網紅頁 🎉": "Dikirim ke halaman KOL 🎉"
+  "已提交到網紅頁 🎉": "Dikirim ke halaman KOL 🎉",
+  "未知項目": "Item tidak diketahui",
+  "昨天": "Kemarin",
+  "7 日": "7 hari",
+  "30 日": "30 hari",
+  "{{n}}分鐘前": "{{n}} menit lalu",
+  "{{n}}小時前": "{{n}} jam lalu",
+  "{{n}}天前": "{{n}} hari lalu",
+  "設定外出失敗": "Gagal mengatur hari libur",
+  "請先加入家庭廚房才能設定外出": "Gabung dapur keluarga dulu untuk mengatur hari libur",
+  "權限不足，請聯繫管理員": "Izin tidak cukup, hubungi admin",
+  "請先加入家庭廚房或聯繫管理員": "Gabung dapur keluarga dulu atau hubungi admin",
+  "等待 {{name}} 確認": "Menunggu konfirmasi {{name}}",
+  "請添加{{label}}": "Tambahkan {{label}}"
 }

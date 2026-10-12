@@ -2139,5 +2139,18 @@
   "正在上傳圖片...": "Uploading image...",
   "⚠️ 暫時搵唔到同類食譜，已試過 AI 生成，請再按一次": "⚠️ No similar recipe found; tried AI generation, please tap again",
   "📚 食譜庫冇新嘅相近替代，改用 AI 生成同類": "📚 No new similar library alternative; using AI generation",
-  "已提交到網紅頁 🎉": "Submitted to the KOL page 🎉"
+  "已提交到網紅頁 🎉": "Submitted to the KOL page 🎉",
+  "未知項目": "Unknown item",
+  "昨天": "Yesterday",
+  "7 日": "7 days",
+  "30 日": "30 days",
+  "{{n}}分鐘前": "{{n}} min ago",
+  "{{n}}小時前": "{{n}} hr ago",
+  "{{n}}天前": "{{n}} d ago",
+  "設定外出失敗": "Failed to set day off",
+  "請先加入家庭廚房才能設定外出": "Join a family kitchen first to set a day off",
+  "權限不足，請聯繫管理員": "Insufficient permissions, please contact the admin",
+  "請先加入家庭廚房或聯繫管理員": "Join a family kitchen first or contact the admin",
+  "等待 {{name}} 確認": "Waiting for {{name}} to confirm",
+  "請添加{{label}}": "Add {{label}}"
 }

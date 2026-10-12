@@ -10,7 +10,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { trpc } from "@/lib/trpc";
 import { useTranslation } from "react-i18next";
 import { getBilingualName } from "@/lib/bilingual";
+import { enumT } from "@/lib/i18nEnums";
 import { DateUtil } from "@/src/lib/DateUtil";
+import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
@@ -52,12 +54,12 @@ function formatDate(d: Date | string | null | undefined): string {
   
   if (isNaN(target.getTime())) {
     console.warn('formatDate: Invalid target date', { target, year, month, day });
-    return `${month + 1}月${day}日`;
+    return new Intl.DateTimeFormat(i18n.language, { month: "short", day: "numeric" }).format(new Date(year, month, day));
   }
   
-  if (target.getTime() === today.getTime()) return "今天";
-  if (target.getTime() === yesterday.getTime()) return "昨天";
-  return `${month + 1}月${day}日`;
+  if (target.getTime() === today.getTime()) return i18n.t("今天" as any);
+  if (target.getTime() === yesterday.getTime()) return i18n.t("昨天" as any);
+  return new Intl.DateTimeFormat(i18n.language, { month: "short", day: "numeric" }).format(target);
 }
 
 function daysSince(d: Date | string): number {
@@ -70,10 +72,10 @@ function formatTimeAgo(dateStr?: string | number | Date | null): string {
   const date = DateUtil.parseDate(dateStr);
   if (isNaN(date.getTime())) return "";
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 60) return "剛剛";
-  if (diff < 3600) return `${Math.floor(diff / 60)}分鐘前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}小時前`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
+  if (diff < 60) return i18n.t("剛剛" as any);
+  if (diff < 3600) return i18n.t("{{n}}分鐘前" as any, { n: Math.floor(diff / 60) });
+  if (diff < 86400) return i18n.t("{{n}}小時前" as any, { n: Math.floor(diff / 3600) });
+  if (diff < 604800) return i18n.t("{{n}}天前" as any, { n: Math.floor(diff / 86400) });
   return formatDate(date);
 }
 
@@ -92,7 +94,7 @@ function getCategoryColor(category: string | null | undefined): string {
 }
 
 function cleanItemName(name: string | null | undefined): string {
-  if (!name || name.trim() === '') return '未知項目';
+  if (!name || name.trim() === '') return i18n.t("未知項目" as any);
   return name.replace(/^\)|^\(/g, '').trim();
 }
 
@@ -508,7 +510,7 @@ export default function PurchaseHistoryScreen() {
                               </View>
                               <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
                                 {(item.quantity || item.unit) && (
-                                  <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>
+                                  <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>
                                 )}
                                 {hasBudget && hasActual ? (
                                   <>
@@ -581,9 +583,9 @@ export default function PurchaseHistoryScreen() {
                 {/* Date Filter Chips */}
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
                   {[
-                    { key: "all" as const, label: `全部 (${missedItemCount.all})` },
-                    { key: "7d" as const, label: `7 日 (${missedItemCount.seven})` },
-                    { key: "30d" as const, label: `30 日 (${missedItemCount.thirty})` },
+                    { key: "all" as const, labelKey: t("全部"), count: missedItemCount.all },
+                    { key: "7d" as const, labelKey: t("7 日"), count: missedItemCount.seven },
+                    { key: "30d" as const, labelKey: t("30 日"), count: missedItemCount.thirty },
                   ].map((chip) => (
                     <TouchableOpacity
                       key={chip.key}
@@ -600,7 +602,7 @@ export default function PurchaseHistoryScreen() {
                         fontWeight: "700" as const, 
                         color: missedDateRange === chip.key ? "#fff" : "#B45309" 
                       }}>
-                        {t(chip.label as any)}
+                        {chip.labelKey} ({chip.count})
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -623,7 +625,7 @@ export default function PurchaseHistoryScreen() {
                           <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{biName(cleanItemName(item.name)).primary}</Text>
                           <View style={{ flexDirection: "row", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
                             <Text style={{ fontSize: 12, color: "#DC2626" }}>{t("dyn.planned", { date: item.plannedDate ? formatDate(item.plannedDate) : t("dyn.undecided") })}</Text>
-                            {(item.quantity || item.unit) && <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>}
+                            {(item.quantity || item.unit) && <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>}
                             {item.estimatedPrice != null ? (
                               <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
                             ) : (
@@ -671,7 +673,7 @@ export default function PurchaseHistoryScreen() {
                         </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingRight: 24 }}>
                             <Text style={{ fontSize: 15, fontWeight: "800", color: TEXT, flex: 1 }}>
-                              {item.name}
+                              {getBilingualName(item.name, item.nameEn, item.nameFil, item.nameId).primary}
                             </Text>
                           </View>
                         <View style={{ flexDirection: "row", gap: 4, marginBottom: 10 }}>
@@ -717,7 +719,7 @@ export default function PurchaseHistoryScreen() {
               <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 20 }}>
                 <View style={{ marginBottom: 16 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("purchaseHistory.productName")}</Text>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: TEXT }}>{editPurchaseItem?.name}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: TEXT }}>{getBilingualName(editPurchaseItem?.name, (editPurchaseItem as any)?.nameEn, (editPurchaseItem as any)?.nameFil, (editPurchaseItem as any)?.nameId).primary}</Text>
                 </View>
                 <View style={{ marginBottom: 16 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: SUB, marginBottom: 8 }}>{t("purchaseHistory.purchasePrice")}</Text>
