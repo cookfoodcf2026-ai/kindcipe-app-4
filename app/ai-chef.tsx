@@ -3675,8 +3675,8 @@ export default function AIChefScreen() {
                             <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
                             <Text style={s.recCardDiff}>{enumT.difficulty(r.difficulty)}</Text>
                           </View>
-                          <View style={[s.recCardSourceBadge, r.source === "ai" ? s.recCardSourceAI : s.recCardSourceLibrary]}>
-                            <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : t("aiChef.library")}</Text>
+                          <View style={[s.recCardSourceBadge, r.source === "ai" ? s.recCardSourceAI : r.source === "custom" ? s.recCardSourceMine : s.recCardSourceLibrary]}>
+                            <Text style={s.recCardSourceTxt}>{r.source === "ai" ? "AI" : r.source === "custom" ? t("我的食譜" as any) : t("官方食譜" as any)}</Text>
                           </View>
                         </View>
                         {(() => {
@@ -4149,6 +4149,7 @@ const s = StyleSheet.create({
   recCardDiff: { fontSize: 10, fontWeight: "700", color: BRAND },
   recCardSourceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   recCardSourceLibrary: { backgroundColor: "#E0F2FE" },
+  recCardSourceMine: { backgroundColor: "#DCFCE7" },
   recCardSourceAI: { backgroundColor: "#F3E8FF" },
   recCardSourceTxt: { fontSize: 9, fontWeight: "800", color: "#475569" },
   recCardBody: { padding: 10, paddingTop: 4, justifyContent: "space-between" },

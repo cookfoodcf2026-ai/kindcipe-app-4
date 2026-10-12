@@ -78,21 +78,30 @@ function lookup(map: Record<string, string>, value: string): string | undefined 
   return map[v] ?? map[v.toLowerCase()];
 }
 
+// No-Chinese policy: for non-Chinese locales, never surface raw CJK. If a value
+// could not be mapped (unknown free-form tag / unit / category), hide it ("").
+const CJK_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+function guardLeak(out: string): string {
+  const lang = String(i18n.language || "");
+  if (lang.startsWith("zh")) return out;
+  return CJK_RE.test(out) ? "" : out;
+}
+
 /** 非組件用（helper / constants）：用 i18n.t，搵唔到顯示原文 */
 export const enumT = {
   category: (v: string): string => {
     const { key, fallback } = resolve("category", CATEGORY_ZH_TO_KEY, v);
-    if (!key) return fallback;
+    if (!key) return guardLeak(fallback);
     const k = `enums.category.${key}`;
     const out = String(i18n.t(k as any));
-    return out === k ? fallback : out;
+    return guardLeak(out === k ? fallback : out);
   },
   unit: (v: string): string => {
-    return localizeUnitValue(v, (key) => {
+    return guardLeak(localizeUnitValue(v, (key) => {
       const k = `enums.unit.${key}`;
       const out = String(i18n.t(k as any));
       return out === k ? undefined : out;
-    });
+    }));
   },
   difficulty: (v: string): string => {
     const { key, fallback } = resolve("difficulty", DIFFICULTY_ANY, v);
@@ -103,10 +112,10 @@ export const enumT = {
   },
   tag: (v: string): string => {
     const { key, fallback } = resolve("tag", TAG_ZH_TO_KEY, v);
-    if (!key) return fallback;
+    if (!key) return guardLeak(fallback);
     const k = `enums.tag.${key}`;
     const out = String(i18n.t(k as any));
-    return out === k ? fallback : out;
+    return guardLeak(out === k ? fallback : out);
   },
   meal: (v: string): string => {
     const { key, fallback } = resolve("meal", MEAL_ZH_TO_KEY, v);
@@ -129,15 +138,15 @@ export function useEnum() {
     return out === k ? fallback : out;
   };
   return {
-    category: (v: string): string => tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? "")),
+    category: (v: string): string => guardLeak(tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? ""))),
     unit: (v: string): string =>
-      localizeUnitValue(v, (key) => {
+      guardLeak(localizeUnitValue(v, (key) => {
         const k = `enums.unit.${key}`;
         const out = t(k as any);
         return out === k ? undefined : out;
-      }),
+      })),
     difficulty: (v: string): string => tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? "")),
-    tag: (v: string): string => tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? "")),
+    tag: (v: string): string => guardLeak(tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? ""))),
     meal: (v: string): string => tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? "")),
     weekday: (n: number): string => t(`enums.weekday.${n}` as any),
     month: (m: number): string => t(`enums.month.${m}` as any),

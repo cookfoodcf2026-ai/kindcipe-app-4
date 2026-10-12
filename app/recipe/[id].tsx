@@ -1682,11 +1682,15 @@ export default function RecipeDetailScreen() {
                   <Text style={{ fontSize: 13, color: HINT, fontStyle: "italic" }}>{t("recipe.noTags")}</Text>
                 ) : (
                   <View style={s.tagsRow}>
-                    {displayTags.map((tag: string, i: number) => (
-                      <View key={i} style={s.tagChip}>
-                        <Text style={s.tagChipTxt}>{enumT.tag(tag)}</Text>
-                      </View>
-                    ))}
+                    {displayTags.map((tag: string, i: number) => {
+                      const label = enumT.tag(tag);
+                      if (!label) return null;
+                      return (
+                        <View key={i} style={s.tagChip}>
+                          <Text style={s.tagChipTxt}>{label}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 )}
               </View>
@@ -1963,12 +1967,16 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               <View style={s.tagsRow}>
-                {(localTags ?? []).map((tag: string, i: number) => (
-                  <TouchableOpacity key={i} style={s.tagChipRemovable} onPress={() => setLocalTags(prev => (prev ?? []).filter((_, idx) => idx !== i))}>
-                    <Text style={s.tagChipTxt}>{tag}</Text>
-                    <Ionicons name="close" size={12} color={BRAND} />
-                  </TouchableOpacity>
-                ))}
+                {(localTags ?? []).map((tag: string, i: number) => {
+                  const label = enumT.tag(tag);
+                  if (!label) return null;
+                  return (
+                    <TouchableOpacity key={i} style={s.tagChipRemovable} onPress={() => setLocalTags(prev => (prev ?? []).filter((_, idx) => idx !== i))}>
+                      <Text style={s.tagChipTxt}>{label}</Text>
+                      <Ionicons name="close" size={12} color={BRAND} />
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               {(localTags ?? []).length < 10 && (
                 <View style={s.tagInputRow}>
