@@ -412,32 +412,32 @@ const QUICK_ACTIONS = [
 ];
 
 const HOT_KEY_CONFIG: Record<string, {
-  search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string };
+  search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string; scenario?: string };
   rank?: "shortestTime" | "default";
   aiPrompt: string;
 }> = {
   quick: {
-    search: { cookTimeMax: 30 },
+    search: { cookTimeMax: 30, scenario: "quick" },
     rank: "shortestTime",
     aiPrompt: "aiChef.hk_quickPrompt",
   },
   healthy: {
-    search: { query: "清淡" },
+    search: { query: "清淡", scenario: "healthy" },
     rank: "default",
     aiPrompt: "aiChef.hk_healthyPrompt",
   },
   ricecooker: {
-    search: { query: "電飯煲" },
+    search: { query: "電飯煲", scenario: "ricecooker" },
     rank: "default",
     aiPrompt: "aiChef.hk_ricecookerPrompt",
   },
   kids: {
-    search: { tags: ["小朋友"] },
+    search: { tags: ["小朋友"], scenario: "kids" },
     rank: "default",
     aiPrompt: "aiChef.hk_kidsPrompt",
   },
   guest: {
-    search: { query: "宴客" },
+    search: { query: "宴客", scenario: "guest" },
     rank: "default",
     aiPrompt: "aiChef.hk_guestPrompt",
   },
@@ -2180,7 +2180,7 @@ export default function AIChefScreen() {
   const runHotKeyGeneration = async (
     id: string,
     prefs: MealPlanPreferences,
-    config: { search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string }; rank?: "shortestTime" | "default"; aiPrompt: string },
+    config: { search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string; scenario?: string }; rank?: "shortestTime" | "default"; aiPrompt: string },
   ) => {
     setLibraryLoading(true);
     setRecommendedRecipes([]);
@@ -2195,6 +2195,7 @@ export default function AIChefScreen() {
             tags: config.search.tags,
             cookTimeMax: config.search.cookTimeMax,
             category: config.search.category,
+            scenario: config.search.scenario,
             count: 1,
             rank: config.rank,
             excludeCategories: ["甜品", "湯水"],
