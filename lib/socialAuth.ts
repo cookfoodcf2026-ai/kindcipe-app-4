@@ -87,6 +87,76 @@ export async function signInWithGoogleWeb(): Promise<string> {
   });
 }
 
+const APPLE_SERVICES_ID =
+  process.env.EXPO_PUBLIC_APPLE_SERVICES_ID ?? "com.kindcipe.web";
+
+declare global {
+  interface Window {
+    AppleID?: any;
+  }
+}
+
+let appleJsLoadPromise: Promise<void> | null = null;
+
+function loadAppleIdentityServices(): Promise<void> {
+  if (Platform.OS !== "web") return Promise.reject(new Error("web only"));
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.AppleID?.auth) return Promise.resolve();
+  if (appleJsLoadPromise) return appleJsLoadPromise;
+
+  appleJsLoadPromise = new Promise<void>((resolve, reject) => {
+    const src =
+      "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Apple JS load failed")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Apple JS load failed"));
+    document.head.appendChild(script);
+  });
+  return appleJsLoadPromise;
+}
+
+/**
+ * Prompt Sign in with Apple on web using the Apple JS SDK (popup) and resolve
+ * with the id_token.
+ *
+ * Unlike the OAuth redirect flow, the token comes back through the popup's
+ * postMessage and is then POSTed to the backend (same shape as Google), so there
+ * is no httpOnly cookie or URL-fragment dependency — which expo-router on web
+ * otherwise mangles (it builds `pathname + hash` then appends the query, turning
+ * `?apple=success#token=…` into a URL whose search is empty).
+ */
+export async function signInWithAppleWeb(): Promise<{ idToken: string; name?: string }> {
+  await loadAppleIdentityServices();
+  const AppleID = window.AppleID;
+  if (!AppleID?.auth) throw new Error("Apple JS unavailable");
+
+  AppleID.auth.init({
+    clientId: APPLE_SERVICES_ID,
+    scope: "name email",
+    redirectURI: typeof window !== "undefined" ? window.location.origin : undefined,
+    usePopup: true,
+  });
+
+  const res = await AppleID.auth.signIn();
+  const idToken: string | undefined = res?.authorization?.id_token;
+  if (!idToken) throw new Error("No Apple id_token");
+
+  const u = res?.user;
+  const name = u?.name
+    ? [u.name.firstName, u.name.lastName].filter(Boolean).join(" ")
+    : undefined;
+  return { idToken, name };
+}
+
 /** Kick off the backend-hosted Apple web OAuth redirect (full page navigation). */
 export function startAppleWebLogin(returnUrl?: string): void {
   if (Platform.OS !== "web" || typeof window === "undefined") return;

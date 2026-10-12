@@ -25,7 +25,7 @@ import * as WebBrowser from "expo-web-browser";
 import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
-import { signInWithGoogleWeb, startAppleWebLogin } from "@/lib/socialAuth";
+import { signInWithGoogleWeb, signInWithAppleWeb, startAppleWebLogin } from "@/lib/socialAuth";
 import { setPendingVerificationEmail } from "@/lib/pending-verification";
 const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
 const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
@@ -137,13 +137,24 @@ export default function LoginScreen() {
   // so auth works regardless of cookie policy; then refresh auth state.
   useEffect(() => {
     if (!isWeb) return;
-    const status = params.apple;
-    if (!status) return;
-    // Capture the token fragment synchronously BEFORE we rewrite the URL below.
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
-    const tokenMatch = hash.match(/[#&]token=([^&]+)/);
-    const fragmentToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
-    if (status === "success") {
+    // Defensive fallback for the legacy backend redirect flow (the primary web
+    // path is now the Apple JS popup in handleAppleWebSignIn).
+    // expo-router on web stores the hash in params["#"], and because it builds
+    // `pathname + hash` then appends the query, the `?apple=success` can be
+    // swallowed into the fragment (so params.apple is undefined). Read both
+    // sources and also surface the backend's ?error= (previously ignored).
+    const hashParam = (params as any)["#"] as string | undefined;
+    const rawHash = hashParam
+      ? "#" + hashParam
+      : (typeof window !== "undefined" ? window.location.hash : "");
+    const errParam = (params as any).error as string | undefined;
+    const status = params.apple ?? (/apple=success/.test(rawHash) ? "success" : undefined);
+    if (!status && !errParam) return;
+    if (errParam) {
+      Alert.alert(t("auth.appleFailed" as any), errParam);
+    } else if (status === "success") {
+      const tokenMatch = rawHash.match(/[#&?]token=([^&]+)/);
+      const fragmentToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
       void (async () => {
         try {
           if (fragmentToken) {
@@ -162,7 +173,7 @@ export default function LoginScreen() {
       window.history.replaceState({}, "", window.location.pathname);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.apple]);
+  }, [params.apple, (params as any)["#"], (params as any).error]);
 
   // ── Email Login / Register (admin only) ─────────────────────────────────────
   const handleEmailSubmit = async () => {
@@ -349,9 +360,29 @@ export default function LoginScreen() {
   // iOS native uses handleAppleSignIn (expo-apple-authentication) — unchanged.
   const handleAppleWebSignIn = async () => {
     if (isWeb) {
-      startAppleWebLogin(
-        typeof window !== "undefined" ? `${window.location.origin}/login` : undefined
-      );
+      // Web: Apple JS popup → id_token → POST (mirrors Google). No redirect, so
+      // there is no cookie/URL-fragment dependency that expo-router can mangle.
+      setIsLoading(true);
+      setLoadingType("apple");
+      try {
+        const { idToken, name } = await signInWithAppleWeb();
+        const res = await fetch(`${BACKEND_URL}/api/auth/apple/web`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ idToken, name }),
+        });
+        if (!res.ok) throw new Error("Apple login failed");
+        const data = await res.json();
+        await saveAuthTokenFromResponse(data);
+        await onLoginSuccess("apple");
+      } catch (err: any) {
+        if (__DEV__) console.error("Apple web login error:", err);
+        Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));
+      } finally {
+        setIsLoading(false);
+        setLoadingType("");
+      }
       return;
     }
     setIsLoading(true);
