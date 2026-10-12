@@ -44,6 +44,7 @@ const BACKEND_MESSAGE_MAP: Array<[RegExp, string]> = [
   [/此食譜已在你的食譜庫中/, "error.duplicate"],
   [/target 與 source 不可相同|無法識別要合併的帳號/, "error.mergeFailed"],
   [/太頻繁/, "error.tooMany"],
+  [/截圖匯入係 Pro|screenshot.*Pro/i, "error.screenshotPro"],
   [/家庭不存在/, "error.noFamily"],
   [/AI 未返回結果|AI 返回格式錯誤/, "error.aiBadResponse"],
   // AI / LLM failure modes → give the user something actionable

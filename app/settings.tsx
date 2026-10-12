@@ -258,6 +258,7 @@ export default function SettingsScreen() {
   ];
 
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<"generic" | "multilang">("generic");
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
@@ -963,6 +964,13 @@ export default function SettingsScreen() {
                     selectedLang === lang.code && styles.langOptionActive,
                   ]}
                   onPress={async () => {
+                    // Fil/Ind are Pro languages; free users see the paywall instead.
+                    if ((lang.code === "fil" || lang.code === "id") && !(sub as any)?.multiLang) {
+                      setShowLangPicker(false);
+                      setPaywallFeature("multilang");
+                      setShowPaywall(true);
+                      return;
+                    }
                     // BUG#7 FIX: actually apply and persist language change
                     setSelectedLang(lang.code);
                     setShowLangPicker(false);
@@ -1288,7 +1296,7 @@ export default function SettingsScreen() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        feature="generic"
+        feature={paywallFeature}
         trialDaysLeft={subInfo?.daysLeft}
       />
 

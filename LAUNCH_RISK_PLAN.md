@@ -7,7 +7,7 @@
 ## P0 — 會燒錢 / 破壞信任（上架即刻見）
 
 ### 1. AI 成本冇上限（最大風險）—— ✅ 已完成
-- **Quota 已存在**：AI 對話 **30（免費）/ 300（付費）次/月**；自訂食譜 20/月（付費無限）；匯入 5/300 次/月。
+- **Quota 已存在**：AI 對話 **20（免費）/ 300（付費）次/月**；自訂食譜 20/月（付費無限）；匯入 20/300 次/月。（見 `TIER_SPEC.md`）
 - **扣法（已確認）**：`aiRecipe.chat` 只喺 **`llmUsed = true`（真係用咗 AI）先扣**，每 request 扣 1 次（媒體圖計 2）。
   - 純 library 命中 → 唔扣。
   - AI 生成 3餸1湯 → 扣 1 次。
@@ -67,7 +67,7 @@
 ---
 
 ## 建議優先次序（上架前最值得做嘅 Top 3）
-1. ~~**AI 成本 quota**~~ ✅ **已完成**（對話 30/300、自訂 20、匯入 5/300；weekly menu AI 已 hidden）
+1. ~~**AI 成本 quota**~~ ✅ **已完成**（對話 20/300、自訂 20、匯入 20/300；weekly menu AI 已 hidden）
 2. **library-first 穩定返 4 卡 + 更快**（防流失 / 缺卡）—— 進展中（AI 生成已減 retry + maxTokens 加速）
 3. **內容填充**（官方食譜 + 圖，令 app 唔空泛）
 
@@ -76,7 +76,7 @@
 ## 未做清單
 | 項 | 內容 | 狀態 |
 |---|---|---|
-| P0-1 | AI 成本 quota | ✅ 已完成（對話 30/300、自訂 20、匯入 5/300；扣法已確認：llmUsed 先扣，每 request 1 次；weekly menu AI 已 hidden）|
+| P0-1 | AI 成本 quota | ✅ 已完成（對話 20/300、自訂 20、匯入 20/300；扣法已確認：llmUsed 先扣，每 request 1 次；weekly menu AI 已 hidden）|
 | P0-2 | library-first 穩定 4 卡 + 更快 | ✅ 已完成（library-first 出 4 卡；AI：maxRetries 1 + maxTokens 1800；meal 生成 2 候選/類型並行 + pickDiverseMeal 任何時候都行（湯+菜+肉+海鮮各一），缺類型由 backfill 補；generateOneType soft（新鮮優先，揀唔到都保底出卡）→ 保證 4 卡唔會跌去 1 卡/食譜庫；source 跟 button：AI→AI 卡、食譜庫→食譜庫卡；client timeout 45s→90s + 友善超時提示；Promise.allSettled 一個 slot 死唔拖冧成餐 + LLM 非 JSON 乾淨 error + 友善提示）|
 | P0-3 | 分類準確度 | 進展中（ingest LLM 已做 + backfill 218；fuzzy 去重 0.6 + 菜位嚴格真蔬菜；AI meal 每個 slot 見晒「出過嘅菜/湯」+ 撞重複 retry 出新 → 湯水同餸都唔重複、有新意）|
 | #4 | 內容填充 | ❌ 未做 |

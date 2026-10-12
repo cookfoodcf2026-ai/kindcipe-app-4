@@ -134,5 +134,21 @@
 | M6 | 切換 app 語言 | 之後嘅推送/電郵用新語言 | |
 | M7 | 自動防線 | `check-i18n-keys`(1408 keys×4)、`audit-i18n --strict`、`check-i18n-coverage` 全綠；runtime 若有中文洩漏 → Sentry `i18n_leak` | |
 
+## N. Free vs Pro（對照 `TIER_SPEC.md`）
+| # | 項目 | 預期 | 結果 |
+|---|---|---|---|
+| N1 | 新開廚房 | 預設 **Free**（唔會自動 Pro） | |
+| N2 | Free 成員 | 第 2 人 OK、第 3 人被擋 + 升級提示 | |
+| N3 | Pro 成員 | 最多 4 人 | |
+| N4 | Free 匯入 | 20/月，之後擋 + paywall | |
+| N5 | Free AI 對話 | 20/月 | |
+| N6 | Free 語言 | 揀菲律賓／印尼文 → 彈 paywall（唔改語言） | |
+| N7 | Pro 語言 | 4 語言都揀到 | |
+| N8 | Free 截圖／相機匯入 | 彈 paywall（screenshot） | |
+| N9 | Pro 截圖匯入 | 正常解析 | |
+| N10 | IG 試用碼 | 兌換後變 Pro 7 日，之後回 Free | |
+| N11 | 付費牆列表 | 5 項（300 匯入／無限儲存／4 成員／截圖匯入／多語言）| |
+| N12 | 早鳥價顯示 | HK$30/月、HK$288/年（正價 38/365 註明）| |
+
 ## 回報
 `項目｜語言｜預期｜實際｜截圖`

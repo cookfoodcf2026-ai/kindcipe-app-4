@@ -43,7 +43,7 @@
 ### 1.5 7 日 Pro 試用碼系統（防濫用 + 谷 Social Followers）
 
 #### 背景
-- 新用戶註冊**已經自動送 7 日 Pro**（`initFamilyTrial`，per-user `trialCount`，且**每帳號最多建立 1 個廚房** → 已防「同帳號多 kitchen 蹭」）。
+- 新廚房**預設 Free**；Pro 只透過 IG 試用碼（7 日）或付費解鎖（**每帳號最多 2 個廚房：1 自己 + 1 加入** → 防「同帳號多 kitchen 蹭」）。
 - 試用碼係**額外／受控派發**渠道，用嚟俾 Beta 測試員 / Social followers 攞 7 日 Pro。
 
 #### 防濫用規則（關鍵）
@@ -57,7 +57,7 @@
 - `drizzle/schema.ts` 新增：
   - `promoCodes`：`code`（唯一）、`plan`（`"trial7"`）、`maxUses`、`usedCount`、`active`、`expiresAt`。
   - `promoCodeRedemptions`：`code`、**`familyId`（唯一）**、`userId`、`redeemedAt`。
-- `server/db.ts`：`createPromoCode()`、`getPromoCode()`、`markPromoCodeUsed()`、`hasPromoRedeemed(familyId)`、`recordPromoRedemption()`、`grantFamilyTrial(familyId)`（set trial 7 日 + maxMembers 6）。
+- `server/db.ts`：`createPromoCode()`、`getPromoCode()`、`markPromoCodeUsed()`、`hasPromoRedeemed(familyId)`、`recordPromoRedemption()`、`grantFamilyTrial(familyId)`（set trial 7 日 + maxMembers 4）。
 - `server/routers/subscription.ts`：新增 **`redeemTrialCode`** mutation，按上面規則驗證 → 授 7 日 Pro → 記錄 redemption + `usedCount+1`。
 
 #### App 設計
@@ -157,7 +157,7 @@ eas credentials --platform android # 生成/上傳 keystore（記住密碼，Pla
 - **定價**：維持 **HK$30／月 + HK$288／年**；唔亂加價（香港市場價敏感）。
 - **年費主推（Anchoring）** ⭐：年費卡顯示刪除線 `HK$360`（30×12）+「立省 20%｜≈HK$24/月」+「**80% 僱主選擇**」置中放大（Paywall 已實作）。年費 = 鎖 12 個月、流失低 → **LTV 最高**。
 - **優化 7 日試用 → 轉化**：見下「試用轉化 Phase」。
-- **降低免費額度（Phase 2）**：免費 30 AI/月太慷慨 → **正式上架降到 ~10-15 AI/月**（Beta 保留寬鬆），谷付費壓力。
+- **免費額度定案（見 `TIER_SPEC.md`）**：免費 AI 20/月、匯入 20/月、成員 2 人；Pro 300/300、成員 4 人。
 - **Apple SBP（15%）** + 將來 **Web／Stripe（0% 佣金）** → 慳成本。
 - （進階）高一檔「家庭 Pro+」Upsell —— 後期。
 

@@ -14,7 +14,7 @@
   - hero card 開獨立新 session（唔連去舊對話）。
   - client timeout 45s → 90s + 友善超時提示。
 - **API 開通按量付費**（DashScope `qwen3.7-flash`，$0.03 輸入 / $0.13 輸出 每百萬 token），AI 已恢復正常。
-- **P0-1 AI 成本 quota**：對話 30（免費）/300（付費）次/月、自訂 20、匯入 5/300；`llmUsed` 先扣。
+- **P0-1 AI 成本 quota**：對話 20（免費）/300（付費）次/月、自訂 20、匯入 20/300；`llmUsed` 先扣。（見 `TIER_SPEC.md`）
 
 ---
 

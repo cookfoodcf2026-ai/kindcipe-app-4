@@ -57,7 +57,7 @@
 繁體中文、English、Filipino、Bahasa Indonesia。
 
 — 訂閱 —
-免費版可用基本功能（可與 1 位家人共用）。升級 Pro 可解鎖更多匯入、AI 出餐同更多家庭成員。
+免費版可用基本功能（可與 1 位家人共用）。升級 Pro（早鳥 HK$30/月 或 HK$288/年）可解鎖：每月 300 個匯入、無限自訂食譜、最多 4 位家庭成員、AI 對話每月 300 次、4 語言（菲／印尼文）同截圖／相機匯入。
 
 訂閱會透過 App Store 收取；可隨時喺 Apple ID 設定取消。
 私隱政策：https://kindcipe.com/privacy/
@@ -89,7 +89,7 @@ Official AI recipes, your own recipes and creator recipes — all in one place.
 Traditional Chinese, English, Filipino, Bahasa Indonesia.
 
 — Subscription —
-Free plan includes core features (share with 1 family member). Pro unlocks more imports, AI meal planning and more members.
+Free plan includes core features (share with 1 family member). Pro (early bird HK$30/month or HK$288/year) unlocks: 300 imports/month, unlimited custom recipes, up to 4 family members, 300 AI chats/month, 4 languages (Filipino/Indonesian) and screenshot/camera import.
 
 Subscriptions are billed via the App Store; cancel anytime in your Apple ID settings.
 Privacy: https://kindcipe.com/privacy/

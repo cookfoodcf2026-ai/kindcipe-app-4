@@ -1729,6 +1729,7 @@
     "accountNotFound": "Tidak ada akun untuk email ini.",
     "nameEmpty": "Nama tidak boleh kosong.",
     "mergeFailed": "Gagal menyelesaikan penggabungan. Coba lagi.",
+    "screenshotPro": "Impor tangkapan layar adalah fitur Pro. Upgrade untuk memakai kamera/screenshot.",
     "trial": "Kode trial tidak valid atau kedaluwarsa."
   },
   "notif": {
@@ -2046,10 +2047,7 @@
     "f2": "Penyimpanan resep tanpa batas",
     "f3": "Hingga 4 anggota keluarga",
     "f4": "Impor resep dari tangkapan layar",
-    "f5": "Pencarian bahan",
     "f6": "Multi-bahasa (Inggris / Filipino / Indonesia)",
-    "f7": "Bisa offline",
-    "f8": "Tanpa iklan",
     "ctaMonthlyStripe": "Langganan bulanan HK$30 via kartu",
     "ctaMonthly": "Langganan bulanan HK$30",
     "ctaYearly": "Langganan tahunan HK$288 (paling hemat, 80% memilih)",
@@ -2072,7 +2070,7 @@
       },
       "member_limit": {
         "title": "Batas anggota tercapai",
-        "desc": "Paket gratis 1 anggota\nUpgrade hingga 4 anggota"
+        "desc": "Paket gratis 2 anggota\nUpgrade hingga 4 anggota"
       },
       "screenshot": {
         "title": "Fitur berbayar: impor tangkapan layar",

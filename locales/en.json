@@ -1729,6 +1729,7 @@
     "accountNotFound": "No account found for this email.",
     "nameEmpty": "Name cannot be empty.",
     "mergeFailed": "Could not complete the merge. Please try again.",
+    "screenshotPro": "Screenshot import is a Pro feature. Upgrade to use camera/screenshot import.",
     "trial": "Invalid or expired trial code."
   },
   "notif": {
@@ -2046,10 +2047,7 @@
     "f2": "Unlimited recipe storage",
     "f3": "Up to 4 family members",
     "f4": "Import recipes from screenshots",
-    "f5": "Ingredient search",
     "f6": "Multi-language (English / Filipino / Indonesian)",
-    "f7": "Works offline",
-    "f8": "No ads",
     "ctaMonthlyStripe": "Subscribe monthly HK$30 by card",
     "ctaMonthly": "Subscribe monthly HK$30",
     "ctaYearly": "Subscribe yearly HK$288 (best value, 80% choose)",
@@ -2072,7 +2070,7 @@
       },
       "member_limit": {
         "title": "Member limit reached",
-        "desc": "Free plan allows 1 member\nUpgrade for up to 4 members"
+        "desc": "Free plan allows 2 members\nUpgrade for up to 4 members"
       },
       "screenshot": {
         "title": "Screenshot import is a paid feature",

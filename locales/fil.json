@@ -1729,6 +1729,7 @@
     "accountNotFound": "Walang account para sa email na ito.",
     "nameEmpty": "Hindi pwedeng walang laman ang pangalan.",
     "mergeFailed": "Hindi makumpleto ang merge. Subukan muli.",
+    "screenshotPro": "Ang screenshot import ay Pro feature. Mag-upgrade para magamit ang camera/screenshot.",
     "trial": "Di-wasto o expired na trial code."
   },
   "notif": {
@@ -2046,10 +2047,7 @@
     "f2": "Walang limitasyong imbak ng recipe",
     "f3": "Hanggang 4 miyembro ng pamilya",
     "f4": "Mag-import ng recipe mula sa screenshot",
-    "f5": "Paghahanap ng sangkap",
     "f6": "Maraming wika (English / Filipino / Indonesian)",
-    "f7": "Gumagana offline",
-    "f8": "Walang ads",
     "ctaMonthlyStripe": "Mag-subscribe buwanan HK$30 via card",
     "ctaMonthly": "Mag-subscribe buwanan HK$30",
     "ctaYearly": "Mag-subscribe taunan HK$288 (best value, 80% ang pumipili)",
@@ -2072,7 +2070,7 @@
       },
       "member_limit": {
         "title": "Naabot ang member limit",
-        "desc": "Ang free plan ay 1 miyembro\nMag-upgrade para sa hanggang 4"
+        "desc": "Ang free plan ay 2 miyembro\nMag-upgrade para sa hanggang 4"
       },
       "screenshot": {
         "title": "Bayad na feature ang screenshot import",

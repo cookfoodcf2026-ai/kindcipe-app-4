@@ -218,7 +218,7 @@ export default function PaywallModal({
 
           {/* Features list */}
           <View style={styles.featuresList}>
-            {["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"].map((fk) => (
+            {["f1", "f2", "f3", "f4", "f6"].map((fk) => (
               <View key={fk} style={styles.featureRow}>
                 <Text style={styles.checkmark}>✓</Text>
                 <Text style={styles.featureText}>{t(`paywall.${fk}` as any)}</Text>

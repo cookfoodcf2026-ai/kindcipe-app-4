@@ -84,7 +84,7 @@ Path B: 貼連結 / 剪貼板（冇 payload）—— 後端
 
 **總額外金錢成本 ≈ US$0**（唯一成本 = 開發時間）。
 
-**成本 vs 利潤**：Pro HK$30/月；1 個 Pro 已 cover 數百次匯入。免費用戶限額、Pro 無限 → 成本由 Pro cover。
+**成本 vs 利潤**：Pro HK$30/月（早鳥）；免費 20/月、Pro 300/月（fair usage soft cap）→ 成本由 Pro cover。（見 `TIER_SPEC.md`）
 
 ---
 

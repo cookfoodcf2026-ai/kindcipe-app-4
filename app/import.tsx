@@ -96,6 +96,7 @@ export default function ImportScreen() {
 
   const [step, setStep] = useState<ImportStep>("input");
   const [showQuotaPaywall, setShowQuotaPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<"import_limit" | "screenshot">("import_limit");
   const [universalInput, setUniversalInput] = useState("");
   const [clipboardContent, setClipboardContent] = useState<string | null>(null);
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -535,6 +536,7 @@ export default function ImportScreen() {
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
       if (isQuotaError(err)) {
+        setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
         setStep("input");
         return;
@@ -568,6 +570,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       if (isQuotaError(err)) {
+        setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
         setStep("input");
         return;
@@ -576,6 +579,11 @@ export default function ImportScreen() {
       setFailedInput({ type: "text", value: universalInput });
       setStep("failed");
     },
+  });
+
+  const subQuery = trpc.family.subscription.useQuery(undefined, {
+    retry: false,
+    staleTime: 1000 * 60 * 5,
   });
 
   const parseImageMutation = trpc.recipes.parseImage.useMutation({
@@ -601,6 +609,7 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       if (isQuotaError(err)) {
+        setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
         setStep("input");
         return;
@@ -837,6 +846,13 @@ export default function ImportScreen() {
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
   const handlePickImage = async (source: "camera" | "library") => {
+    // Screenshot/camera import is a Pro feature
+    if (!subQuery.data?.isPaid) {
+      setShowPhotoSourceModal(false);
+      setPaywallFeature("screenshot");
+      setShowQuotaPaywall(true);
+      return;
+    }
     if (source === "camera") {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -1671,7 +1687,7 @@ export default function ImportScreen() {
     <PaywallModal
       visible={showQuotaPaywall}
       onClose={() => setShowQuotaPaywall(false)}
-      feature="import_limit"
+      feature={paywallFeature}
     />
     </>
   );
