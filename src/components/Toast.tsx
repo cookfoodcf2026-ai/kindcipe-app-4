@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import i18n from "@/lib/i18n";
+import * as Sentry from "@sentry/react-native";
+const CJK_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 
 export type ToastType = "success" | "error" | "info";
 
@@ -107,6 +109,15 @@ export default function Toast({ visible, message, type = "success", onHide, dura
         <View style={styles.row}>
           <Ionicons name={icon} size={16} color="#fff" />
           <Text style={styles.message} numberOfLines={2}>{i18n.t(message as any)}</Text>
+          {(() => {
+            // Runtime i18n leak monitor: never let a non-Chinese user see Chinese.
+            const out = i18n.t(message as any);
+            const lang = String(i18n.language || "");
+            if (!lang.startsWith("zh") && CJK_RE.test(out)) {
+              try { Sentry.captureMessage("i18n_leak:toast", { level: "warning", extra: { text: out } }); } catch { /* noop */ }
+            }
+            return null;
+          })()}
         </View>
         {action ? (
           <Pressable
