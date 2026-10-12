@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
 import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, canPurchaseHere, type ProductId } from "../lib/purchase";
+import { PRICE, YEARLY_SAVE_PCT } from "../lib/pricing";
 import { trpc } from "../lib/trpc";
 
 const INSTAGRAM_URL = process.env.EXPO_PUBLIC_INSTAGRAM_URL ?? "";
@@ -150,11 +151,13 @@ export default function PaywallModal({
 
           {/* Pricing（只有真係買到先顯示，避免 iOS 死按鈕） */}
           {canPurchaseHere ? (
+          <>
           <View style={styles.pricingBox}>
             <View style={styles.pricingRow}>
               <Text style={styles.pricingLabel}>{t("paywall.monthlyLabel" as any)}</Text>
               <View style={styles.pricingRight}>
-                <Text style={styles.price}>HK$30</Text>
+                <Text style={styles.priceStrike}>{PRICE.monthlyRegular}</Text>
+                <Text style={styles.price}>{PRICE.monthly}</Text>
                 <Text style={styles.pricePer}>{t("paywall.perMonth" as any)}</Text>
               </View>
             </View>
@@ -168,16 +171,20 @@ export default function PaywallModal({
               </View>
               <View style={styles.pricingRight}>
                 <View style={styles.priceWrap}>
-                  <Text style={styles.priceStrike}>HK$360</Text>
-                  <Text style={styles.price}>HK$288</Text>
+                  <Text style={styles.priceStrike}>{PRICE.yearlyRegular}</Text>
+                  <Text style={styles.price}>{PRICE.yearly}</Text>
                   <Text style={styles.pricePer}>{t("paywall.perYear" as any)}</Text>
                 </View>
                 <View style={styles.saveBadge}>
-                  <Text style={styles.saveText}>{t("paywall.saveBadge" as any)}</Text>
+                  <Text style={styles.saveText}>{t("paywall.saveBadge" as any, { pct: YEARLY_SAVE_PCT })}</Text>
                 </View>
               </View>
             </View>
           </View>
+          <Text style={styles.earlyBirdNote}>
+            {t("paywall.earlyBirdNote" as any, { monthly: PRICE.monthlyRegular, yearly: PRICE.yearlyRegular })}
+          </Text>
+          </>
           ) : null}
 
           {/* Error message */}
@@ -238,7 +245,7 @@ export default function PaywallModal({
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.upgradeBtnText}>
-                    {isStripeSupported ? t("paywall.ctaMonthlyStripe" as any) : t("paywall.ctaMonthly" as any)}
+                    {isStripeSupported ? t("paywall.ctaMonthlyStripe" as any, { price: PRICE.monthly }) : t("paywall.ctaMonthly" as any, { price: PRICE.monthly })}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -251,7 +258,7 @@ export default function PaywallModal({
                 {isPurchasing === 'yearly' ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.yearlyBtnText}>{t("paywall.ctaYearly" as any)}</Text>
+                  <Text style={styles.yearlyBtnText}>{t("paywall.ctaYearly" as any, { price: PRICE.yearly })}</Text>
                 )}
               </TouchableOpacity>
 
@@ -376,6 +383,14 @@ const styles = StyleSheet.create({
   pricePer: {
     fontSize: 13,
     color: "#6B7280",
+  },
+  earlyBirdNote: {
+    fontSize: 12,
+    color: "#B45309",
+    textAlign: "center",
+    marginTop: -6,
+    marginBottom: 14,
+    lineHeight: 17,
   },
   pricingLabelRow: {
     flexDirection: "row",
