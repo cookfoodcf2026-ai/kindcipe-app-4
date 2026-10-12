@@ -283,6 +283,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyticsUserId, analyticsRole, analyticsFamilyRole]);
 
+  // Persist the app language to the backend (for localized push/email), on login + whenever it changes.
+  const setLanguageM = trpc.auth.setLanguage.useMutation();
+  useEffect(() => {
+    if (!analyticsUserId) return;
+    const send = () => { try { setLanguageM.mutate({ language: i18n.language }); } catch { /* ignore */ } };
+    send();
+    const h = () => send();
+    i18n.on("languageChanged", h);
+    return () => { i18n.off("languageChanged", h); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsUserId]);
+
   // 在導航 useEffect 中重新檢查 AsyncStorage，確保 finishOnboarding 寫入後能立即反映
   const ensureOnboardingCheck = useCallback(async () => {
     try {
