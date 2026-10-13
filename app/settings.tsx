@@ -1298,6 +1298,7 @@ export default function SettingsScreen() {
         onClose={() => setShowPaywall(false)}
         feature={paywallFeature}
         trialDaysLeft={subInfo?.daysLeft}
+        isPaid={!!subInfo?.isPaid}
       />
 
       {/* 修改名稱 Modal（BUG#14） */}

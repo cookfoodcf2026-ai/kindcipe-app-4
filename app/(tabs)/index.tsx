@@ -1538,6 +1538,7 @@ export default function RecipesTab() {
         onClose={() => setShowPaywall(false)}
         feature="generic"
         trialDaysLeft={sub?.trialEndsAt ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000)) : undefined}
+        isPaid={isPaid}
       />
 
       <ShoppingAddConfirm

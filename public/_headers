@@ -1,5 +1,5 @@
-# Kindcipe web app (Expo Router, static export) — Cloudflare Pages
-# Build command: npm run build:web   (see package.json)
+# Kindcipe web app (Expo Router, static export) — served by Cloudflare Worker `kindcipe-app`
+# (wrangler.jsonc: assets=dist). Deploy: npm run build:web && npx wrangler deploy
 # Output directory: dist
 
 /*

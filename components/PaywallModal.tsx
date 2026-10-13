@@ -47,6 +47,7 @@ interface PaywallModalProps {
   onClose: () => void;
   feature?: PaywallFeature;
   trialDaysLeft?: number; // 試用期剩餘天數（如果在試用中）
+  isPaid?: boolean; // 已訂閱 → 顯示「管理訂閱」；免費用戶隱藏
 }
 
 const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; key: PaywallFeature }> = {
@@ -64,6 +65,7 @@ export default function PaywallModal({
   onClose,
   feature = "generic",
   trialDaysLeft,
+  isPaid = false,
 }: PaywallModalProps) {
   const { t } = useTranslation();
   const msg = FEATURE_MESSAGES[feature];
@@ -297,7 +299,7 @@ export default function PaywallModal({
             </Text>
           </TouchableOpacity>
 
-          {canPurchaseHere ? (
+          {canPurchaseHere && isPaid ? (
             <TouchableOpacity style={styles.restoreBtn} onPress={handleManageSubscription}>
               <Text style={styles.restoreBtnText}>{t("paywall.manage" as any)}</Text>
             </TouchableOpacity>

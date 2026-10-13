@@ -1688,6 +1688,7 @@ export default function ImportScreen() {
       visible={showQuotaPaywall}
       onClose={() => setShowQuotaPaywall(false)}
       feature={paywallFeature}
+      isPaid={!!subQuery.data?.isPaid}
     />
     </>
   );

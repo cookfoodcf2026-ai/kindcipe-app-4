@@ -205,6 +205,72 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 
 ---
 
+# 🎁 優惠策略（早鳥 Coupon，自動回正價）
+
+> 定價定案：**早鳥 HK$30/月 · HK$288/年**；**正價 HK$38/月 · HK$365/年**（見 `lib/pricing.ts`）。
+> 做法：Stripe base price 用**正價**，早鳥用 **amount-off coupon** 自動減 → promo 結束**自動回正價**。
+
+### Stripe（👤）
+- [ ] 建**正價** price：HK$38/月、HK$365/年（喺 `Kindcipe Pro` product 下）
+- [ ] **刪除 / 歸檔**舊早鳥 price（HK$30/HK$288，冇訂閱可刪）
+- [ ] 建 Coupon `EARLY_M`：**−HK$8**、`repeating`、`3 個月`
+- [ ] 建 Coupon `EARLY_Y`：**−HK$77**、`repeating`、`3 個月`
+- [ ] （可選）Promotion code + `expires_at` 控制早鳥登記窗口
+
+### 後端 / env（🤖 + 👤）
+- [ ] ✅ `billing.ts` 加 `discounts`（`couponForPlan`）— **已做**
+- [ ] 👤 Railway env：
+  ```
+  STRIPE_PRICE_MONTHLY=price_...（正價 38）
+  STRIPE_PRICE_YEARLY=price_...（正價 365）
+  STRIPE_COUPON_MONTHLY=coupon_...（EARLY_M）
+  STRIPE_COUPON_YEARLY=coupon_...（EARLY_Y）
+  ```
+- [ ] 👤 測試：checkout 顯示 **38 − 8 = 30**；3 個月後回正價
+- [ ] ⚠️ Promo 結束後：改 `lib/pricing.ts`（`PRICE.monthly` 回正價、移除劃線）
+
+### 原理（點解用 Coupon）
+| | Stripe base | Coupon | 客人俾 | Promo 後 |
+|--|:---:|:---:|:---:|:---:|
+| ✅ Coupon 方案 | 38 / 365 | −8 / −77 | **30 / 288** | **自動 38 / 365** |
+| ❌ 淨用早鳥價 | 30 / 288 | 冇 | 30 / 288 | 唔會自動變 |
+
+> ⚠️ `discounts` 同 `allow_promotion_codes` **互斥** → 我哋用 `discounts`（自動套用），
+> 令結帳金額同 App 顯示嘅 HK$30 **一致**。KOL / referral 碼將來另開。
+
+---
+
+# 📈 未來加價 Playbook
+
+> 核心：**Stripe price 不可改** → 加價 = **建新 price**；現有訂閱**預設保留舊價**（grandfather）。
+
+### 業界做法
+| # | 模式 | 舊客加價 | 流失 | 法律 | 例子 |
+|---|------|:---:|:---:|:---:|------|
+| 1 | **Grandfather**（新客加、舊客保留）| ❌ | 極低 | 無 | 大量 SaaS |
+| 2 | **通知式加價** | ✅ | 中 | 要通知 | Netflix / Spotify |
+| 3 | 加**新 tier**（唔加舊 plan）| ❌ | 低 | 無 | Netflix Premium |
+| 4 | Legacy Plan（舊客專屬）| ❌ | 低 | 無 | 多數 SaaS |
+| 5 | 年度調整（T&C indexation）| ✅ | 低 | T&C 要寫 | 保險 / B2B |
+| 6 | 加價 + 加功能（value-based）| ✅ | 中低 | 要通知 | 幾乎全部 |
+
+### 加價 Runbook
+- [ ] 👤 建新 price（加價後）→ 改 Railway env `STRIPE_PRICE_*` → **新客即用新價**
+- [ ] 👤 舊客保留舊價（grandfather）→ **零 migrate**（最穩）
+- [ ] （想舊客都加）提前 **60 天 email 通知** → 腳本 migrate（`subscriptions.update`）
+- [ ] 🤖 更新 `lib/pricing.ts`（App 顯示新正價）
+- [ ] 🤖（可選）`LAUNCH_CHECKLIST.md` 記錄新舊價對照
+
+### 法律 / 平台
+- 一般消費者法（US FTC / EU / HK）：提前 **30–60 天**通知 + 可取消
+- **Apple / Google IAP**：有自己嘅加價同意流程（Apple 加價要客 opt-in）
+- **Stripe（Web）**：**冇** consent flow → **你自己通知**
+
+> 一句總結：**「新客即加、舊客慢加、永遠提前通知、永遠加功能合理化」**。
+> 靜靜雞加價 = 大量退款 + 負評 + 違法。
+
+---
+
 # 📊 Go / No-Go
 
 | 條件 | 現況 |
@@ -219,3 +285,13 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 | 前端 Sentry | 🔴 空白 |
 | DB 備份 | ❓ |
 | 2FA（關鍵帳戶） | ❓ |
+
+---
+
+## 🖥️ Web（app.kindcipe.com）— 特別注意
+- **部署係手動**：`npm run build:web` → `npx wrangler@4.86.0 deploy`（Worker `kindcipe-app`）。**push 唔會自動部署**（如需自動，喺 Cloudflare 接 Git build）。
+- **SPA fallback 陷阱**：缺失 asset 會回 `index.html` 且被 `immutable` 快取 → 部署後**驗** `content-type: application/javascript`，唔對就 purge cache。
+- **`Alert.alert` 喺 web 係 no-op** → 已加 `lib/webAlertShim.ts`（web 映射 window.confirm/alert）。
+- **外部連結**（IG／帳戶）走 `app.json extra`（`instagramUrl` / `accountUrl`）。
+- **Paywall 平台感知**：web/Android 主「直接訂閱（Stripe）」＋次「IG 7 日試用」；iOS 主「IG 7 日試用」；**免費用戶隱藏「管理訂閱」**。
+- Web 直接訂閱需要 **Stripe Live**（見階段 0）。

@@ -50,3 +50,12 @@ npm run build        # prebuild 會由 backend 抓 recipes → src/data/recipes.
 ## 6. 注意
 - 兩個 repo 唔同 source，**改錯 repo 唔會影響 live**。
 - 同一時間只有一個 session 改同一個 repo。
+
+## 7. app.kindcipe.com（webapp）部署與注意
+- Source＝呢個 repo；build `npm run build:web` → `dist/`；deploy **`npx wrangler@4.86.0 deploy`**（Worker `kindcipe-app`）。
+- ⚠️ **實測 push 唔會自動部署** → 改 web 之後要**手動 `wrangler deploy`**（除非喺 Cloudflare 接 Git build）。
+- `dist/_headers` 對 `/_expo/*` 設 `immutable`；`wrangler.jsonc` 用 SPA fallback → **缺失 asset 會回 index.html（毒性快取）**。部署後要驗 `content-type: application/javascript`，必要時 purge cache。
+- **Web-only 陷阱**：`react-native-web` 嘅 `Alert.alert` 係 **no-op** → 已加 `lib/webAlertShim.ts`（web 映射 `window.confirm/alert`）。
+- 外部連結（IG／帳戶）放 **`app.json extra`**（`instagramUrl`／`accountUrl`，web+native 通吃）。
+- **平台感知 paywall**：web/Android → 主「直接訂閱（Stripe）」＋次「IG 7 日試用」；iOS → 主「IG 7 日試用」；**免費用戶隱藏「管理訂閱」**（`isPaid` prop）。
+

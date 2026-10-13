@@ -11,6 +11,7 @@
  * - 同一帳戶完成後不再重複顯示
  */
 import "react-native-gesture-handler";
+import "@/lib/webAlertShim";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";

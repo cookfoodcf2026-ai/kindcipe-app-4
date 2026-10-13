@@ -12,6 +12,7 @@
  * expose the Stripe path on iOS.
  */
 import { Linking, Platform } from "react-native";
+import Constants from "expo-constants";
 import i18n from "./i18n";
 import { trpc } from "./trpc";
 import { isWeb } from "./platform";
@@ -112,9 +113,9 @@ export async function manageSubscription(): Promise<void> {
       }
       const fallback =
         process.env.EXPO_PUBLIC_ACCOUNT_URL ??
-        process.env.EXPO_PUBLIC_PRICING_URL ??
+        (Constants.expoConfig?.extra as any)?.accountUrl ??
         process.env.EXPO_PUBLIC_STORE_URL ??
-        "https://kindcipe.com/pricing";
+        "https://app.kindcipe.com/settings";
       await Linking.openURL(fallback);
     } else if (Platform.OS === "ios") {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
