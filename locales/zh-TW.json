@@ -361,6 +361,8 @@
     "askFridgeIngredients": "你屋企有咩食材？\n\n告訴我，例如雞蛋、豆腐、番茄等，我幫你諗食譜。",
     "libMatched": "我喺食譜庫搵到呢啲食譜：",
     "libNoMatch": "食譜庫暫時冇合適食譜，我用 AI 幫你諗：",
+    "aiFallbackPrompt": "食譜庫暫時冇合適食譜 — 要唔要用 AI 生成？",
+    "swapNoLibrary": "📚 食譜庫冇新嘅相近替代",
     "pantryPrompt": "我想用以下食材煮餸：{{items}}。請推薦可以用到呢啲食材嘅食譜。"
   },
   "adSlot": {
@@ -2083,7 +2085,7 @@
       },
       "multilang": {
         "title": "多語言為付費功能",
-        "desc": "升級後工人姐姐可用\n英文、菲或印尼文查看食譜"
+        "desc": "升級後工人姐姐可用\n菲或印尼文查看食譜"
       },
       "generic": {
         "title": "升級以使用此功能",

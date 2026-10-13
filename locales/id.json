@@ -361,6 +361,8 @@
     "askFridgeIngredients": "Bahan apa yang kamu punya?\n\nBeri tahu, mis. telur, tahu, tomat — saya sarankan resep.",
     "libMatched": "Saya menemukan resep-resep ini di pustaka:",
     "libNoMatch": "Belum ada resep yang cocok di pustaka — aku tanya AI:",
+    "aiFallbackPrompt": "Tidak ada yang cocok di pustaka — buat dengan AI?",
+    "swapNoLibrary": "📚 Tidak ada resep serupa baru di pustaka",
     "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya."
   },
   "adSlot": {
@@ -2083,7 +2085,7 @@
       },
       "multilang": {
         "title": "Fitur berbayar: multi-bahasa",
-        "desc": "Upgrade agar asisten bisa melihat\nresep dalam bahasa Inggris, Filipino, atau Indonesia"
+        "desc": "Upgrade agar asisten bisa melihat\nresep dalam bahasa Filipino atau Indonesia"
       },
       "generic": {
         "title": "Upgrade untuk memakai fitur ini",

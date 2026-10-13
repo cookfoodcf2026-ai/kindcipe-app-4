@@ -1517,10 +1517,10 @@ export default function RecipesTab() {
                 unit: i.unit,
                 category: i.category,
               })),
-              fromRecipeId: items[0].recipeId,
-              fromRecipeName: items[0].recipeName,
-              fromMealPlanId: items[0].fromMealPlanId,
-              plannedDate: items[0].plannedDate,
+              fromRecipeId: items[0]?.recipeId,
+              fromRecipeName: items[0]?.recipeName,
+              fromMealPlanId: items[0]?.fromMealPlanId,
+              plannedDate: items[0]?.plannedDate,
             });
           } else {
             setPlanPickerRecipe(null);

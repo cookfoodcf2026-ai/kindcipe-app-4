@@ -361,6 +361,8 @@
     "askFridgeIngredients": "Anong sangkap ang mayroon ka?\n\nSabihin mo, hal. itlog, tokwa, kamatis — magsusuggest ako ng recipe.",
     "libMatched": "Nakahanap ako ng mga recipe na ito sa library:",
     "libNoMatch": "Wala pang angkop na recipe sa library — tatanungin ko ang AI:",
+    "aiFallbackPrompt": "Walang tumugma sa library — gumawa gamit ang AI?",
+    "swapNoLibrary": "📚 Walang bagong katulad na recipe sa library",
     "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito."
   },
   "adSlot": {
@@ -2083,7 +2085,7 @@
       },
       "multilang": {
         "title": "Bayad na feature ang multi-language",
-        "desc": "Mag-upgrade para makita ng helper\nang recipe sa English, Filipino o Indonesian"
+        "desc": "Mag-upgrade para makita ng helper\nang recipe sa Filipino o Indonesian"
       },
       "generic": {
         "title": "Mag-upgrade para gamitin ito",

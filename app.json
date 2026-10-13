@@ -101,6 +101,7 @@
     },
     "extra": {
       "router": {},
+      "instagramUrl": "https://instagram.com/kindcipe.app",
       "eas": {
         "projectId": "59ee279e-514a-4fb6-b98c-f04c84b969c0"
       }

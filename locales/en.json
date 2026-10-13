@@ -361,6 +361,8 @@
     "askFridgeIngredients": "What ingredients do you have?\n\nTell me, e.g. eggs, tofu, tomatoes — I’ll suggest recipes.",
     "libMatched": "I found these recipes in the library:",
     "libNoMatch": "No suitable recipe in the library yet — I’ll ask AI:",
+    "aiFallbackPrompt": "No library match — generate with AI?",
+    "swapNoLibrary": "📚 No new similar recipe in the library",
     "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them."
   },
   "adSlot": {
@@ -2083,7 +2085,7 @@
       },
       "multilang": {
         "title": "Multi-language is a paid feature",
-        "desc": "Upgrade so helpers can view\nrecipes in English, Filipino or Indonesian"
+        "desc": "Upgrade so helpers can view\nrecipes in Filipino or Indonesian"
       },
       "generic": {
         "title": "Upgrade to use this feature",

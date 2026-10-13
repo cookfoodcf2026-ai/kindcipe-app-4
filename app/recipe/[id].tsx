@@ -2448,10 +2448,10 @@ export default function RecipeDetailScreen() {
                   category: i.category,
                   mealDate: i.mealDate,  // 用餐日（標籤）
                 })),
-                fromRecipeId: items[0].recipeId,
-                fromRecipeName: items[0].recipeName,
-                fromMealPlanId: items[0].fromMealPlanId,
-                plannedDate: items[0].plannedDate,  // 採買日（購物車歸類日期）
+                fromRecipeId: items[0]?.recipeId,
+                fromRecipeName: items[0]?.recipeName,
+                fromMealPlanId: items[0]?.fromMealPlanId,
+                plannedDate: items[0]?.plannedDate,  // 採買日（購物車歸類日期）
               });
             } else {
               setPlanPickerRecipe(null);

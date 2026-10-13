@@ -1323,7 +1323,7 @@ export default function AIChefScreen() {
         const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
         // 用 functional update：若 Hero 已搶先開咗新 session（prev 已有值），唔好被還原覆蓋。
-        setActiveChatId(prev => prev || (activeId && all.find(s => s.id === activeId) ? activeId : all[0].id));
+        setActiveChatId(prev => prev || (activeId && all.find(s => s.id === activeId) ? activeId : (all[0]?.id ?? "")));
       } catch { /* ignore */ }
       setLoaded(true);
     })();
@@ -2223,8 +2223,11 @@ export default function AIChefScreen() {
     }
     setLibraryLoading(false);
     addBotMessage(t("aiChef.libNoMatch"));
-    // 單菜 AI 生成（唔行 chat，保證 1 卡）；requestInstantRecipes 會用 activeHotKeyRef 個 aiPrompt
-    requestInstantRecipes("ai");
+    // 唔自動叫 AI：由用戶主動撳先至用 AI（只用「AI 生成」掣）
+    showToast(t("aiChef.aiFallbackPrompt" as any), {
+      label: t("aiChef.aiGenerate" as any),
+      onPress: () => requestInstantRecipes("ai"),
+    }, 8000);
   };
 
   const buildMealPrompt = (
@@ -2853,8 +2856,10 @@ export default function AIChefScreen() {
       showToast(`📚 已用食譜庫換成「${libraryPicked.name}」`);
       return;
     }
-    showToast("📚 食譜庫冇新嘅相近替代，改用 AI 生成同類");
-    await replaceFromAi();
+    showToast(t("aiChef.swapNoLibrary" as any), {
+      label: t("aiChef.aiGenerate" as any),
+      onPress: () => { void replaceFromAi(); },
+    }, 8000);
   };
 
   const openShoppingSelection = (recipes: AIRecipe[], plannedDate?: string, maxDate?: string, fromMealPlanIds?: Array<number | undefined>) => {

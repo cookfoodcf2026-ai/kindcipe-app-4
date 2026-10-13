@@ -21,13 +21,17 @@ import {
 } from "react-native";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import Constants from "expo-constants";
 import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
 import { purchaseSubscription, PRODUCT_IDS, manageSubscription, isStripeSupported, canPurchaseHere, type ProductId } from "../lib/purchase";
 import { PRICE, YEARLY_SAVE_PCT } from "../lib/pricing";
 import { trpc } from "../lib/trpc";
 
-const INSTAGRAM_URL = process.env.EXPO_PUBLIC_INSTAGRAM_URL ?? "";
+const INSTAGRAM_URL =
+  process.env.EXPO_PUBLIC_INSTAGRAM_URL ??
+  (Constants.expoConfig?.extra as any)?.instagramUrl ??
+  "";
 
 type PaywallFeature =
   | "import_limit"    // 匯入次數超出
@@ -268,20 +272,22 @@ export default function PaywallModal({
                   : t("paywall.legalApple" as any)}
               </Text>
             </>
-          ) : (
-            <View style={styles.igBox}>
-              <Text style={styles.igTitle}>{t("paywall.igTitle" as any)}</Text>
-              <Text style={styles.igDesc}>{t("paywall.igDesc" as any)}</Text>
-              {INSTAGRAM_URL ? (
-                <TouchableOpacity
-                  style={styles.upgradeBtn}
-                  onPress={() => { Linking.openURL(INSTAGRAM_URL).catch(() => {}); }}
-                >
-                  <Text style={styles.upgradeBtnText}>{t("paywall.igCta" as any)}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          )}
+          ) : null}
+
+          {/* Always show the follow-IG 7-day trial path:
+              iOS → primary (no IAP yet); web/Android → secondary to subscribing. */}
+          <View style={styles.igBox}>
+            <Text style={styles.igTitle}>{t("paywall.igTitle" as any)}</Text>
+            <Text style={styles.igDesc}>{t("paywall.igDesc" as any)}</Text>
+            {INSTAGRAM_URL ? (
+              <TouchableOpacity
+                style={styles.upgradeBtn}
+                onPress={() => { Linking.openURL(INSTAGRAM_URL).catch(() => {}); }}
+              >
+                <Text style={styles.upgradeBtnText}>{t("paywall.igCta" as any)}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
             <Text style={styles.cancelBtnText}>
