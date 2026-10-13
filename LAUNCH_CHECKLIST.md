@@ -295,3 +295,6 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 - **外部連結**（IG／帳戶）走 `app.json extra`（`instagramUrl` / `accountUrl`）。
 - **Paywall 平台感知**：web/Android 主「直接訂閱（Stripe）」＋次「IG 7 日試用」；iOS 主「IG 7 日試用」；**免費用戶隱藏「管理訂閱」**。
 - Web 直接訂閱需要 **Stripe Live**（見階段 0）。
+- **IG 優惠碼**：用 **Stripe Promotion Code**（Coupon: 月 HK$30 / 年 HK$288，`duration` 依策略）。Paywall「套用」會呼叫 `billing.previewPromoCode` 顯示折後總額；`createCheckoutSession` 帶 `promoCode` 套折扣。**唔用自動 `discounts`**。
+- **補回**：另一 session 曾加嘅 `STRIPE_COUPON_*` 自動折扣已移除。要喺 Stripe Dashboard 建 Coupon + Promotion Code 先有 code 可用。
+- **Paywall 版面**：響應式（桌面兩欄）；iOS 只顯示 IG 試用變體。

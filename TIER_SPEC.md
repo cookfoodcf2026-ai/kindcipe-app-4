@@ -20,13 +20,24 @@
 
 ## Pricing
 
+**Model: the REGULAR price is the in-app anchor; the Instagram promo code gives a limited-time early-bird price.**
+
 | | Monthly | Yearly |
 |---|---|---|
-| Early bird (current) | HK$30 | HK$288 |
-| Regular (later) | HK$38 | HK$365 |
+| Regular (displayed anchor) | **HK$38** | **HK$365** |
+| IG promo-code price (limited-time early bird) | **HK$30** | **HK$288** |
 
-- App Store / Play product IDs remain `kindcipe_monthly_30` / `kindcipe_yearly_288` (do **not** rename — IDs are permanent).
-- Early bird is the price shown in-app + marketing until further notice.
+- Display shows the **regular** price; entering the IG promo code reduces it to the early-bird price (order summary shows the discount).
+- Promo is **limited-time** ("優惠結束後恢復原價") — the code is a Stripe promotion code that can be expired when we decide. Doing so makes new sign-ups pay the regular price; existing subscribers keep their signed-up price (grandfathered).
+- **No-card 7-day trial** via IG code (`subscription.redeemTrialCode`) — iOS today; web/Android can also subscribe (Stripe) directly.
+- App Store / Play / Stripe product IDs remain `kindcipe_monthly_30` / `kindcipe_yearly_288` (do **not** rename; keep neutral names for any *new* product).
+- Display source: `lib/pricing.ts` (`PRICE.monthly`/`yearly` regular; `promoMonthly`/`promoYearly`). Backend is source of truth for the charged amount (`billing.previewPromoCode`, `billing.createCheckoutSession`).
+
+## Paywall (platform-aware)
+- **Web/Android (Stripe)**: hero + features + 方案選擇（月/年）+ 訂單摘要 + IG 優惠碼「套用」+ Stripe CTA；FAQ；信任列。
+- **iOS (no IAP yet)**: IG 7-day free trial variant only (no purchase UI; Apple 3.1.1).
+- Responsive: desktop web ≥1024 → two columns; mobile → stacked sheet. `components/PaywallModal.tsx`.
+- "Manage subscription" hidden for non-subscribers; shown for paid (web/Android).
 
 ## Entitlements source of truth (code)
 
@@ -53,7 +64,9 @@
 | Screenshot import = Pro | `server/routers/recipes.ts` `parseImage` + `app/import.tsx` |
 | Language fil/id = Pro | `app/settings.tsx` language picker |
 | Paywall copy | `locales/*.json` `paywall.*`; `components/PaywallModal.tsx` |
-| Marketing copy | `marketing/src/i18n/ui.ts` `pricing.*` |
+| Stripe promo code | `server/routers/billing.ts` `previewPromoCode` / `createCheckoutSession`; `server/_core/stripe.ts` |
+| Marketing copy | `kindcipe-site` (separate repo) + `marketing/src/i18n/ui.ts` |
 
 ## Change log
 - 2026-10-12: Initial canonical spec (fixed "new kitchen always Pro" bug; aligned paywall + marketing).
+- 2026-10-13: Pricing model → regular anchor (38/365) + limited-time IG promo code (30/288); platform-aware paywall redesign; shopping zero-Chinese; Stripe promo codes replace auto-coupons.
