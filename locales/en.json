@@ -73,6 +73,7 @@
   },
   "shopping": {
     "title": "Shopping List",
+    "itemFallback": "Item",
     "pending": "{{n}} items to buy",
     "all": "All",
     "food": "Food",

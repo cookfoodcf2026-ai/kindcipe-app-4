@@ -17,7 +17,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
-import { getBilingualName } from "@/lib/bilingual";
+import { getBilingualName, getDisplayName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
 import i18n from "@/lib/i18n";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
@@ -377,7 +377,7 @@ export default function ShoppingTab() {
 
   const biName = useCallback((item: any) => {
     const lookup = (item.nameEn && ingredientBilingual.resolveByEn(item.nameEn)) || ingredientBilingual.resolveByChinese(item.name);
-    return getBilingualName(item.name, item.nameEn || lookup?.en, item.nameFil || lookup?.fil, item.nameId || lookup?.id);
+    return getDisplayName(item.name, item.nameEn || lookup?.en, item.nameFil || lookup?.fil, item.nameId || lookup?.id);
   }, [ingredientBilingual]);
 
   const [selectedCommonIngredientId, setSelectedCommonIngredientId] = useState<number | null>(null);
@@ -888,7 +888,7 @@ export default function ShoppingTab() {
     const en = item.nameEn || lookup?.en;
     const fil = item.nameFil || lookup?.fil;
     const id = item.nameId || lookup?.id;
-    const bn = getBilingualName(item.name, en, fil, id);
+    const bn = getDisplayName(item.name, en, fil, id);
     const isPending = item.status === "pending";
     const isProcessing = toggleBoughtM.isPending || deleteItemM.isPending;
 
@@ -907,13 +907,14 @@ export default function ShoppingTab() {
         <View style={styles.itemContent}>
           <View style={styles.itemNameRow}>
             <Text style={[styles.itemName, isBought && styles.itemNameBought, isPending && styles.itemNamePending]}>
-              {bn.primary}
+              {bn.primary || t("shopping.itemFallback" as any)}
             </Text>
             {!!bn.secondary && bn.secondary !== bn.primary && (
               <Text style={styles.itemNameEn}>{bn.secondary}</Text>
             )}
             {item.fromRecipeName && (() => {
-              const rn = getBilingualName(item.fromRecipeName, item.fromRecipeNameEn, item.fromRecipeNameFil, item.fromRecipeNameId);
+              const rn = getDisplayName(item.fromRecipeName, item.fromRecipeNameEn, item.fromRecipeNameFil, item.fromRecipeNameId);
+              if (!rn.primary) return null;
               return item.fromRecipeId ? (
                 <TouchableOpacity
                   style={styles.recipeTag}

@@ -73,6 +73,7 @@
   },
   "shopping": {
     "title": "Daftar Belanja",
+    "itemFallback": "Item",
     "pending": "{{n}} item untuk dibeli",
     "all": "Semua",
     "food": "Makanan",

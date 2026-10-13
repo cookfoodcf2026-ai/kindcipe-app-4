@@ -73,6 +73,7 @@
   },
   "shopping": {
     "title": "Listahan ng Pamimili",
+    "itemFallback": "Item",
     "pending": "{{n}} item na bibilhin",
     "all": "Lahat",
     "food": "Pagkain",

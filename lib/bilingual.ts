@@ -1,5 +1,5 @@
 import i18n from "./i18n";
-import { pickName, pickDescription, pickSteps } from "./bilingualCore";
+import { pickName, pickDescription, pickSteps, pickNameNoZh } from "./bilingualCore";
 
 // 按裝置語言回傳「主名 + 次名」，直接俾 UI 顯示。
 // 核心邏輯喺 bilingualCore（可單元測試）；呢度只負責注入當前 i18n.language。
@@ -10,6 +10,20 @@ export function getBilingualName(
   nameId?: string | null,
 ): { primary: string; secondary: string } {
   return pickName(i18n.language, name, nameEn, nameFil, nameId);
+}
+
+/**
+ * No-Chinese-safe variant: for non-zh locales never returns raw CJK (returns
+ * empty primary when there is no translation, so callers show a neutral
+ * placeholder). Use for open-vocabulary user content (shopping items, etc.).
+ */
+export function getDisplayName(
+  name?: string | null,
+  nameEn?: string | null,
+  nameFil?: string | null,
+  nameId?: string | null,
+): { primary: string; secondary: string } {
+  return pickNameNoZh(i18n.language, name, nameEn, nameFil, nameId);
 }
 
 // 舊 helper：淨係次要名（部分地方用嚟顯示「中文大 + 目標語言細」）

@@ -73,6 +73,7 @@
   },
   "shopping": {
     "title": "購物清單",
+    "itemFallback": "項目",
     "pending": "{{n}} 項待買",
     "all": "全部",
     "food": "食材",

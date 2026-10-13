@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
-import { getBilingualName } from "@/lib/bilingual";
+import { getBilingualName, getDisplayName } from "@/lib/bilingual";
 import { buildIngredientLookup } from "@/lib/ingredientLookup";
 import i18n from "@/lib/i18n";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
@@ -272,7 +272,7 @@ function ShoppingListPreview({ router }: {
           {itemsToShow.map((item: any, idx: number) => (
             <View key={idx} style={s.dualCardRow}>
               <Ionicons name="ellipse-outline" size={12} color="#6B7280" />
-              <Text style={s.dualCardRowText} numberOfLines={1}>{(() => { const lk = ingredientLookup.resolveItem(item.name, item.nameEn); return getBilingualName(item.name, item.nameEn || lk?.en, item.nameFil || lk?.fil, item.nameId || lk?.id).primary; })()}</Text>
+              <Text style={s.dualCardRowText} numberOfLines={1}>{(() => { const lk = ingredientLookup.resolveItem(item.name, item.nameEn); const bn = getDisplayName(item.name, item.nameEn || lk?.en, item.nameFil || lk?.fil, item.nameId || lk?.id); return bn.primary || t("shopping.itemFallback"); })()}</Text>
               {/* Only show date label for the first item */}
               {idx === 0 && dateLabel && (
                 <View style={s.dualCardDateBadge}>

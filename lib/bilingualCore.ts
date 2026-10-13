@@ -31,6 +31,28 @@ export function pickName(
   return { primary: zh, secondary: dedup(zh, en) };
 }
 
+const CJK_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+
+/**
+ * Like pickName, but for non-Chinese locales NEVER returns raw CJK: if no
+ * translation is available it returns an empty primary instead of the Chinese
+ * fallback (callers show a neutral placeholder). Enforces the "English UI shows
+ * no Chinese" policy for open-vocabulary user content.
+ */
+export function pickNameNoZh(
+  lang: string,
+  name?: string | null,
+  nameEn?: string | null,
+  nameFil?: string | null,
+  nameId?: string | null,
+): { primary: string; secondary: string } {
+  const r = pickName(lang, name, nameEn, nameFil, nameId);
+  if (lang && !String(lang).toLowerCase().startsWith("zh") && CJK_RE.test(r.primary)) {
+    return { primary: "", secondary: "" };
+  }
+  return r;
+}
+
 export function pickDescription(
   lang: string,
   description?: string | null,
