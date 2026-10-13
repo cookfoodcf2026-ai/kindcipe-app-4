@@ -162,7 +162,6 @@ export default function PaywallModal({
             <View style={styles.pricingRow}>
               <Text style={styles.pricingLabel}>{t("paywall.monthlyLabel" as any)}</Text>
               <View style={styles.pricingRight}>
-                <Text style={styles.priceStrike}>{PRICE.monthlyRegular}</Text>
                 <Text style={styles.price}>{PRICE.monthly}</Text>
                 <Text style={styles.pricePer}>{t("paywall.perMonth" as any)}</Text>
               </View>
@@ -177,7 +176,6 @@ export default function PaywallModal({
               </View>
               <View style={styles.pricingRight}>
                 <View style={styles.priceWrap}>
-                  <Text style={styles.priceStrike}>{PRICE.yearlyRegular}</Text>
                   <Text style={styles.price}>{PRICE.yearly}</Text>
                   <Text style={styles.pricePer}>{t("paywall.perYear" as any)}</Text>
                 </View>
@@ -188,7 +186,7 @@ export default function PaywallModal({
             </View>
           </View>
           <Text style={styles.earlyBirdNote}>
-            {t("paywall.earlyBirdNote" as any, { monthly: PRICE.monthlyRegular, yearly: PRICE.yearlyRegular })}
+            {t("paywall.promoNote" as any, { promo: PRICE.promoMonthly })}
           </Text>
           </>
           ) : null}
@@ -276,17 +274,28 @@ export default function PaywallModal({
             </>
           ) : null}
 
-          {/* Always show the follow-IG 7-day trial path:
-              iOS → primary (no IAP yet); web/Android → secondary to subscribing. */}
+          {/* Follow-IG path:
+              web/Android → promo code that discounts to the early-bird price.
+              iOS (no IAP yet) → 7-day free Pro trial code. */}
           <View style={styles.igBox}>
-            <Text style={styles.igTitle}>{t("paywall.igTitle" as any)}</Text>
-            <Text style={styles.igDesc}>{t("paywall.igDesc" as any)}</Text>
+            <Text style={styles.igTitle}>
+              {canPurchaseHere
+                ? t("paywall.igCodeTitle" as any, { promo: PRICE.promoMonthly })
+                : t("paywall.igTitle" as any)}
+            </Text>
+            <Text style={styles.igDesc}>
+              {canPurchaseHere
+                ? t("paywall.igCodeDesc" as any, { promo: PRICE.promoMonthly })
+                : t("paywall.igDesc" as any)}
+            </Text>
             {INSTAGRAM_URL ? (
               <TouchableOpacity
                 style={styles.upgradeBtn}
                 onPress={() => { Linking.openURL(INSTAGRAM_URL).catch(() => {}); }}
               >
-                <Text style={styles.upgradeBtnText}>{t("paywall.igCta" as any)}</Text>
+                <Text style={styles.upgradeBtnText}>
+                  {canPurchaseHere ? t("paywall.igCodeCta" as any) : t("paywall.igCta" as any)}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
