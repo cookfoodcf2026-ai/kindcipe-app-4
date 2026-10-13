@@ -2867,13 +2867,19 @@ export default function AIChefScreen() {
     const pickers: PickerRecipe[] = recipes.map((r, ri) => ({
       id: `ai_${ri}`,
       name: r.name,
+      nameEn: r.nameEn,
+      nameFil: r.nameFil,
+      nameId: r.nameId,
       fromMealPlanId: fromMealPlanIds?.[ri],
       ingredients: r.ingredients
         .map((ing) => normalizeIngredient(ing))
-        .filter((ing): ing is { name: string; quantity: string; unit: string } => !!ing)
-        .flatMap((ing) => splitMultiIngredient(ing))
+        .filter((ing): ing is { name: string; nameEn?: string; nameFil?: string; nameId?: string; quantity: string; unit: string } => !!ing)
+        .flatMap((ing) => splitMultiIngredient(ing).map((s) => ({ ...s, nameEn: ing.nameEn, nameFil: ing.nameFil, nameId: ing.nameId })))
         .map((ing) => ({
           name: ing.name,
+          nameEn: (ing as any).nameEn,
+          nameFil: (ing as any).nameFil,
+          nameId: (ing as any).nameId,
           quantity: ing.quantity,
           unit: ing.unit,
           category: categorizeIngredient(ing.name),

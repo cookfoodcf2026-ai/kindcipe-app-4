@@ -36,6 +36,9 @@ const detectCategory = categorizeIngredient;
 
 export type PickerIngredient = {
   name: string;
+  nameEn?: string;
+  nameFil?: string;
+  nameId?: string;
   quantity?: string | number;
   unit?: string;
   category?: string;
@@ -44,6 +47,9 @@ export type PickerIngredient = {
 export type PickerRecipe = {
   id: string;
   name: string;
+  nameEn?: string;
+  nameFil?: string;
+  nameId?: string;
   date?: string;
   mealType?: string;  // 用餐時段：breakfast / lunch / dinner / snack
   fromMealPlanId?: number;
@@ -312,11 +318,11 @@ export default function IngredientPickerModal({
               <Text style={s.title}>{modalTitle}</Text>
               {multiRecipe && (
                 <Text style={s.subTitle}>
-                  {recipes.map((r) => r.name).join("、")}
+                  {recipes.map((r) => getDisplayName(r.name, r.nameEn, r.nameFil, r.nameId).primary || "…").join("、")}
                 </Text>
               )}
               {!multiRecipe && recipes.length === 1 && (
-                <Text style={s.subTitle}>{recipes[0].name}</Text>
+                <Text style={s.subTitle}>{getDisplayName(recipes[0].name, recipes[0].nameEn, recipes[0].nameFil, recipes[0].nameId).primary || "…"}</Text>
               )}
               {formatMealPlanDateBadge && (
                 <View style={s.dateBadge}>
@@ -409,7 +415,7 @@ export default function IngredientPickerModal({
                           {isOn && <Ionicons name="checkmark" size={12} color="#fff" />}
                         </View>
                         <Text style={[s.ingName, isAdded && s.ingNameAdded]} numberOfLines={1}>
-                          {getDisplayName(ing.name, (ing as any).nameEn, (ing as any).nameFil, (ing as any).nameId).primary || "•"}
+                          {getDisplayName(ing.name, (ing as any).nameEn, (ing as any).nameFil, (ing as any).nameId).primary || "…"}
                         </Text>
                         {isAdded ? (
                           <Text style={s.addedTag}>{t("picker.added")}</Text>
