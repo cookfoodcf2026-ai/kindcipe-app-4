@@ -68,7 +68,7 @@ export async function getProducts(): Promise<{ productId: ProductId; price: stri
  * Start a purchase. On web/Android this opens Stripe Checkout (full-page
  * redirect on web, in-app browser on native-android). On iOS it attempts IAP.
  */
-export async function purchaseSubscription(productId: ProductId): Promise<PurchaseResult> {
+export async function purchaseSubscription(productId: ProductId, opts?: { promoCode?: string }): Promise<PurchaseResult> {
   const plan = SUBSCRIPTION_TYPE[productId];
 
   if (isStripeSupported) {
@@ -79,6 +79,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
       const { url } = await trpc.billing.createCheckoutSession.mutate({
         plan,
         returnUrl,
+        promoCode: opts?.promoCode || undefined,
       });
       if (!url) {
         return { success: false, error: i18n.t("error.purchaseFailed" as any) };
