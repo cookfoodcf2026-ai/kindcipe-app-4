@@ -25,9 +25,11 @@ export function pickName(
   const dedup = (primary: string, secondary: string) =>
     secondary && secondary !== primary ? secondary : "";
 
-  if (lang === "fil") return { primary: fil || en || zh, secondary: dedup(fil || en || zh, fil ? en : "") };
-  if (lang === "id") return { primary: id || en || zh, secondary: dedup(id || en || zh, id ? en : "") };
-  if (lang === "en") return { primary: en || zh, secondary: "" };
+  // No-Chinese guarantee: non-zh locales NEVER fall back to the Chinese base.
+  // They fall back to English, else empty (callers show a neutral placeholder).
+  if (lang === "fil") { const p = fil || en || ""; return { primary: p, secondary: dedup(p, fil ? en : "") }; }
+  if (lang === "id") { const p = id || en || ""; return { primary: p, secondary: dedup(p, id ? en : "") }; }
+  if (lang === "en") return { primary: en || "", secondary: "" };
   return { primary: zh, secondary: dedup(zh, en) };
 }
 
@@ -64,9 +66,9 @@ export function pickDescription(
   const en = String(descriptionEn ?? "").trim();
   const fil = String(descriptionFil ?? "").trim();
   const id = String(descriptionId ?? "").trim();
-  if (lang === "fil") return fil || en || zh;
-  if (lang === "id") return id || en || zh;
-  if (lang === "en") return en || zh;
+  if (lang === "fil") return fil || en || "";
+  if (lang === "id") return id || en || "";
+  if (lang === "en") return en || "";
   return zh;
 }
 
@@ -79,9 +81,9 @@ export function pickSteps(
 ): string[] {
   const arr = (v: any): string[] | undefined => (Array.isArray(v) ? v : undefined);
   let pick: string[] | undefined;
-  if (lang === "fil") pick = arr(stepsFil)?.length ? arr(stepsFil) : arr(stepsEn)?.length ? arr(stepsEn) : arr(steps);
-  else if (lang === "id") pick = arr(stepsId)?.length ? arr(stepsId) : arr(stepsEn)?.length ? arr(stepsEn) : arr(steps);
-  else if (lang === "en") pick = arr(stepsEn)?.length ? arr(stepsEn) : arr(steps);
+  if (lang === "fil") pick = arr(stepsFil)?.length ? arr(stepsFil) : arr(stepsEn)?.length ? arr(stepsEn) : [];
+  else if (lang === "id") pick = arr(stepsId)?.length ? arr(stepsId) : arr(stepsEn)?.length ? arr(stepsEn) : [];
+  else if (lang === "en") pick = arr(stepsEn)?.length ? arr(stepsEn) : [];
   else pick = arr(steps);
-  return pick ?? arr(steps) ?? [];
+  return pick ?? (lang && !String(lang).toLowerCase().startsWith("zh") ? [] : arr(steps) ?? []);
 }

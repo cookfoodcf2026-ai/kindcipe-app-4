@@ -15,7 +15,7 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, ActivityIndicator, Alert, Modal, Linking, Platform, BackHandler,
-  Dimensions, TextInput, Share, KeyboardAvoidingView,
+  Dimensions, TextInput, KeyboardAvoidingView,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Image as ExpoImage } from "expo-image";
@@ -37,6 +37,7 @@ import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { COOKING_TERM_LIST } from "@/lib/cookingTerms";
 import { getBilingualName, getLocalizedSteps, getLocalizedDescription } from "@/lib/bilingual";
+import { shareOrCopy } from "@/lib/share";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
@@ -1179,7 +1180,7 @@ export default function RecipeDetailScreen() {
                 
                 const recipeUrl = buildRecipeShareUrlFor({ id: recipe?.id ?? "", name: recipe?.name, source: (recipe as any)?.source });
                 Alert.alert(t("recipe.shareTitle"), undefined, [
-                  { text: t("recipe.share"), onPress: () => { Share.share({ message: shareText, title: localizedName }); } },
+                  { text: t("recipe.share"), onPress: () => { void shareOrCopy(shareText, localizedName); } },
                   { text: t("recipe.copyFull"), onPress: async () => { await Clipboard.setStringAsync(shareText); showToast(t("recipe.copiedFull")); } },
                   { text: t("recipe.copyLink"), onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
                   { text: t("取消" as any), style: "cancel" },

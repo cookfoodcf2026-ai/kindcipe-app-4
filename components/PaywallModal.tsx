@@ -281,7 +281,7 @@ export default function PaywallModal({
                     {promoMsg ? <Text style={[styles.promoMsg, promoState === "error" && { color: "#DC2626" }]}>{promoMsg}</Text> : null}
                     {INSTAGRAM_URL ? (
                       <TouchableOpacity onPress={() => Linking.openURL(INSTAGRAM_URL).catch(() => {})} activeOpacity={0.8}>
-                        <Text style={styles.igHint}>{t("paywall.followIgHint" as any, { promo: PRICE.promoMonthly })}</Text>
+                        <Text style={styles.igHint}>{t("paywall.followIgHint" as any, { promoM: PRICE.promoMonthly, promoY: PRICE.promoYearly })}</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>

@@ -9,7 +9,7 @@ import { categorizeIngredient, isSeasoning, isWaterIngredient } from "@/constant
 import { DateUtil } from "@/src/lib/DateUtil";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
-import { getBilingualName } from "@/lib/bilingual";
+import { getBilingualName, getDisplayName } from "@/lib/bilingual";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#013E77";
@@ -409,7 +409,7 @@ export default function IngredientPickerModal({
                           {isOn && <Ionicons name="checkmark" size={12} color="#fff" />}
                         </View>
                         <Text style={[s.ingName, isAdded && s.ingNameAdded]} numberOfLines={1}>
-                          {getBilingualName(ing.name, (ing as any).nameEn, (ing as any).nameFil, (ing as any).nameId).primary}
+                          {getDisplayName(ing.name, (ing as any).nameEn, (ing as any).nameFil, (ing as any).nameId).primary || "•"}
                         </Text>
                         {isAdded ? (
                           <Text style={s.addedTag}>{t("picker.added")}</Text>
