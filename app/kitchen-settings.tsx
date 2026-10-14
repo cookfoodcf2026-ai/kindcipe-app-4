@@ -667,9 +667,9 @@ export default function KitchenSettingsScreen() {
             />
             <View style={s.modalActions}>
               <TouchableOpacity
-                style={[s.primaryBtn, { backgroundColor: "#EF4444" }, (dissolveInput.trim() !== (activeFamily?.name ?? "") || dissolveM.isPending) && { opacity: 0.5 }]}
+                style={[s.primaryBtn, { backgroundColor: "#EF4444" }, (dissolveInput.trim() !== (activeFamily?.name ?? "") || !activeFamily?.name || dissolveM.isPending) && { opacity: 0.5 }]}
                 onPress={() => { setShowDissolveModal(false); dissolveM.mutate(); }}
-                disabled={dissolveInput.trim() !== (activeFamily?.name ?? "") || dissolveM.isPending}
+                disabled={dissolveInput.trim() !== (activeFamily?.name ?? "") || !activeFamily?.name || dissolveM.isPending}
               >
                 {dissolveM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("確認解散" as any)}</Text>}
               </TouchableOpacity>
