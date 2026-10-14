@@ -2194,5 +2194,6 @@
   "{{platform}} 食譜": "{{platform}} Recipe",
   "此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。": "This recipe has no ingredients yet. Tap \"Edit recipe\" or \"Add from screenshot\" to add them.",
   "此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。": "This recipe has no steps yet. Tap \"Edit recipe\" or \"Add from screenshot\" to add them.",
-  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Upload a screenshot containing ingredients/steps text — it will be recognized and added to the current recipe (without overwriting)."
+  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Upload a screenshot containing ingredients/steps text — it will be recognized and added to the current recipe (without overwriting).",
+  "解散後，所有資料（排餐、購物清單、食材庫存、食譜）將被永久刪除，無法復原。請輸入廚房名稱「{{name}}」以確認。": "All data (meal plans, shopping list, pantry, recipes) will be permanently deleted and cannot be recovered. Type the kitchen name \"{{name}}\" to confirm."
 }

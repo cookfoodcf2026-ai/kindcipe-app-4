@@ -26,14 +26,14 @@ export function buildIngredientLookup(list: any[]) {
       const hit = byName.get(normalize(cand));
       if (hit) return hit;
     }
-    // 2) substring fallback (shortest containing key wins)
+    // 2) substring fallback (LONGEST containing key wins — matches backend resolveCommonIngredientByName)
     const nq = normalize(q);
     let best: IngredientL10n | undefined;
-    let bestLen = Infinity;
+    let bestLen = -1;
     for (const [k, rec] of byNameSorted) {
       if (k.length < 2) continue;
       if (nq.includes(k) || k.includes(nq)) {
-        if (k.length < bestLen) {
+        if (k.length > bestLen) {
           best = rec;
           bestLen = k.length;
         }

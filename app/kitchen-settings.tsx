@@ -57,6 +57,8 @@ export default function KitchenSettingsScreen() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showDissolveModal, setShowDissolveModal] = useState(false);
+  const [dissolveInput, setDissolveInput] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
 
@@ -233,18 +235,9 @@ export default function KitchenSettingsScreen() {
   };
 
   const handleDissolve = () => {
-    Alert.alert(
-      t("解散廚房" as any),
-      t("確定要解散這個廚房？所有資料（排餐、購物清單、食材庫存）將會被永久刪除，無法復原！" as any),
-      [
-        { text: t("取消" as any), style: "cancel" },
-        {
-          text: t("確認解散" as any),
-          style: "destructive",
-          onPress: () => dissolveM.mutate(),
-        },
-      ],
-    );
+    // 危險操作：要求輸入廚房名稱先可解散（防止誤觸）
+    setDissolveInput("");
+    setShowDissolveModal(true);
   };
 
   const handleSwitchKitchen = async (id: string) => {
@@ -263,8 +256,8 @@ export default function KitchenSettingsScreen() {
   };
 
   const roleOptions = isOwner
-    ? ["owner", "admin", "helper", "member"]
-    : ["admin", "helper", "member"];
+    ? ["owner", "helper", "member"]
+    : ["helper", "member"];
   const hasKitchen = families.length > 0;
 
   return (
@@ -461,10 +454,12 @@ export default function KitchenSettingsScreen() {
                         <Ionicons name="swap-horizontal-outline" size={18} color={BRAND} />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={s.iconBtn}
+                        style={[s.iconBtn, { flexDirection: "row", gap: 3, paddingHorizontal: 8 }]}
                         onPress={() => handleRemoveMember(String(m.userId), m.name || m.nickname || m.familyRole)}
+                        accessibilityLabel={t("移除" as any)}
                       >
-                        <Ionicons name="close-outline" size={18} color="#EF4444" />
+                        <Ionicons name="person-remove-outline" size={14} color="#EF4444" />
+                        <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "700" }}>{t("移除" as any)}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -640,6 +635,45 @@ export default function KitchenSettingsScreen() {
                 {joinM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("kitchen.join")}</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowJoinModal(false)}>
+                <Text style={{ color: "#999", fontSize: 14 }}>{t("recipe.cancel")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showDissolveModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowDissolveModal(false)}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalContainer}>
+            <Text style={[s.modalTitle, { color: "#EF4444" }]}>{t("kitchen.dissolve")}</Text>
+            <Text style={{ color: "#EF4444", fontSize: 13, marginBottom: 14, lineHeight: 19 }}>
+              {t("解散後，所有資料（排餐、購物清單、食材庫存、食譜）將被永久刪除，無法復原。請輸入廚房名稱「{{name}}」以確認。" as any, { name: activeFamily?.name ?? "" })}
+            </Text>
+            <TextInput
+              style={s.modalInput}
+              placeholder={activeFamily?.name ?? ""}
+              placeholderTextColor="#999"
+              value={dissolveInput}
+              onChangeText={setDissolveInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={s.modalActions}>
+              <TouchableOpacity
+                style={[s.primaryBtn, { backgroundColor: "#EF4444" }, (dissolveInput.trim() !== (activeFamily?.name ?? "") || dissolveM.isPending) && { opacity: 0.5 }]}
+                onPress={() => { setShowDissolveModal(false); dissolveM.mutate(); }}
+                disabled={dissolveInput.trim() !== (activeFamily?.name ?? "") || dissolveM.isPending}
+              >
+                {dissolveM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>{t("確認解散" as any)}</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowDissolveModal(false)}>
                 <Text style={{ color: "#999", fontSize: 14 }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
             </View>

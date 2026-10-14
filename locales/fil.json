@@ -2194,5 +2194,6 @@
   "{{platform}} 食譜": "{{platform}} Recipe",
   "此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。": "Wala pang sangkap ang recipe na ito. I-tap ang \"I-edit ang recipe\" o \"Magdagdag mula sa screenshot\".",
   "此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。": "Wala pang hakbang ang recipe na ito. I-tap ang \"I-edit ang recipe\" o \"Magdagdag mula sa screenshot\".",
-  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Mag-upload ng screenshot na may text ng sangkap/hakbang — makikilala at idadagdag sa kasalukuyang recipe (hindi mapapalitan)."
+  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Mag-upload ng screenshot na may text ng sangkap/hakbang — makikilala at idadagdag sa kasalukuyang recipe (hindi mapapalitan).",
+  "解散後，所有資料（排餐、購物清單、食材庫存、食譜）將被永久刪除，無法復原。請輸入廚房名稱「{{name}}」以確認。": "Mabubura nang tuluyan ang lahat ng data (meal plans, shopping list, pantry, recipes) at hindi na mababawi. I-type ang pangalan ng kitchen na \"{{name}}\" para kumpirmahin."
 }

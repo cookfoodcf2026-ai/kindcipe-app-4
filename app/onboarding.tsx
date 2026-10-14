@@ -377,7 +377,9 @@ export default function OnboardingScreen(
                 }
                 const joined: any = await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
                 // 加入後即刻切換到該廚房，否則 Settings 會停留喺「未加入廚房」＋ 睇唔到 quota。
-                const joinedId = joined?.id != null ? String(joined.id) : null;
+                // 後端 family.join 回傳 { success, family }（亦有舊格式回傳 id）→ 兩種都支援。
+                const joinedId = joined?.family?.id != null ? String(joined.family.id)
+                  : (joined?.id != null ? String(joined.id) : null);
                 if (joinedId) {
                   await switchFamily(joinedId);
                 } else {
