@@ -2183,5 +2183,16 @@
   "權限不足，請聯繫管理員": "Izin tidak cukup, hubungi admin",
   "請先加入家庭廚房或聯繫管理員": "Gabung dapur keluarga dulu atau hubungi admin",
   "等待 {{name}} 確認": "Menunggu konfirmasi {{name}}",
-  "請添加{{label}}": "Tambahkan {{label}}"
+  "請添加{{label}}": "Tambahkan {{label}}",
+  "未命名食譜": "Resep tanpa judul",
+  "先儲存（只留名＋連結）": "Simpan dulu (nama + tautan saja)",
+  "儲存中…": "Menyimpan…",
+  "此食譜未有食材，無法加入購物清單。請先補充食材（可用截圖辨識或手動新增）。": "Resep ini tidak punya bahan, jadi tidak bisa ditambahkan ke daftar belanja. Tambahkan bahan dulu (pakai pengenalan screenshot atau tambah manual).",
+  "截圖中未有可讀嘅食譜文字，請試更清晰、包含食材或步驟嘅截圖。": "Tidak ada teks resep yang terbaca di screenshot. Coba screenshot yang lebih jelas dengan bahan atau langkah.",
+  "用截圖補充（辨識食材／步驟）": "Tambah dari screenshot (kenali bahan/langkah)",
+  "內容未完整": "Konten belum lengkap",
+  "{{platform}} 食譜": "Resep {{platform}}",
+  "此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。": "Resep ini belum punya bahan. Ketuk \"Edit resep\" atau \"Tambah dari screenshot\".",
+  "此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。": "Resep ini belum punya langkah. Ketuk \"Edit resep\" atau \"Tambah dari screenshot\".",
+  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Unggah screenshot berisi teks bahan/langkah — akan dikenali dan ditambahkan ke resep saat ini (tanpa menimpa)."
 }

@@ -386,6 +386,14 @@ export default function IngredientPickerModal({
           )}
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
+            {sortedCategories.length === 0 && (
+              <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 24, gap: 10 }}>
+                <Ionicons name="alert-circle-outline" size={34} color={SUB} />
+                <Text style={{ color: SUB, fontSize: 13, textAlign: "center", lineHeight: 19 }}>
+                  {t("此食譜未有食材，無法加入購物清單。請先補充食材（可用截圖辨識或手動新增）。" as any)}
+                </Text>
+              </View>
+            )}
             {sortedCategories.map((cat) => {
               const items = groupedIngredients[cat] || [];
               const isSeasoningGroup = cat === "調味料";

@@ -110,6 +110,8 @@ export default function ImportScreen() {
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
+  // true → parseImage 結果以「合併」方式加入現有編輯內容（預覽頁截圖補充），而非取代
+  const mergeModeRef = useRef(false);
   // 手機端抓到嘅暫時縮圖（例如 IG CDN URL）→ 後端冇圖時做 preview，儲存時再上傳成永久圖
   const clientThumbRef = useRef<string | null>(null);
   // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
@@ -258,6 +260,37 @@ export default function ImportScreen() {
     }
   };
 
+  // 預覽頁「📷 用截圖補充」：合併截圖解析結果（append + dedupe），唔覆蓋已有內容
+  const mergeParsedIntoEdit = (recipe: any) => {
+    if (!recipe) return;
+    const L = i18n.language;
+    const stepTexts = (recipe.steps || []).map((s: any) => (typeof s === "string" ? s : (s.instruction || s.description || "")));
+    setEditName((prev) => prev || (pickName(L, recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary || ""));
+    setEditDesc((prev) => prev || (pickDescription(L, recipe.description, recipe.descriptionEn, recipe.descriptionFil, recipe.descriptionId) || ""));
+    setEditIngredients((prev) => {
+      const seen = new Set(prev.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
+      const merged = [...prev];
+      (recipe.ingredients || []).forEach((ing: any) => {
+        const nm = (pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "").trim();
+        if (!nm || seen.has(nm.toLowerCase())) return;
+        seen.add(nm.toLowerCase());
+        merged.push({ id: `ing_m${Date.now()}_${merged.length}`, name: nm, quantity: String(ing.quantity || ""), unit: ing.unit || "" });
+      });
+      return merged;
+    });
+    setEditSteps((prev) => {
+      const seen = new Set(prev.map((p) => p.instruction.trim().toLowerCase()).filter(Boolean));
+      const merged = [...prev];
+      pickSteps(L, stepTexts, recipe.stepsEn, recipe.stepsFil, recipe.stepsId).forEach((tx: string) => {
+        const v = String(tx || "").trim();
+        if (!v || seen.has(v.toLowerCase())) return;
+        seen.add(v.toLowerCase());
+        merged.push({ id: merged.length + 1, instruction: v, duration: 0, imageUri: undefined, imageBase64: undefined });
+      });
+      return merged.map((s, i) => ({ ...s, id: i + 1 }));
+    });
+  };
+
   // Pick recipe image
   const handlePickRecipeImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -348,6 +381,7 @@ export default function ImportScreen() {
     parseTextMutation.reset();
     parseImageMutation.reset();
     isParsingRef.current = false;
+    mergeModeRef.current = false;
     setStep("input");
   };
 
@@ -591,6 +625,18 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return; // 用戶已取消
       isParsingRef.current = false;
       stopParseProgress();
+      if (mergeModeRef.current) {
+        mergeModeRef.current = false;
+        const mReason = (data as any).parseReason;
+        if (mReason && mReason !== "ok") {
+          Alert.alert(t("沒有食材資訊" as any), t("截圖中未有可讀嘅食譜文字，請試更清晰、包含食材或步驟嘅截圖。" as any));
+          setStep("preview");
+          return;
+        }
+        mergeParsedIntoEdit(data);
+        setStep("preview");
+        return;
+      }
       const reason = (data as any).parseReason;
       if (!reason || reason === "ok") {
         setParsedRecipe(data);
@@ -661,6 +707,32 @@ export default function ImportScreen() {
       }
     },
   });
+
+  // ── 先儲存（名＋連結）：解析失敗但用戶想留住條 link，稍後再補內容 ──
+  const handleSaveIncomplete = () => {
+    const url = failedInput?.type === "url" ? String(failedInput.value || "").trim() : "";
+    let name = "";
+    // 文字來源：用第一行做名；連結來源：用平台名做預設名（唔用 URL 尾段，避免亂碼如 IG shortcode）
+    if (failedInput?.type === "text") {
+      name = String(failedInput.value || "").split("\n").map((l) => l.trim()).find(Boolean) || "";
+    }
+    if (!name && url) {
+      const platform = detectPlatform(url);
+      name = platform ? t("{{platform}} 食譜", { platform }) : "";
+    }
+    if (name.length > 60) name = name.slice(0, 60);
+    if (!name) name = t("未命名食譜" as any);
+    importMutation.mutate({
+      name,
+      description: failedInput?.type === "text" ? String(failedInput.value || "").slice(0, 500) : "",
+      ingredients: [],
+      steps: [],
+      tags: [],
+      sourceUrl: url || undefined,
+      allowIncomplete: true,
+      visibility: "private",
+    } as any);
+  };
 
   // ── Platform detection ────────────────
   function detectPlatform(url: string): string | null {
@@ -908,6 +980,8 @@ export default function ImportScreen() {
   // 確認截圖並開始解析
   const handleConfirmScreenshot = async () => {
     if (!pendingScreenshot) return;
+    isParsingRef.current = true;
+    mergeModeRef.current = false;
     setStep("parsing");
     startParseProgress();
     const uploadedKeys: string[] = [];
@@ -957,6 +1031,46 @@ export default function ImportScreen() {
   // 重新選擇截圖
   const handleReselectImage = () => {
     setPendingScreenshot(null);
+  };
+
+  // 預覽頁「📷 用截圖補充」：揀截圖 → 上傳 → 合併解析（Pro）
+  const handleAddScreenshotInPreview = async () => {
+    if (!subQuery.data?.isPaid) {
+      setPaywallFeature("screenshot");
+      setShowQuotaPaywall(true);
+      return;
+    }
+    let result: ImagePicker.ImagePickerResult | undefined;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"], quality: 0.8, allowsMultipleSelection: true, selectionLimit: 5,
+      });
+    } catch (e: any) {
+      Alert.alert(t("開啟失敗" as any), friendlyError(e) || t("請重試" as any));
+      return;
+    }
+    if (!result || result.canceled || !result.assets?.length) return;
+    isParsingRef.current = true;
+    setStep("parsing");
+    startParseProgress();
+    const keys: string[] = [];
+    try {
+      for (const a of result.assets) {
+        const c = await compressImage(a.uri);
+        const up = await uploadImageMutation.mutateAsync({ base64: c.base64 || a.base64 || "", mimeType: c.mimeType || a.mimeType || "image/jpeg" });
+        if (up?.key) keys.push(up.key);
+      }
+      if (keys.length === 0) throw new Error("upload failed");
+      mergeModeRef.current = true;
+      await parseImageMutation.mutateAsync({ storageKeys: keys });
+    } catch (e: any) {
+      mergeModeRef.current = false;
+      stopParseProgress();
+      isParsingRef.current = false;
+      for (const key of keys) deleteRecipeImageMutation.mutate({ key }, { onError: () => {} });
+      setErrorMsg(friendlyError(e) || t("無法解析圖片，請確保圖片清晰" as any));
+      setStep("preview");
+    }
   };
 
   // Save edited recipe with overlay
@@ -1172,6 +1286,21 @@ export default function ImportScreen() {
             <Text style={styles.previewSubtitle}>{t("importRecipe.parseSuccessSub")}</Text>
           </View>
 
+          {/* 用截圖補充（辨識食材/步驟）— Pro */}
+          <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={[styles.tryScreenshotButton, { backgroundColor: "#7C3AED" }]}
+              onPress={handleAddScreenshotInPreview}
+              disabled={isFormPending}
+            >
+              <Ionicons name="scan-outline" size={18} color="#fff" />
+              <Text style={styles.tryScreenshotText}>{t("用截圖補充（辨識食材／步驟）" as any)}</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 11, color: "#7C3AED", marginTop: 6, textAlign: "center", lineHeight: 16 }}>
+              {t("上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。" as any)}
+            </Text>
+          </View>
+
           {/* Image section */}
           <TouchableOpacity style={es.card} onPress={handlePickRecipeImage}>
             {recipeImageUri && !imageError ? (
@@ -1252,7 +1381,7 @@ export default function ImportScreen() {
                       return list.join(" ");
                     });
                   }}>
-                    <Text style={[es.chipTxt, active && es.chipTxtActive]}>{t(tag as any)}</Text>
+                    <Text style={[es.chipTxt, active && es.chipTxtActive]}>{enumT.tag(tag)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1527,17 +1656,32 @@ export default function ImportScreen() {
                   <Text style={styles.tryTextButtonText}>{t("importRecipe.tryAnotherLink")}</Text>
                 </TouchableOpacity>
 
-                {/* 按鈕 3：自訂食譜（最後手段） */}
+                {/* 按鈕 3：自訂食譜（帶入原連結） */}
                 <TouchableOpacity
                   style={styles.tryTextButton}
                   onPress={() => {
                     Keyboard.dismiss();
-                    router.push("/recipe-editor");
+                    const url = failedInput?.type === "url" ? failedInput.value : (clipboardUrl ?? "");
+                    router.push({ pathname: "/recipe-editor", params: url ? { sourceUrl: url } : {} });
                   }}
                 >
                   <Ionicons name="create-outline" size={18} color="#013E77" />
                   <Text style={styles.tryTextButtonText}>{t("importRecipe.customRecipe")}</Text>
                 </TouchableOpacity>
+
+                {/* 按鈕 4：先儲存（只留名＋連結），稍後再補內容 */}
+                {((failedInput?.type === "url" && !!failedInput.value) || failedInput?.type === "text") && (
+                  <TouchableOpacity
+                    style={styles.tryTextButton}
+                    disabled={importMutation.isPending}
+                    onPress={() => { Keyboard.dismiss(); handleSaveIncomplete(); }}
+                  >
+                    <Ionicons name="bookmark-outline" size={18} color="#013E77" />
+                    <Text style={styles.tryTextButtonText}>
+                      {importMutation.isPending ? t("儲存中…" as any) : t("先儲存（只留名＋連結）" as any)}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </ScrollView>

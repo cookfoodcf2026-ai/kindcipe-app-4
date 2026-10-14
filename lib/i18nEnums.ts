@@ -16,6 +16,11 @@ const EXTRA_UNITS: Record<string, string> = {
   "碗": "bowl", "碟": "plate", "盤": "plate", "份": "serving", "粒": "grain",
   "根": "root", "朵": "flower", "隻": "piece", "套": "set", "排": "row",
   "適量": "toTaste", "少許": "toTaste",
+  // 簡體 / 常見描述型量詞（都應歸入 unit，避免非中文介面漏中文）
+  "适量": "toTaste", "少许": "toTaste", "少量": "toTaste", "酌量": "toTaste",
+  "隨意": "toTaste", "随意": "toTaste", "適量調味": "toTaste", "适量调味": "toTaste",
+  "少許調味": "toTaste", "少许调味": "toTaste", "適量即可": "toTaste",
+  "to taste": "toTaste", "pinch": "toTaste",
   // 常見漏譯單位
   "小匙": "tsp", "大匙": "tbsp", "匙": "spoon", "顆": "piece", "公克": "g",
   "兩": "tael", "錢": "mace",
@@ -103,6 +108,13 @@ export const enumT = {
       return out === k ? undefined : out;
     }));
   },
+  // 數量欄位：若係描述型量詞（適量…）→ 用單位譯名；純數字原樣；未知中文→非中文介面隱藏。
+  qty: (v: string): string => {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    if (UNIT_ZH_TO_KEY[s]) return enumT.unit(s);
+    return guardLeak(s);
+  },
   difficulty: (v: string): string => {
     const { key, fallback } = resolve("difficulty", DIFFICULTY_ANY, v);
     if (!key) return fallback;
@@ -137,14 +149,21 @@ export function useEnum() {
     const out = t(k as any);
     return out === k ? fallback : out;
   };
+  const unitL = (v: string): string =>
+    guardLeak(localizeUnitValue(v, (key) => {
+      const k = `enums.unit.${key}`;
+      const out = t(k as any);
+      return out === k ? undefined : out;
+    }));
   return {
     category: (v: string): string => guardLeak(tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? ""))),
-    unit: (v: string): string =>
-      guardLeak(localizeUnitValue(v, (key) => {
-        const k = `enums.unit.${key}`;
-        const out = t(k as any);
-        return out === k ? undefined : out;
-      })),
+    unit: unitL,
+    qty: (v: string): string => {
+      const s = String(v ?? "").trim();
+      if (!s) return "";
+      if (UNIT_ZH_TO_KEY[s]) return unitL(s);
+      return guardLeak(s);
+    },
     difficulty: (v: string): string => tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? "")),
     tag: (v: string): string => guardLeak(tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? ""))),
     meal: (v: string): string => tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? "")),

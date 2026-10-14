@@ -19,6 +19,7 @@ import { scheduleShoppingNotification, requestNotificationPermission } from "@/l
 import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
 import { getBilingualName, getDisplayName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import i18n from "@/lib/i18n";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
 import HintBanner from "@/src/components/HintBanner";
@@ -934,7 +935,7 @@ export default function ShoppingTab() {
             {/* 左側資訊區 (flex: 1) */}
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {(item.quantity || item.unit) && (
-                <Text style={styles.itemQty}>{item.quantity || ""}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>
+                <Text style={styles.itemQty}>{formatIngredientDisplay(item.quantity, item.unit)}</Text>
               )}
               {item.proposedByName && (
                 <Text style={styles.itemProposer}>{t("shopping.addedBy", { name: item.proposedByName })}</Text>

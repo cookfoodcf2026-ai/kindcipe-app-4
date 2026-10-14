@@ -2183,5 +2183,16 @@
   "權限不足，請聯繫管理員": "Insufficient permissions, please contact the admin",
   "請先加入家庭廚房或聯繫管理員": "Join a family kitchen first or contact the admin",
   "等待 {{name}} 確認": "Waiting for {{name}} to confirm",
-  "請添加{{label}}": "Add {{label}}"
+  "請添加{{label}}": "Add {{label}}",
+  "未命名食譜": "Untitled recipe",
+  "先儲存（只留名＋連結）": "Save first (name + link only)",
+  "儲存中…": "Saving…",
+  "此食譜未有食材，無法加入購物清單。請先補充食材（可用截圖辨識或手動新增）。": "This recipe has no ingredients, so it can't be added to the shopping list. Add ingredients first (use screenshot recognition or add them manually).",
+  "截圖中未有可讀嘅食譜文字，請試更清晰、包含食材或步驟嘅截圖。": "No readable recipe text found in the screenshot. Try a clearer screenshot that includes ingredients or steps.",
+  "用截圖補充（辨識食材／步驟）": "Add from screenshot (recognize ingredients/steps)",
+  "內容未完整": "Incomplete content",
+  "{{platform}} 食譜": "{{platform}} Recipe",
+  "此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。": "This recipe has no ingredients yet. Tap \"Edit recipe\" or \"Add from screenshot\" to add them.",
+  "此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。": "This recipe has no steps yet. Tap \"Edit recipe\" or \"Add from screenshot\" to add them.",
+  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Upload a screenshot containing ingredients/steps text — it will be recognized and added to the current recipe (without overwriting)."
 }

@@ -76,7 +76,7 @@ export default function RecipeEditorScreen() {
   const headerHeight = useHeaderHeight();
   const scrollRef = useRef<ScrollView>(null);
   const hydratedRef = useRef(false);
-  const params = useLocalSearchParams<{ id?: string; name?: string }>();
+  const params = useLocalSearchParams<{ id?: string; name?: string; sourceUrl?: string }>();
   const editingId = params.id ? parseInt(params.id) : null;
   const isEditing = !!editingId && !isNaN(editingId);
   const utils = trpc.useUtils();
@@ -90,7 +90,7 @@ export default function RecipeEditorScreen() {
   const [difficulty, setDifficulty] = useState("中等");
   const [category, setCategory] = useState("");
   const [dishType, setDishType] = useState<DishTypeKey | "">("");
-  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState(!params.id && params.sourceUrl ? String(params.sourceUrl) : "");
   const [tags, setTags] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { id: `ing_${Date.now()}`, name: "", quantity: "", unit: "克" },
@@ -204,6 +204,8 @@ const scrollToFocused = useCallback((e: any) => {
 
   useEffect(() => {
     if (isEditing || !draftQ.data || hydratedRef.current) return;
+    // 由失敗頁「自訂食譜（帶連結）」入嚟 → 保留帶入嘅 sourceUrl，唔好用舊草稿覆蓋
+    if (params.sourceUrl) { hydratedRef.current = true; return; }
     const d = draftQ.data as any;
     if (!d) return;
     // 淨係真係有內容先續寫；空頭草稿當全新開始
@@ -246,7 +248,7 @@ const scrollToFocused = useCallback((e: any) => {
         imageBase64: undefined,
       })));
     }
-  }, [draftQ.data, isEditing]);
+  }, [draftQ.data, isEditing, params.sourceUrl]);
 
   const goToRecipeDetail = (recipeId?: string | number | null) => {
     if (recipeId != null) {
@@ -827,7 +829,7 @@ const scrollToFocused = useCallback((e: any) => {
                 <TouchableOpacity key={tag}
                   style={[st.catChip, active && st.catChipActive]}
                   onPress={() => toggleTag(tag)}>
-                  <Text style={[st.catLabel, active && st.catLabelActive]}>{tag}</Text>
+                  <Text style={[st.catLabel, active && st.catLabelActive]}>{enumT.tag(tag)}</Text>
                 </TouchableOpacity>
               );
             })}

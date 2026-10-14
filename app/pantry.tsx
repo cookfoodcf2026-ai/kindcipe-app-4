@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { useToast } from "@/src/components/Toast";
 import { friendlyError } from "@/lib/errors";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -321,7 +322,7 @@ export default function PantryScreen() {
                             </View>
                           )}
                         </View>
-                        {item.quantity && <Text style={{ fontSize: 10, color: SUB }}>{item.quantity}{item.unit ? ` ${item.unit}` : ""}</Text>}
+                        {(item.quantity || item.unit) && <Text style={{ fontSize: 10, color: SUB }}>{formatIngredientDisplay(item.quantity, item.unit)}</Text>}
                       </View>
                       <View style={{ flexDirection: "row", gap: 4 }}>
                         <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: "#E8F0FA", alignItems: "center", justifyContent: "center" }} onPress={() => handleAddToShopping(item)}>

@@ -21,6 +21,7 @@ import FilterModal from "@/src/components/FilterModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import { useTranslation } from "react-i18next";
+import { enumT } from "@/lib/i18nEnums";
 
 type SourceType = "official" | "kol" | "user" | "all" | "hot" | "imported" | "ai";
 
@@ -385,7 +386,7 @@ export default function RecipesPage() {
             })}
             {activeTagFilters.map(tag => (
               <View key={tag} style={s.smartToken}>
-                <Text style={s.smartTokenTxt}>#{tag}</Text>
+                <Text style={s.smartTokenTxt}>#{enumT.tag(tag)}</Text>
                 <TouchableOpacity onPress={() => setActiveTagFilters(prev => prev.filter(t => t !== tag))}>
                   <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
@@ -415,7 +416,7 @@ export default function RecipesPage() {
             <View style={s.filterDivider} />
             
             {TOP_TAGS.map(tag => 
-              renderFilterPill(tag, activeTagFilters.includes(tag), () => handleTagFilterPress(tag))
+              renderFilterPill(enumT.tag(tag), activeTagFilters.includes(tag), () => handleTagFilterPress(tag))
             )}
           </ScrollView>
         </View>

@@ -1198,6 +1198,12 @@ export default function RecipeDetailScreen() {
                 </View>
               )}
               <Text style={s.heroTitle}>{getBilingualName(recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary}</Text>
+              {(adjustedIngredients.length === 0 || steps.length === 0) && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: "rgba(254,243,199,0.95)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 }}>
+                  <Ionicons name="alert-circle-outline" size={13} color="#B45309" />
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#B45309" }}>{t("內容未完整" as any)}</Text>
+                </View>
+              )}
               <View style={s.heroMeta}>
                 {(recipe.cookTime ?? 0) > 0 && (
                   <View style={s.metaChip}>
@@ -1285,7 +1291,7 @@ export default function RecipeDetailScreen() {
                 const ings = adjustedIngredients.map((ing: any, i: number) => ({
                   ...ing, _idx: i, _qty: String(ing.adjustedQty ?? ing.quantity ?? ""), _unit: ing.unit ?? "",
                 }));
-                if (ings.length === 0) { Alert.alert(t("沒有食材資訊" as any)); return; }
+                if (ings.length === 0) { Alert.alert(t("沒有食材資訊" as any), t("此食譜未有食材，無法加入購物清單。請先補充食材（可用截圖辨識或手動新增）。" as any)); return; }
                 setEditIngs(ings);
                 // 預設只勾非調味料（與 IngredientPickerModal 一致）
                 const defaultSelected = new Set<number>();
@@ -1410,7 +1416,7 @@ export default function RecipeDetailScreen() {
                       <View key={it.id} style={s.shopItemRow}>
                         <Text style={s.shopItemName} numberOfLines={1}>{it.name}</Text>
                         {(it.quantity || it.unit) && (
-                          <Text style={s.shopItemQty}>{it.quantity || ""}{it.unit ? ` ${it.unit}` : ""}</Text>
+                          <Text style={s.shopItemQty}>{formatIngredientDisplay(it.quantity, it.unit)}</Text>
                         )}
                       </View>
                     ))}
@@ -1493,6 +1499,11 @@ export default function RecipeDetailScreen() {
               {showIngredients && (
                 <>
                   <View style={s.divider} />
+                  {adjustedIngredients.length === 0 && (
+                    <View style={{ paddingVertical: 16, paddingHorizontal: 2 }}>
+                      <Text style={{ fontSize: 13, color: SUB, lineHeight: 20 }}>{t("此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。" as any)}</Text>
+                    </View>
+                  )}
                   {adjustedIngredients.map((ing: any, i: number) => {
                     const isPackaged = PACKAGED_CATS.has(ing.category ?? "");
                     const isScaled = ratio !== 1 && !NON_SCALABLE_CATS.has(ing.category ?? "");
@@ -1589,6 +1600,11 @@ export default function RecipeDetailScreen() {
               {showSteps && (
                 <>
                   <View style={s.divider} />
+                  {steps.length === 0 && (
+                    <View style={{ paddingVertical: 16, paddingHorizontal: 2 }}>
+                      <Text style={{ fontSize: 13, color: SUB, lineHeight: 20 }}>{t("此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。" as any)}</Text>
+                    </View>
+                  )}
                   {steps.map((step: any, i: number) => {
                     const instruction = typeof step === "string" ? step : (step.instruction ?? step.description ?? step.step ?? "");
                     const tip = step.tip ?? step.tips ?? null;

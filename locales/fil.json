@@ -2183,5 +2183,16 @@
   "權限不足，請聯繫管理員": "Kulang ang permiso, kontakin ang admin",
   "請先加入家庭廚房或聯繫管理員": "Sumali muna sa family kitchen o kontakin ang admin",
   "等待 {{name}} 確認": "Naghihintay ng kumpirmasyon ni {{name}}",
-  "請添加{{label}}": "Magdagdag ng {{label}}"
+  "請添加{{label}}": "Magdagdag ng {{label}}",
+  "未命名食譜": "Walang pangalan na recipe",
+  "先儲存（只留名＋連結）": "I-save muna (pangalan + link lang)",
+  "儲存中…": "Nagse-save…",
+  "此食譜未有食材，無法加入購物清單。請先補充食材（可用截圖辨識或手動新增）。": "Walang sangkap ang recipe na ito, kaya hindi ito maidaragdag sa shopping list. Magdagdag muna ng sangkap (gamitin ang screenshot recognition o manu-manong pagdagdag).",
+  "截圖中未有可讀嘅食譜文字，請試更清晰、包含食材或步驟嘅截圖。": "Walang nababasang recipe text sa screenshot. Subukan ang mas malinaw na screenshot na may sangkap o hakbang.",
+  "用截圖補充（辨識食材／步驟）": "Magdagdag mula sa screenshot (kilalanin ang sangkap/hakbang)",
+  "內容未完整": "Hindi kumpleto ang nilalaman",
+  "{{platform}} 食譜": "{{platform}} Recipe",
+  "此食譜未有食材。可撳「編輯食譜」或「用截圖補充」加入。": "Wala pang sangkap ang recipe na ito. I-tap ang \"I-edit ang recipe\" o \"Magdagdag mula sa screenshot\".",
+  "此食譜未有步驟。可撳「編輯食譜」或「用截圖補充」加入。": "Wala pang hakbang ang recipe na ito. I-tap ang \"I-edit ang recipe\" o \"Magdagdag mula sa screenshot\".",
+  "上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。": "Mag-upload ng screenshot na may text ng sangkap/hakbang — makikilala at idadagdag sa kasalukuyang recipe (hindi mapapalitan)."
 }
