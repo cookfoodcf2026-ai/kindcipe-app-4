@@ -1124,6 +1124,16 @@ export default function RecipeDetailScreen() {
                 />
               )}
             </View>
+            {/* Edit button (user recipes only) */}
+            {isUserRecipe && (
+              <TouchableOpacity
+                style={[s.heroEdit, { backgroundColor: "rgba(255,255,255,0.9)" }]}
+                onPress={() => router.push({ pathname: "/recipe-editor", params: { id: recipeNumericId } })}
+                accessibilityLabel={t("編輯食譜" as any)}
+              >
+                <Ionicons name="create-outline" size={20} color="#013E77" />
+              </TouchableOpacity>
+            )}
             {/* Share button */}
             <TouchableOpacity
               style={[s.heroShare, { backgroundColor: "rgba(255,255,255,0.9)" }]}
@@ -2516,6 +2526,7 @@ const s = StyleSheet.create({
   heroGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 180, backgroundColor: "rgba(0,0,0,0.6)" },
   heroBack: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroCollection: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 64, alignItems: "center", justifyContent: "center" },
+  heroEdit: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 112, width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroShare: { position: "absolute", top: Platform.OS === "ios" ? 56 : 16, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   heroInfo: { position: "absolute", bottom: 16, left: 16, right: 16 },
   sourceLinkOverlay: { position: "absolute", bottom: 16, right: 16, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },

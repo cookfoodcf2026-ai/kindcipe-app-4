@@ -104,6 +104,8 @@ export default function ImportScreen() {
   const [parsedRecipe, setParsedRecipe] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
+  const [showFailMore, setShowFailMore] = useState(false);
+  const [showFailTips, setShowFailTips] = useState(false);
   const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string; extra?: { base64: string; mimeType: string }[] } | null>(null);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -114,6 +116,8 @@ export default function ImportScreen() {
   const mergeModeRef = useRef(false);
   // 手機端抓到嘅暫時縮圖（例如 IG CDN URL）→ 後端冇圖時做 preview，儲存時再上傳成永久圖
   const clientThumbRef = useRef<string | null>(null);
+  // 記住最近一次解析用嘅 caption（失敗存檔時可一併存落 description）
+  const lastCaptionRef = useRef<string>("");
   // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
   const clipboardSkipUntilRef = useRef(0);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -722,9 +726,14 @@ export default function ImportScreen() {
     }
     if (name.length > 60) name = name.slice(0, 60);
     if (!name) name = t("未命名食譜" as any);
+    const caption = lastCaptionRef.current || (clipboardContent ?? "");
+    const description = failedInput?.type === "text"
+      ? String(failedInput.value || "").slice(0, 500)
+      : caption.slice(0, 500);
     importMutation.mutate({
       name,
-      description: failedInput?.type === "text" ? String(failedInput.value || "").slice(0, 500) : "",
+      description,
+      image: clientThumbRef.current || undefined,
       ingredients: [],
       steps: [],
       tags: [],
@@ -866,6 +875,7 @@ export default function ImportScreen() {
     setUniversalInput(trimmed);
     startParseProgress();
     clientThumbRef.current = null;
+    lastCaptionRef.current = caption ? String(caption) : "";
     
     if (isValidUrl(trimmed)) {
       // For Instagram URLs, extract thumbnail URL and display immediately
@@ -1619,10 +1629,10 @@ export default function ImportScreen() {
             <View style={styles.centerContainer}>
               <Ionicons name="alert-circle" size={64} color="#EF4444" />
               <Text style={styles.failedTitle}>{t("importRecipe.parseFailed")}</Text>
-              <Text style={styles.failedMsg}>{errorMsg}</Text>
+              <Text style={styles.failedMsg}>{t("呢條連結／內容冇完整食譜，試下用截圖。" as any)}</Text>
 
               <View style={styles.failedActions}>
-                {/* 按鈕 1：換一張照片（主按鈕） */}
+                {/* 主掣：用截圖試（最常成功） */}
                 <TouchableOpacity
                   style={styles.tryScreenshotButton}
                   onPress={() => {
@@ -1634,42 +1644,11 @@ export default function ImportScreen() {
                 >
                   <Ionicons name="image" size={18} color="#fff" />
                   <Text style={styles.tryScreenshotText}>
-                    {t("換一張照片（拍清晰食物本體）" as any)}
+                    {t("用截圖試（辨識圖中食材／步驟）" as any)}
                   </Text>
                 </TouchableOpacity>
 
-                {/* 按鈕 2：貼上連結（次要） */}
-                <TouchableOpacity
-                  style={styles.tryTextButton}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setStep("input");
-                    setErrorMsg("");
-                    setFailedInput(null);
-                    // Preserve clipboardUrl and repost to input field
-                    if (clipboardUrl) {
-                      setUniversalInput(clipboardUrl);
-                    }
-                  }}
-                >
-                  <Ionicons name="link-outline" size={18} color="#013E77" />
-                  <Text style={styles.tryTextButtonText}>{t("importRecipe.tryAnotherLink")}</Text>
-                </TouchableOpacity>
-
-                {/* 按鈕 3：自訂食譜（帶入原連結） */}
-                <TouchableOpacity
-                  style={styles.tryTextButton}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    const url = failedInput?.type === "url" ? failedInput.value : (clipboardUrl ?? "");
-                    router.push({ pathname: "/recipe-editor", params: url ? { sourceUrl: url } : {} });
-                  }}
-                >
-                  <Ionicons name="create-outline" size={18} color="#013E77" />
-                  <Text style={styles.tryTextButtonText}>{t("importRecipe.customRecipe")}</Text>
-                </TouchableOpacity>
-
-                {/* 按鈕 4：先儲存（只留名＋連結），稍後再補內容 */}
+                {/* 次掣：先儲存（名＋連結＋封面），稍後再補 */}
                 {((failedInput?.type === "url" && !!failedInput.value) || failedInput?.type === "text") && (
                   <TouchableOpacity
                     style={styles.tryTextButton}
@@ -1682,6 +1661,50 @@ export default function ImportScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                {/* 更多選項（收埋） */}
+                <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>
+                  <Ionicons name={showFailMore ? "chevron-up" : "ellipsis-horizontal"} size={18} color="#013E77" />
+                  <Text style={styles.tryTextButtonText}>{showFailMore ? t("收起選項" as any) : t("更多選項" as any)}</Text>
+                </TouchableOpacity>
+                {showFailMore && (
+                  <>
+                    <TouchableOpacity
+                      style={styles.tryTextButton}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setStep("input");
+                        setErrorMsg("");
+                        setFailedInput(null);
+                        if (clipboardUrl) setUniversalInput(clipboardUrl);
+                      }}
+                    >
+                      <Ionicons name="link-outline" size={18} color="#013E77" />
+                      <Text style={styles.tryTextButtonText}>{t("importRecipe.tryAnotherLink")}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.tryTextButton}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        const url = failedInput?.type === "url" ? failedInput.value : (clipboardUrl ?? "");
+                        router.push({ pathname: "/recipe-editor", params: url ? { sourceUrl: url } : {} });
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={18} color="#013E77" />
+                      <Text style={styles.tryTextButtonText}>{t("importRecipe.customRecipe")}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                {/* 詳細提示（收埋，避免一版長文） */}
+                {!!errorMsg && (
+                  <TouchableOpacity onPress={() => setShowFailTips((v) => !v)} style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: "#6B7280", fontSize: 13, textAlign: "center" }}>
+                      {showFailTips ? t("收起提示" as any) : t("ℹ️ 睇多啲提示" as any)}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {showFailTips && <Text style={[styles.failedMsg, { marginTop: 4 }]}>{errorMsg}</Text>}
               </View>
             </View>
           </ScrollView>
