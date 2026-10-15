@@ -2231,5 +2231,10 @@
   "本次對話已達 {{n}} 張圖上限，請開始新對話": "Chat ini mencapai batas {{n}} gambar; mulai chat baru",
   "✅ 已換成「{{name}}」": "✅ Diganti ke \"{{name}}\"",
   "📚 食譜庫搵到相近替代：{{name}}": "📚 Menemukan yang mirip di perpustakaan: {{name}}",
-  "📚 已用食譜庫換成「{{name}}」": "📚 Diganti pakai resep perpustakaan \"{{name}}\""
+  "📚 已用食譜庫換成「{{name}}」": "📚 Diganti pakai resep perpustakaan \"{{name}}\"",
+  "已更新": "Diperbarui",
+  "邀請碼已重新產生，舊碼即時失效。": "Kode undangan dibuat ulang; kode lama tidak berlaku lagi.",
+  "重新產生邀請碼": "Buat ulang kode undangan",
+  "舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？": "Kode undangan lama langsung tidak berlaku; anggota yang sudah bergabung tidak terpengaruh. Lanjut?",
+  "重新產生": "Buat ulang"
 }

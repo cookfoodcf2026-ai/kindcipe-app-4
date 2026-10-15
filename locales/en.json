@@ -2231,5 +2231,10 @@
   "本次對話已達 {{n}} 張圖上限，請開始新對話": "This chat reached the {{n}}-image limit; start a new chat",
   "✅ 已換成「{{name}}」": "✅ Swapped to \"{{name}}\"",
   "📚 食譜庫搵到相近替代：{{name}}": "📚 Found a close match in library: {{name}}",
-  "📚 已用食譜庫換成「{{name}}」": "📚 Swapped using library recipe \"{{name}}\""
+  "📚 已用食譜庫換成「{{name}}」": "📚 Swapped using library recipe \"{{name}}\"",
+  "已更新": "Updated",
+  "邀請碼已重新產生，舊碼即時失效。": "Invite code regenerated; the old code is now invalid.",
+  "重新產生邀請碼": "Regenerate invite code",
+  "舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？": "The old invite code will be invalidated immediately; existing members are unaffected. Continue?",
+  "重新產生": "Regenerate"
 }

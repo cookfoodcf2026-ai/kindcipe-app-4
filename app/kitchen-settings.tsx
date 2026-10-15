@@ -177,6 +177,11 @@ export default function KitchenSettingsScreen() {
     onError: (e) => Alert.alert(t("解散失敗" as any), friendlyError(e)),
   });
 
+  const regenInviteM = trpc.family.regenerateInviteCode.useMutation({
+    onSuccess: () => { utils.family.get.invalidate(); Alert.alert(t("已更新" as any), t("邀請碼已重新產生，舊碼即時失效。" as any)); },
+    onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
+  });
+
   const settings = (activeFamily as any)?.settings ?? { approvalRequired: false };
   const members: any[] = (activeFamily as any)?.members ?? [];
 
@@ -530,6 +535,23 @@ export default function KitchenSettingsScreen() {
                   <Ionicons name="copy-outline" size={16} color={BRAND} />
                   <Text style={s.secondaryBtnText}>{t("kitchen.copy")}</Text>
                 </TouchableOpacity>
+                {isOwner && (
+                  <TouchableOpacity
+                    style={s.secondaryBtn}
+                    disabled={regenInviteM.isPending}
+                    onPress={() => Alert.alert(
+                      t("重新產生邀請碼" as any),
+                      t("舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？" as any),
+                      [
+                        { text: t("取消" as any), style: "cancel" },
+                        { text: t("確定" as any), style: "destructive", onPress: () => regenInviteM.mutate() },
+                      ],
+                    )}
+                  >
+                    <Ionicons name="refresh-outline" size={16} color={BRAND} />
+                    <Text style={s.secondaryBtnText}>{t("重新產生" as any)}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>

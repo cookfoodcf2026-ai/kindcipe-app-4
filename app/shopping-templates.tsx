@@ -1149,7 +1149,7 @@ export default function ShoppingTemplatesScreen() {
 
                             {/* Item Info */}
                             <View style={{ flex: 1 }}>
-                              <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{item.name}</Text>
+                              <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{localizeName(item)}</Text>
                               <Text style={s.itemQty}>
                                 {item.quantity} {enumUnit(item.unit)}
                                 {item.price ? ` · ${item.price}` : ''}
@@ -1276,9 +1276,9 @@ export default function ShoppingTemplatesScreen() {
                           </View>
                         </TouchableOpacity>
                         <View style={{ flex: 1 }}>
-                          <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{item.name}</Text>
+                          <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{localizeName(item)}</Text>
                           <Text style={s.itemQty}>
-                            {item.quantity} {item.unit}
+                            {item.quantity} {enumUnit(item.unit)}
                             {item.price ? ` · $${item.price}` : ''}
                           </Text>
                         </View>
