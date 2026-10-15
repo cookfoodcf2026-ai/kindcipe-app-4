@@ -1,17 +1,40 @@
 /**
- * useAuth — 認證狀態管理（Token-based 模式）
+ * useAuth — 認證狀態管理（Token-based 模式）+ 全域 Provider
  *
  * 登入後 token 存於 AsyncStorage，tRPC 請求透過 Authorization: Bearer header 附帶。
  * 支援多廚房切換：activeFamilyId 存於 AsyncStorage，tRPC 請求附帶 X-Family-Id header。
+ *
+ * 注意：呢個係 React Context Provider（`AuthProvider`）→ 全部 screen 共用同一份
+ * activeFamilyId／role，切廚房會即時同步所有已 mount 嘅 screen（以前係每個 screen
+ * 各自一份 state，切完其他 screen 停留舊廚房）。
  */
-import { useCallback, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { queryClient } from "@/lib/queryClient";
 
-export function useAuth() {
+type AuthValue = {
+  user: any;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  logout: () => void;
+  logoutAsync: () => Promise<void>;
+  logoutPending: boolean;
+  logoutError: unknown;
+  resetLogout: () => void;
+  refreshAuth: () => Promise<void>;
+  activeFamily: any;
+  activeFamilyId: string | null;
+  familyRole: string | null;
+  families: any[];
+  switchFamily: (familyId: string) => Promise<void>;
+};
+
+const AuthContext = createContext<AuthValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const utils = trpc.useUtils();
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(null);
@@ -41,29 +64,34 @@ export function useAuth() {
     staleTime: 1000 * 60 * 2,
   });
 
-  // 自動選取默認家庭：若無 activeFamilyId，設為第一個
+  // 選取／修正預設家庭：無 activeFamilyId，或 activeFamilyId 已唔存在（被刪/解散）→ 用第一個。
   useEffect(() => {
-    if (familyIdReady && !activeFamilyId && families.length > 0) {
-      const defaultId = String(families[0].id);
-      setActiveFamilyId(defaultId);
-      AsyncStorage.setItem(FAMILY_ID_KEY, defaultId);
+    if (!isAuthenticated || !familyIdReady || families.length === 0) return;
+    const valid = activeFamilyId && families.some((f: any) => String(f.id) === activeFamilyId);
+    if (!valid) {
+      const next = String(families[0].id);
+      setActiveFamilyId(next);
+      AsyncStorage.setItem(FAMILY_ID_KEY, next);
     }
-  }, [familyIdReady, activeFamilyId, families]);
+  }, [isAuthenticated, familyIdReady, families, activeFamilyId]);
 
-  // 主動切換家庭
+  // 主動切換家庭（同步 server isDefault，令 header-less 請求都啱）
+  const setActiveMutation = trpc.family.setActive.useMutation();
   const switchFamily = useCallback(
     async (familyId: string) => {
       setActiveFamilyId(familyId);
       await AsyncStorage.setItem(FAMILY_ID_KEY, familyId);
+      const n = parseInt(familyId, 10);
+      if (!isNaN(n)) { try { setActiveMutation.mutate({ familyId: n }); } catch { /* best-effort */ } }
       // 不等待 invalidate，讓它在背景刷新
       utils.invalidate();
     },
-    [utils],
+    [utils, setActiveMutation],
   );
 
   // 獲取當前活躍家庭的詳細資料（後端根據 X-Family-Id header 決定回傳哪個家庭）
   const familyIdNum = activeFamilyId ? parseInt(activeFamilyId, 10) : undefined;
-  const { data: activeFamily, refetch: refetchActiveFamily } = trpc.family.get.useQuery(
+  const { data: activeFamily } = trpc.family.get.useQuery(
     familyIdNum ? { id: familyIdNum } : undefined,
     {
       enabled: isAuthenticated && !!activeFamilyId,
@@ -76,7 +104,7 @@ export function useAuth() {
   const familyRole = (() => {
     if (!activeFamily?.members || !user) return null;
     const myMember = activeFamily.members.find(
-      (m: any) => m.userId === user.id,
+      (m: any) => String(m.userId) === String(user.id),
     );
     return myMember?.familyRole ?? null;
   })();
@@ -113,7 +141,7 @@ export function useAuth() {
     await utils.auth.me.invalidate();
   }, [utils]);
 
-  return {
+  const value = useMemo<AuthValue>(() => ({
     user,
     isLoading,
     isAuthenticated,
@@ -128,5 +156,17 @@ export function useAuth() {
     familyRole,
     families,
     switchFamily,
-  };
+  }), [
+    user, isLoading, isAuthenticated, logout, logoutAsync, logoutMutation.isPending,
+    logoutMutation.error, logoutMutation.reset, refreshAuth, activeFamily, activeFamilyId,
+    familyRole, families, switchFamily,
+  ]);
+
+  return React.createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth(): AuthValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
+  return ctx;
 }

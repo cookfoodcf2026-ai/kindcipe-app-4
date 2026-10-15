@@ -1809,7 +1809,7 @@ export default function PlannerTab() {
               fontWeight: "700",
               color: "#1A1A1A",
             }}>
-              正在加入排餐中...
+              {t("正在加入排餐中..." as any)}
             </Text>
           </View>
         </View>
@@ -1940,7 +1940,7 @@ export default function PlannerTab() {
             </View>
             <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("planner.setShoppingDate")}</Text>
             <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
-              共 {relatedShoppingItems.length} 項，購物日期唔可以遲過排餐日
+              {t("共 {{n}} 項，購物日期唔可以遲過排餐日" as any, { n: relatedShoppingItems.length })}
             </Text>
 
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
@@ -2481,7 +2481,7 @@ function SlotPickerModal({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "75%", minHeight: "50%" }}>
         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 選擇{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> {t("選擇" as any)}{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
             <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
               <Ionicons name="close" size={14} color="#6B7280" />
             </TouchableOpacity>
@@ -3042,7 +3042,7 @@ function SwapPickerRN({
         <View style={{ backgroundColor: "#FFFBF5", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "70%" }}>
           <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "#F0E8DC" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> 替換{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: "#1A1A1A" }}><Ionicons name={meta.icon as any} size={14} color={SLOT_COLORS[slotType]} /> {t("替換" as any)}{enumT.weekday(dayOfWeek)}{t(meta.label as any)}</Text>
               <TouchableOpacity onPress={onClose} style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 6 }}>
                 <Ionicons name="close" size={14} color="#6B7280" />
               </TouchableOpacity>

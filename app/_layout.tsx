@@ -19,6 +19,7 @@ import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { PendingShareProvider, usePendingShare } from "@/lib/pendingShare";
+import { AuthProvider } from "@/hooks/useAuth";
 import { trpc, createTrpcClient } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, TouchableOpacity, Text, Alert, AppState } from "react-native";
@@ -609,6 +610,7 @@ export default function RootLayout() {
           <I18nextProvider i18n={i18n}>
             <trpc.Provider client={trpcClient} queryClient={queryClient}>
               <QueryClientProvider client={queryClient}>
+                <AuthProvider>
                 <ToastProvider>
                   <StatusBar style="light" />
                   <AuthGuard>
@@ -669,6 +671,7 @@ export default function RootLayout() {
                 </Stack>
               </AuthGuard>
             </ToastProvider>
+                </AuthProvider>
           </QueryClientProvider>
         </trpc.Provider>
       </I18nextProvider>

@@ -26,14 +26,14 @@ const BORDER = "#E0EAF4";
 
 function formatDate(d: Date | string | null | undefined): string {
   if (!d) {
-    return "未定";
+    return i18n.t("未定" as any);
   }
   const date = typeof d === "string" ? new Date(d) : d;
   
   // 檢查是否為有效日期
   if (isNaN(date.getTime())) {
     console.warn('formatDate: Invalid date received:', d, new Date(String(d)));
-    return "未定";
+    return i18n.t("未定" as any);
   }
   
   const month = date.getMonth();
@@ -44,7 +44,7 @@ function formatDate(d: Date | string | null | undefined): string {
   // 如果 month 或 day 係 NaN，返回預設值
   if (isNaN(month) || isNaN(day)) {
     console.warn('formatDate: NaN month/day', { month, day, date });
-    return "未定";
+    return i18n.t("未定" as any);
   }
   
   const now = new Date();

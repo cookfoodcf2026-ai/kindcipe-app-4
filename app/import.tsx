@@ -749,9 +749,9 @@ export default function ImportScreen() {
     if (u.includes("instagram.com") || u.includes("ig.me")) return "Instagram";
     if (u.includes("youtube.com") || u.includes("youtu.be")) return "YouTube";
     if (u.includes("facebook.com") || u.includes("fb.com") || u.includes("fb.watch")) return "Facebook";
-    if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok/抖音";
-    if (u.includes("weibo.com")) return "微博";
-    if (u.includes("bilibili.com") || u.includes("b23.tv")) return "B 站";
+    if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok";
+    if (u.includes("weibo.com")) return "Weibo";
+    if (u.includes("bilibili.com") || u.includes("b23.tv")) return "Bilibili";
     return null;
   }
 
@@ -1462,7 +1462,7 @@ export default function ImportScreen() {
                     style={[es.ingInput, es.multilineInput, { marginBottom: 6 }]}
                     value={step.instruction}
                     onChangeText={v => updateStep(idx, "instruction", v)}
-                    placeholder={`第 ${idx + 1} 步驟說明...`}
+                    placeholder={t("第 {{n}} 步驟說明...", { n: idx + 1 })}
                     placeholderTextColor="#B0BAC9"
                     multiline
                     numberOfLines={2}

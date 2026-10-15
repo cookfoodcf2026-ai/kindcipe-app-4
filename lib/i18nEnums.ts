@@ -117,10 +117,10 @@ export const enumT = {
   },
   difficulty: (v: string): string => {
     const { key, fallback } = resolve("difficulty", DIFFICULTY_ANY, v);
-    if (!key) return fallback;
+    if (!key) return guardLeak(fallback);
     const k = `enums.difficulty.${key}`;
     const out = String(i18n.t(k as any));
-    return out === k ? fallback : out;
+    return guardLeak(out === k ? fallback : out);
   },
   tag: (v: string): string => {
     const { key, fallback } = resolve("tag", TAG_ZH_TO_KEY, v);
@@ -131,10 +131,10 @@ export const enumT = {
   },
   meal: (v: string): string => {
     const { key, fallback } = resolve("meal", MEAL_ZH_TO_KEY, v);
-    if (!key) return fallback;
+    if (!key) return guardLeak(fallback);
     const k = `enums.meal.${key}`;
     const out = String(i18n.t(k as any));
-    return out === k ? fallback : out;
+    return guardLeak(out === k ? fallback : out);
   },
   weekday: (n: number): string => i18n.t(`enums.weekday.${((n % 7) + 7) % 7}` as any),
   month: (m: number): string => i18n.t(`enums.month.${m}` as any),
@@ -164,9 +164,9 @@ export function useEnum() {
       if (UNIT_ZH_TO_KEY[s]) return unitL(s);
       return guardLeak(s);
     },
-    difficulty: (v: string): string => tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? "")),
+    difficulty: (v: string): string => guardLeak(tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? ""))),
     tag: (v: string): string => guardLeak(tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? ""))),
-    meal: (v: string): string => tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? "")),
+    meal: (v: string): string => guardLeak(tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? ""))),
     weekday: (n: number): string => t(`enums.weekday.${n}` as any),
     month: (m: number): string => t(`enums.month.${m}` as any),
   };

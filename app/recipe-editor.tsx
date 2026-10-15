@@ -364,7 +364,7 @@ const scrollToFocused = useCallback((e: any) => {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ["📷 影相", "🖼 從相簿選擇", "取消"],
+          options: [t("📷 影相" as any), t("🖼 從相簿選擇" as any), t("取消" as any)],
           cancelButtonIndex: 2,
         },
         (btnIdx) => {
@@ -912,7 +912,7 @@ const scrollToFocused = useCallback((e: any) => {
                     if (ref) stepInputRefs.current.set(step.id, ref);
                     else stepInputRefs.current.delete(step.id);
                   }}
-                  placeholder={`第 ${idx + 1} 步驟說明...`}
+                  placeholder={t("第 {{n}} 步驟說明...", { n: idx + 1 })}
                   placeholderTextColor={HINT} multiline numberOfLines={2} />
 
                 {/* Step image thumbnail */}

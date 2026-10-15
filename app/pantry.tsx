@@ -15,6 +15,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { useToast } from "@/src/components/Toast";
 import { friendlyError } from "@/lib/errors";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
+import { enumT } from "@/lib/i18nEnums";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -177,7 +178,7 @@ export default function PantryScreen() {
                   disabled={addFromShoppingM.isPending}
                 >
                   <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>
-                    入庫({boughtItems.length})
+                    {t("入庫（{{n}}）" as any, { n: boughtItems.length })}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -293,9 +294,11 @@ export default function PantryScreen() {
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: "800", color: meta.label }}>{cat}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: meta.label }}>{enumT.category(cat)}</Text>
                     <Text style={{ fontSize: 10, color: meta.label, opacity: 0.7 }}>
-                      {inStockInCat}/{items.length} 有貨{items.filter((i: any) => i.isLow).length > 0 ? ` · ${items.filter((i: any) => i.isLow).length} 件即將耗盡` : ""}
+                      {items.filter((i: any) => i.isLow).length > 0
+                        ? t("{{a}}/{{b}} 有貨 · {{n}} 件即將耗盡" as any, { a: inStockInCat, b: items.length, n: items.filter((i: any) => i.isLow).length })
+                        : t("{{a}}/{{b}} 有貨" as any, { a: inStockInCat, b: items.length })}
                     </Text>
                   </View>
                   <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={16} color={meta.label} />
@@ -381,7 +384,7 @@ export default function PantryScreen() {
                     style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: newCategory === cat ? BRAND : "#F1F5F9", borderWidth: 1, borderColor: newCategory === cat ? BRAND : BORDER }}
                     onPress={() => setNewCategory(cat)}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: newCategory === cat ? "#fff" : SUB }}>{cat}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: newCategory === cat ? "#fff" : SUB }}>{enumT.category(cat)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

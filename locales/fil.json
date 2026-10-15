@@ -2202,5 +2202,20 @@
   "收起選項": "Itago ang mga opsyon",
   "更多選項": "Higit pang opsyon",
   "ℹ️ 睇多啲提示": "ℹ️ Higit pang tip",
-  "收起提示": "Itago ang mga tip"
+  "收起提示": "Itago ang mga tip",
+  "第 {{n}} 步驟說明...": "Step {{n}} na tagubilin...",
+  "📷 影相": "📷 Kunan ng litrato",
+  "🖼 從相簿選擇": "🖼 Pumili mula sa library",
+  "dyn.md": "{{m}}/{{d}}",
+  "未定": "Hindi pa sigurado",
+  "入庫（{{n}}）": "Stock in ({{n}})",
+  "{{a}}/{{b}} 有貨": "{{a}}/{{b}} may stock",
+  "{{a}}/{{b}} 有貨 · {{n}} 件即將耗盡": "{{a}}/{{b}} may stock · {{n}} malapit nang maubos",
+  "正在加入排餐中...": "Idinaragdag sa meal plan...",
+  "共 {{n}} 項，購物日期唔可以遲過排餐日": "{{n}} items; hindi pwedeng mas huli ang shopping date sa meal date",
+  "選擇": "Pumili",
+  "替換": "Palitan",
+  "份量需為正整數": "Dapat positibong integer ang servings",
+  "烹調時間需為正整數（分鐘）": "Dapat positibong integer ang cook time (minuto)",
+  "備料時間需為正整數（分鐘）": "Dapat positibong integer ang prep time (minuto)"
 }

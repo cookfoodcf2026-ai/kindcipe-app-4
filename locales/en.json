@@ -2202,5 +2202,20 @@
   "收起選項": "Hide options",
   "更多選項": "More options",
   "ℹ️ 睇多啲提示": "ℹ️ More tips",
-  "收起提示": "Hide tips"
+  "收起提示": "Hide tips",
+  "第 {{n}} 步驟說明...": "Step {{n}} instruction...",
+  "📷 影相": "📷 Take photo",
+  "🖼 從相簿選擇": "🖼 Choose from library",
+  "dyn.md": "{{m}}/{{d}}",
+  "未定": "Undecided",
+  "入庫（{{n}}）": "Stock in ({{n}})",
+  "{{a}}/{{b}} 有貨": "{{a}}/{{b}} in stock",
+  "{{a}}/{{b}} 有貨 · {{n}} 件即將耗盡": "{{a}}/{{b}} in stock · {{n}} running low",
+  "正在加入排餐中...": "Adding to meal plan...",
+  "共 {{n}} 項，購物日期唔可以遲過排餐日": "{{n}} items; shopping date can't be later than the meal date",
+  "選擇": "Select",
+  "替換": "Replace",
+  "份量需為正整數": "Servings must be a positive integer",
+  "烹調時間需為正整數（分鐘）": "Cook time must be a positive integer (minutes)",
+  "備料時間需為正整數（分鐘）": "Prep time must be a positive integer (minutes)"
 }

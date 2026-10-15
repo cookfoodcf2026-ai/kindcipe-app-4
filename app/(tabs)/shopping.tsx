@@ -1494,7 +1494,7 @@ export default function ShoppingTab() {
             <ScrollView style={styles.modalBody}>
               {items.filter(i => i.status !== "bought").map((item: any) => (
                 <View key={item.id} style={styles.priceSummaryRow}>
-                  <Text style={styles.priceSummaryName}>{item.name}</Text>
+                  <Text style={styles.priceSummaryName}>{getDisplayName(item.name, item.nameEn, item.nameFil, item.nameId).primary || item.name}</Text>
                   <Text style={styles.priceSummaryPrice}>
                     {item.estimatedPrice ? `$${item.estimatedPrice}` : t("未定價" as any)}
                   </Text>

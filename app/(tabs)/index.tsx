@@ -139,7 +139,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
       if (diffDays === 0) badge = t("今天" as any);
       else if (diffDays === 1) badge = t("明天" as any);
       else if (diffDays === 2) badge = t("後天" as any);
-      else badge = `${date.getMonth() + 1}月${date.getDate()}日`;
+      else badge = t("dyn.md", { m: date.getMonth() + 1, d: date.getDate() });
     }
     
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(m), badge });
@@ -250,7 +250,7 @@ function ShoppingListPreview({ router }: {
     
     // Show full date (e.g., 8 月 10 日)
     const date = new Date(firstItemDate);
-    return `${date.getMonth() + 1}月${date.getDate()}日`;
+    return i18n.t("dyn.md", { m: date.getMonth() + 1, d: date.getDate() });
   }, [itemsToShow, todayStr]);
 
   return (
@@ -459,12 +459,12 @@ export default function RecipesTab() {
   const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
   const { user, familyRole } = useAuth();
 
-  const greeting = useMemo(() => {
+  const greeting = (() => {
     const hour = new Date().getHours();
-    if (hour < 12) return i18n.t("home.goodMorning");
-    if (hour < 18) return i18n.t("home.goodAfternoon");
-    return i18n.t("home.goodEvening");
-  }, [i18n.language]);
+    if (hour < 12) return t("home.goodMorning");
+    if (hour < 18) return t("home.goodAfternoon");
+    return t("home.goodEvening");
+  })();
 
   // Scroll-to-top floating button
   const listRef = useRef<FlatList>(null);

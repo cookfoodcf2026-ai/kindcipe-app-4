@@ -2202,5 +2202,20 @@
   "收起選項": "Sembunyikan opsi",
   "更多選項": "Opsi lainnya",
   "ℹ️ 睇多啲提示": "ℹ️ Tips lainnya",
-  "收起提示": "Sembunyikan tips"
+  "收起提示": "Sembunyikan tips",
+  "第 {{n}} 步驟說明...": "Instruksi langkah {{n}}...",
+  "📷 影相": "📷 Ambil foto",
+  "🖼 從相簿選擇": "🖼 Pilih dari galeri",
+  "dyn.md": "{{m}}/{{d}}",
+  "未定": "Belum ditentukan",
+  "入庫（{{n}}）": "Stok masuk ({{n}})",
+  "{{a}}/{{b}} 有貨": "{{a}}/{{b}} tersedia",
+  "{{a}}/{{b}} 有貨 · {{n}} 件即將耗盡": "{{a}}/{{b}} tersedia · {{n}} hampir habis",
+  "正在加入排餐中...": "Menambahkan ke rencana makan...",
+  "共 {{n}} 項，購物日期唔可以遲過排餐日": "{{n}} item; tanggal belanja tidak boleh lewat dari tanggal makan",
+  "選擇": "Pilih",
+  "替換": "Ganti",
+  "份量需為正整數": "Porsi harus bilangan bulat positif",
+  "烹調時間需為正整數（分鐘）": "Waktu memasak harus bilangan bulat positif (menit)",
+  "備料時間需為正整數（分鐘）": "Waktu persiapan harus bilangan bulat positif (menit)"
 }

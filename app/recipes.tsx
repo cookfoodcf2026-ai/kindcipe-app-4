@@ -358,7 +358,7 @@ export default function RecipesPage() {
             {activeCategory !== "all" && (
               <View style={s.smartToken}>
                 <Text style={s.smartTokenTxt}>
-                  {categories.find(c => c.key === activeCategory)?.emoji || "🍽️"} {categories.find(c => c.key === activeCategory)?.label || activeCategory}
+                  {categories.find(c => c.key === activeCategory)?.emoji || "🍽️"} {enumT.category(categories.find(c => c.key === activeCategory)?.label || activeCategory)}
                 </Text>
                 <TouchableOpacity onPress={() => setActiveCategory("all")}>
                   <Ionicons name="close" size={12} color="#fff" />
