@@ -1240,9 +1240,7 @@ export default function ImportScreen() {
         <ActivityIndicator size="large" color="#013E77" />
         <Text style={styles.parsingTitle}>{t("importRecipe.parsing")}</Text>
         <Text style={styles.parsingSubtitle}>
-          {parseStepIndex < PARSE_STEPS.length - 1
-            ? t("通常需要 10-30 秒，請耐心等候" as any)
-            : t("即將完成..." as any)}
+          {t("通常需要 10-30 秒，請耐心等候（如連結內容較長會耐少少）" as any)}
         </Text>
         <View style={styles.parsingSteps}>
           {PARSE_STEPS.map((s, i) => {
@@ -1286,7 +1284,8 @@ export default function ImportScreen() {
             <Text style={styles.previewSubtitle}>{t("importRecipe.parseSuccessSub")}</Text>
           </View>
 
-          {/* 用截圖補充（辨識食材/步驟）— Pro */}
+          {/* 用截圖補充（辨識食材/步驟）— 只在內容未完整時顯示；Pro */}
+          {(editIngredients.length === 0 || editSteps.length === 0) && (
           <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
             <TouchableOpacity
               style={[styles.tryScreenshotButton, { backgroundColor: "#7C3AED" }]}
@@ -1300,6 +1299,7 @@ export default function ImportScreen() {
               {t("上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。" as any)}
             </Text>
           </View>
+          )}
 
           {/* Image section */}
           <TouchableOpacity style={es.card} onPress={handlePickRecipeImage}>

@@ -464,7 +464,7 @@ export default function RecipesTab() {
     if (hour < 12) return i18n.t("home.goodMorning");
     if (hour < 18) return i18n.t("home.goodAfternoon");
     return i18n.t("home.goodEvening");
-  }, []);
+  }, [i18n.language]);
 
   // Scroll-to-top floating button
   const listRef = useRef<FlatList>(null);
