@@ -2217,5 +2217,19 @@
   "替換": "Palitan",
   "份量需為正整數": "Dapat positibong integer ang servings",
   "烹調時間需為正整數（分鐘）": "Dapat positibong integer ang cook time (minuto)",
-  "備料時間需為正整數（分鐘）": "Dapat positibong integer ang prep time (minuto)"
+  "備料時間需為正整數（分鐘）": "Dapat positibong integer ang prep time (minuto)",
+  "已設定外出（刪除 {{n}} 個排餐）": "Na-set ang day off (tinanggal {{n}} meals)",
+  "批量排餐失敗：{{msg}}": "Nabigo ang bulk plan: {{msg}}",
+  "套用失敗：{{msg}}": "Nabigo ang apply: {{msg}}",
+  "✅ {{n}} 件食材已加入購物清單": "✅ {{n}} sangkap naidagdag sa shopping list",
+  "加入食材失敗：{{msg}}": "Nabigo ang pagdagdag ng sangkap: {{msg}}",
+  "新增失敗：{{msg}}": "Nabigo ang pagdagdag: {{msg}}",
+  "已將 {{n}} 件已買商品入庫": "Na-stock in ang {{n}} biniling item",
+  "已將 {{n}} 件缺貨商品加入購物清單": "Naidagdag ang {{n}} out-of-stock item sa shopping list",
+  "已將 {{n}} 件即將耗盡商品加入購物清單": "Naidagdag ang {{n}} low-stock item sa shopping list",
+  "✅ 已加入排餐（{{date}} {{label}}）": "✅ Naidagdag sa meal plan ({{date}} {{label}})",
+  "本次對話已達 {{n}} 張圖上限，請開始新對話": "Naabot ng chat na ito ang {{n}}-image limit; magsimula ng bagong chat",
+  "✅ 已換成「{{name}}」": "✅ Pinalitan ng \"{{name}}\"",
+  "📚 食譜庫搵到相近替代：{{name}}": "📚 May malapit na kapareho sa library: {{name}}",
+  "📚 已用食譜庫換成「{{name}}」": "📚 Pinalitan gamit ang library recipe \"{{name}}\""
 }

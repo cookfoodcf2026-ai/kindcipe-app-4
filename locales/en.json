@@ -2217,5 +2217,19 @@
   "替換": "Replace",
   "份量需為正整數": "Servings must be a positive integer",
   "烹調時間需為正整數（分鐘）": "Cook time must be a positive integer (minutes)",
-  "備料時間需為正整數（分鐘）": "Prep time must be a positive integer (minutes)"
+  "備料時間需為正整數（分鐘）": "Prep time must be a positive integer (minutes)",
+  "已設定外出（刪除 {{n}} 個排餐）": "Day off set (removed {{n}} meals)",
+  "批量排餐失敗：{{msg}}": "Bulk plan failed: {{msg}}",
+  "套用失敗：{{msg}}": "Apply failed: {{msg}}",
+  "✅ {{n}} 件食材已加入購物清單": "✅ {{n}} ingredients added to shopping list",
+  "加入食材失敗：{{msg}}": "Failed to add ingredients: {{msg}}",
+  "新增失敗：{{msg}}": "Add failed: {{msg}}",
+  "已將 {{n}} 件已買商品入庫": "Stocked in {{n}} bought items",
+  "已將 {{n}} 件缺貨商品加入購物清單": "Added {{n}} out-of-stock items to shopping list",
+  "已將 {{n}} 件即將耗盡商品加入購物清單": "Added {{n}} low-stock items to shopping list",
+  "✅ 已加入排餐（{{date}} {{label}}）": "✅ Added to meal plan ({{date}} {{label}})",
+  "本次對話已達 {{n}} 張圖上限，請開始新對話": "This chat reached the {{n}}-image limit; start a new chat",
+  "✅ 已換成「{{name}}」": "✅ Swapped to \"{{name}}\"",
+  "📚 食譜庫搵到相近替代：{{name}}": "📚 Found a close match in library: {{name}}",
+  "📚 已用食譜庫換成「{{name}}」": "📚 Swapped using library recipe \"{{name}}\""
 }

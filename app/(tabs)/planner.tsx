@@ -401,7 +401,7 @@ export default function PlannerTab() {
       if (variables.eatOut) {
         const mealsOnDate = mealsByDate[variables.date] || [];
         if (mealsOnDate.length > 0) {
-          showToast(`已設定外出（刪除 ${mealsOnDate.length} 個排餐）`, "info");
+          showToast(t("已設定外出（刪除 {{n}} 個排餐）" as any, { n: mealsOnDate.length }), "info");
         } else {
           showToast("已設定外出");
         }
@@ -441,7 +441,7 @@ export default function PlannerTab() {
       showToast(message);
     },
     onError: (e) => {
-      showToast(`批量排餐失敗：${friendlyError(e)}`, "error");
+      showToast(t("批量排餐失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
 
@@ -555,7 +555,7 @@ export default function PlannerTab() {
       );
     } catch (e: any) {
       console.error("[handleApplyToday] Error:", e);
-      showToast(`套用失敗：${friendlyError(e)}`, "error");
+      showToast(t("套用失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     }
   };
 
@@ -564,11 +564,11 @@ export default function PlannerTab() {
       const count = variables.items.length;
       track(Events.ShoppingListGenerated, { count });
       setPickerRecipe(null);
-      showToast(`✅ ${count} 件食材已加入購物清單`);
+      showToast(t("✅ {{n}} 件食材已加入購物清單" as any, { n: count }));
       void invalidateAll();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${friendlyError(e)}`, "error");
+      showToast(t("加入食材失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
 
@@ -618,7 +618,7 @@ export default function PlannerTab() {
       pendingIngredientsRef.current = null;
       addMealLockRef.current = false;
       setIsAddingMeal(false); // 確保錯誤時都關閉 Loading
-      showToast(`新增失敗：${friendlyError(e)}`, "error");
+      showToast(t("新增失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
 

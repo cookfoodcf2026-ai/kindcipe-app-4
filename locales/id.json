@@ -2217,5 +2217,19 @@
   "替換": "Ganti",
   "份量需為正整數": "Porsi harus bilangan bulat positif",
   "烹調時間需為正整數（分鐘）": "Waktu memasak harus bilangan bulat positif (menit)",
-  "備料時間需為正整數（分鐘）": "Waktu persiapan harus bilangan bulat positif (menit)"
+  "備料時間需為正整數（分鐘）": "Waktu persiapan harus bilangan bulat positif (menit)",
+  "已設定外出（刪除 {{n}} 個排餐）": "Hari libur diset (menghapus {{n}} jadwal)",
+  "批量排餐失敗：{{msg}}": "Rencana massal gagal: {{msg}}",
+  "套用失敗：{{msg}}": "Gagal menerapkan: {{msg}}",
+  "✅ {{n}} 件食材已加入購物清單": "✅ {{n}} bahan ditambahkan ke daftar belanja",
+  "加入食材失敗：{{msg}}": "Gagal menambah bahan: {{msg}}",
+  "新增失敗：{{msg}}": "Gagal menambah: {{msg}}",
+  "已將 {{n}} 件已買商品入庫": "Stok masuk {{n}} item yang dibeli",
+  "已將 {{n}} 件缺貨商品加入購物清單": "Menambahkan {{n}} item kehabisan stok ke daftar belanja",
+  "已將 {{n}} 件即將耗盡商品加入購物清單": "Menambahkan {{n}} item hampir habis ke daftar belanja",
+  "✅ 已加入排餐（{{date}} {{label}}）": "✅ Ditambahkan ke rencana makan ({{date}} {{label}})",
+  "本次對話已達 {{n}} 張圖上限，請開始新對話": "Chat ini mencapai batas {{n}} gambar; mulai chat baru",
+  "✅ 已換成「{{name}}」": "✅ Diganti ke \"{{name}}\"",
+  "📚 食譜庫搵到相近替代：{{name}}": "📚 Menemukan yang mirip di perpustakaan: {{name}}",
+  "📚 已用食譜庫換成「{{name}}」": "📚 Diganti pakai resep perpustakaan \"{{name}}\""
 }

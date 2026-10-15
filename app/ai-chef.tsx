@@ -1616,7 +1616,7 @@ export default function AIChefScreen() {
             : [];
           openShoppingSelection([currentRecipe], getDayBefore(variables.date), variables.date, [result.newPlanId]);
         } else {
-          showToast(`✅ 已加入排餐 (${formatDateLabel(variables.date)} ${mealTypeLabel})`);
+          showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
         }
 
         void invalidateMealPlanAndCart();
@@ -1669,7 +1669,7 @@ export default function AIChefScreen() {
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
-      showToast(`加入食材失敗：${friendlyError(e)}`);
+      showToast(t("加入食材失敗：{{msg}}" as any, { msg: friendlyError(e) }));
     },
   });
 
@@ -1724,7 +1724,7 @@ export default function AIChefScreen() {
           (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
         ).length;
         if (imageCount >= MAX_IMAGES_PER_SESSION) {
-          showToast(`本次對話已達 ${MAX_IMAGES_PER_SESSION} 張圖上限，請開始新對話`);
+          showToast(t("本次對話已達 {{n}} 張圖上限，請開始新對話" as any, { n: MAX_IMAGES_PER_SESSION }));
           return;
         }
 
@@ -2798,7 +2798,7 @@ export default function AIChefScreen() {
 
         if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
           replaceRecipeAtIndex(index, candidate);
-          showToast(`✅ 已換成「${candidate.name}」`);
+          showToast(t("✅ 已換成「{{name}}」" as any, { name: candidate.name }));
           recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
           setSwappedRecipeNames(prev => {
             const newSet = new Set(prev);
@@ -2808,9 +2808,9 @@ export default function AIChefScreen() {
         } else {
           const fallback = pickLibraryFallback();
           if (fallback && getDishType(fallback) === cardDishType && !swappedRecipeNames.has(fallback.name) && !isDuplicateRecipeName(fallback.name, sessionAvoidNames)) {
-            showToast(`📚 食譜庫搵到相近替代：${fallback.name}`);
+            showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: fallback.name }));
             replaceRecipeAtIndex(index, fallback);
-            showToast(`✅ 已換成「${fallback.name}」`);
+            showToast(t("✅ 已換成「{{name}}」" as any, { name: fallback.name }));
             recordSeenRecipes([fallback]);
             setSwappedRecipeNames(prev => {
               const newSet = new Set(prev);
@@ -2853,7 +2853,7 @@ export default function AIChefScreen() {
       replaceRecipeAtIndex(index, libraryPicked);
       recordSeenRecipes([libraryPicked]);
       recordSwappedName(libraryPicked.name);
-      showToast(`📚 已用食譜庫換成「${libraryPicked.name}」`);
+      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
       return;
     }
     showToast(t("aiChef.swapNoLibrary" as any), {

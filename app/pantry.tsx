@@ -94,7 +94,7 @@ export default function PantryScreen() {
     onSuccess: () => utils.pantry.list.invalidate(),
   });
   const addFromShoppingM = trpc.pantry.addFromShopping.useMutation({
-    onSuccess: (result: any) => { utils.pantry.list.invalidate(); showToast(`已將 ${result.count} 件已買商品入庫`); },
+    onSuccess: (result: any) => { utils.pantry.list.invalidate(); showToast(t("已將 {{n}} 件已買商品入庫" as any, { n: result.count })); },
     onError: (e) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.add.useMutation({
@@ -254,7 +254,7 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>{t("dyn.outOfStockN", { n: outOfStockItems.length })}</Text>
               <Text style={{ fontSize: 10, color: "#991B1B", marginTop: 1 }}>{outOfStockItems.slice(0, 3).map((i: any) => i.name).join("、")}{outOfStockItems.length > 3 ? t("dyn.etcN", { n: outOfStockItems.length }) : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${outOfStockItems.length}件缺貨商品加入購物清單`); }}>
+            <TouchableOpacity style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { outOfStockItems.forEach((i: any) => handleAddToShopping(i)); showToast(t("已將 {{n}} 件缺貨商品加入購物清單" as any, { n: outOfStockItems.length })); }}>
               <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{t("pantry.addToPurchase")}</Text>
             </TouchableOpacity>
           </View>
@@ -268,7 +268,7 @@ export default function PantryScreen() {
               <Text style={{ fontSize: 12, fontWeight: "700", color: BRAND }}>{t("dyn.runningLowN", { n: lowItems.length })}</Text>
               <Text style={{ fontSize: 10, color: "#78350F", marginTop: 1 }}>{lowItems.slice(0, 3).map((i: any) => i.name).join("、")}{lowItems.length > 3 ? t("dyn.etcN", { n: lowItems.length }) : ""}</Text>
             </View>
-            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); showToast(`已將${lowItems.length}件即將耗盡商品加入購物清單`); }}>
+            <TouchableOpacity style={{ backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }} onPress={() => { lowItems.forEach((i: any) => handleAddToShopping(i)); showToast(t("已將 {{n}} 件即將耗盡商品加入購物清單" as any, { n: lowItems.length })); }}>
               <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>{t("pantry.addToPurchase")}</Text>
             </TouchableOpacity>
           </View>
