@@ -2260,5 +2260,10 @@
   "✨ 睇相生成食譜（AI，非原帖）": "✨ Buat resep dari foto (AI, bukan asli)",
   "✨ 生成食譜（AI，非原帖）": "✨ Buat resep (AI, bukan asli)",
   "📷 用截圖補充（要有文字）": "📷 Tambah dari screenshot (harus ada teks)",
-  "請稍等，可能需要 10-30 秒": "Mohon tunggu, mungkin 10-30 detik"
+  "請稍等，可能需要 10-30 秒": "Mohon tunggu, mungkin 10-30 detik",
+  "✨ 補齊做法（AI 建議）": "✨ Lengkapi langkah yang kurang (saran AI)",
+  "補齊中…": "Melengkapi…",
+  "補齊失敗": "Gagal melengkapi",
+  "已補齊": "Dilengkapi",
+  "已加入 AI 建議做法（可再編輯）。": "Langkah saran AI ditambahkan (bisa diedit)."
 }

@@ -781,6 +781,32 @@ export default function RecipeDetailScreen() {
     },
     onError: (e: any) => Alert.alert(t("失敗" as any), friendlyError(e)),
   });
+  // AI 補齊做法（有據、標示 AI）→ 更新現有食譜
+  const fillStepsM = trpc.aiRecipe.fillSteps.useMutation({
+    onSuccess: async (data: any) => {
+      const r = data?.recipe;
+      if (!r || !Array.isArray(r.steps) || r.steps.length === 0) { Alert.alert(t("補齊失敗" as any), t("請再試一次" as any)); return; }
+      try {
+        await updateTagsM.mutateAsync({
+          id: recipeNumericId,
+          name: recipe?.name ?? "",
+          description: (recipe as any)?.description ?? "",
+          cookTime: recipe?.cookTime ?? 30,
+          servings: recipe?.servings ?? 4,
+          difficulty: (recipe as any)?.difficulty ?? "中等",
+          recipeCategory: (recipe as any)?.recipeCategory ?? "mixed",
+          ingredients: adjustedIngredients.map((i: any) => ({ name: i.name, quantity: i.quantity, unit: i.unit })),
+          steps: r.steps.map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? "") })),
+          stepsEn: r.stepsEn, stepsFil: r.stepsFil, stepsId: r.stepsId,
+          tags: [...(localTags ?? (recipe as any)?.tags ?? []), "AI 建議"],
+        } as any);
+        await recipeQ.refetch();
+        Alert.alert(t("已補齊" as any), t("已加入 AI 建議做法（可再編輯）。" as any));
+      } catch { /* updateTagsM.onError 已處理 */ }
+    },
+    onError: (e: any) => Alert.alert(t("補齊失敗" as any), friendlyError(e)),
+  });
+
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: (result) => {
       // 檢查排餐是否成功
@@ -788,7 +814,7 @@ export default function RecipeDetailScreen() {
         Alert.alert(t("排餐失敗" as any), t("請稍後再試" as any), [{ text: t("確定" as any) }]);
         return;
       }
-      
+
       const ings = adjustedIngredients
         .filter((ing: any) => !isPlaceholderIngredientName(ing?.name))
         .map((ing: any) => ({
@@ -1338,6 +1364,19 @@ export default function RecipeDetailScreen() {
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
+              {isUserRecipe && adjustedIngredients.length > 0 && (
+                <TouchableOpacity style={s.btnAI} disabled={fillStepsM.isPending} onPress={() => {
+                  fillStepsM.mutate({
+                    name: recipe?.name ?? "",
+                    description: (recipe as any)?.description ?? "",
+                    ingredients: adjustedIngredients.map((i: any) => ({ name: i.name, quantity: i.quantity, unit: i.unit })),
+                    steps: steps.map((s: any) => (typeof s === "string" ? s : (s.instruction ?? ""))).filter(Boolean),
+                  } as any);
+                }}>
+                  <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                  <Text style={s.btnAITxt}>{fillStepsM.isPending ? t("補齊中…" as any) : t("✨ 補齊做法（AI 建議）" as any)}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* 網紅白名單：提交到網紅頁 */}
