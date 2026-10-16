@@ -2265,5 +2265,12 @@
   "補齊中…": "Melengkapi…",
   "補齊失敗": "Gagal melengkapi",
   "已補齊": "Dilengkapi",
-  "已加入 AI 建議做法（可再編輯）。": "Langkah saran AI ditambahkan (bisa diedit)."
+  "已加入 AI 建議做法（可再編輯）。": "Langkah saran AI ditambahkan (bisa diedit).",
+  "分享": "Bagikan",
+  "改角色": "Ubah peran",
+  "轉換主人": "Alihkan kepemilikan",
+  "確定要將主人身分轉移俾呢位成員？你將會變成家庭成員。": "Alihkan kepemilikan ke anggota ini? Kamu akan menjadi anggota biasa.",
+  "進階": "Lanjutan",
+  "邀請家人／姐姐用呢個碼加入廚房": "Undang keluarga / asisten dengan kode ini",
+  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Gabung ke dapur Kindcipe saya dengan kode {{code}}"
 }

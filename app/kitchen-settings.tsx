@@ -13,6 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
+import { shareOrCopy } from "@/lib/share";
 
 const BRAND = "#013E77";
 const BG = "#F5F8FC";
@@ -201,10 +202,19 @@ export default function KitchenSettingsScreen() {
     const familyIdNum = Number(activeFamilyId);
     if (isNaN(familyIdNum)) return;
     if (newRole === "owner") {
-      transferOwnershipM.mutate({ userId });
-    } else {
-      updateRoleM.mutate({ familyId: familyIdNum, userId, role: newRole as any });
+      setShowRolePicker(false);
+      setChangingRole(null);
+      Alert.alert(
+        t("轉換主人" as any),
+        t("確定要將主人身分轉移俾呢位成員？你將會變成家庭成員。" as any),
+        [
+          { text: t("取消" as any), style: "cancel" },
+          { text: t("確定" as any), style: "destructive", onPress: () => transferOwnershipM.mutate({ userId }) },
+        ],
+      );
+      return;
     }
+    updateRoleM.mutate({ familyId: familyIdNum, userId, role: newRole as any });
     setShowRolePicker(false);
     setChangingRole(null);
   };
@@ -405,6 +415,46 @@ export default function KitchenSettingsScreen() {
           )}
         </View>
 
+        {hasKitchen && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>{t("kitchen.inviteCode")}</Text>
+            <View style={s.card}>
+              <Text style={{ fontSize: 26, fontWeight: "900", color: BRAND, letterSpacing: 4, textAlign: "center", marginBottom: 4 }}>
+                {(activeFamily as any)?.inviteCode ?? "---"}
+              </Text>
+              <Text style={{ fontSize: 12, color: SUB, textAlign: "center", marginBottom: 12 }}>{t("邀請家人／姐姐用呢個碼加入廚房" as any)}</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity style={[s.secondaryBtn, { flex: 1, justifyContent: "center" }]} onPress={async () => {
+                  const code = (activeFamily as any)?.inviteCode;
+                  if (code) { await Clipboard.setStringAsync(code); Alert.alert(t("已複製" as any), t("邀請碼 {{code}} 已複製到剪貼簿" as any, { code })); }
+                }}>
+                  <Ionicons name="copy-outline" size={16} color={BRAND} />
+                  <Text style={s.secondaryBtnText}>{t("kitchen.copy")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.secondaryBtn, { flex: 1, justifyContent: "center" }]} onPress={() => {
+                  const code = (activeFamily as any)?.inviteCode;
+                  if (code) void shareOrCopy(t("用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房", { code }) as any, t("kitchen.inviteCode"));
+                }}>
+                  <Ionicons name="share-outline" size={16} color={BRAND} />
+                  <Text style={s.secondaryBtnText}>{t("分享" as any)}</Text>
+                </TouchableOpacity>
+                {isOwner && (
+                  <TouchableOpacity style={[s.secondaryBtn, { justifyContent: "center" }]} disabled={regenInviteM.isPending} onPress={() => Alert.alert(
+                    t("重新產生邀請碼" as any),
+                    t("舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？" as any),
+                    [
+                      { text: t("取消" as any), style: "cancel" },
+                      { text: t("確定" as any), style: "destructive", onPress: () => regenInviteM.mutate() },
+                    ],
+                  )}>
+                    <Ionicons name="refresh-outline" size={16} color={BRAND} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={s.section}>
           <Text style={s.sectionTitle}>{t("kitchen.approval")}</Text>
           <View style={s.card}>
@@ -450,13 +500,14 @@ export default function KitchenSettingsScreen() {
                   {isAdmin && !isSelf && (
                     <View style={{ flexDirection: "row", gap: 4 }}>
                       <TouchableOpacity
-                        style={s.iconBtn}
+                        style={[s.iconBtn, { flexDirection: "row", gap: 3, paddingHorizontal: 8 }]}
                         onPress={() => {
                           setChangingRole({ userId: String(m.userId), role: m.familyRole });
                           setShowRolePicker(true);
                         }}
                       >
-                        <Ionicons name="swap-horizontal-outline" size={18} color={BRAND} />
+                        <Ionicons name="swap-horizontal-outline" size={14} color={BRAND} />
+                        <Text style={{ color: BRAND, fontSize: 12, fontWeight: "700" }}>{t("改角色" as any)}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.iconBtn, { flexDirection: "row", gap: 3, paddingHorizontal: 8 }]}
@@ -514,69 +565,15 @@ export default function KitchenSettingsScreen() {
           </View>
         )}
 
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>{t("kitchen.inviteCode")}</Text>
-          <View style={s.card}>
-            <View style={s.rowBetween}>
-              <Text style={{ fontSize: 20, fontWeight: "900", color: BRAND, letterSpacing: 3 }}>
-                {(activeFamily as any)?.inviteCode ?? "---"}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TouchableOpacity 
-                  style={s.secondaryBtn} 
-                  onPress={async () => {
-                    const code = (activeFamily as any)?.inviteCode;
-                    if (code) {
-                      await Clipboard.setStringAsync(code);
-                      Alert.alert(t("已複製" as any), t("邀請碼 {{code}} 已複製到剪貼簿" as any, { code }));
-                    }
-                  }}
-                >
-                  <Ionicons name="copy-outline" size={16} color={BRAND} />
-                  <Text style={s.secondaryBtnText}>{t("kitchen.copy")}</Text>
-                </TouchableOpacity>
-                {isOwner && (
-                  <TouchableOpacity
-                    style={s.secondaryBtn}
-                    disabled={regenInviteM.isPending}
-                    onPress={() => Alert.alert(
-                      t("重新產生邀請碼" as any),
-                      t("舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？" as any),
-                      [
-                        { text: t("取消" as any), style: "cancel" },
-                        { text: t("確定" as any), style: "destructive", onPress: () => regenInviteM.mutate() },
-                      ],
-                    )}
-                  >
-                    <Ionicons name="refresh-outline" size={16} color={BRAND} />
-                    <Text style={s.secondaryBtnText}>{t("重新產生" as any)}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-
         {isOwner && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: "#EF4444" }]}>{t("kitchen.dangerZone")}</Text>
-            <Text style={{ color: SUB, fontSize: 12, marginBottom: 10 }}>{t("kitchen.dangerHint")}</Text>
-            <TouchableOpacity
-              style={s.dangerCard}
-              onPress={handleDissolve}
-              disabled={dissolveM.isPending}
-            >
-              <Ionicons name="warning-outline" size={22} color="#EF4444" />
-              <View style={{ flex: 1 }}>
-                <Text style={s.dangerText}>{t("kitchen.dissolve")}</Text>
-                <Text style={s.dangerSub}>{t("kitchen.dissolveSub")}</Text>
-              </View>
-              {dissolveM.isPending ? (
-                <ActivityIndicator color="#EF4444" size="small" />
-              ) : (
-                <Ionicons name="chevron-forward" size={18} color="#EF4444" />
-              )}
+            <Text style={s.sectionTitle}>{t("進階" as any)}</Text>
+            <TouchableOpacity style={s.row} onPress={handleDissolve} disabled={dissolveM.isPending}>
+              <Ionicons name="warning-outline" size={18} color="#EF4444" />
+              <Text style={[s.rowLabel, { color: "#EF4444", fontSize: 14 }]}>{t("kitchen.dissolve")}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#EF4444" />
             </TouchableOpacity>
+            <Text style={{ color: SUB, fontSize: 11, marginTop: 6 }}>{t("kitchen.dissolveSub")}</Text>
           </View>
         )}
 
@@ -708,8 +705,8 @@ export default function KitchenSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  section: { marginHorizontal: 16, marginTop: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: "800", color: TEXT, marginBottom: 8 },
+  section: { marginHorizontal: 16, marginTop: 28 },
+  sectionTitle: { fontSize: 13, fontWeight: "800", color: SUB, marginBottom: 10, letterSpacing: 0.3, textTransform: "uppercase" },
   card: {
     backgroundColor: "#fff", borderRadius: 14, padding: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },

@@ -2265,5 +2265,12 @@
   "補齊中…": "Filling…",
   "補齊失敗": "Fill failed",
   "已補齊": "Filled",
-  "已加入 AI 建議做法（可再編輯）。": "Added AI-suggested steps (you can edit them)."
+  "已加入 AI 建議做法（可再編輯）。": "Added AI-suggested steps (you can edit them).",
+  "分享": "Share",
+  "改角色": "Change role",
+  "轉換主人": "Transfer ownership",
+  "確定要將主人身分轉移俾呢位成員？你將會變成家庭成員。": "Transfer ownership to this member? You'll become a family member.",
+  "進階": "Advanced",
+  "邀請家人／姐姐用呢個碼加入廚房": "Invite family / helper to join with this code",
+  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Join my Kindcipe kitchen with code {{code}}"
 }
