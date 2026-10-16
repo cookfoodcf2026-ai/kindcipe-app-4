@@ -1208,12 +1208,16 @@ export default function RecipeDetailScreen() {
                 </View>
               )}
               <Text style={s.heroTitle}>{getBilingualName(recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary}</Text>
-              {(adjustedIngredients.length === 0 || steps.length === 0) && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: "rgba(254,243,199,0.95)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 }}>
-                  <Ionicons name="alert-circle-outline" size={13} color="#B45309" />
-                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#B45309" }}>{t("內容未完整" as any)}</Text>
-                </View>
-              )}
+              {(adjustedIngredients.length === 0 || steps.length === 0) && (() => {
+                const noContent = adjustedIngredients.length === 0 && steps.length === 0;
+                const bookmark = noContent && !!((recipe as any).sourceUrl || (recipe as any).source_url);
+                return (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: "rgba(254,243,199,0.95)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 }}>
+                    <Ionicons name={bookmark ? "bookmark-outline" : "alert-circle-outline"} size={13} color="#B45309" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#B45309" }}>{bookmark ? t("待補充" as any) : t("內容未完整" as any)}</Text>
+                  </View>
+                );
+              })()}
               <View style={s.heroMeta}>
                 {(recipe.cookTime ?? 0) > 0 && (
                   <View style={s.metaChip}>

@@ -120,6 +120,10 @@ export default function ImportScreen() {
   const lastCaptionRef = useRef<string>("");
   // 記住最近一次截圖（解析後 pendingScreenshot 會清空；失敗存檔時用嚟做封面）
   const lastShotRef = useRef<{ uri: string; base64: string; mimeType: string } | null>(null);
+  // 記住最近一次解析用嘅原始 link（即使之後試截圖都保留，失敗存檔時存返條 link）
+  const lastLinkRef = useRef<string>("");
+  // 失敗 response 帶返嘅縮圖（FB／網站失敗都可能有封面）
+  const lastThumbRef = useRef<string>("");
   // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
   const clipboardSkipUntilRef = useRef(0);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -551,6 +555,7 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
+        lastThumbRef.current = String((data as any).thumbnailUrl || "") || lastThumbRef.current;
         const platform = detectPlatform(universalInput);
         const platformHelp = platform ? t("平台提示（{{platform}}）：\n{{help}}", { platform, help: getPlatformHelp(platform) }) : "";
         setErrorMsg(
@@ -561,6 +566,7 @@ export default function ImportScreen() {
         setDetectedPlatform(null);
         setStep("failed");
       } else {
+        lastThumbRef.current = String((data as any).thumbnailUrl || "") || lastThumbRef.current;
         let msg = t("無法讀取此連結的內容，可能需要登入或內容已被刪除。" as any);
         msg += t("\n\n建議改用截圖上傳。" as any);
         setErrorMsg(msg);
@@ -716,25 +722,29 @@ export default function ImportScreen() {
 
   // ── 先儲存（名＋連結）：解析失敗但用戶想留住條 link，稍後再補內容 ──
   const handleSaveIncomplete = async () => {
-    const url = failedInput?.type === "url" ? String(failedInput.value || "").trim() : "";
+    // 優先次序：失敗 response 帶返嘅 link > 之前記住嘅 link（即使之後試截圖都保留）
+    const linkFromInput = failedInput?.type === "url" ? String(failedInput.value || "").trim() : "";
+    const link = linkFromInput || lastLinkRef.current || "";
     let name = "";
-    // 文字來源：用第一行做名；連結來源：用平台名做預設名（唔用 URL 尾段，避免亂碼如 IG shortcode）
+    // 文字來源：用第一行做名
     if (failedInput?.type === "text") {
       name = String(failedInput.value || "").split("\n").map((l) => l.trim()).find(Boolean) || "";
     }
-    if (!name && url) {
-      const platform = detectPlatform(url);
+    // 有 link：名 = 平台／hostname（唔用 URL 尾段，避免亂碼如 IG shortcode）
+    if (!name && link) {
+      const platform = platformOrDefault(link);
       name = platform ? t("{{platform}} 食譜", { platform }) : "";
     }
-    // 圖片失敗：用「截圖食譜」做預設名 + 上載該用戶嘅截圖做封面（本機檔要先上載）
-    let imageUrl = clientThumbRef.current || undefined;
-    if (!imageUrl && !url && lastShotRef.current?.base64) {
+    // 封面：link 縮圖（失敗 response）> 已抓縮圖 > 截圖（本機檔要先上載）
+    let imageUrl = lastThumbRef.current || clientThumbRef.current || undefined;
+    if (!imageUrl && lastShotRef.current?.base64) {
       try {
         const up = await uploadImageMutation.mutateAsync({ base64: lastShotRef.current.base64, mimeType: lastShotRef.current.mimeType });
         if (up?.url) imageUrl = up.url;
       } catch { /* 上載失敗就唔要封面 */ }
     }
-    if (!name && !url) name = t("截圖食譜" as any);
+    // 淨截圖（冇 link／文字）→ 預設名「截圖食譜」
+    if (!name && !link && lastShotRef.current) name = t("截圖食譜" as any);
     if (name.length > 60) name = name.slice(0, 60);
     if (!name) name = t("未命名食譜" as any);
     const caption = lastCaptionRef.current || (clipboardContent ?? "");
@@ -748,7 +758,7 @@ export default function ImportScreen() {
       ingredients: [],
       steps: [],
       tags: [],
-      sourceUrl: url || undefined,
+      sourceUrl: link || undefined,
       allowIncomplete: true,
       visibility: "private",
     } as any);
@@ -763,7 +773,23 @@ export default function ImportScreen() {
     if (u.includes("tiktok.com") || u.includes("douyin.com")) return "TikTok";
     if (u.includes("weibo.com")) return "Weibo";
     if (u.includes("bilibili.com") || u.includes("b23.tv")) return "Bilibili";
+    // 對齊後端 detectSourceType
+    if (/(^|\.)threads\.(net|com)$/i.test(hostnameOf(url))) return "Threads";
+    if (u.includes("xiaohongshu.com") || u.includes("xhslink.com") || u.includes("xhslink.cn")) return "Xiaohongshu";
+    if (/(^|\.)(twitter|x)\.com$/i.test(hostnameOf(url))) return "X";
     return null;
+  }
+
+  // RN 嘅 URL 唔完全合規 → 用 regex 抽 hostname
+  function hostnameOf(url: string): string {
+    try {
+      return String(url || "").replace(/^https?:\/\//i, "").split(/[/?#]/)[0].replace(/^www\./i, "").toLowerCase();
+    } catch { return ""; }
+  }
+
+  /** 平台名；未知網站 → 用 hostname；再冇 → 空字串。 */
+  function platformOrDefault(url: string): string {
+    return detectPlatform(url) || hostnameOf(url) || "";
   }
 
   function getPlatformHelp(platform: string): string {
@@ -887,6 +913,8 @@ export default function ImportScreen() {
     startParseProgress();
     clientThumbRef.current = null;
     lastCaptionRef.current = caption ? String(caption) : "";
+    lastThumbRef.current = "";
+    lastLinkRef.current = isValidUrl(trimmed) ? trimmed : "";
     
     if (isValidUrl(trimmed)) {
       // For Instagram URLs, extract thumbnail URL and display immediately
@@ -1630,6 +1658,31 @@ export default function ImportScreen() {
 
   // ── 解析失敗 ──
   if (step === "failed") {
+    const isPro = !!subQuery.data?.isPaid;
+    const hasLink = (failedInput?.type === "url" && !!failedInput.value) || !!lastLinkRef.current;
+    const saveBtn = (
+      <TouchableOpacity
+        style={isPro ? styles.tryTextButton : styles.tryScreenshotButton}
+        disabled={importMutation.isPending}
+        onPress={() => { Keyboard.dismiss(); void handleSaveIncomplete(); }}
+      >
+        <Ionicons name="bookmark-outline" size={18} color={isPro ? "#013E77" : "#fff"} />
+        <Text style={isPro ? styles.tryTextButtonText : styles.tryScreenshotText}>
+          {importMutation.isPending ? t("儲存中…" as any) : (hasLink ? t("先存連結（之後再補充）" as any) : t("先儲存（之後再補充）" as any))}
+        </Text>
+      </TouchableOpacity>
+    );
+    const shotBtn = (
+      <TouchableOpacity
+        style={isPro ? styles.tryScreenshotButton : styles.tryTextButton}
+        onPress={() => { Keyboard.dismiss(); setShowPhotoSourceModal(true); setErrorMsg(""); setFailedInput(null); }}
+      >
+        <Ionicons name="image" size={18} color={isPro ? "#fff" : "#013E77"} />
+        <Text style={isPro ? styles.tryScreenshotText : styles.tryTextButtonText}>
+          {t("用截圖試（辨識圖中食材／步驟）" as any)}{!isPro ? " · Pro" : ""}
+        </Text>
+      </TouchableOpacity>
+    );
     return (
       <>
         <KeyboardAvoidingView
@@ -1650,33 +1703,7 @@ export default function ImportScreen() {
               <Text style={styles.failedMsg}>{t("呢條連結／內容冇完整食譜，試下用截圖。" as any)}</Text>
 
               <View style={styles.failedActions}>
-                {/* 主掣：用截圖試（最常成功） */}
-                <TouchableOpacity
-                  style={styles.tryScreenshotButton}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setShowPhotoSourceModal(true);
-                    setErrorMsg("");
-                    setFailedInput(null);
-                  }}
-                >
-                  <Ionicons name="image" size={18} color="#fff" />
-                  <Text style={styles.tryScreenshotText}>
-                    {t("用截圖試（辨識圖中食材／步驟）" as any)}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* 次掣：先儲存（名＋連結／封面），稍後再補 */}
-                <TouchableOpacity
-                  style={styles.tryTextButton}
-                  disabled={importMutation.isPending}
-                  onPress={() => { Keyboard.dismiss(); void handleSaveIncomplete(); }}
-                >
-                  <Ionicons name="bookmark-outline" size={18} color="#013E77" />
-                  <Text style={styles.tryTextButtonText}>
-                    {importMutation.isPending ? t("儲存中…" as any) : t("先儲存（只留名＋連結）" as any)}
-                  </Text>
-                </TouchableOpacity>
+                {isPro ? (<>{shotBtn}{saveBtn}</>) : (<>{saveBtn}{shotBtn}</>)}
 
                 {/* 更多選項（收埋） */}
                 <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>

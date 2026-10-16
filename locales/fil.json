@@ -2237,5 +2237,8 @@
   "重新產生邀請碼": "I-regenerate ang invite code",
   "舊邀請碼會即時失效，已加入嘅成員唔受影響。確定？": "Agad na mawawalan ng bisa ang lumang invite code; hindi apektado ang mga kasalukuyang miyembro. Tuloy?",
   "重新產生": "I-regenerate",
-  "截圖食譜": "Screenshot Recipe"
+  "截圖食譜": "Screenshot Recipe",
+  "先存連結（之後再補充）": "I-save muna ang link (dagdagan mamaya)",
+  "先儲存（之後再補充）": "I-save muna (dagdagan mamaya)",
+  "待補充": "Kulang pa"
 }
