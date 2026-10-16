@@ -1146,12 +1146,10 @@ export default function RecipeDetailScreen() {
                   .map((i: any) => {
                     const name = getBilingualName(i.name, i.nameEn, i.nameFil, i.nameId).primary || t("未知食材" as any);
                     const rawUnit = String(i.unit ?? "");
-                    let qty = String(i.adjustedQty ?? i.quantity ?? "").trim();
-                    const unit = rawUnit ? enumT.unit(rawUnit) : "";
-                    // 去重：qty 尾已含單位（例如 "400ml"）→ 剝走，避免「400ml ml」
-                    if (rawUnit && qty.toLowerCase().endsWith(rawUnit.toLowerCase())) {
-                      qty = qty.slice(0, qty.length - rawUnit.length).trim();
-                    }
+                    const qty = String(i.adjustedQty ?? i.quantity ?? "").trim();
+                    // 去重：qty 尾已含單位（例如 "400ml"）→ 唔再補 unit（保留 qty 原樣）
+                    const redundant = !!rawUnit && !!qty && qty.toLowerCase().endsWith(rawUnit.toLowerCase());
+                    const unit = rawUnit && !redundant ? enumT.unit(rawUnit) : "";
                     return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
                   })
                   .join("\n");
