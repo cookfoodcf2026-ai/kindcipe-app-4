@@ -722,28 +722,33 @@ export default function ImportScreen() {
     },
   });
 
-  // ── C6：由線索 AI 生成食譜（明確 AI 創作）→ 存為 AI 食譜 ──
+  // ── C6：AI 生成食譜（明確 AI 創作）→ 存為 AI 食譜 ──
+  const saveAiRecipe = (r: any) => {
+    if (!r) { Alert.alert(t("生成失敗" as any), t("請再試一次" as any)); return; }
+    importMutation.mutate({
+      name: r.name, description: r.description ?? "",
+      cookTime: r.cookTime ?? 30, servings: r.servings ?? 2,
+      difficulty: r.difficulty || "中等",
+      recipeCategory: "其他",
+      nameEn: r.nameEn, nameFil: r.nameFil, nameId: r.nameId,
+      descriptionEn: r.descriptionEn, descriptionFil: r.descriptionFil, descriptionId: r.descriptionId,
+      stepsEn: r.stepsEn, stepsFil: r.stepsFil, stepsId: r.stepsId,
+      ingredients: (r.ingredients ?? []).map((i: any) => ({
+        name: i.name, nameEn: i.nameEn, nameFil: i.nameFil, nameId: i.nameId,
+        quantity: String(i.quantity ?? ""), unit: String(i.unit ?? ""), category: "食材",
+      })),
+      steps: (r.steps ?? []).map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? "") })),
+      tags: [...(Array.isArray(r.tags) ? r.tags : []), "AI 生成"],
+      isAiGenerated: true,
+    } as any);
+  };
   const generateAiM = trpc.aiRecipe.generateFromHint.useMutation({
-    onSuccess: (data: any) => {
-      const r = data?.recipe;
-      if (!r) { Alert.alert(t("生成失敗" as any), t("請再試一次" as any)); return; }
-      importMutation.mutate({
-        name: r.name, description: r.description ?? "",
-        cookTime: r.cookTime ?? 30, servings: r.servings ?? 2,
-        difficulty: r.difficulty || "中等",
-        recipeCategory: "其他",
-        nameEn: r.nameEn, nameFil: r.nameFil, nameId: r.nameId,
-        descriptionEn: r.descriptionEn, descriptionFil: r.descriptionFil, descriptionId: r.descriptionId,
-        stepsEn: r.stepsEn, stepsFil: r.stepsFil, stepsId: r.stepsId,
-        ingredients: (r.ingredients ?? []).map((i: any) => ({
-          name: i.name, nameEn: i.nameEn, nameFil: i.nameFil, nameId: i.nameId,
-          quantity: String(i.quantity ?? ""), unit: String(i.unit ?? ""), category: "食材",
-        })),
-        steps: (r.steps ?? []).map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? "") })),
-        tags: [...(Array.isArray(r.tags) ? r.tags : []), "AI 生成"],
-        isAiGenerated: true,
-      } as any);
-    },
+    onSuccess: (data: any) => saveAiRecipe(data?.recipe),
+    onError: (e) => Alert.alert(t("生成失敗" as any), friendlyError(e)),
+  });
+  // 由食物相（vision）生成
+  const generateImageAiM = trpc.aiRecipe.generateFromImage.useMutation({
+    onSuccess: (data: any) => saveAiRecipe(data?.recipe),
     onError: (e) => Alert.alert(t("生成失敗" as any), friendlyError(e)),
   });
 
@@ -1237,7 +1242,7 @@ export default function ImportScreen() {
           image: stepImages[i] || undefined,
         })),
         tags,
-        sourceUrl: parsedRecipe?.sourceUrl || "",
+        sourceUrl: parsedRecipe?.sourceUrl || lastLinkRef.current || "",
         sourceAuthor: parsedRecipe?.sourceAuthor || "",
         inputLang: normLang(i18n.language),
         visibility: "private" as const,
@@ -1688,6 +1693,8 @@ export default function ImportScreen() {
   if (step === "failed") {
     const isPro = !!subQuery.data?.isPaid;
     const hasLink = (failedInput?.type === "url" && !!failedInput.value) || !!lastLinkRef.current;
+    // 圖片失敗（有截圖）→ 主掣用 AI 生成（因為再試截圖多數再失敗）
+    const imageFail = !!lastShotRef.current;
     const saveBtn = (
       <TouchableOpacity
         style={isPro ? styles.tryTextButton : styles.tryScreenshotButton}
@@ -1711,19 +1718,32 @@ export default function ImportScreen() {
         </Text>
       </TouchableOpacity>
     );
+    const aiBusy = generateAiM.isPending || generateImageAiM.isPending || importMutation.isPending;
     const aiBtn = (
       <TouchableOpacity
         style={styles.tryScreenshotButton}
-        disabled={generateAiM.isPending || importMutation.isPending}
+        disabled={aiBusy}
         onPress={() => {
           Keyboard.dismiss();
-          setAiHintInput((lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) || "");
-          setShowAiHintModal(true);
+          const shot = lastShotRef.current;
+          if (shot?.base64) {
+            // 有截圖 → 直接用圖 vision 生成（唔使打字）
+            (async () => {
+              try {
+                const up = await uploadImageMutation.mutateAsync({ base64: shot.base64, mimeType: shot.mimeType });
+                if (up?.key) { generateImageAiM.mutate({ storageKeys: [up.key] }); return; }
+              } catch { /* fall through */ }
+              setAiHintInput(""); setShowAiHintModal(true);
+            })();
+          } else {
+            setAiHintInput((lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) || "");
+            setShowAiHintModal(true);
+          }
         }}
       >
         <Ionicons name="sparkles" size={18} color="#fff" />
         <Text style={styles.tryScreenshotText}>
-          {generateAiM.isPending ? t("AI 生成中…" as any) : t("✨ AI 生成相似食譜（AI 創作，非原帖）" as any)}
+          {aiBusy ? t("AI 生成中…" as any) : t("✨ AI 生成相似食譜（AI 創作，非原帖）" as any)}
         </Text>
       </TouchableOpacity>
     );
@@ -1747,7 +1767,7 @@ export default function ImportScreen() {
               <Text style={styles.failedMsg}>{t("呢條連結／內容冇完整食譜，試下用截圖。" as any)}</Text>
 
               <View style={styles.failedActions}>
-                {isPro ? (<>{shotBtn}{aiBtn}{saveBtn}</>) : (<>{aiBtn}{saveBtn}{shotBtn}</>)}
+                {imageFail ? (<>{aiBtn}{saveBtn}{shotBtn}</>) : isPro ? (<>{shotBtn}{aiBtn}{saveBtn}</>) : (<>{aiBtn}{saveBtn}{shotBtn}</>)}
 
                 {/* 更多選項（收埋） */}
                 <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>

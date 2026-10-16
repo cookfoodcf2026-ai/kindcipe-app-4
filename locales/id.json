@@ -2253,5 +2253,7 @@
   "例如：日式親子丼": "mis. Oyakodon",
   "生成中…": "Membuat…",
   "生成": "Buat",
-  "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Tag tampil dalam bahasamu; pilih yang umum dari chip di bawah"
+  "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Tag tampil dalam bahasamu; pilih yang umum dari chip di bawah",
+  "無法 AI Edit": "Tidak bisa AI Edit",
+  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Resep ini tidak punya bahan/langkah; AI Edit butuh konten yang ada. Tambahkan dulu, atau pakai \"AI generate\"."
 }

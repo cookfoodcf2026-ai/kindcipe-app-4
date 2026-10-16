@@ -1322,7 +1322,13 @@ export default function RecipeDetailScreen() {
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
                 <Text style={[s.btnSecTxt, addedToCart && { color: GREEN }]} numberOfLines={1}>{addedToCart ? t("picker.added") : t("recipe.addToShopping")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.btnAI} onPress={() => { setAIEditPrompt(""); setAIEditResult(null); setAIEditPreview(null); setShowAIEdit(true); }}>
+              <TouchableOpacity style={s.btnAI} onPress={() => {
+                if (adjustedIngredients.length === 0 && steps.length === 0) {
+                  Alert.alert(t("無法 AI Edit" as any), t("此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。" as any));
+                  return;
+                }
+                setAIEditPrompt(""); setAIEditResult(null); setAIEditPreview(null); setShowAIEdit(true);
+              }}>
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>

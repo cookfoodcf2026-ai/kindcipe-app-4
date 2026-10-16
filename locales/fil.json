@@ -2253,5 +2253,7 @@
   "例如：日式親子丼": "hal. Oyakodon",
   "生成中…": "Nagge-generate…",
   "生成": "I-generate",
-  "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Ang mga tag ay nasa iyong wika; pumili ng karaniwan sa chips sa ibaba"
+  "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Ang mga tag ay nasa iyong wika; pumili ng karaniwan sa chips sa ibaba",
+  "無法 AI Edit": "Hindi ma-AI Edit",
+  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Walang sangkap/hakbang ang recipe na ito; kailangan ng AI Edit ang existing na nilalaman. Magdagdag muna, o gamitin ang \"AI generate\"."
 }
