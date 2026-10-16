@@ -118,6 +118,8 @@ export default function ImportScreen() {
   const clientThumbRef = useRef<string | null>(null);
   // 記住最近一次解析用嘅 caption（失敗存檔時可一併存落 description）
   const lastCaptionRef = useRef<string>("");
+  // 記住最近一次截圖（解析後 pendingScreenshot 會清空；失敗存檔時用嚟做封面）
+  const lastShotRef = useRef<{ uri: string; base64: string; mimeType: string } | null>(null);
   // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
   const clipboardSkipUntilRef = useRef(0);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -713,7 +715,7 @@ export default function ImportScreen() {
   });
 
   // ── 先儲存（名＋連結）：解析失敗但用戶想留住條 link，稍後再補內容 ──
-  const handleSaveIncomplete = () => {
+  const handleSaveIncomplete = async () => {
     const url = failedInput?.type === "url" ? String(failedInput.value || "").trim() : "";
     let name = "";
     // 文字來源：用第一行做名；連結來源：用平台名做預設名（唔用 URL 尾段，避免亂碼如 IG shortcode）
@@ -724,6 +726,15 @@ export default function ImportScreen() {
       const platform = detectPlatform(url);
       name = platform ? t("{{platform}} 食譜", { platform }) : "";
     }
+    // 圖片失敗：用「截圖食譜」做預設名 + 上載該用戶嘅截圖做封面（本機檔要先上載）
+    let imageUrl = clientThumbRef.current || undefined;
+    if (!imageUrl && !url && lastShotRef.current?.base64) {
+      try {
+        const up = await uploadImageMutation.mutateAsync({ base64: lastShotRef.current.base64, mimeType: lastShotRef.current.mimeType });
+        if (up?.url) imageUrl = up.url;
+      } catch { /* 上載失敗就唔要封面 */ }
+    }
+    if (!name && !url) name = t("截圖食譜" as any);
     if (name.length > 60) name = name.slice(0, 60);
     if (!name) name = t("未命名食譜" as any);
     const caption = lastCaptionRef.current || (clipboardContent ?? "");
@@ -733,7 +744,7 @@ export default function ImportScreen() {
     importMutation.mutate({
       name,
       description,
-      image: clientThumbRef.current || undefined,
+      image: imageUrl,
       ingredients: [],
       steps: [],
       tags: [],
@@ -990,6 +1001,7 @@ export default function ImportScreen() {
   // 確認截圖並開始解析
   const handleConfirmScreenshot = async () => {
     if (!pendingScreenshot) return;
+    lastShotRef.current = { uri: pendingScreenshot.uri, base64: pendingScreenshot.base64, mimeType: pendingScreenshot.mimeType };
     isParsingRef.current = true;
     mergeModeRef.current = false;
     setStep("parsing");
@@ -1570,6 +1582,12 @@ export default function ImportScreen() {
             </View>
           </View>
         </Modal>
+        <PaywallModal
+          visible={showQuotaPaywall}
+          onClose={() => setShowQuotaPaywall(false)}
+          feature={paywallFeature}
+          isPaid={!!subQuery.data?.isPaid}
+        />
       </>
     );
   }
@@ -1648,19 +1666,17 @@ export default function ImportScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* 次掣：先儲存（名＋連結＋封面），稍後再補 */}
-                {((failedInput?.type === "url" && !!failedInput.value) || failedInput?.type === "text") && (
-                  <TouchableOpacity
-                    style={styles.tryTextButton}
-                    disabled={importMutation.isPending}
-                    onPress={() => { Keyboard.dismiss(); handleSaveIncomplete(); }}
-                  >
-                    <Ionicons name="bookmark-outline" size={18} color="#013E77" />
-                    <Text style={styles.tryTextButtonText}>
-                      {importMutation.isPending ? t("儲存中…" as any) : t("先儲存（只留名＋連結）" as any)}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                {/* 次掣：先儲存（名＋連結／封面），稍後再補 */}
+                <TouchableOpacity
+                  style={styles.tryTextButton}
+                  disabled={importMutation.isPending}
+                  onPress={() => { Keyboard.dismiss(); void handleSaveIncomplete(); }}
+                >
+                  <Ionicons name="bookmark-outline" size={18} color="#013E77" />
+                  <Text style={styles.tryTextButtonText}>
+                    {importMutation.isPending ? t("儲存中…" as any) : t("先儲存（只留名＋連結）" as any)}
+                  </Text>
+                </TouchableOpacity>
 
                 {/* 更多選項（收埋） */}
                 <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>
@@ -1710,6 +1726,12 @@ export default function ImportScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
         {renderPhotoSourceModal()}
+        <PaywallModal
+          visible={showQuotaPaywall}
+          onClose={() => setShowQuotaPaywall(false)}
+          feature={paywallFeature}
+          isPaid={!!subQuery.data?.isPaid}
+        />
       </>
     );
   }
