@@ -126,6 +126,8 @@ export default function ImportScreen() {
   const lastLinkRef = useRef<string>("");
   // 失敗 response 帶返嘅縮圖（FB／網站失敗都可能有封面）
   const lastThumbRef = useRef<string>("");
+  // OCR 讀到嘅菜名（image 失敗時帶返，用嚟預填 AI 生成）
+  const lastOcrNameRef = useRef<string>("");
   // 由 Share/剪貼板 params 進入時，短暫停用剪貼板偵測，避免遲到嘅剪貼板結果蓋過分享平台
   const clipboardSkipUntilRef = useRef(0);
   const parseStepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -657,6 +659,8 @@ export default function ImportScreen() {
         initEditFromParsed(data);
         setStep("preview");
       } else {
+        const ocrName = String((data as any).name || "").trim();
+        if (ocrName && ocrName !== "需要手動輸入" && ocrName !== "無法解析") lastOcrNameRef.current = ocrName;
         setErrorMsg(t("圖片中沒有足夠的食譜資訊。\n\n請重新上傳更清晰的圖片，確保包含完整的食材和步驟" as any));
         setFailedInput({ type: "url", value: "" });
         setClipboardUrl(null);
@@ -1375,7 +1379,7 @@ export default function ImportScreen() {
               disabled={isFormPending}
             >
               <Ionicons name="scan-outline" size={18} color="#fff" />
-              <Text style={styles.tryScreenshotText}>{t("用截圖補充（辨識食材／步驟）" as any)}</Text>
+              <Text style={styles.tryScreenshotText}>{t("📷 用截圖補充（要有文字）" as any)}</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 11, color: "#7C3AED", marginTop: 6, textAlign: "center", lineHeight: 16 }}>
               {t("上傳含食材／步驟文字嘅截圖，會辨識並加入現有食譜（唔會覆蓋）。" as any)}
@@ -1714,7 +1718,7 @@ export default function ImportScreen() {
       >
         <Ionicons name="image" size={18} color={isPro ? "#fff" : "#013E77"} />
         <Text style={isPro ? styles.tryScreenshotText : styles.tryTextButtonText}>
-          {t("用截圖試（辨識圖中食材／步驟）" as any)}{!isPro ? " · Pro" : ""}
+          {t("📷 上載食譜截圖（要有文字）" as any)}{!isPro ? " · Pro" : ""}
         </Text>
       </TouchableOpacity>
     );
@@ -1736,14 +1740,18 @@ export default function ImportScreen() {
               setAiHintInput(""); setShowAiHintModal(true);
             })();
           } else {
-            setAiHintInput((lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) || "");
+            setAiHintInput(
+              (lastOcrNameRef.current || "").trim() ||
+              (lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) ||
+              ""
+            );
             setShowAiHintModal(true);
           }
         }}
       >
         <Ionicons name="sparkles" size={18} color="#fff" />
         <Text style={styles.tryScreenshotText}>
-          {aiBusy ? t("AI 生成中…" as any) : t("✨ AI 生成相似食譜（AI 創作，非原帖）" as any)}
+          {aiBusy ? t("AI 生成中…" as any) : (lastShotRef.current ? t("✨ 睇相生成食譜（AI，非原帖）" as any) : t("✨ 生成食譜（AI，非原帖）" as any))}
         </Text>
       </TouchableOpacity>
     );
@@ -1853,6 +1861,16 @@ export default function ImportScreen() {
               </View>
             </View>
           </KeyboardAvoidingView>
+        </Modal>
+        {/* AI 生成中：全屏 loading（避免用戶以為 hang 機） */}
+        <Modal visible={aiBusy} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center" }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 28, alignItems: "center", width: "72%" }}>
+              <ActivityIndicator size="large" color="#013E77" />
+              <Text style={{ marginTop: 14, fontSize: 14, fontWeight: "700", color: "#1A1A1A" }}>{t("AI 生成中…" as any)}</Text>
+              <Text style={{ marginTop: 4, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{t("請稍等，可能需要 10-30 秒" as any)}</Text>
+            </View>
+          </View>
         </Modal>
       </>
     );

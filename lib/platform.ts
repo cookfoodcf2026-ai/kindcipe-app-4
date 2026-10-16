@@ -19,8 +19,7 @@ export const isAndroid = Platform.OS === "android";
 export function getWebappUrl(): string {
   return (
     process.env.EXPO_PUBLIC_WEBAPP_URL ??
-    process.env.EXPO_PUBLIC_STORE_URL ??
-    "https://kindcipe.com"
+    "https://app.kindcipe.com"
   );
 }
 

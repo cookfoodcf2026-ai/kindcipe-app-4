@@ -1145,8 +1145,13 @@ export default function RecipeDetailScreen() {
                 const ingText = adjustedIngredients
                   .map((i: any) => {
                     const name = getBilingualName(i.name, i.nameEn, i.nameFil, i.nameId).primary || t("未知食材" as any);
-                    const qty = i.adjustedQty ?? i.quantity ?? "";
-                    const unit = i.unit ? enumT.unit(i.unit) : "";
+                    const rawUnit = String(i.unit ?? "");
+                    let qty = String(i.adjustedQty ?? i.quantity ?? "").trim();
+                    const unit = rawUnit ? enumT.unit(rawUnit) : "";
+                    // 去重：qty 尾已含單位（例如 "400ml"）→ 剝走，避免「400ml ml」
+                    if (rawUnit && qty.toLowerCase().endsWith(rawUnit.toLowerCase())) {
+                      qty = qty.slice(0, qty.length - rawUnit.length).trim();
+                    }
                     return `• ${name}${qty ? ` ${qty}` : ""}${unit ? ` ${unit}` : ""}`;
                   })
                   .join("\n");
@@ -1181,17 +1186,20 @@ export default function RecipeDetailScreen() {
                   stepText,
                   "",
                   (recipe as any).housewifeTips ? `💡 ${t("主婦貼士：" as any)}${(recipe as any).housewifeTips}` : "",
-                  (recipe as any).tags && (recipe as any).tags.length > 0 
-                    ? `🏷️ ${t("標籤：" as any)}${(recipe as any).tags.join(", ")}` 
-                    : "",
+                  (() => {
+                    const cleanShareTags = (Array.isArray((recipe as any).tags) ? (recipe as any).tags : [])
+                      .map((tg: string) => enumT.tag(tg)).filter(Boolean);
+                    return cleanShareTags.length > 0 ? `🏷️ ${t("標籤：" as any)}${cleanShareTags.join(", ")}` : "";
+                  })(),
                   "",
                   t("— 來自 Kindcipe 家庭廚房" as any),
                 ].filter(Boolean).join("\n");
                 
                 const recipeUrl = buildRecipeShareUrlFor({ id: recipe?.id ?? "", name: recipe?.name, source: (recipe as any)?.source });
+                const shareTextFull = `${shareText}\n\n${recipeUrl}`;
                 Alert.alert(t("recipe.shareTitle"), undefined, [
-                  { text: t("recipe.share"), onPress: () => { void shareOrCopy(shareText, localizedName); } },
-                  { text: t("recipe.copyFull"), onPress: async () => { await Clipboard.setStringAsync(shareText); showToast(t("recipe.copiedFull")); } },
+                  { text: t("recipe.share"), onPress: () => { void shareOrCopy(shareTextFull, localizedName); } },
+                  { text: t("recipe.copyFull"), onPress: async () => { await Clipboard.setStringAsync(shareTextFull); showToast(t("recipe.copiedFull")); } },
                   { text: t("recipe.copyLink"), onPress: async () => { await Clipboard.setStringAsync(recipeUrl); showToast(t("recipe.copiedLink")); } },
                   { text: t("取消" as any), style: "cancel" },
                 ]);

@@ -1081,7 +1081,7 @@
     "previewHint": "Make sure the image is clear with ingredients & steps",
     "reselect": "Reselect",
     "startParse2": "Start parsing",
-    "photoUpload": "Photo upload analysis",
+    "photoUpload": "📷 Upload recipe screenshot (must have text)",
     "xiaohongshuTip": "Xiaohongshu / Threads recipes: use screenshot upload",
     "pasteHint": "How to paste: in Safari/Instagram tap ⋯ or long-press → Copy link, then tap Paste (or long-press the box). We auto-detect it when you return.",
     "igCopyHint": "Instagram isn't in the system share sheet: tap ⋯/the paper-plane on the post → 'Copy link'. The app will auto-detect it when you come back."
@@ -2255,5 +2255,10 @@
   "生成": "Generate",
   "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Tags display in your language; pick common ones from the chips below",
   "無法 AI Edit": "Can't AI Edit",
-  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "This recipe has no ingredients/steps; AI Edit needs existing content. Add content first, or use \"AI generate\"."
+  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "This recipe has no ingredients/steps; AI Edit needs existing content. Add content first, or use \"AI generate\".",
+  "📷 上載食譜截圖（要有文字）": "📷 Upload recipe screenshot (must have text)",
+  "✨ 睇相生成食譜（AI，非原帖）": "✨ Generate recipe from photo (AI, not the original)",
+  "✨ 生成食譜（AI，非原帖）": "✨ Generate recipe (AI, not the original)",
+  "📷 用截圖補充（要有文字）": "📷 Add from screenshot (must have text)",
+  "請稍等，可能需要 10-30 秒": "Please wait, may take 10-30 seconds"
 }

@@ -1081,7 +1081,7 @@
     "previewHint": "Tiyaking malinaw ang larawan",
     "reselect": "Pumili muli",
     "startParse2": "Simulan",
-    "photoUpload": "I-upload ang litrato",
+    "photoUpload": "📷 Mag-upload ng screenshot ng recipe (kailangan may text)",
     "xiaohongshuTip": "Mga recipe sa Xiaohongshu / Threads: gamitin ang screenshot upload",
     "pasteHint": "Paano i-paste: sa Safari/Instagram i-tap ang ⋯ o long-press → Copy link, tapos i-tap ang Paste. Awtomatikong ma-detect pagbalik mo.",
     "igCopyHint": "Hindi lumalabas ang Instagram sa share sheet: i-tap ang ⋯/paper-plane → 'Copy link'. Awtomatikong ma-detect ng app pagbalik mo."
@@ -2255,5 +2255,10 @@
   "生成": "I-generate",
   "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Ang mga tag ay nasa iyong wika; pumili ng karaniwan sa chips sa ibaba",
   "無法 AI Edit": "Hindi ma-AI Edit",
-  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Walang sangkap/hakbang ang recipe na ito; kailangan ng AI Edit ang existing na nilalaman. Magdagdag muna, o gamitin ang \"AI generate\"."
+  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Walang sangkap/hakbang ang recipe na ito; kailangan ng AI Edit ang existing na nilalaman. Magdagdag muna, o gamitin ang \"AI generate\".",
+  "📷 上載食譜截圖（要有文字）": "📷 Mag-upload ng screenshot ng recipe (kailangan may text)",
+  "✨ 睇相生成食譜（AI，非原帖）": "✨ Gumawa ng recipe mula sa litrato (AI, hindi ang orihinal)",
+  "✨ 生成食譜（AI，非原帖）": "✨ Gumawa ng recipe (AI, hindi ang orihinal)",
+  "📷 用截圖補充（要有文字）": "📷 Magdagdag mula sa screenshot (kailangan may text)",
+  "請稍等，可能需要 10-30 秒": "Maghintay, maaaring 10-30 segundo"
 }

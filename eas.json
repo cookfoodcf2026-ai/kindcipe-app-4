@@ -11,6 +11,7 @@
         "EXPO_PUBLIC_PRIVACY_URL": "https://kindcipe.com/privacy/",
         "EXPO_PUBLIC_SUPPORT_URL": "https://kindcipe.com/support/",
         "EXPO_PUBLIC_STORE_URL": "https://kindcipe.com",
+        "EXPO_PUBLIC_WEBAPP_URL": "https://app.kindcipe.com",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_CQ7LWFNnTqdfD73DTKoE5R97dwspRvTUcwEjGkWXAAr9",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
         "EXPO_PUBLIC_ENABLE_APPLE_WEB": "1"
@@ -30,6 +31,7 @@
         "EXPO_PUBLIC_PRIVACY_URL": "https://kindcipe.com/privacy/",
         "EXPO_PUBLIC_SUPPORT_URL": "https://kindcipe.com/support/",
         "EXPO_PUBLIC_STORE_URL": "https://kindcipe.com",
+        "EXPO_PUBLIC_WEBAPP_URL": "https://app.kindcipe.com",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_CQ7LWFNnTqdfD73DTKoE5R97dwspRvTUcwEjGkWXAAr9",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
         "EXPO_PUBLIC_ENABLE_APPLE_WEB": "1"
@@ -45,6 +47,7 @@
         "EXPO_PUBLIC_PRIVACY_URL": "https://kindcipe.com/privacy/",
         "EXPO_PUBLIC_SUPPORT_URL": "https://kindcipe.com/support/",
         "EXPO_PUBLIC_STORE_URL": "https://kindcipe.com",
+        "EXPO_PUBLIC_WEBAPP_URL": "https://app.kindcipe.com",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_CQ7LWFNnTqdfD73DTKoE5R97dwspRvTUcwEjGkWXAAr9",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
         "EXPO_PUBLIC_ENABLE_APPLE_WEB": "1"

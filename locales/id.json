@@ -1081,7 +1081,7 @@
     "previewHint": "Pastikan gambar jelas",
     "reselect": "Pilih ulang",
     "startParse2": "Mulai",
-    "photoUpload": "Unggah foto",
+    "photoUpload": "📷 Unggah screenshot resep (harus ada teks)",
     "xiaohongshuTip": "Resep Xiaohongshu / Threads: gunakan unggah tangkapan layar",
     "pasteHint": "Cara tempel: di Safari/Instagram ketuk ⋯ atau tekan lama → Copy link, lalu ketuk Tempel. Otomatis terdeteksi saat kamu kembali.",
     "igCopyHint": "Instagram tidak muncul di share sheet sistem: ketuk ⋯/pesawat kertas → 'Copy link'. App akan mendeteksi otomatis saat kamu kembali."
@@ -2255,5 +2255,10 @@
   "生成": "Buat",
   "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Tag tampil dalam bahasamu; pilih yang umum dari chip di bawah",
   "無法 AI Edit": "Tidak bisa AI Edit",
-  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Resep ini tidak punya bahan/langkah; AI Edit butuh konten yang ada. Tambahkan dulu, atau pakai \"AI generate\"."
+  "此食譜未有食材／步驟，AI Edit 需要現有內容先改到。請先補充內容，或用「AI 生成」。": "Resep ini tidak punya bahan/langkah; AI Edit butuh konten yang ada. Tambahkan dulu, atau pakai \"AI generate\".",
+  "📷 上載食譜截圖（要有文字）": "📷 Unggah screenshot resep (harus ada teks)",
+  "✨ 睇相生成食譜（AI，非原帖）": "✨ Buat resep dari foto (AI, bukan asli)",
+  "✨ 生成食譜（AI，非原帖）": "✨ Buat resep (AI, bukan asli)",
+  "📷 用截圖補充（要有文字）": "📷 Tambah dari screenshot (harus ada teks)",
+  "請稍等，可能需要 10-30 秒": "Mohon tunggu, mungkin 10-30 detik"
 }
