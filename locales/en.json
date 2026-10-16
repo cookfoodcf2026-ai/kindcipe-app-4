@@ -2252,5 +2252,6 @@
   "輸入菜名或線索（AI 創作，非原帖）": "Enter a dish name or hint (AI-created, not the original)",
   "例如：日式親子丼": "e.g. Oyakodon",
   "生成中…": "Generating…",
-  "生成": "Generate"
+  "生成": "Generate",
+  "標籤會以你嘅語言顯示；下面 chips 揀常用標籤": "Tags display in your language; pick common ones from the chips below"
 }

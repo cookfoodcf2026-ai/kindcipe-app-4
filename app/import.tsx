@@ -1446,6 +1446,7 @@ export default function ImportScreen() {
 
             <Text style={[es.label, { marginTop: 14 }]}>{t("filter.tags")}</Text>
             <TextInput style={es.input} value={editTags} onChangeText={setEditTags} placeholder={t("importRecipe.tagsPlaceholder")} placeholderTextColor="#B0BAC9" />
+            <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>{t("標籤會以你嘅語言顯示；下面 chips 揀常用標籤" as any)}</Text>
             <View style={es.categoryRow}>
               {SUGGESTED_TAGS.map(tag => {
                 const active = editTags.split(/[\s,，]+/).map(x => x.replace(/^#/, "").trim()).includes(tag);
