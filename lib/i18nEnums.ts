@@ -66,6 +66,12 @@ const TAG_ZH_TO_KEY: Record<string, string> = {
   "電飯煲料理": "riceCooker", "電飯煲懶人": "riceCooker", "電飯煲版": "riceCooker", "電飯煲": "riceCooker",
   "AI 生成": "aiGenerated", "AI生成": "aiGenerated", "焗烤": "bake", "清蒸": "steam", "快炒": "stirfry", "宴客": "party",
   "祛濕": "dampness", "健脾": "spleen", "潤肺": "lungs", "清熱": "heatClear", "養生": "nourish",
+  // 常見食材／類型／菜系 tag（擴充，令 en 都顯示）
+  "豬肉": "pork", "牛肉": "beef", "雞肉": "chicken", "羊肉": "lamb", "魚": "fish", "蝦": "shrimp",
+  "蛋": "egg", "雞蛋": "egg", "豆腐": "tofu", "主食": "staple", "麵": "noodles", "麵食": "noodles",
+  "飯": "rice", "台式": "taiwanese", "台式料理": "taiwanese", "泰式": "thai", "泰式料理": "thai",
+  "印度": "indian", "印度菜": "indian", "粵菜": "cantonese", "日式料理": "japanese", "韓式料理": "korean",
+  "中式料理": "chinese", "西式料理": "western", "港式料理": "hkStyle",
 };
 
 // 中文難度 → key（同時支援已係 key 嘅值）

@@ -106,6 +106,8 @@ export default function ImportScreen() {
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
   const [showFailMore, setShowFailMore] = useState(false);
   const [showFailTips, setShowFailTips] = useState(false);
+  const [showAiHintModal, setShowAiHintModal] = useState(false);
+  const [aiHintInput, setAiHintInput] = useState("");
   const [pendingScreenshot, setPendingScreenshot] = useState<{ uri: string; base64: string; mimeType: string; extra?: { base64: string; mimeType: string }[] } | null>(null);
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -718,6 +720,31 @@ export default function ImportScreen() {
         Alert.alert(t("儲存失敗" as any), friendlyError(err));
       }
     },
+  });
+
+  // ── C6：由線索 AI 生成食譜（明確 AI 創作）→ 存為 AI 食譜 ──
+  const generateAiM = trpc.aiRecipe.generateFromHint.useMutation({
+    onSuccess: (data: any) => {
+      const r = data?.recipe;
+      if (!r) { Alert.alert(t("生成失敗" as any), t("請再試一次" as any)); return; }
+      importMutation.mutate({
+        name: r.name, description: r.description ?? "",
+        cookTime: r.cookTime ?? 30, servings: r.servings ?? 2,
+        difficulty: r.difficulty || "中等",
+        recipeCategory: "其他",
+        nameEn: r.nameEn, nameFil: r.nameFil, nameId: r.nameId,
+        descriptionEn: r.descriptionEn, descriptionFil: r.descriptionFil, descriptionId: r.descriptionId,
+        stepsEn: r.stepsEn, stepsFil: r.stepsFil, stepsId: r.stepsId,
+        ingredients: (r.ingredients ?? []).map((i: any) => ({
+          name: i.name, nameEn: i.nameEn, nameFil: i.nameFil, nameId: i.nameId,
+          quantity: String(i.quantity ?? ""), unit: String(i.unit ?? ""), category: "食材",
+        })),
+        steps: (r.steps ?? []).map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? "") })),
+        tags: [...(Array.isArray(r.tags) ? r.tags : []), "AI 生成"],
+        isAiGenerated: true,
+      } as any);
+    },
+    onError: (e) => Alert.alert(t("生成失敗" as any), friendlyError(e)),
   });
 
   // ── 先儲存（名＋連結）：解析失敗但用戶想留住條 link，稍後再補內容 ──
@@ -1683,6 +1710,22 @@ export default function ImportScreen() {
         </Text>
       </TouchableOpacity>
     );
+    const aiBtn = (
+      <TouchableOpacity
+        style={styles.tryScreenshotButton}
+        disabled={generateAiM.isPending || importMutation.isPending}
+        onPress={() => {
+          Keyboard.dismiss();
+          setAiHintInput((lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) || "");
+          setShowAiHintModal(true);
+        }}
+      >
+        <Ionicons name="sparkles" size={18} color="#fff" />
+        <Text style={styles.tryScreenshotText}>
+          {generateAiM.isPending ? t("AI 生成中…" as any) : t("✨ AI 生成相似食譜（AI 創作，非原帖）" as any)}
+        </Text>
+      </TouchableOpacity>
+    );
     return (
       <>
         <KeyboardAvoidingView
@@ -1703,7 +1746,7 @@ export default function ImportScreen() {
               <Text style={styles.failedMsg}>{t("呢條連結／內容冇完整食譜，試下用截圖。" as any)}</Text>
 
               <View style={styles.failedActions}>
-                {isPro ? (<>{shotBtn}{saveBtn}</>) : (<>{saveBtn}{shotBtn}</>)}
+                {isPro ? (<>{shotBtn}{aiBtn}{saveBtn}</>) : (<>{aiBtn}{saveBtn}{shotBtn}</>)}
 
                 {/* 更多選項（收埋） */}
                 <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>
@@ -1759,6 +1802,37 @@ export default function ImportScreen() {
           feature={paywallFeature}
           isPaid={!!subQuery.data?.isPaid}
         />
+        <Modal visible={showAiHintModal} transparent animationType="fade" onRequestClose={() => setShowAiHintModal(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}>
+              <View style={{ backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "85%" }}>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: "#1A1A1A", marginBottom: 6 }}>{t("AI 生成食譜" as any)}</Text>
+                <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 14 }}>{t("輸入菜名或線索（AI 創作，非原帖）" as any)}</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: "#E0E0E0", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A", marginBottom: 18 }}
+                  value={aiHintInput}
+                  onChangeText={setAiHintInput}
+                  placeholder={t("例如：日式親子丼" as any)}
+                  placeholderTextColor="#999"
+                  autoFocus
+                />
+                <View style={{ gap: 12, alignItems: "center" }}>
+                  <TouchableOpacity
+                    style={[styles.tryScreenshotButton, { alignSelf: "stretch", opacity: aiHintInput.trim() && !generateAiM.isPending ? 1 : 0.5 }]}
+                    disabled={!aiHintInput.trim() || generateAiM.isPending}
+                    onPress={() => { setShowAiHintModal(false); generateAiM.mutate({ hint: aiHintInput.trim() }); }}
+                  >
+                    <Ionicons name="sparkles" size={18} color="#fff" />
+                    <Text style={styles.tryScreenshotText}>{generateAiM.isPending ? t("生成中…" as any) : t("生成" as any)}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowAiHintModal(false)}>
+                    <Text style={{ color: "#999", fontSize: 14 }}>{t("取消" as any)}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </>
     );
   }
@@ -1855,7 +1929,7 @@ export default function ImportScreen() {
             {pendingScreenshot.extra && pendingScreenshot.extra.length > 0 && (
               <Text style={styles.previewHint}>{t("共 {{n}} 張圖，會合併解析" as any, { n: 1 + pendingScreenshot.extra.length })}</Text>
             )}
-            <Text style={styles.previewHint}>{t("importRecipe.previewHint")}</Text>
+            <Text style={styles.previewHint}>{t("上載有食材／步驟文字嘅圖；可分幾張（食材一張、步驟一張）" as any)}</Text>
             <View style={styles.screenshotActions}>
               <TouchableOpacity style={styles.screenshotReselectBtn} onPress={handleReselectImage}>
                 <Ionicons name="refresh-outline" size={16} color="#6B7280" />
@@ -1871,14 +1945,16 @@ export default function ImportScreen() {
 
         {/* Secondary Action Buttons */}
         <View style={styles.secondaryActions}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => setShowPhotoSourceModal(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="image-outline" size={24} color="#013E77" />
-            <Text style={styles.secondaryButtonText}>{t("importRecipe.photoUpload")}</Text>
-          </TouchableOpacity>
+          {!pendingScreenshot && (
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setShowPhotoSourceModal(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="image-outline" size={24} color="#013E77" />
+              <Text style={styles.secondaryButtonText}>{t("importRecipe.photoUpload")}</Text>
+            </TouchableOpacity>
+          )}
           
           <TouchableOpacity
             style={styles.secondaryButton}
@@ -1900,15 +1976,15 @@ export default function ImportScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
     {renderPhotoSourceModal()}
-    <PaywallModal
-      visible={showQuotaPaywall}
-      onClose={() => setShowQuotaPaywall(false)}
-      feature={paywallFeature}
-      isPaid={!!subQuery.data?.isPaid}
-    />
-    </>
-  );
-}
+        <PaywallModal
+          visible={showQuotaPaywall}
+          onClose={() => setShowQuotaPaywall(false)}
+          feature={paywallFeature}
+          isPaid={!!subQuery.data?.isPaid}
+        />
+      </>
+    );
+  }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },

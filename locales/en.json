@@ -611,7 +611,10 @@
       "healthy": "Healthy",
       "nutritious": "Nutritious",
       "shunde": "Shunde",
-      "fresh": "Fresh"
+      "fresh": "Fresh",
+      "pork": "Pork", "beef": "Beef", "chicken": "Chicken", "lamb": "Lamb", "fish": "Fish", "shrimp": "Shrimp",
+      "egg": "Egg", "tofu": "Tofu", "staple": "Staple", "noodles": "Noodles", "rice": "Rice",
+      "taiwanese": "Taiwanese", "thai": "Thai", "indian": "Indian", "cantonese": "Cantonese"
     }
   },
   "tabs": {
@@ -2240,5 +2243,14 @@
   "截圖食譜": "Screenshot Recipe",
   "先存連結（之後再補充）": "Save link first (add later)",
   "先儲存（之後再補充）": "Save first (add later)",
-  "待補充": "To be filled"
+  "待補充": "To be filled",
+  "上載有食材／步驟文字嘅圖；可分幾張（食材一張、步驟一張）": "Upload image(s) with ingredients/steps text; you can use several (one for ingredients, one for steps)",
+  "✨ AI 生成相似食譜（AI 創作，非原帖）": "✨ AI-generate a similar recipe (AI-created, not the original)",
+  "AI 生成中…": "Generating…",
+  "生成失敗": "Generation failed",
+  "請再試一次": "Please try again",
+  "輸入菜名或線索（AI 創作，非原帖）": "Enter a dish name or hint (AI-created, not the original)",
+  "例如：日式親子丼": "e.g. Oyakodon",
+  "生成中…": "Generating…",
+  "生成": "Generate"
 }

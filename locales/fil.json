@@ -611,7 +611,10 @@
       "healthy": "Malusog",
       "nutritious": "Masustansya",
       "shunde": "Shunde",
-      "fresh": "Sariwang"
+      "fresh": "Sariwang",
+      "pork": "Baboy", "beef": "Baka", "chicken": "Manok", "lamb": "Kordero", "fish": "Isda", "shrimp": "Hipon",
+      "egg": "Itlog", "tofu": "Tofu", "staple": "Ulam na kanin", "noodles": "Pancit", "rice": "Kanin",
+      "taiwanese": "Taiwanese", "thai": "Thai", "indian": "Indian", "cantonese": "Cantonese"
     }
   },
   "tabs": {
@@ -2240,5 +2243,14 @@
   "截圖食譜": "Screenshot Recipe",
   "先存連結（之後再補充）": "I-save muna ang link (dagdagan mamaya)",
   "先儲存（之後再補充）": "I-save muna (dagdagan mamaya)",
-  "待補充": "Kulang pa"
+  "待補充": "Kulang pa",
+  "上載有食材／步驟文字嘅圖；可分幾張（食材一張、步驟一張）": "Mag-upload ng larawan na may text ng sangkap/hakbang; pwede ang ilan (isa para sa sangkap, isa para sa hakbang)",
+  "✨ AI 生成相似食譜（AI 創作，非原帖）": "✨ AI-generate ng katulad na recipe (AI-made, hindi ang orihinal)",
+  "AI 生成中…": "Nagge-generate…",
+  "生成失敗": "Nabigo ang pag-generate",
+  "請再試一次": "Subukan muli",
+  "輸入菜名或線索（AI 創作，非原帖）": "Ilagay ang pangalan ng ulam o hint (AI-made, hindi ang orihinal)",
+  "例如：日式親子丼": "hal. Oyakodon",
+  "生成中…": "Nagge-generate…",
+  "生成": "I-generate"
 }

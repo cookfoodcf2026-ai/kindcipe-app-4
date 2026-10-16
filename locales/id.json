@@ -611,7 +611,10 @@
       "healthy": "Sehat",
       "nutritious": "Bergizi",
       "shunde": "Shunde",
-      "fresh": "Segar"
+      "fresh": "Segar",
+      "pork": "Babi", "beef": "Sapi", "chicken": "Ayam", "lamb": "Kambing", "fish": "Ikan", "shrimp": "Udang",
+      "egg": "Telur", "tofu": "Tahu", "staple": "Makanan pokok", "noodles": "Mie", "rice": "Nasi",
+      "taiwanese": "Taiwan", "thai": "Thailand", "indian": "India", "cantonese": "Kanton"
     }
   },
   "tabs": {
@@ -2240,5 +2243,14 @@
   "截圖食譜": "Resep Screenshot",
   "先存連結（之後再補充）": "Simpan tautan dulu (lengkapi nanti)",
   "先儲存（之後再補充）": "Simpan dulu (lengkapi nanti)",
-  "待補充": "Perlu dilengkapi"
+  "待補充": "Perlu dilengkapi",
+  "上載有食材／步驟文字嘅圖；可分幾張（食材一張、步驟一張）": "Unggah gambar berisi teks bahan/langkah; bisa beberapa (satu untuk bahan, satu untuk langkah)",
+  "✨ AI 生成相似食譜（AI 創作，非原帖）": "✨ AI-buat resep serupa (buatan AI, bukan asli)",
+  "AI 生成中…": "Membuat…",
+  "生成失敗": "Gagal membuat",
+  "請再試一次": "Coba lagi",
+  "輸入菜名或線索（AI 創作，非原帖）": "Masukkan nama masakan atau petunjuk (buatan AI, bukan asli)",
+  "例如：日式親子丼": "mis. Oyakodon",
+  "生成中…": "Membuat…",
+  "生成": "Buat"
 }
