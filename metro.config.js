@@ -1,7 +1,9 @@
 const path = require('path');
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
-const config = getDefaultConfig(__dirname);
+// Sentry's Expo config wrapper — enables the Sentry Metro serializer so JS
+// source maps are generated and uploaded to Sentry (needs SENTRY_AUTH_TOKEN).
+const config = getSentryExpoConfig(__dirname);
 
 // Allow connections from real devices on local network
 config.server = {
