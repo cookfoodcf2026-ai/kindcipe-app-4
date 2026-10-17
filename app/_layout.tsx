@@ -560,7 +560,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [langReady, setLangReady] = useState(false);
   useEffect(() => { initLanguage().then(() => setLangReady(true)).catch(() => setLangReady(true)); }, []);
   const router = useRouter();
@@ -681,3 +681,5 @@ export default function RootLayout() {
     </ShareIntentProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
