@@ -2280,5 +2280,6 @@
   "上載相片：食譜截圖（有文字）會如實抽取；食物相（冇字）會提議用 AI 生成。": "Unggah foto: screenshot resep (ada teks) diekstrak apa adanya; foto makanan (tanpa teks) akan menawarkan pembuatan AI.",
   "AI 生成": "Buat AI",
   "會根據你上載嘅相片，由 AI 創作一個相似食譜（非原帖）。": "AI akan membuat resep serupa berdasarkan fotomu (bukan asli).",
-  "搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。": "Tidak ada resep asli ditemukan; AI akan membuat resep dari nol (bukan asli)."
+  "搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。": "Tidak ada resep asli ditemukan; AI akan membuat resep dari nol (bukan asli).",
+  "冇原始內容時，AI 會創作一個新食譜（非原帖）": "Saat tidak ada konten asli, AI membuat resep baru (bukan asli)"
 }

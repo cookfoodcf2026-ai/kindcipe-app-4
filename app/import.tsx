@@ -1771,7 +1771,7 @@ export default function ImportScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={{ fontSize: 11, color: "#7C3AED", textAlign: "center", marginTop: 4, lineHeight: 15 }}>
-          {lastShotRef.current ? t("用 AI 分析你上載嘅食物相，生成一個相似食譜" as any) : t("用 AI 生成一個食譜（AI 創作，非原帖）" as any)}
+          {lastShotRef.current ? t("用 AI 分析你上載嘅食物相，生成一個相似食譜" as any) : t("冇原始內容時，AI 會創作一個新食譜（非原帖）" as any)}
         </Text>
       </View>
     );

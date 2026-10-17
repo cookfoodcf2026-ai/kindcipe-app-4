@@ -2280,5 +2280,6 @@
   "上載相片：食譜截圖（有文字）會如實抽取；食物相（冇字）會提議用 AI 生成。": "Upload photo: a recipe screenshot (with text) is extracted as-is; a food photo (no text) will offer AI generation.",
   "AI 生成": "AI generate",
   "會根據你上載嘅相片，由 AI 創作一個相似食譜（非原帖）。": "AI will create a similar recipe based on your uploaded photo (not the original).",
-  "搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。": "No original recipe content found; AI will create a recipe from scratch (not the original)."
+  "搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。": "No original recipe content found; AI will create a recipe from scratch (not the original).",
+  "冇原始內容時，AI 會創作一個新食譜（非原帖）": "When there's no original content, AI creates a new recipe (not the original)"
 }
