@@ -54,6 +54,7 @@ export default function KitchenSettingsScreen() {
   const [nameInput, setNameInput] = useState("");
   const [changingRole, setChangingRole] = useState<{ userId: string; role: string } | null>(null);
   const [showRolePicker, setShowRolePicker] = useState(false);
+  const [memberAction, setMemberAction] = useState<{ userId: string; name: string; role: string } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -455,6 +456,39 @@ export default function KitchenSettingsScreen() {
           </View>
         )}
 
+        {memberAction && (
+          <View style={s.overlay}>
+            <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setMemberAction(null)} />
+            <View style={s.sheet}>
+              <View style={s.handle} />
+              <Text style={s.sheetTitle}>{memberAction.name}</Text>
+              {isOwner && memberAction.role !== "owner" && (
+                <TouchableOpacity
+                  style={[s.roleOption, { flexDirection: "row", justifyContent: "flex-start", gap: 10 }]}
+                  onPress={() => { const a = memberAction; setMemberAction(null); handleChangeRole(a.userId, "owner"); }}
+                >
+                  <Ionicons name="ribbon-outline" size={18} color={BRAND} />
+                  <Text style={s.roleOptionText}>{t("轉換主人" as any)}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[s.roleOption, { flexDirection: "row", justifyContent: "flex-start", gap: 10 }]}
+                onPress={() => { const a = memberAction; setMemberAction(null); setChangingRole({ userId: a.userId, role: a.role }); setShowRolePicker(true); }}
+              >
+                <Ionicons name="swap-horizontal-outline" size={18} color={BRAND} />
+                <Text style={s.roleOptionText}>{t("改角色" as any)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.roleOption, { flexDirection: "row", justifyContent: "flex-start", gap: 10 }]}
+                onPress={() => { const a = memberAction; setMemberAction(null); handleRemoveMember(a.userId, a.name); }}
+              >
+                <Ionicons name="person-remove-outline" size={18} color="#EF4444" />
+                <Text style={[s.roleOptionText, { color: "#EF4444" }]}>{t("移除成員" as any)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View style={s.section}>
           <Text style={s.sectionTitle}>{t("kitchen.approval")}</Text>
           <View style={s.card}>
@@ -484,7 +518,13 @@ export default function KitchenSettingsScreen() {
             members.map((m: any) => {
               const isSelf = String(m.userId) === String(user?.id);
               return (
-                <View key={m.id} style={s.memberCard}>
+                <TouchableOpacity
+                  key={m.id}
+                  style={s.memberCard}
+                  activeOpacity={isAdmin && !isSelf ? 0.7 : 1}
+                  disabled={!(isAdmin && !isSelf)}
+                  onPress={() => setMemberAction({ userId: String(m.userId), name: m.name || m.nickname || "成員", role: m.familyRole })}
+                >
                   <View style={s.memberAvatar}>
                     <Text style={s.memberAvatarText}>
                       {(m.name || "?")[0]}
@@ -497,29 +537,8 @@ export default function KitchenSettingsScreen() {
                     </Text>
                     <Text style={s.memberRole}>{t(ROLE_LABEL[m.familyRole] as any) ?? m.familyRole}</Text>
                   </View>
-                  {isAdmin && !isSelf && (
-                    <View style={{ flexDirection: "row", gap: 4 }}>
-                      <TouchableOpacity
-                        style={[s.iconBtn, { flexDirection: "row", gap: 3, paddingHorizontal: 8 }]}
-                        onPress={() => {
-                          setChangingRole({ userId: String(m.userId), role: m.familyRole });
-                          setShowRolePicker(true);
-                        }}
-                      >
-                        <Ionicons name="swap-horizontal-outline" size={14} color={BRAND} />
-                        <Text style={{ color: BRAND, fontSize: 12, fontWeight: "700" }}>{t("改角色" as any)}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.iconBtn, { flexDirection: "row", gap: 3, paddingHorizontal: 8 }]}
-                        onPress={() => handleRemoveMember(String(m.userId), m.name || m.nickname || m.familyRole)}
-                        accessibilityLabel={t("移除" as any)}
-                      >
-                        <Ionicons name="person-remove-outline" size={14} color="#EF4444" />
-                        <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "700" }}>{t("移除" as any)}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
+                  {isAdmin && !isSelf && <Ionicons name="ellipsis-horizontal" size={18} color={SUB} />}
+                </TouchableOpacity>
               );
             })
           )}

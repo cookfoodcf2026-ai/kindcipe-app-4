@@ -2272,5 +2272,8 @@
   "確定要將主人身分轉移俾呢位成員？你將會變成家庭成員。": "Alihkan kepemilikan ke anggota ini? Kamu akan menjadi anggota biasa.",
   "進階": "Lanjutan",
   "邀請家人／姐姐用呢個碼加入廚房": "Undang keluarga / asisten dengan kode ini",
-  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Gabung ke dapur Kindcipe saya dengan kode {{code}}"
+  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Gabung ke dapur Kindcipe saya dengan kode {{code}}",
+  "✨ 用 AI 生成食譜（AI，非原帖）": "✨ Buat resep dengan AI (AI, bukan asli)",
+  "用 AI 分析你上載嘅食物相，生成一個相似食譜": "AI menganalisis foto makanan yang kamu unggah untuk membuat resep serupa",
+  "用 AI 生成一個食譜（AI 創作，非原帖）": "Buat resep dengan AI (buatan AI, bukan asli)"
 }

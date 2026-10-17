@@ -2272,5 +2272,8 @@
   "確定要將主人身分轉移俾呢位成員？你將會變成家庭成員。": "Transfer ownership to this member? You'll become a family member.",
   "進階": "Advanced",
   "邀請家人／姐姐用呢個碼加入廚房": "Invite family / helper to join with this code",
-  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Join my Kindcipe kitchen with code {{code}}"
+  "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Join my Kindcipe kitchen with code {{code}}",
+  "✨ 用 AI 生成食譜（AI，非原帖）": "✨ Generate recipe with AI (AI, not the original)",
+  "用 AI 分析你上載嘅食物相，生成一個相似食譜": "Uses AI to analyze your uploaded food photo and generate a similar recipe",
+  "用 AI 生成一個食譜（AI 創作，非原帖）": "Generate a recipe with AI (AI-created, not the original)"
 }

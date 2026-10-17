@@ -744,6 +744,8 @@ export default function ImportScreen() {
       steps: (r.steps ?? []).map((s: any) => ({ instruction: typeof s === "string" ? s : (s.instruction ?? "") })),
       tags: [...(Array.isArray(r.tags) ? r.tags : []), "AI 生成"],
       isAiGenerated: true,
+      // 保留原連結（方便用戶搵返來源）
+      sourceUrl: lastLinkRef.current || undefined,
     } as any);
   };
   const generateAiM = trpc.aiRecipe.generateFromHint.useMutation({
@@ -1724,36 +1726,41 @@ export default function ImportScreen() {
     );
     const aiBusy = generateAiM.isPending || generateImageAiM.isPending || importMutation.isPending;
     const aiBtn = (
-      <TouchableOpacity
-        style={styles.tryScreenshotButton}
-        disabled={aiBusy}
-        onPress={() => {
-          Keyboard.dismiss();
-          const shot = lastShotRef.current;
-          if (shot?.base64) {
-            // 有截圖 → 直接用圖 vision 生成（唔使打字）
-            (async () => {
-              try {
-                const up = await uploadImageMutation.mutateAsync({ base64: shot.base64, mimeType: shot.mimeType });
-                if (up?.key) { generateImageAiM.mutate({ storageKeys: [up.key] }); return; }
-              } catch { /* fall through */ }
-              setAiHintInput(""); setShowAiHintModal(true);
-            })();
-          } else {
-            setAiHintInput(
-              (lastOcrNameRef.current || "").trim() ||
-              (lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) ||
-              ""
-            );
-            setShowAiHintModal(true);
-          }
-        }}
-      >
-        <Ionicons name="sparkles" size={18} color="#fff" />
-        <Text style={styles.tryScreenshotText}>
-          {aiBusy ? t("AI 生成中…" as any) : (lastShotRef.current ? t("✨ 睇相生成食譜（AI，非原帖）" as any) : t("✨ 生成食譜（AI，非原帖）" as any))}
+      <View>
+        <TouchableOpacity
+          style={styles.tryScreenshotButton}
+          disabled={aiBusy}
+          onPress={() => {
+            Keyboard.dismiss();
+            const shot = lastShotRef.current;
+            if (shot?.base64) {
+              // 有截圖 → 直接用圖 vision 生成（唔使打字）
+              (async () => {
+                try {
+                  const up = await uploadImageMutation.mutateAsync({ base64: shot.base64, mimeType: shot.mimeType });
+                  if (up?.key) { generateImageAiM.mutate({ storageKeys: [up.key] }); return; }
+                } catch { /* fall through */ }
+                setAiHintInput(""); setShowAiHintModal(true);
+              })();
+            } else {
+              setAiHintInput(
+                (lastOcrNameRef.current || "").trim() ||
+                (lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) ||
+                ""
+              );
+              setShowAiHintModal(true);
+            }
+          }}
+        >
+          <Ionicons name="sparkles" size={18} color="#fff" />
+          <Text style={styles.tryScreenshotText}>
+            {aiBusy ? t("AI 生成中…" as any) : (lastShotRef.current ? t("✨ 睇相生成食譜（AI，非原帖）" as any) : t("✨ 用 AI 生成食譜（AI，非原帖）" as any))}
+          </Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 11, color: "#7C3AED", textAlign: "center", marginTop: 4, lineHeight: 15 }}>
+          {lastShotRef.current ? t("用 AI 分析你上載嘅食物相，生成一個相似食譜" as any) : t("用 AI 生成一個食譜（AI 創作，非原帖）" as any)}
         </Text>
-      </TouchableOpacity>
+      </View>
     );
     return (
       <>
@@ -1982,34 +1989,35 @@ export default function ImportScreen() {
           </View>
         )}
 
-        {/* Secondary Action Buttons */}
-        <View style={styles.secondaryActions}>
-          {!pendingScreenshot && (
+        {/* Secondary Action Buttons（有 pending 截圖時收埋，避免太多掣） */}
+        {!pendingScreenshot && (
+          <View style={styles.secondaryActions}>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={() => setShowPhotoSourceModal(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="image-outline" size={24} color="#013E77" />
+              <Ionicons name="image-outline" size={22} color="#013E77" />
               <Text style={styles.secondaryButtonText}>{t("importRecipe.photoUpload")}</Text>
             </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.push("/recipe-editor")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="create-outline" size={24} color="#013E77" />
-            <Text style={styles.secondaryButtonText}>{t("importRecipe.customRecipe")}</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => router.push("/recipe-editor")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={22} color="#013E77" />
+              <Text style={styles.secondaryButtonText}>{t("importRecipe.customRecipe")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Xiaohongshu Tip */}
-        <View style={styles.xiaohongshuTip}>
-          <Ionicons name="information-circle" size={16} color="#6B7280" />
-          <Text style={styles.xiaohongshuTipText}>{t("importRecipe.xiaohongshuTip")}</Text>
-        </View>
+        {!pendingScreenshot && (
+          <View style={styles.xiaohongshuTip}>
+            <Ionicons name="information-circle" size={16} color="#6B7280" />
+            <Text style={styles.xiaohongshuTipText}>{t("importRecipe.xiaohongshuTip")}</Text>
+          </View>
+        )}
 
         <View style={{ height: Math.max(insets.bottom + 16, 40) }} />
       </ScrollView>
@@ -2159,8 +2167,8 @@ const styles = StyleSheet.create({
   
   // Secondary Actions
   secondaryActions: {
-    flexDirection: "row",
-    gap: 12,
+    flexDirection: "column",
+    gap: 10,
     paddingHorizontal: 16,
     marginTop: 16,
   },
