@@ -457,6 +457,7 @@ export default function KitchenSettingsScreen() {
         )}
 
         {memberAction && (
+          <Modal transparent animationType="slide" onRequestClose={() => setMemberAction(null)}>
           <View style={s.overlay}>
             <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setMemberAction(null)} />
             <View style={s.sheet}>
@@ -487,6 +488,7 @@ export default function KitchenSettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          </Modal>
         )}
 
         <View style={s.section}>
@@ -563,6 +565,7 @@ export default function KitchenSettingsScreen() {
         )}
 
         {showRolePicker && changingRole && (
+          <Modal transparent animationType="slide" onRequestClose={() => { setShowRolePicker(false); setChangingRole(null); }}>
           <View style={s.overlay}>
             <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => { setShowRolePicker(false); setChangingRole(null); }} />
             <View style={s.sheet}>
@@ -582,6 +585,7 @@ export default function KitchenSettingsScreen() {
               ))}
             </View>
           </View>
+          </Modal>
         )}
 
         {isOwner && (

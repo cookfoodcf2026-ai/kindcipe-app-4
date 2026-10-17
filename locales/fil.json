@@ -1081,7 +1081,7 @@
     "previewHint": "Tiyaking malinaw ang larawan",
     "reselect": "Pumili muli",
     "startParse2": "Simulan",
-    "photoUpload": "📷 Mag-upload ng screenshot ng recipe (kailangan may text)",
+    "photoUpload": "📷 Mag-upload ng larawan",
     "xiaohongshuTip": "Mga recipe sa Xiaohongshu / Threads: gamitin ang screenshot upload",
     "pasteHint": "Paano i-paste: sa Safari/Instagram i-tap ang ⋯ o long-press → Copy link, tapos i-tap ang Paste. Awtomatikong ma-detect pagbalik mo.",
     "igCopyHint": "Hindi lumalabas ang Instagram sa share sheet: i-tap ang ⋯/paper-plane → 'Copy link'. Awtomatikong ma-detect ng app pagbalik mo."
@@ -2275,5 +2275,10 @@
   "用邀請碼 {{code}} 加入我嘅 Kindcipe 廚房": "Sumali sa Kindcipe kitchen ko gamit ang code na {{code}}",
   "✨ 用 AI 生成食譜（AI，非原帖）": "✨ Gumawa ng recipe gamit ang AI (AI, hindi ang orihinal)",
   "用 AI 分析你上載嘅食物相，生成一個相似食譜": "Ginagamit ng AI ang iyong in-upload na litrato ng pagkain para gumawa ng katulad na recipe",
-  "用 AI 生成一個食譜（AI 創作，非原帖）": "Gumawa ng recipe gamit ang AI (AI-made, hindi ang orihinal)"
+  "用 AI 生成一個食譜（AI 創作，非原帖）": "Gumawa ng recipe gamit ang AI (AI-made, hindi ang orihinal)",
+  "📷 上載相片": "📷 Mag-upload ng larawan",
+  "上載相片：食譜截圖（有文字）會如實抽取；食物相（冇字）會提議用 AI 生成。": "Mag-upload ng larawan: ang screenshot ng recipe (may text) ay kinukuha nang tumpak; ang litrato ng pagkain (walang text) ay mag-aalok ng AI generation.",
+  "AI 生成": "AI generate",
+  "會根據你上載嘅相片，由 AI 創作一個相似食譜（非原帖）。": "Gagawa ang AI ng katulad na recipe base sa iyong in-upload na larawan (hindi ang orihinal).",
+  "搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。": "Walang nahanap na orihinal na recipe; gagawa ang AI ng recipe mula sa wala (hindi ang orihinal)."
 }

@@ -1720,7 +1720,7 @@ export default function ImportScreen() {
       >
         <Ionicons name="image" size={18} color={isPro ? "#fff" : "#013E77"} />
         <Text style={isPro ? styles.tryScreenshotText : styles.tryTextButtonText}>
-          {t("📷 上載食譜截圖（要有文字）" as any)}{!isPro ? " · Pro" : ""}
+          {t("📷 上載相片" as any)}{!isPro ? " · Pro" : ""}
         </Text>
       </TouchableOpacity>
     );
@@ -1733,23 +1733,36 @@ export default function ImportScreen() {
           onPress={() => {
             Keyboard.dismiss();
             const shot = lastShotRef.current;
-            if (shot?.base64) {
-              // 有截圖 → 直接用圖 vision 生成（唔使打字）
-              (async () => {
-                try {
-                  const up = await uploadImageMutation.mutateAsync({ base64: shot.base64, mimeType: shot.mimeType });
-                  if (up?.key) { generateImageAiM.mutate({ storageKeys: [up.key] }); return; }
-                } catch { /* fall through */ }
-                setAiHintInput(""); setShowAiHintModal(true);
-              })();
-            } else {
-              setAiHintInput(
-                (lastOcrNameRef.current || "").trim() ||
-                (lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) ||
-                ""
-              );
-              setShowAiHintModal(true);
-            }
+            const proceed = () => {
+              if (shot?.base64) {
+                // 有截圖 → 直接用圖 vision 生成（唔使打字）
+                (async () => {
+                  try {
+                    const up = await uploadImageMutation.mutateAsync({ base64: shot.base64, mimeType: shot.mimeType });
+                    if (up?.key) { generateImageAiM.mutate({ storageKeys: [up.key] }); return; }
+                  } catch { /* fall through */ }
+                  setAiHintInput(""); setShowAiHintModal(true);
+                })();
+              } else {
+                setAiHintInput(
+                  (lastOcrNameRef.current || "").trim() ||
+                  (lastCaptionRef.current || "").split("\n").map((l) => l.trim()).find(Boolean) ||
+                  ""
+                );
+                setShowAiHintModal(true);
+              }
+            };
+            // 透明化：先講清楚係 AI 創作（有相／冇資料 兩種文案）
+            Alert.alert(
+              t("AI 生成食譜" as any),
+              shot?.base64
+                ? t("會根據你上載嘅相片，由 AI 創作一個相似食譜（非原帖）。" as any)
+                : t("搵唔到原始食譜內容，以下會由 AI 憑空創作一個食譜（非原帖）。" as any),
+              [
+                { text: t("取消" as any), style: "cancel" },
+                { text: t("AI 生成" as any), onPress: proceed },
+              ],
+            );
           }}
         >
           <Ionicons name="sparkles" size={18} color="#fff" />
@@ -2015,7 +2028,7 @@ export default function ImportScreen() {
         {!pendingScreenshot && (
           <View style={styles.xiaohongshuTip}>
             <Ionicons name="information-circle" size={16} color="#6B7280" />
-            <Text style={styles.xiaohongshuTipText}>{t("importRecipe.xiaohongshuTip")}</Text>
+            <Text style={styles.xiaohongshuTipText}>{t("上載相片：食譜截圖（有文字）會如實抽取；食物相（冇字）會提議用 AI 生成。" as any)}</Text>
           </View>
         )}
 
