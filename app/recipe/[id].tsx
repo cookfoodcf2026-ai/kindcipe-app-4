@@ -1364,7 +1364,7 @@ export default function RecipeDetailScreen() {
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
-              {isUserRecipe && adjustedIngredients.length > 0 && (
+              {isUserRecipe && adjustedIngredients.length > 0 && steps.length === 0 && (
                 <TouchableOpacity style={s.btnAI} disabled={fillStepsM.isPending} onPress={() => {
                   fillStepsM.mutate({
                     name: recipe?.name ?? "",
