@@ -618,6 +618,7 @@
     }
   },
   "tabs": {
+    "home": "Beranda",
     "recipes": "Resep",
     "planner": "Rencana",
     "shopping": "Belanja",

@@ -49,6 +49,12 @@ export default function RecipeCard(
   const { height: screenHeight } = useWindowDimensions();
   const imageRatio = getRecipeCardImageRatio(screenHeight);
   const catColor = category ? getCategoryColor(category.key) : getCategoryColor("其他");
+  const visibleTags = tags
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .map((tag) => ({ raw: tag, label: enu.tag(tag) }))
+    .filter((tag) => !!tag.label)
+    .slice(0, 2);
 
   // Remote image from backend (R2) is PRIMARY. Local require is only a fallback
   // when the backend has no thumbnailUrl (e.g. offline / older data).
@@ -170,24 +176,22 @@ export default function RecipeCard(
         </View>
 
         {/* ── Tags ── */}
-        {tags.length > 0 && (
+        {visibleTags.length > 0 && (
           <View style={s.cardTags}>
-            {tags.slice(0, 2).map((tag) => {
-              const trimmedTag = tag.trim();
-              if (!trimmedTag) return null;
-              const isActive = activeTagFilters.includes(trimmedTag);
+            {visibleTags.map((tag) => {
+              const isActive = activeTagFilters.includes(tag.raw);
               return (
                 <TouchableOpacity
-                  key={trimmedTag}
+                  key={tag.raw}
                   style={[s.cardTag, isActive && s.cardTagActive]}
                   onPress={(e) => {
                     e.stopPropagation();
                     setActiveTagFilters(prev =>
-                      prev.includes(trimmedTag) ? prev.filter(t => t !== trimmedTag) : [...prev, trimmedTag]
+                      prev.includes(tag.raw) ? prev.filter(t => t !== tag.raw) : [...prev, tag.raw]
                     );
                   }}
                 >
-                  <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{enu.tag(trimmedTag)}</Text>
+                  <Text style={[s.cardTagTxt, isActive && s.cardTagTxtActive]}>#{tag.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -370,7 +374,9 @@ const s = StyleSheet.create({
   cardMeta: { 
     flexDirection: "row", 
     alignItems: "center", 
+    flexWrap: "wrap",
     gap: 8, 
+    rowGap: 4,
     marginBottom: 6,
   },
   cardMetaItem: {

@@ -1173,6 +1173,12 @@ export default function AIChefScreen() {
 
   const usageUtils = trpc.useUtils();
   const [showPaywall, setShowPaywall] = useState(false);
+  const { data: sub } = trpc.family.subscription.useQuery(undefined, {
+    enabled: !!user,
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  const hideUpgradePromo = sub?.isPaid === true;
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data) => {
       void usageUtils.family.usage.invalidate();
@@ -3414,7 +3420,7 @@ export default function AIChefScreen() {
         </ScrollView>
         </View>
 
-          <AdSlot onPressUpgrade={() => setShowPaywall(true)} />
+          {!hideUpgradePromo && <AdSlot onPressUpgrade={() => setShowPaywall(true)} />}
       </View>
     );
   };
@@ -3888,7 +3894,7 @@ export default function AIChefScreen() {
 
       {chatStarted || messages.length > 0 || isMealAnswering || askingIngredients ? (
         <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
-        <AdSlot onPressUpgrade={() => setShowPaywall(true)} />
+        {!hideUpgradePromo && <AdSlot onPressUpgrade={() => setShowPaywall(true)} />}
           <View style={s.inputBar}>
             <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
               <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />

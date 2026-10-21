@@ -1,7 +1,7 @@
 # P-1 Backup & Rollback Record
 
 > 開始：2026-10-21
-> 狀態：**✅ P-1 全部完成（除雲端備份待手動上傳）**
+> 狀態：**✅ P-1 全部完成**
 
 ## 1. Code tags
 
@@ -22,7 +22,7 @@
 | Scratch DB restore | ✅ `kindcipe_restore_check` restore exit=0, errors=0, 33 tables |
 | Counts 核對 | ✅ 全部吻合（見下） |
 | 本機備份 | ✅ 已存在 |
-| 雲端備份 | ⏳ 未做（rclone 未安裝；建議手動上傳 iCloud/Dropbox） |
+| 雲端備份 | ✅ iCloud Drive `Kindcipe Backups/pre-home-2026-10-21.dump`；SHA-256 `ef5c21b4738ed460635f660fef7dffe66fb9631472fcd50b7fff75e665ddce9c` |
 | Scratch DB | ✅ 已 drop |
 
 **Counts（source = restored）：**
@@ -68,5 +68,6 @@
 
 ## 5. 下一步
 
-1. 雲端備份（手動上傳 `~/kindcipe-backup/pre-home-2026-10-21.dump`）
-2. → L1 小修正 → L2 Stripe Live → L3 資產/簽名/build
+1. L1 小修正 ✅（tag filter / meta wrap / 首頁 tab / Pro promo gate）
+2. → L2 Stripe Live + Android Google Play Billing
+3. → L3 資產/簽名/build

@@ -618,6 +618,7 @@
     }
   },
   "tabs": {
+    "home": "首頁",
     "recipes": "食譜",
     "planner": "排餐",
     "shopping": "購物",

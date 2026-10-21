@@ -24,7 +24,7 @@ function useTabItems(): TabItem[] {
   const { t } = useTranslation();
   const { plannerBadge, shoppingBadge } = usePendingCounts();
   return [
-    { href: "/", label: t("tabs.recipes"), Icon: RecipeIcon },
+    { href: "/", label: t("tabs.home"), Icon: RecipeIcon },
     { href: "/planner", label: t("tabs.planner"), Icon: PlannerIcon, badge: plannerBadge, badgeColor: "#EF4444" },
     { href: "/shopping", label: t("tabs.shopping"), Icon: ShoppingIcon, badge: shoppingBadge, badgeColor: NAVY },
     { href: "/more", label: t("tabs.more"), Icon: GridIcon },
@@ -98,7 +98,7 @@ function MobileTabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t("tabs.recipes"),
+          title: t("tabs.home"),
           tabBarIcon: ({ color }) => <RecipeIcon size={22} color={color} />,
         }}
       />

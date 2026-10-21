@@ -618,6 +618,7 @@
     }
   },
   "tabs": {
+    "home": "Home",
     "recipes": "Recipes",
     "planner": "Plan",
     "shopping": "Shopping",
