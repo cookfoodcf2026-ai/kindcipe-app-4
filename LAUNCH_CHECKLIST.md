@@ -47,7 +47,7 @@
 - [ ] Web = Stripe
 - [ ] Android = **Google Play Billing**（唔可以用 Stripe）
 - [ ] iOS = Apple IAP
-- [ ] ⚠️ 現時 `lib/purchase.ts` 仍將 Android 當 Stripe → 上架前必須處理
+- [x] ✅ 已移除 Android Stripe（`lib/purchase.ts` 只限 web，2026-10-21）；Play Billing 待接入
 
 ---
 
@@ -73,7 +73,8 @@
 - [ ] 🤖 後端已支援 Apple JWS 驗證（`_core/appleIap.ts`）✅；confirm `APPLE_BUNDLE_ID=com.kindcipe.app`
 
 ### Android — Google Play Billing（**取代 Stripe**）
-- [ ] 🤖 裝 `react-native-iap`；`lib/purchase.ts` 將 `isStripeSupported` 改為**只 `web`**（移除 `android`）；Android 走 Play Billing（攞 `purchaseToken`）
+- [x] 🤖 `lib/purchase.ts`：`isStripeSupported` 改為**只 `web`**（已移除 `android`，2026-10-21）
+- [ ] 🤖 裝 `react-native-iap`；Android 走 Play Billing（攞 `purchaseToken`）
 - [ ] 🤖 後端**新增** `_core/googlePlayIap.ts`：用 Google Play Developer API 驗 `purchaseToken`（service account JSON）
 - [ ] 🤖 擴充 `subscription.verifyIap` 支援 Play（`transactionId = play_<hash>`）+ **acknowledge 購買**（3 日內唔 acknowledge 會被退款）
 - [ ] 🤖 `VALID_PRODUCTS` 加 Play product IDs（例如 `kindcipe_monthly` / `kindcipe_yearly`）

@@ -2,14 +2,15 @@
  * Subscription purchase helper (universal build).
  *
  * Channel by platform:
- *  - Web / Android → Stripe Checkout (see backend billing router). Opening the
- *    URL navigates the browser / in-app browser to Stripe.
+ *  - Web → Stripe Checkout (see backend billing router).
  *  - iOS → Apple In-App Purchase. NOTE: `expo-in-app-purchases` is deprecated
  *    on SDK 54 and not bundled, so iOS currently reports "unavailable" until
  *    react-native-iap + server receipt verification land (see docs).
+ *  - Android → Google Play Billing. Stripe is NOT permitted for digital
+ *    subscriptions on Android, so we never expose the Stripe path there.
  *
- * App Store guideline 3.1.1: iOS must use IAP for digital goods, so we NEVER
- * expose the Stripe path on iOS.
+ * App Store guideline 3.1.1 / Google Play payments policy: native stores
+ * require their own billing for digital goods.
  */
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
@@ -26,24 +27,30 @@ export const PRODUCT_IDS = {
 /** Apple IAP only applies to native iOS builds. */
 export const isIapSupported = Platform.OS === "ios";
 
-/** Stripe applies to web (and Android, where permitted). Never iOS. */
-export const isStripeSupported = Platform.OS === "web" || Platform.OS === "android";
+/** Google Play Billing only applies to native Android builds. */
+export const isPlayBillingSupported = Platform.OS === "android";
+
+/** Stripe applies to web only. Never iOS (3.1.1) or Android (Play policy). */
+export const isStripeSupported = isWeb;
 
 /**
- * iOS in-app purchase is NOT wired yet (react-native-iap not bundled).
- * App Store guidelines require IAP for digital goods — so until R2 lands we must
- * NOT show any price/purchase UI on iOS (a dead "buy" button = 2.1 rejection).
- * Flip to true once react-native-iap + receipt verification ship.
+ * Native store billing is NOT wired yet (react-native-iap not bundled).
+ * Store policies require native billing for digital goods — so until both
+ * receipt-verification paths ship we must NOT show a dead "buy" button.
+ * Flip the matching flag once react-native-iap + verification land.
  */
-const IAP_LIVE = false;
+const IAP_LIVE = false; // iOS / App Store
+const PLAY_BILLING_LIVE = false; // Android / Google Play
 
 /**
  * Whether this platform can actually complete a purchase right now.
- * iOS → false until IAP_LIVE. Web/Android → true (Stripe).
- * Use this (not isIapSupported/isStripeSupported) to decide whether to show price CTAs.
+ * Web → Stripe. iOS/Android → false until their store billing is live.
+ * Use this (not the *Supported flags) to decide whether to show price CTAs.
  */
 export const canPurchaseHere =
-  isStripeSupported || (Platform.OS === "ios" && IAP_LIVE);
+  isStripeSupported ||
+  (Platform.OS === "ios" && IAP_LIVE) ||
+  (Platform.OS === "android" && PLAY_BILLING_LIVE);
 
 export type ProductId = (typeof PRODUCT_IDS)[keyof typeof PRODUCT_IDS];
 
@@ -65,8 +72,8 @@ export async function getProducts(): Promise<{ productId: ProductId; price: stri
 }
 
 /**
- * Start a purchase. On web/Android this opens Stripe Checkout (full-page
- * redirect on web, in-app browser on native-android). On iOS it attempts IAP.
+ * Start a purchase. On web this opens Stripe Checkout. On native this is a
+ * no-op until Apple IAP / Google Play Billing are wired.
  */
 export async function purchaseSubscription(productId: ProductId, opts?: { promoCode?: string }): Promise<PurchaseResult> {
   const plan = SUBSCRIPTION_TYPE[productId];
@@ -94,15 +101,15 @@ export async function purchaseSubscription(productId: ProductId, opts?: { promoC
     }
   }
 
-  // iOS: Apple IAP (not yet wired in this build).
+  // iOS (Apple IAP) / Android (Play Billing): not wired in this build.
   return { success: false, error: i18n.t("error.iapUnavailable" as any) };
 }
 
 export async function manageSubscription(): Promise<void> {
   try {
     if (isStripeSupported) {
-      // Prefer the Stripe Billing Portal when a customer exists; otherwise fall
-      // back to the pricing page.
+      // Web: prefer the Stripe Billing Portal when a customer exists; otherwise
+      // fall back to the pricing page.
       try {
         const { url } = await trpc.billing.createPortalSession.mutate();
         if (url) {
