@@ -1,7 +1,7 @@
 # P-1 Backup & Rollback Record
 
 > 開始：2026-10-21
-> 狀態：**進行中 — DB dump 被 Railway token 過期阻擋**
+> 狀態：**DB 備份 + restore 演練完成；Web rollback 演練待做**
 
 ## 1. Code tags
 
@@ -17,16 +17,33 @@
 
 | 項目 | 狀態 |
 |---|---|
-| `DATABASE_PUBLIC_URL` | 存在（Railway Postgres service） |
-| `pg_dump` | ⏳ 未完成 — Railway token 過期 |
-| `pg_restore -l` 驗證 | ⏳ |
-| Scratch DB restore + counts | ⏳ |
-| 本機備份 | ⏳ `~/kindcipe-backup/`（已建立，未有 dump） |
-| 雲端備份 | ⏳ 手動上傳（rclone 未安裝） |
+| `pg_dump` | ✅ `~/kindcipe-backup/pre-home-2026-10-21.dump`（874 KB, 72 tables, TOC 720） |
+| `pg_restore -l` 驗證 | ✅ 可讀，格式 CUSTOM / gzip |
+| Scratch DB restore | ✅ `kindcipe_restore_check` restore exit=0, errors=0, 33 tables |
+| Counts 核對 | ✅ 全部吻合（見下） |
+| 本機備份 | ✅ 已存在 |
+| 雲端備份 | ⏳ 未做（rclone 未安裝；建議手動上傳 iCloud/Dropbox） |
+| Scratch DB | ✅ 已 drop |
 
-**Blocker：** Railway CLI token 約 2026-10-21 08:19 UTC 過期。
-`railway variables` / `railway connect` 回 `Problem processing request`。
-**解法：** 喺 terminal 跑 `railway login`（瀏覽器），完成後重試。
+**Counts（source = restored）：**
+
+| table | count |
+|---|---|
+| users | 60 |
+| families | 1 |
+| family_members | 2 |
+| official_recipes | 314 |
+| custom_recipes | 74 |
+| meal_plans | 195 |
+| common_ingredients | 1223 |
+| shopping_items | 70 |
+| user_identities | 63 |
+| ai_chef_seen_recipes | 30 |
+
+**Root cause 記錄：** `railway variables` 長期回 `Problem processing request`。
+原因：Postgres service 嘅 `DATABASE_PUBLIC_URL` 引用 `RAILWAY_TCP_PROXY_DOMAIN/PORT`，但 **TCP proxy 未開** → resolver render 失敗。
+臨時解法：`serviceDomainCreate`（targetPort 5432）令 Railway 生成 TCP proxy 變數 → resolver 恢復 → dump。
+**事後已還原**：`serviceDomainDelete` 移除臨時 domain，`RAILWAY_TCP_PROXY_*` 已消失（public 存取已收回）。
 
 ## 3. Platform state（已記錄）
 
@@ -48,9 +65,6 @@
 
 ## 5. 下一步
 
-1. 用戶完成 `railway login`
-2. 重試 `pg_dump`（用 `DATABASE_PUBLIC_URL`）
-3. Scratch DB restore + counts
-4. 雲端備份
-5. Web rollback 演練
-6. 更新本記錄為 **完成**
+1. Web rollback 演練
+2. 雲端備份（手動）
+3. 之後 → L1 小修正 → L2 Stripe Live → L3 資產/簽名/build
