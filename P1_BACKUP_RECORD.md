@@ -1,7 +1,7 @@
 # P-1 Backup & Rollback Record
 
 > 開始：2026-10-21
-> 狀態：**DB 備份 + restore 演練完成；Web rollback 演練待做**
+> 狀態：**✅ P-1 全部完成（除雲端備份待手動上傳）**
 
 ## 1. Code tags
 
@@ -60,11 +60,13 @@
 
 ## 4. Web rollback
 
-- [ ] 演練（rollback → 確認 → 回復最新）
+- [x] 演練 ✅
+  - rollback → `f7985dfa-f862-43b4-9ec4-9a9a341d5754@100%`（驗證成功）
+  - restore → `39313002-9699-4965-9452-f7e05d69fcf9@100%`（= 最新，驗證成功）
 - 最新 deployment：`de39068a-e589-4fdd-89e1-02249893ff2f`
+- 指令：`npx --yes wrangler@4.86.0 versions deploy <version-id>@100% -y`
 
 ## 5. 下一步
 
-1. Web rollback 演練
-2. 雲端備份（手動）
-3. 之後 → L1 小修正 → L2 Stripe Live → L3 資產/簽名/build
+1. 雲端備份（手動上傳 `~/kindcipe-backup/pre-home-2026-10-21.dump`）
+2. → L1 小修正 → L2 Stripe Live → L3 資產/簽名/build
