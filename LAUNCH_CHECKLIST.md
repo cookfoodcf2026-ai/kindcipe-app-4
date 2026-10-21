@@ -3,6 +3,51 @@
 > 標記：👤 = 你（人手）· 🤖 = 工程 · ⏱ = 需時
 > 「Go / No-Go」：任何 🔴 未清 → **No-Go**。
 > 定價單一真相：**`TIER_SPEC.md`**（早鳥 HK$30/月、HK$288/年；正價 HK$38/月、HK$365/年）。
+> 2026 改版詳情：**`HOME_REVAMP_PLAN.md`**；回滾：**`ROLLBACK_RUNBOOK.md`**。
+
+---
+
+## 🔒 2026 改版 — Launch Gate 新增（先做）
+
+> 策略：**Launch 用 Legacy；新 UX 用上線後 OTA。**
+> 上線前**唔碰 `app/(tabs)/index.tsx`**。
+
+### P-1 備份（改任何 code 前）
+- [ ] 兩個 repo tag `pre-home-activation` + push
+- [ ] 新鮮 DB dump（用 `DATABASE_PUBLIC_URL`）
+- [ ] `pg_restore -l` 驗證 dump
+- [ ] Scratch DB restore + counts 核對
+- [ ] 本機 + 雲端備份
+- [ ] 記錄 Cloudflare deployment ID / OTA group / EAS build
+- [ ] Web rollback 演練
+
+### CI（PR gate）
+- [ ] `.github/workflows/ci.yml`
+- [ ] PR：`tsc --noEmit` + `npm run ci-gate`
+- [ ] 手動 / 每晚：Detox smoke
+
+### OTA Code Signing（**必須喺 Launch build 前**）
+- [ ] 產生 code signing key/cert
+- [ ] `app.json` 加 `updates.codeSigningCertificate` / `codeSigningMetadata`
+- [ ] 證書存密碼管理器
+- [ ] 原因：public key 會 embed 喺 binary；Launch build 冇做，之後 OTA 簽名唔會被驗證
+
+### Staged Rollout
+- [ ] Play：5% → 20% → 50% → 100%（每階段 24–48 小時）
+- [ ] App Store：Phased Release（7 日）
+- [ ] OTA / Flag：內部 → 10% → 50% → 100%
+
+### Release Health Gate
+- [ ] Sentry release + dist
+- [ ] Source map 上載
+- [ ] Crash-free ≥ 99.5% 才擴量
+- [ ] Alert：error rate 突升 / 新 issue
+
+### 平台付款政策（重要）
+- [ ] Web = Stripe
+- [ ] Android = **Google Play Billing**（唔可以用 Stripe）
+- [ ] iOS = Apple IAP
+- [ ] ⚠️ 現時 `lib/purchase.ts` 仍將 Android 當 Stripe → 上架前必須處理
 
 ---
 
@@ -62,9 +107,9 @@
 
 ## 🟠 階段 2 — 監控 / 營運
 
-- [ ] 🤖 設 **前端 Sentry DSN**（`EXPO_PUBLIC_SENTRY_DSN`，現時空白）
+- [x] 🤖 前端 Sentry DSN（`EXPO_PUBLIC_SENTRY_DSN`）— ✅ 已設；source map 待下次 EAS build
 - [ ] 👤 **Uptime 監控**（`/health` + webapp）+ 告警
-- [ ] 👤 Supabase **PITR 備份** + 試 restore
+- [ ] 👤 **Railway Postgres 備份 + 試 restore**（見 P-1；Supabase 只作 fallback）
 - [ ] 👤 **Resend domain 驗證**：`kindcipe.com` SPF / DKIM / DMARC
 - [ ] 👤 **Push 憑證**：APNs key + FCM
 - [ ] 🤖 **DB migrations 入 CI**
@@ -282,8 +327,11 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 | 服務條款 | 🔴 冇 |
 | 私隱政策 | ✅ 有 |
 | 帳戶刪除 | ✅ 有 |
-| 前端 Sentry | 🔴 空白 |
-| DB 備份 | ❓ |
+| 前端 Sentry | ✅ 已設（source map 待 build） |
+| DB 備份 | 🟡 P-1 待做 |
+| OTA code signing | 🔴 未（Launch build 前必須） |
+| CI PR gate | 🔴 未 |
+| Staged rollout | 🔴 未設定 |
 | 2FA（關鍵帳戶） | ❓ |
 
 ---
