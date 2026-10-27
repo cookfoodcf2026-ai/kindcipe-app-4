@@ -10,9 +10,11 @@ import {
   ActivityIndicator, Modal, Linking, TextInput, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
 import {
   cleanIngredientName,
+  resolvePriceSearchKeyword,
   isFreshIngredient,
   filterPriceResults,
   SM_STYLE,
@@ -20,7 +22,7 @@ import {
   openPlatform,
 } from "@/lib/price";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
@@ -38,6 +40,7 @@ export interface PriceCompareFooterContext {
 interface Props {
   visible: boolean;
   keyword: string;
+  displayKeyword?: string;
   keywordEn?: string;
   onClose: () => void;
   showKeywordEditor?: boolean;
@@ -48,6 +51,7 @@ interface Props {
 export default function PriceCompareModal({
   visible,
   keyword,
+  displayKeyword,
   keywordEn,
   onClose,
   showKeywordEditor = true,
@@ -57,19 +61,24 @@ export default function PriceCompareModal({
   const { t } = useTranslation();
   const [editablePriceKw, setEditablePriceKw] = useState("");
   const [appliedKw, setAppliedKw] = useState(keyword);
+  const [appliedDisplay, setAppliedDisplay] = useState(displayKeyword || keyword);
   const [selectedResultIdx, setSelectedResultIdx] = useState(0);
   const [showAllResults, setShowAllResults] = useState(false);
   const [showAllSupermarkets, setShowAllSupermarkets] = useState(false);
+  const [openError, setOpenError] = useState("");
 
   useEffect(() => {
     if (visible) {
-      setEditablePriceKw(keyword);
-      setAppliedKw(keyword);
+      const display = displayKeyword || keyword;
+      setEditablePriceKw(display);
+      setAppliedDisplay(display);
+      setAppliedKw(resolvePriceSearchKeyword(display, keywordEn, keyword));
       setSelectedResultIdx(0);
       setShowAllResults(false);
       setShowAllSupermarkets(false);
+      setOpenError("");
     }
-  }, [visible, keyword]);
+  }, [visible, keyword, displayKeyword, keywordEn]);
 
   const cleanPriceKw = useMemo(() => cleanIngredientName(appliedKw), [appliedKw]);
   const isFreshIng = useMemo(() => isFreshIngredient(appliedKw), [appliedKw]);
@@ -97,7 +106,17 @@ export default function PriceCompareModal({
     setSelectedResultIdx(0);
     setShowAllResults(false);
     setShowAllSupermarkets(false);
+    setOpenError("");
     onClose();
+  };
+
+  const handleOpenPlatform = async (platform: (typeof REDIRECT_PLATFORMS)[number]) => {
+    setOpenError("");
+    const ok = await openPlatform(platform, cleanPriceKw);
+    if (!ok) {
+      try { await Clipboard.setStringAsync(cleanPriceKw); } catch { /* clipboard optional */ }
+      setOpenError(t("開啟平台失敗，已複製關鍵字" as any));
+    }
   };
 
   const selectedResult = priceResults[selectedResultIdx] ?? priceResults[0];
@@ -119,10 +138,7 @@ export default function PriceCompareModal({
             <View style={s.sheetHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={s.sheetTitle}>{t("price.title")}</Text>
-                <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND, marginTop: 2 }}>{keyword}</Text>
-                {cleanPriceKw !== keyword && (
-                  <Text style={{ fontSize: 10, color: SUB, marginTop: 1 }}>{t("dyn.searchKeyword", { kw: cleanPriceKw })}</Text>
-                )}
+                <Text style={{ fontSize: 13, fontWeight: "700", color: BRAND, marginTop: 2 }}>{appliedDisplay || cleanPriceKw}</Text>
               </View>
               <TouchableOpacity onPress={handleClose}>
                 <Ionicons name="close" size={22} color={TEXT} />
@@ -145,7 +161,14 @@ export default function PriceCompareModal({
                     style={{ backgroundColor: BRAND, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, justifyContent: "center" }}
                     onPress={() => {
                       const kw = editablePriceKw.trim();
-                      if (kw) { setAppliedKw(kw); setSelectedResultIdx(0); setShowAllResults(false); setShowAllSupermarkets(false); }
+                      if (kw) {
+                        setAppliedDisplay(kw);
+                        setAppliedKw(resolvePriceSearchKeyword(kw, keywordEn, undefined));
+                        setSelectedResultIdx(0);
+                        setShowAllResults(false);
+                        setShowAllSupermarkets(false);
+                        setOpenError("");
+                      }
                     }}
                   >
                     <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{t("price.search")}</Text>
@@ -373,14 +396,14 @@ export default function PriceCompareModal({
             {/* Platform redirect buttons - horizontal scroll */}
             <View style={{ marginBottom: 14 }}>
               <Text style={{ fontSize: 11, fontWeight: "700", color: SUB, marginBottom: 8, marginHorizontal: 20 }}>
-                {priceResults.length > 0 ? t("其他平台搜尋" as any) : t("直接前往平台搜尋" as any)}
+                {t("平台搜尋" as any)}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
                 {REDIRECT_PLATFORMS.map(p => (
                   <TouchableOpacity
                     key={p.name}
                     style={[{ width: 100, alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 10, paddingBottom: 12, backgroundColor: p.bg, borderColor: p.border }]}
-                    onPress={() => openPlatform(p, cleanPriceKw)}
+                    onPress={() => { void handleOpenPlatform(p); }}
                   >
                     <View style={{ width: 46, height: 46, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" }}>
                       <Text style={{ fontSize: 22 }}>{p.logo}</Text>
@@ -393,6 +416,12 @@ export default function PriceCompareModal({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+              {openError ? (
+                <View style={{ marginHorizontal: 20, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA" }}>
+                  <Text style={{ fontSize: 11, color: "#92400E", fontWeight: "600" }}>{openError}</Text>
+                  <Text selectable style={{ fontSize: 10, color: "#92400E", marginTop: 4 }}>{cleanPriceKw}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Consumer Council website link */}
@@ -412,7 +441,7 @@ export default function PriceCompareModal({
               <Text style={s.disclaimerTxt}>
                 {priceResults.length > 0
                   ? t("格價來自消委會「網上價格一覽通」，每日更新。實際售價以各平台為準。" as any)
-                  : t("消委會格價涵蓋惠康、百佳等超市，不包括 HKTVmall、pandamart 及街市鮮貨。" as any)}
+                  : t("價格以各平台為準。" as any)}
               </Text>
             </View>
           </ScrollView>

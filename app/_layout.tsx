@@ -464,11 +464,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const inVerifyEmail = segments[0] === "verify-email";
       const inOnboarding = segments[0] === "onboarding";
       const inImport = segments[0] === "import";
+      const inVisualTest = segments[0] === "visual-typography" && process.env.EXPO_PUBLIC_VISUAL_TEST === "1";
       const seg0 = segments[0] as string;
       const isLoggedIn = !!meQuery.data;
 
       // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
-      if (!isLoggedIn && !inLoginPage && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
+      if (!isLoggedIn && !inVisualTest && !inLoginPage && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
         if (seg0 === "admin") {
           router.replace("/login?mode=admin");
         } else {
@@ -538,14 +539,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           {biometricPrompt ? (
             <View style={{ alignItems: "center", gap: 16 }}>
               <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="scan-outline" size={40} color="#013E77" />
+                <Ionicons name="scan-outline" size={40} color="#183B56" />
               </View>
               <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("lock.unlock")}</Text>
               <Text style={{ fontSize: 14, color: "#9CA3AF" }}>{t("lock.unlockHint")}</Text>
-              <ActivityIndicator color="#013E77" size="large" style={{ marginTop: 12 }} />
+              <ActivityIndicator color="#183B56" size="large" style={{ marginTop: 12 }} />
             </View>
           ) : (
-            <ActivityIndicator color="#013E77" size="large" />
+            <ActivityIndicator color="#183B56" size="large" />
           )}
           {showDevReset && (
             <TouchableOpacity onPress={handleDevReset} style={{ marginTop: 40, paddingVertical: 10, paddingHorizontal: 20 }}>
@@ -616,7 +617,7 @@ function RootLayout() {
                   <AuthGuard>
                     <Stack
                   screenOptions={{
-                    headerStyle: { backgroundColor: "#013E77" },
+                    headerStyle: { backgroundColor: "#183B56" },
                     headerTintColor: "#fff",
                     headerTitleStyle: { fontWeight: "bold" },
                   }}
@@ -646,6 +647,22 @@ function RootLayout() {
                   />
                   <Stack.Screen
                     name="import"
+                    options={{
+                      headerShown: false,
+                      title: "",
+                      gestureEnabled: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="ai-plan"
+                    options={{
+                      headerShown: false,
+                      title: "",
+                      gestureEnabled: true,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="meal-preferences"
                     options={{
                       headerShown: false,
                       title: "",

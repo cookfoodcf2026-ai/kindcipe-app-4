@@ -12,7 +12,7 @@ import { enumT } from "@/lib/i18nEnums";
 import { getBilingualName, getDisplayName } from "@/lib/bilingual";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
 const BORDER = "#E5E7EB";
@@ -123,6 +123,7 @@ export default function IngredientPickerModal({
   }, [effectiveBuyDate, maxDate, today]);
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [datePickerOpen, setDatePickerOpen] = useState(true);
   // 修復 1: 直接綁定 normalizedDefaultDate
   const [date, setDate] = useState(normalizedDefaultDate || effectiveBuyDate || today);
   
@@ -131,6 +132,7 @@ export default function IngredientPickerModal({
     if (visible && normalizedDefaultDate) {
       setDate(normalizedDefaultDate);
     }
+    if (!visible) setDatePickerOpen(true);
   }, [visible, normalizedDefaultDate]);
   
   // 診斷日誌
@@ -312,7 +314,7 @@ export default function IngredientPickerModal({
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={s.overlay}>
-        <View style={[s.sheet, { height: "80%" }]}>
+        <View style={[s.sheet, { height: "90%" }]}>
           <View style={s.header}>
             <View style={{ flex: 1 }}>
               <Text style={s.title}>{modalTitle}</Text>
@@ -351,30 +353,42 @@ export default function IngredientPickerModal({
           </View>
 
           {showDateSelector && (
-            <View style={s.dateSection}>
-              <Ionicons name="calendar-outline" size={16} color={BRAND} />
-              <Text style={s.dateLabel}>{t("picker.shoppingDate")}</Text>
-              <PlanDatePicker 
-                value={date}
-                onChange={(newDate) => {
-                  // 改日期時 remap 已勾選 key（key 含 date），否則選取會被清空
-                  setDate((prev) => {
-                    if (prev === newDate) return prev;
-                    setSelected((sel) => {
-                      const from = `::${prev}`;
-                      const next = new Set<string>();
-                      sel.forEach((k) => next.add(k.endsWith(from) ? `${k.slice(0, -from.length)}::${newDate}` : k));
-                      return next;
-                    });
-                    return newDate;
-                  });
-                  onDateChange?.(newDate);
-                }}
-                showShortcuts={true}
-                maxDate={maxDate}
-                // minDate={today}  // 移除 minDate 限制，允許選擇過去日期
-              />
-            </View>
+            <>
+              <TouchableOpacity
+                style={s.dateCompactRow}
+                onPress={() => setDatePickerOpen((open) => !open)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="calendar-outline" size={16} color={BRAND} />
+                <Text style={s.dateCompactTxt}>
+                  {t("picker.shoppingDate")}: {DateUtil.formatDate(date)}
+                </Text>
+                <Text style={s.dateCompactAction}>{t("選擇日期" as any)}</Text>
+                <Ionicons name={datePickerOpen ? "chevron-up" : "chevron-down"} size={14} color={SUB} />
+              </TouchableOpacity>
+              {datePickerOpen && (
+                <View style={s.datePickerWrap}>
+                  <PlanDatePicker
+                    value={date}
+                    onChange={(newDate) => {
+                      setDate((prev) => {
+                        if (prev === newDate) return prev;
+                        setSelected((sel) => {
+                          const from = `::${prev}`;
+                          const next = new Set<string>();
+                          sel.forEach((k) => next.add(k.endsWith(from) ? `${k.slice(0, -from.length)}::${newDate}` : k));
+                          return next;
+                        });
+                        return newDate;
+                      });
+                      onDateChange?.(newDate);
+                    }}
+                    showShortcuts={true}
+                    maxDate={maxDate}
+                  />
+                </View>
+              )}
+            </>
           )}
           {maxDate && date && date > maxDate && (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingHorizontal: 16 }}>
@@ -520,7 +534,7 @@ const s = StyleSheet.create({
   },
   dateBadgeText: {
     fontSize: 12,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "500",
   },
   quickActions: {
@@ -540,23 +554,26 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
   },
   quickBtnText: {
     fontSize: 12,
     fontWeight: "600",
     color: BRAND,
   },
-  dateSection: {
+  dateCompactRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFF8EF",
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
   },
+  dateCompactTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: TEXT },
+  dateCompactAction: { fontSize: 12, fontWeight: "800", color: BRAND },
+  datePickerWrap: { paddingHorizontal: 16, paddingTop: 8, backgroundColor: "#FFF8EF", borderBottomWidth: 1, borderBottomColor: BORDER },
   dateLabel: {
     fontSize: 13,
     color: SUB,

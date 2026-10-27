@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/hooks/useAuth";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 
 export default function KitchenSwitcher() {
   const { t } = useTranslation();

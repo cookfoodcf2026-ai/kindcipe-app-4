@@ -12,6 +12,7 @@ import { Image as ExpoImage } from "expo-image";
 import { trpc } from "@/lib/trpc";
 import { enumT } from "@/lib/i18nEnums";
 import { useAuth } from "@/hooks/useAuth";
+import { aiChefQuickPlanEnabled, approvalUiEnabled } from "@/lib/featureFlags";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
@@ -29,17 +30,22 @@ import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import { useRecipeSearch } from "@/hooks/useRecipeSearch";
 import FilterModal from "@/src/components/FilterModal";
 import RecipeCard from "@/src/components/RecipeCard";
+import AiBubbleIcon from "@/src/components/AiBubbleIcon";
 import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
+import { canva } from "@/app/styles/colors";
+import { typography } from "@/app/styles/typography";
 
-const { width: SW } = Dimensions.get("window");
+const HOME_MAX_WIDTH = 1080;
 const CARD_GAP = 10;
+const { width: SW } = Dimensions.get("window");
 const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
 const CARD_IMAGE_RATIO = getRecipeCardImageRatio(Dimensions.get("window").height);
-const BRAND = "#013E77";
-const BG = "#FAF8F5";
+const getHomeCardWidth = (width: number) => (Math.min(width, HOME_MAX_WIDTH) - 28 - CARD_GAP) / 2;
+const BRAND = canva.primary;
+const BG = canva.bg;
 
 // 社交平台來源白名單（單一真相）：用於「匯入食譜」篩選。
 // 之前漏咗 facebook → FB 匯入嘅食譜顯示唔到。
@@ -95,15 +101,15 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
 }) {
   const { t } = useTranslation();
   const todayStr = DateUtil.todayISO();
-  
+
   // Query next 14 days of meal plans
   const endDateStr = DateUtil.addDays(todayStr, 13); // Include today = 14 days total
-  
+
   const { data: futureMeals = [] } = trpc.mealPlan.listByDateRange.useQuery(
     { startDate: todayStr, endDate: endDateStr },
     { staleTime: 1000 * 60 * 5 }
   );
-  
+
   const todayDinnerPlan = todayMeals.find(
     (m: any) => m.mealType === "dinner" && m.status === "confirmed"
   );
@@ -117,7 +123,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
 
   // Check if today has BOTH eat-out AND dinner plan (conflict)
   const hasConflict = todayEatOut && todayDinnerPlan;
-  
+
   const dinnerRows: { icon: string; iconColor: string; text: string; badge?: string; badgeKind?: "default" | "conflict" }[] = [];
 
   if (hasConflict) {
@@ -131,7 +137,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
 
   confirmedDinners.forEach((m: any, idx: number) => {
     let badge: string | undefined = undefined;
-    
+
     // 只為第一個晚餐計算日期標籤（跟返購物清單做法）
     if (idx === 0) {
       const date = DateUtil.parseDate(m.date);
@@ -141,7 +147,7 @@ function TonightMenuCardCompact({ todayMeals, todayEatOut, router }: {
       else if (diffDays === 2) badge = t("後天" as any);
       else badge = t("dyn.md", { m: date.getMonth() + 1, d: date.getDate() });
     }
-    
+
     dinnerRows.push({ icon: "restaurant-outline", iconColor: "#F59E0B", text: mealName(m), badge });
   });
 
@@ -201,10 +207,10 @@ function ShoppingListPreview({ router }: {
 }) {
   const { t } = useTranslation();
   const todayStr = DateUtil.todayISO();
-  
+
   // Calculate end date (14 days from today)
   const endDateStr = DateUtil.addDays(todayStr, 13); // Include today = 14 days total
-  
+
   const { data: shoppingItems = [] } = trpc.shopping.list.useQuery(undefined, {
     staleTime: 1000 * 30,
     refetchInterval: 30000,
@@ -239,15 +245,15 @@ function ShoppingListPreview({ router }: {
   const dateLabel = useMemo(() => {
     if (itemsToShow.length === 0) return null;
     const firstItemDate = itemsToShow[0]?.plannedDate;
-    
+
     if (!firstItemDate) return null;
-    
+
     const diffDays = DateUtil.daysBetween(todayStr, firstItemDate);
-    
+
     if (diffDays === 0) return i18n.t("今天" as any);
     if (diffDays === 1) return i18n.t("明天" as any);
     if (diffDays === 2) return i18n.t("後天" as any);
-    
+
     // Show full date (e.g., 8 月 10 日)
     const date = new Date(firstItemDate);
     return i18n.t("dyn.md", { m: date.getMonth() + 1, d: date.getDate() });
@@ -271,7 +277,7 @@ function ShoppingListPreview({ router }: {
         <View style={s.dualCardContent}>
           {itemsToShow.map((item: any, idx: number) => (
             <View key={idx} style={s.dualCardRow}>
-              <Ionicons name="ellipse-outline" size={12} color="#6B7280" />
+              <Ionicons name="ellipse-outline" size={12} color="#5F6F80" />
               <Text style={s.dualCardRowText} numberOfLines={1}>{(() => { const lk = ingredientLookup.resolveItem(item.name, item.nameEn); const bn = getDisplayName(item.name, item.nameEn || lk?.en, item.nameFil || lk?.fil, item.nameId || lk?.id); return bn.primary || t("shopping.itemFallback"); })()}</Text>
               {/* Only show date label for the first item */}
               {idx === 0 && dateLabel && (
@@ -302,13 +308,18 @@ function ShoppingListPreview({ router }: {
 // ── Tonight Hero Card (primary entry → AI Chef) ───────────────────────
 function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
   const { t } = useTranslation();
+  const { width } = useWindowDimensions();
+  const heroHeight = width >= 1024 ? 270 : width >= 768 ? 235 : 210;
   return (
     <TouchableOpacity
+      testID="home-ai-plan"
       style={s.tonightHeroWrap}
       activeOpacity={0.85}
-      onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily", t: String(Date.now()) } } as any)}
+      accessibilityRole="button"
+      accessibilityLabel={t("幫我諗晚餐" as any)}
+      onPress={() => router.push({ pathname: "/ai-chef", params: { action: "daily", entry: "meal", t: String(Date.now()) } } as any)}
     >
-      <View style={s.tonightHero}>
+      <View style={[s.tonightHero, aiChefQuickPlanEnabled && { height: heroHeight }]}>
         <ExpoImage
           source={require("../../assets/herocard-v4.jpeg")}
           style={StyleSheet.absoluteFill}
@@ -317,19 +328,32 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
           cachePolicy="memory-disk"
           transition={0}
         />
-        <View style={s.tonightHeroScrim} pointerEvents="none">
-          <View style={[s.tonightHeroScrimLayer, { width: "100%", opacity: 0.25 }]} />
-          <View style={[s.tonightHeroScrimLayer, { width: "66%", opacity: 0.52 }]} />
-          <View style={[s.tonightHeroScrimLayer, { width: "40%", opacity: 0.55 }]} />
-        </View>
-        <View style={s.tonightHeroText}>
-          <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t("home.tonight")}</Text>
-          <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t("home.heroSubtitle")}</Text>
-          <View style={s.tonightHeroCta}>
-            <Text style={s.tonightHeroCtaTxt}>{t("aiChef.heroCta")}</Text>
-            <Ionicons name="arrow-forward" size={14} color="#fff" />
+        <View style={s.heroImageOverlay} pointerEvents="none" />
+        {aiChefQuickPlanEnabled ? (
+          <View style={s.heroContent}>
+            <View style={[s.heroTextPanel, width < 420 && { paddingHorizontal: 14, paddingVertical: 12 }]}>
+              <Text style={[s.heroTitle, width < 420 && { fontSize: 27 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                {t("幫我諗晚餐" as any)}
+              </Text>
+              <Text style={s.heroSubtitle} numberOfLines={2}>
+                {t("AI 一鍵生成 3 餸 1 湯" as any)}
+              </Text>
+              <View style={s.heroCta}>
+                <Text style={s.heroCtaTxt}>{t("aiChef.heroCta")}</Text>
+                <Ionicons name="arrow-forward" size={15} color="#183B56" />
+              </View>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={s.tonightHeroText}>
+            <Text style={s.tonightHeroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t("home.tonight")}</Text>
+            <Text style={s.tonightHeroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t("home.heroSubtitle")}</Text>
+            <View style={s.tonightHeroCta}>
+              <Text style={s.tonightHeroCtaTxt}>{t("aiChef.heroCta")}</Text>
+              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            </View>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -350,10 +374,32 @@ function PendingActionsCard({ router, isAdmin }: {
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });
+  const utils = trpc.useUtils();
+  const [approvingAll, setApprovingAll] = useState(false);
+  const confirmMealM = trpc.mealPlan.confirm.useMutation();
+  const approveAllShoppingM = (trpc as any).shopping.approveAll.useMutation();
 
   const pendingMealPlans = mealPlans.filter((m: any) => m.status === "pending").length;
   const pendingShopping = shoppingItems.filter((i: any) => i.status === "pending").length;
   const unboughtShopping = shoppingItems.filter((i: any) => i.status === "active").length;
+
+  const approveAllPending = async () => {
+    if (approvingAll) return;
+    setApprovingAll(true);
+    try {
+      const pendingMeals = mealPlans.filter((m: any) => m.status === "pending");
+      await Promise.all(pendingMeals.map((meal: any) => confirmMealM.mutateAsync({ id: meal.id })));
+      if (pendingShopping > 0) await approveAllShoppingM.mutateAsync();
+      await Promise.all([
+        utils.mealPlan.list.invalidate(),
+        utils.shopping.list.invalidate(),
+      ]);
+    } catch (e) {
+      Alert.alert(t("操作失敗" as any), friendlyError(e) || t("請稍後再試" as any));
+    } finally {
+      setApprovingAll(false);
+    }
+  };
 
   if (!isAdmin || (pendingMealPlans === 0 && pendingShopping === 0)) return null;
 
@@ -366,14 +412,14 @@ function PendingActionsCard({ router, isAdmin }: {
       {pendingMealPlans > 0 && (
         <TouchableOpacity
           style={s.pendingRow}
-          onPress={() => router.push("/(tabs)/planner" as any)}
+          onPress={() => router.push({ pathname: "/(tabs)/planner", params: { pending: "1" } } as any)}
           activeOpacity={0.7}
         >
           <View style={[s.pendingIcon, { backgroundColor: "#FEF3C7" }]}>
             <Ionicons name="restaurant-outline" size={14} color="#D97706" />
           </View>
           <Text style={s.pendingLabel}>{t("dyn.pendingMeals", { n: pendingMealPlans })}</Text>
-          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+          <Ionicons name="chevron-forward" size={14} color="#8A99A8" />
         </TouchableOpacity>
       )}
       {pendingShopping > 0 && (
@@ -386,7 +432,7 @@ function PendingActionsCard({ router, isAdmin }: {
             <Ionicons name="cart-outline" size={14} color={BRAND} />
           </View>
           <Text style={s.pendingLabel}>{t("dyn.pendingShopping", { n: pendingShopping })}</Text>
-          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+          <Ionicons name="chevron-forward" size={14} color="#8A99A8" />
         </TouchableOpacity>
       )}
       {unboughtShopping > 0 && pendingShopping === 0 && (
@@ -399,9 +445,17 @@ function PendingActionsCard({ router, isAdmin }: {
             <Ionicons name="bag-handle-outline" size={14} color="#16A34A" />
           </View>
           <Text style={s.pendingLabel}>{t("dyn.unboughtItems", { n: unboughtShopping })}</Text>
-          <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+          <Ionicons name="chevron-forward" size={14} color="#8A99A8" />
         </TouchableOpacity>
       )}
+      <TouchableOpacity
+        style={[s.pendingApproveAll, approvingAll && { opacity: 0.6 }]}
+        onPress={() => void approveAllPending()}
+        disabled={approvingAll}
+      >
+        <Ionicons name="checkmark-done" size={15} color="#183B56" />
+        <Text style={s.pendingApproveAllTxt}>{approvingAll ? t("處理中" as any) : t("shopping.approveAll")}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -409,7 +463,7 @@ function PendingActionsCard({ router, isAdmin }: {
 // ── Weekly Menu Bar ──────────────────────────────────────────────────
 
 // ── Recipe Card Skeleton (loading placeholder) ─────────────────────────
-function RecipeCardSkeleton({ anim, imageHeight }: { anim: Animated.Value; imageHeight: number }) {
+function RecipeCardSkeleton({ anim, imageHeight, width }: { anim: Animated.Value; imageHeight: number; width: number }) {
   const animatedStyle = {
     opacity: anim.interpolate({
       inputRange: [0, 1],
@@ -418,7 +472,7 @@ function RecipeCardSkeleton({ anim, imageHeight }: { anim: Animated.Value; image
   };
 
   return (
-    <View style={s.skeletonCard}>
+    <View style={[s.skeletonCard, { width }]}>
       <Animated.View style={[s.skeletonImg, { height: imageHeight }, animatedStyle]} />
       <View style={s.skeletonInfo}>
         <Animated.View style={[s.skeletonNameLine, animatedStyle]} />
@@ -450,9 +504,10 @@ function PremiumUpgradeButton({ onPress, style }: { onPress: () => void; style?:
 // ── Main component ───────────────────────────────────────────────────
 export default function RecipesTab() {
   const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const { t } = useTranslation();
   const cardImageRatio = getRecipeCardImageRatio(screenHeight);
+  const cardWidth = getHomeCardWidth(screenWidth);
   const router = useRouter();
   const { initialViewMode } = useLocalSearchParams<{ initialViewMode?: string }>();
   const utils = trpc.useUtils();
@@ -472,13 +527,14 @@ export default function RecipesTab() {
   const [fabVisible, setFabVisible] = useState(false);
 
   const [showPaywall, setShowPaywall] = useState(false);
-  
+
   const { data: sub, refetch: refetchSubscription } = trpc.family.subscription.useQuery(undefined, {
     retry: false,
     staleTime: 1000 * 60 * 5,
   });
   // Only hide banner for fully paid active subscribers (trial users should still see it)
   const isPaid = sub?.status === "active";
+  const isPro = Boolean(sub?.isPaid || sub?.status === "active" || sub?.status === "trial");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -669,7 +725,7 @@ export default function RecipesTab() {
           return;
         }
       }
-      
+
       // Find recipe from search results
       const found = searchRecipes.find((r: any) => r.id === variables.recipeId) as any;
       if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
@@ -866,6 +922,7 @@ export default function RecipesTab() {
         setActiveTagFilters={setActiveTagFilters}
         setQuickPlanRecipe={setQuickPlanRecipe}
         navigateToRecipe={navigateToRecipe}
+        width={cardWidth}
         showQuickPlan={false} // 暫時隱藏快速排餐按鈕（2026-08-09）：簡化食譜卡 UI，用戶仍可透過詳情頁 / 排餐頁 / AI Chef 加入排餐
       />
     );
@@ -918,16 +975,16 @@ export default function RecipesTab() {
         <TonightMenuCardCompact todayMeals={todayMeals} todayEatOut={todayEatOut} router={router} />
         <ShoppingListPreview router={router} />
       </View>
-      
-      <PendingActionsCard router={router} isAdmin={isAdmin} />
+
+      {approvalUiEnabled && <PendingActionsCard router={router} isAdmin={isAdmin} />}
 
       <View style={[s.searchWrap, { marginRight: Math.max(14, insets.right) }]}>
-        <Ionicons name="search" size={17} color="#9CA3AF" />
+        <Ionicons name="search" size={17} color="#8A99A8" />
         <TextInput
           ref={searchInputRef}
           style={s.searchInput}
           placeholder={t("home.searchPlaceholder")}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#8A99A8"
           value={searchQuery}
           onChangeText={(text) => {
             setSearchQuery(text);
@@ -945,10 +1002,10 @@ export default function RecipesTab() {
             setSearchQuery("");
             searchInputRef.current?.focus();
           }}>
-            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+            <Ionicons name="close-circle" size={18} color="#8A99A8" />
           </TouchableOpacity>
         ) : null}
-        
+
         {/* Sort menu（唔再一撳循環；顯示當前排序） */}
         <TouchableOpacity onPress={() => setShowSortSheet(true)} style={s.sortBtn}>
           <Ionicons
@@ -957,7 +1014,7 @@ export default function RecipesTab() {
             color={BRAND}
           />
         </TouchableOpacity>
-        
+
         {/* Filter Button */}
         <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
           <Ionicons name="filter-outline" size={18} color={BRAND} />
@@ -983,7 +1040,13 @@ export default function RecipesTab() {
           return (
             <TouchableOpacity
               key={chip.key}
-              onPress={() => { setViewMode(chip.key as any); }}
+              onPress={() => {
+                if (chip.key === "kol" && !isPro) {
+                  setShowPaywall(true);
+                  return;
+                }
+                setViewMode(chip.key as any);
+              }}
               style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, active && { backgroundColor: BRAND }]}
             >
               <Text style={{ fontSize: 13, color: active ? "#fff" : BRAND, fontWeight: "700" }}>{chip.label}</Text>
@@ -1003,34 +1066,12 @@ export default function RecipesTab() {
             <TouchableOpacity
               key={sub.key}
               onPress={() => setMineSub(sub.key)}
-              style={[s.sortBtn, { paddingHorizontal: 10, width: "auto", flexDirection: "row", gap: 4, backgroundColor: mineSub === sub.key ? "#E6EEF7" : "transparent" }]}
+              style={[s.sortBtn, { paddingHorizontal: 10, width: "auto", flexDirection: "row", gap: 4, backgroundColor: mineSub === sub.key ? "#E8F0F4" : "transparent" }]}
             >
               <Text style={{ fontSize: 12, color: BRAND, fontWeight: mineSub === sub.key ? "800" : "600" }}>{sub.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
-      )}
-
-      {/* 菜系 chips（canonical）— 由篩選 sheet 升上頂部，方便直接撳菜系 */}
-      {categories.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 6 }}>
-          <TouchableOpacity
-            onPress={() => setActiveCategory("all")}
-            style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, activeCategory === "all" && { backgroundColor: BRAND }]}
-          >
-            <Text style={{ fontSize: 13, color: activeCategory === "all" ? "#fff" : BRAND, fontWeight: "700" }}>{t("全部" as any)}</Text>
-          </TouchableOpacity>
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat.key}
-              onPress={() => setActiveCategory(activeCategory === cat.key ? "all" : cat.key)}
-              style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, activeCategory === cat.key && { backgroundColor: BRAND }]}
-            >
-              <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
-              <Text style={{ fontSize: 13, color: activeCategory === cat.key ? "#fff" : BRAND, fontWeight: "700" }}>{t(cat.label as any)}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
       )}
 
       {/* Search History Dropdown */}
@@ -1063,11 +1104,11 @@ export default function RecipesTab() {
                     }}
                   >
                     <View style={s.searchHistoryAvatar}>
-                      <Ionicons name="time-outline" size={16} color="#6B7280" />
+                      <Ionicons name="time-outline" size={16} color="#5F6F80" />
                     </View>
                     <Text style={s.searchHistoryTerm} numberOfLines={1}>{query}</Text>
                     <TouchableOpacity onPress={removeItem} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close-circle" size={18} color="#C4C4C4" />
+                      <Ionicons name="close-circle" size={18} color="#E6DED4" />
                     </TouchableOpacity>
                   </TouchableOpacity>
                 </View>
@@ -1151,8 +1192,8 @@ export default function RecipesTab() {
       {(viewMode === "user" || viewMode === "all") && allUserTags.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
           <View style={s.filterRowLabel}>
-            <Ionicons name="pricetag-outline" size={11} color="#9CA3AF" />
-            <Text style={{ fontSize: 10, color: "#9CA3AF", fontWeight: "600" }}>{t("recipe.tags")}</Text>
+            <Ionicons name="pricetag-outline" size={11} color="#8A99A8" />
+            <Text style={{ fontSize: 10, color: "#8A99A8", fontWeight: "600" }}>{t("recipe.tags")}</Text>
           </View>
           {activeTagFilters.length > 0 && (
             <TouchableOpacity style={[s.filterPill, { borderColor: "#EF4444", backgroundColor: "#FEF2F2" }]} onPress={() => setActiveTagFilters([])}>
@@ -1190,7 +1231,7 @@ export default function RecipesTab() {
           <View style={{ flex: 1, minWidth: 0 }}>
             {isLoading ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <ActivityIndicator size="small" color="#9CA3AF" />
+                <ActivityIndicator size="small" color="#8A99A8" />
                 <Text style={s.resultSummaryTxt}>{t("home.searching")}</Text>
               </View>
             ) : filterSummary ? (
@@ -1209,7 +1250,7 @@ export default function RecipesTab() {
 
   return (
     <View style={s.root}>
-      <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}> 
+      <View style={[s.header, { paddingTop: insets.top + 12, paddingRight: Math.max(16, insets.right) }]}>
         <View style={s.headerTopRow}>
           <View>
             <Text style={s.headerTitle}>{t("home.title")}</Text>
@@ -1217,11 +1258,17 @@ export default function RecipesTab() {
           </View>
           <View style={s.headerActions}>
             {!isPaid && <PremiumUpgradeButton onPress={() => setShowPaywall(true)} />}
-            <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/import")}> 
-              <Ionicons name="add" size={22} color="#013E77" />
+            <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/import")}>
+              <Ionicons name="add" size={22} color="#183B56" />
             </TouchableOpacity>
-            <TouchableOpacity style={s.headerBtn} onPress={() => router.push("/ai-chef")}> 
-              <Ionicons name="chatbubble-ellipses" size={19} color="#013E77" />
+            <TouchableOpacity
+              testID="home-ai-chat"
+              style={[s.headerBtn, s.aiHeaderBtn]}
+              onPress={() => router.push("/ai-chef")}
+              accessibilityRole="button"
+              accessibilityLabel={t("settings.aiChef" as any)}
+            >
+              <AiBubbleIcon size={28} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1240,6 +1287,7 @@ export default function RecipesTab() {
       >
         <FlatList
           ref={listRef}
+          style={s.list}
           data={filteredRecipes}
           keyExtractor={(item: any) => item.id}
           numColumns={2}
@@ -1275,18 +1323,18 @@ export default function RecipesTab() {
         ListEmptyComponent={
           isLoading ? (
             <View style={s.skeletonGrid}>
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
-              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={CARD_WIDTH * cardImageRatio} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
+              <RecipeCardSkeleton anim={skeletonAnim} imageHeight={cardWidth * cardImageRatio} width={cardWidth} />
             </View>
           ) : (
           <View style={s.empty}>
             {isKolSourceUnsupported ? (
               <>
-                <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Ionicons name="star-outline" size={44} color="#8A99A8" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>{t("home.kolEmptyTitle")}</Text>
                 <Text style={s.emptySub}>{t("home.kolEmptySub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
@@ -1310,7 +1358,7 @@ export default function RecipesTab() {
               </>
             ) : hasFilterTokens ? (
               <>
-                <Ionicons name="search-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Ionicons name="search-outline" size={44} color="#8A99A8" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>{t("home.noMatchTitle")}</Text>
                 <Text style={s.emptySub}>{t("home.noMatchSub")}</Text>
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
@@ -1327,7 +1375,7 @@ export default function RecipesTab() {
               </>
             ) : viewMode === "kol" ? (
               <>
-                <Ionicons name="star-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Ionicons name="star-outline" size={44} color="#8A99A8" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>{t("home.kolEmptyTitle")}</Text>
                 <Text style={s.emptySub}>{t("home.kolEmptySub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
@@ -1336,7 +1384,7 @@ export default function RecipesTab() {
               </>
             ) : viewMode === "user" ? (
               <>
-                <Ionicons name="flame-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Ionicons name="flame-outline" size={44} color="#8A99A8" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>{t("home.noRecipesTitle")}</Text>
                 <Text style={s.emptySub}>{t("home.noRecipesSub")}</Text>
                 <TouchableOpacity style={s.emptyBtn} onPress={() => setShowFilterSheet(true)}>
@@ -1345,7 +1393,7 @@ export default function RecipesTab() {
               </>
             ) : (
               <>
-                <Ionicons name="book-outline" size={44} color="#9CA3AF" style={{ marginBottom: 12 }} />
+                <Ionicons name="book-outline" size={44} color="#8A99A8" style={{ marginBottom: 12 }} />
                 <Text style={s.emptyTitle}>{t("home.noRecipesShort")}</Text>
               </>
             )}
@@ -1416,9 +1464,9 @@ export default function RecipesTab() {
           <TouchableOpacity style={s.planSheet} activeOpacity={1} onPress={() => {}}>
             <View style={s.planHandle} />
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <Text style={{ flex: 1, fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("filter.sort" as any)}</Text>
+              <Text style={{ flex: 1, fontSize: 18, fontWeight: "800", color: "#183B56" }}>{t("filter.sort" as any)}</Text>
               <TouchableOpacity onPress={() => setShowSortSheet(false)}>
-                <Ionicons name="close" size={22} color="#1A1A1A" />
+                <Ionicons name="close" size={22} color="#183B56" />
               </TouchableOpacity>
             </View>
             {([
@@ -1447,19 +1495,19 @@ export default function RecipesTab() {
             <View style={s.planHandle} />
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("recipe.addToPlan")}</Text>
-                <Text style={{ fontSize: 13, color: "#9CA3AF", marginTop: 2 }} numberOfLines={1}>{quickPlanRecipe?.name}</Text>
+                <Text style={{ fontSize: 18, fontWeight: "800", color: "#183B56" }}>{t("recipe.addToPlan")}</Text>
+                <Text style={{ fontSize: 13, color: "#8A99A8", marginTop: 2 }} numberOfLines={1}>{quickPlanRecipe?.name}</Text>
               </View>
               <TouchableOpacity onPress={() => setQuickPlanRecipe(null)}>
-                <Ionicons name="close" size={22} color="#1A1A1A" />
+                <Ionicons name="close" size={22} color="#183B56" />
               </TouchableOpacity>
             </View>
 
             <Text style={s.planLabel}>{t("recipe.selectDate")}</Text>
             <PlanDatePicker value={quickPlanDate} onChange={setQuickPlanDate} showShortcuts={true} minDate={DateUtil.todayISO()} />
             {quickPlanDate && (
-              <TouchableOpacity 
-                onPress={() => setQuickPlanDate(null)} 
+              <TouchableOpacity
+                onPress={() => setQuickPlanDate(null)}
                 style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
               >
                 <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
@@ -1570,9 +1618,10 @@ const s = StyleSheet.create({
     gap: 8,
     marginLeft: "auto",
   },
-  headerTitle: { fontSize: 15, fontWeight: "800", color: "#1A1A1A", letterSpacing: 0.5 },
-  headerSub: { fontSize: 11, color: "#6B7280", marginTop: 1 },
-  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  headerTitle: { ...typography.navTitle, color: "#183B56", letterSpacing: 0.5 },
+  headerSub: { ...typography.caption, color: "#5F6F80", marginTop: 1 },
+  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#F8F1E7", alignItems: "center", justifyContent: "center" },
+  aiHeaderBtn: { backgroundColor: canva.apricot, borderWidth: 1, borderColor: canva.apricot, shadowColor: canva.brown, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 2 },
 
   // Tonight menu card
   summaryCard: {
@@ -1581,19 +1630,19 @@ const s = StyleSheet.create({
     padding: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
-    borderWidth: 1, borderColor: "#EBEBEB",
+    borderWidth: 1, borderColor: "#E6DED4",
   },
   summaryHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  summaryTitle: { fontSize: 15, fontWeight: "800", color: "#1A1A1A" },
+  summaryTitle: { ...typography.navTitle, color: "#183B56" },
   planBtn: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: BRAND, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  planBtnTxt: { fontSize: 12, fontWeight: "700", color: "#fff" },
+  planBtnTxt: { ...typography.caption, color: "#fff" },
   summaryRows: { gap: 7 },
   summaryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryValue: { fontSize: 13, color: "#1A1A1A", flex: 1 },
+  summaryValue: { fontSize: 13, color: "#183B56", flex: 1 },
   summaryEmpty: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
-  summaryEmptyTxt: { fontSize: 13, color: "#9CA3AF" },
+  summaryEmptyTxt: { fontSize: 13, color: "#8A99A8" },
   pendingBanner: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, padding: 8, backgroundColor: "#FEF2F2", borderRadius: 10, borderWidth: 1, borderColor: "#FECACA" },
-  pendingBannerTxt: { flex: 1, fontSize: 12, color: "#EF4444", fontWeight: "700" },
+  pendingBannerTxt: { ...typography.caption, flex: 1, color: "#EF4444" },
 
   // Dual-card layout (Tonight's Menu + Shopping List)
   dualCardContainer: {
@@ -1611,13 +1660,42 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   tonightHero: {
-    height: 135,
+    height: 170,
     borderRadius: 18,
     overflow: "hidden",
     justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
+  heroImageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(24,59,86,0.14)",
+  },
+  heroContent: { zIndex: 2, flexDirection: "row", alignItems: "center", gap: 14, width: "100%" },
+  heroTextPanel: {
+    flexShrink: 1,
+    maxWidth: 570,
+    backgroundColor: "rgba(255,248,239,0.93)",
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    borderWidth: 1,
+    borderColor: "rgba(230,222,212,0.9)",
+  },
+  heroTitle: { ...typography.display, color: "#183B56", letterSpacing: -0.5 },
+  heroSubtitle: { ...typography.bodySmall, color: "#5F6F80", marginTop: 4 },
+  heroCta: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "#F47B3A",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 11,
+  },
+  heroCtaTxt: { ...typography.button, color: "#183B56" },
   tonightHeroText: { zIndex: 2, gap: 2, maxWidth: "58%" },
   tonightHeroScrim: {
     position: "absolute",
@@ -1630,22 +1708,22 @@ const s = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: "#FFF8F0",
+    backgroundColor: "#FFF8EF",
   },
-  tonightHeroTitle: { fontSize: 20, fontWeight: "900", color: "#2C1A0E", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-  tonightHeroSubtitle: { fontSize: 13, color: "#241609", marginTop: 2, fontWeight: "700", textShadowColor: "rgba(90,60,20,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  tonightHeroTitle: { ...typography.h2, color: "#183B56", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  tonightHeroSubtitle: { ...typography.caption, color: "#183B56", marginTop: 2, textShadowColor: "rgba(90,60,20,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   tonightHeroCta: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#FF7A3D",
+    backgroundColor: "#F47B3A",
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 9,
     marginTop: 10,
   },
-  tonightHeroCtaTxt: { fontSize: 14, fontWeight: "800", color: "#fff" },
+  tonightHeroCtaTxt: { ...typography.button, color: "#fff" },
   dualCardWrapper: {
     flex: 1,
     backgroundColor: "#fff",
@@ -1657,7 +1735,7 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: "#EBEBEB",
+    borderColor: "#E6DED4",
     minHeight: 108,
   },
   dualCardHeader: {
@@ -1669,7 +1747,7 @@ const s = StyleSheet.create({
   dualCardTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: "#183B56",
   },
   dualCardLink: {
     paddingVertical: 4,
@@ -1692,7 +1770,7 @@ const s = StyleSheet.create({
   },
   dualCardRowText: {
     fontSize: 12,
-    color: "#1A1A1A",
+    color: "#183B56",
     flex: 1,
   },
   dualCardDateBadge: {
@@ -1748,7 +1826,7 @@ const s = StyleSheet.create({
   },
   dualCardEmptyTxt: {
     fontSize: 13,
-    color: "#9CA3AF",
+    color: "#8A99A8",
   },
   dualCardEmptyBtn: {
     flexDirection: "row",
@@ -1761,24 +1839,26 @@ const s = StyleSheet.create({
   dualCardEmptyBtnTxt: { fontSize: 12, fontWeight: "700", color: "#fff" },
 
   // Pending actions card
-  pendingCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E8E8E8", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  pendingCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E6DED4", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   pendingCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-  pendingCardTitle: { fontSize: 14, fontWeight: "700", color: "#1A1A1A" },
-  pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  pendingCardTitle: { ...typography.label, color: "#183B56" },
+  pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F8F1E7" },
   pendingIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  pendingLabel: { flex: 1, fontSize: 13, color: "#1A1A1A", fontWeight: "500" },
+  pendingLabel: { ...typography.caption, flex: 1, color: "#183B56" },
+  pendingApproveAll: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 9, borderRadius: 10, backgroundColor: "#F3D7B3" },
+  pendingApproveAllTxt: { ...typography.caption, color: "#183B56", fontWeight: "900" },
 
   // Quick actions
   quickActions: { flexDirection: "row", gap: 10, marginHorizontal: 14, marginBottom: 8 },
   quickActionBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#fff", borderRadius: 14, padding: 10,
-    borderWidth: 1, borderColor: "#E8E8E8",
+    borderWidth: 1, borderColor: "#E6DED4",
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
   quickActionIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  quickActionTitle: { fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
-  quickActionSub: { fontSize: 10, color: "#9CA3AF", marginTop: 1 },
+  quickActionTitle: { ...typography.caption, color: "#183B56", fontWeight: "800" },
+  quickActionSub: { fontSize: 10, color: "#8A99A8", marginTop: 1 },
   upgradeBarWrap: {
     marginLeft: 0,
     alignItems: "center",
@@ -1803,42 +1883,42 @@ const s = StyleSheet.create({
 
   // Weekly bar
   weekDot: { width: 58, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", padding: 6, alignItems: "center" },
-  weekDotToday: { backgroundColor: "#FF8C00", borderColor: "#FF8C00" },
-  weekDotEmpty: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
-  weekDotLabel: { fontSize: 12, fontWeight: "700", color: "#FF8C00" },
-  weekDotDish: { fontSize: 8, color: "#6B7280", marginTop: 2, textAlign: "center", width: 50 },
+  weekDotToday: { backgroundColor: "#F47B3A", borderColor: "#F47B3A" },
+  weekDotEmpty: { backgroundColor: "#FFF8EF", borderColor: "#E6DED4" },
+  weekDotLabel: { fontSize: 12, fontWeight: "700", color: "#F47B3A" },
+  weekDotDish: { fontSize: 8, color: "#5F6F80", marginTop: 2, textAlign: "center", width: 50 },
 
   // Search
   searchWrap: {
-    flexDirection: "row", 
-    alignItems: "center", 
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    marginHorizontal: 14, 
-    marginTop: 6, 
+    marginHorizontal: 14,
+    marginTop: 6,
     marginBottom: 10,
-    backgroundColor: "#fff", 
+    backgroundColor: "#fff",
     borderRadius: 16,
-    paddingHorizontal: 12, 
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.08, 
-    shadowRadius: 12, 
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 4,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#E6DED4",
   },
-  searchInput: { 
-    flex: 1, 
-    fontSize: 14, 
-    color: "#1A1A1A",
+  searchInput: {
+    ...typography.bodySmall,
+    flex: 1,
+    color: "#183B56",
     paddingVertical: 0,
   },
   sortBtn: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: "#EEF4FB",
+    backgroundColor: "#E8F0F4",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 4,
@@ -1847,7 +1927,7 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: "#EEF4FB",
+    backgroundColor: "#E8F0F4",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -1880,10 +1960,10 @@ const s = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFF8EF",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E8E8E8",
+    borderColor: "#E6DED4",
   },
   sortIndicatorTxt: {
     fontSize: 12,
@@ -1935,7 +2015,7 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#E6DED4",
   },
 
   // Ingredient category filter
@@ -1957,7 +2037,7 @@ const s = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1988,7 +2068,7 @@ const s = StyleSheet.create({
   searchHistoryTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: "#183B56",
   },
   searchHistoryClear: {
     fontSize: 13,
@@ -2008,77 +2088,77 @@ const s = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
     alignItems: "center",
     justifyContent: "center",
   },
   searchHistoryTerm: {
     flex: 1,
     fontSize: 14,
-    color: "#1A1A1A",
+    color: "#183B56",
     fontWeight: "500",
   },
   searchHistoryDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "#EFEFEF",
+    backgroundColor: "#E6DED4",
   },
 
   // Source toggle
-  sourceToggle: { 
-    flexDirection: "row", 
-    marginHorizontal: 14, 
-    marginBottom: 14, 
-    backgroundColor: "#F5F5F7", 
-    borderRadius: 16, 
-    padding: 5, 
+  sourceToggle: {
+    flexDirection: "row",
+    marginHorizontal: 14,
+    marginBottom: 14,
+    backgroundColor: "#FFF8EF",
+    borderRadius: 16,
+    padding: 5,
     gap: 3,
     borderWidth: 1,
-    borderColor: "#EBEBEB",
+    borderColor: "#E6DED4",
   },
-  sourceToggleBtn: { 
-    flex: 1, 
-    flexDirection: "row", 
-    alignItems: "center", 
-    justifyContent: "center", 
-    gap: 4, 
-    paddingVertical: 10, 
+  sourceToggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 10,
     borderRadius: 13,
     backgroundColor: "transparent",
   },
-  sourceToggleBtnActive: { 
-    backgroundColor: "#fff", 
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 1 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 6, 
+  sourceToggleBtnActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
     elevation: 3,
   },
-  sourceToggleTxt: { 
-    fontSize: 13, 
-    fontWeight: "600", 
+  sourceToggleTxt: {
+    fontSize: 13,
+    fontWeight: "600",
     color: "#666",
   },
-  sourceToggleTxtActive: { 
-    color: BRAND, 
+  sourceToggleTxtActive: {
+    color: BRAND,
     fontWeight: "800",
   },
-  sourceToggleCount: { 
-    backgroundColor: "rgba(0,0,0,0.08)", 
-    borderRadius: 99, 
-    paddingHorizontal: 6, 
-    paddingVertical: 2, 
-    minWidth: 20, 
+  sourceToggleCount: {
+    backgroundColor: "rgba(0,0,0,0.08)",
+    borderRadius: 99,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
     alignItems: "center",
   },
-  sourceToggleCountActive: { 
-    backgroundColor: "#EEF4FB",
+  sourceToggleCountActive: {
+    backgroundColor: "#E8F0F4",
   },
-  sourceToggleCountTxt: { 
-    fontSize: 11, 
-    fontWeight: "700", 
+  sourceToggleCountTxt: {
+    fontSize: 11,
+    fontWeight: "700",
     color: "#666",
   },
-  sourceToggleCountTxtActive: { 
+  sourceToggleCountTxtActive: {
     color: BRAND,
   },
 
@@ -2094,7 +2174,7 @@ const s = StyleSheet.create({
     borderRadius: 99,
     backgroundColor: "#fff",
     borderWidth: 1.5,
-    borderColor: "#E8E8E8",
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -2114,7 +2194,7 @@ const s = StyleSheet.create({
   catPillLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#4B5563",
+    color: "#5F6F80",
   },
   catPillLabelActive: {
     color: "#fff",
@@ -2125,20 +2205,20 @@ const s = StyleSheet.create({
   popularSection: { marginBottom: 10 },
   popularRow: { paddingHorizontal: 14, gap: 10 },
   popularChip: {
-    paddingHorizontal: 14, 
+    paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 99, 
+    borderRadius: 99,
     backgroundColor: "#fff",
-    borderWidth: 1.5, 
-    borderColor: "#E8E8E8",
+    borderWidth: 1.5,
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  popularChipActive: { 
-    backgroundColor: "#EEF4FB", 
+  popularChipActive: {
+    backgroundColor: "#E8F0F4",
     borderColor: BRAND,
     shadowColor: BRAND,
     shadowOffset: { width: 0, height: 1 },
@@ -2146,47 +2226,47 @@ const s = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  popularChipTxt: { 
-    fontSize: 12, 
-    fontWeight: "600", 
-    color: "#4B5563",
+  popularChipTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#5F6F80",
   },
-  popularChipTxtActive: { 
-    color: BRAND, 
+  popularChipTxtActive: {
+    color: BRAND,
     fontWeight: "800",
   },
 
   // Tag filters
-  filterRow: { 
-    paddingHorizontal: 14, 
-    paddingBottom: 10, 
+  filterRow: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
     gap: 8,
     alignItems: "center",
   },
-  filterRowLabel: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 4, 
+  filterRowLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingRight: 4,
   },
-  filterPill: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 4, 
-    paddingHorizontal: 12, 
-    paddingVertical: 7, 
-    borderRadius: 99, 
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 99,
     backgroundColor: "#fff",
-    borderWidth: 1.5, 
-    borderColor: "#E8E8E8",
+    borderWidth: 1.5,
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  filterPillActive: { 
-    backgroundColor: BRAND, 
+  filterPillActive: {
+    backgroundColor: BRAND,
     borderColor: BRAND,
     shadowColor: BRAND,
     shadowOffset: { width: 0, height: 1 },
@@ -2194,42 +2274,43 @@ const s = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  filterPillTxt: { 
-    fontSize: 12, 
-    fontWeight: "600", 
+  filterPillTxt: {
+    fontSize: 12,
+    fontWeight: "600",
     color: "#374151",
   },
-  filterPillTxtActive: { 
+  filterPillTxtActive: {
     color: "#fff",
   },
 
   // Result summary
-  resultSummary: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    justifyContent: "space-between", 
-    marginHorizontal: 14, 
-    marginBottom: 10, 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    backgroundColor: "#EEF4FB", 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    borderColor: "#C5D9F0",
+  resultSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 14,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#E8F0F4",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E6DED4",
   },
-  resultSummaryTxt: { 
-    fontSize: 12, 
-    color: BRAND, 
+  resultSummaryTxt: {
+    ...typography.caption,
+    color: BRAND,
     fontWeight: "700",
   },
-  resultSummaryClear: { 
-    fontSize: 12, 
-    color: "#EF4444", 
+  resultSummaryClear: {
+    ...typography.caption,
+    color: "#EF4444",
     fontWeight: "700",
     textDecorationLine: "underline",
   },
 
   // Grid
+  list: { width: "100%", maxWidth: HOME_MAX_WIDTH, alignSelf: "center" },
   gridContent: { paddingHorizontal: 14, paddingBottom: 100 },
   gridRow: { gap: CARD_GAP, marginBottom: CARD_GAP },
   // 抵消 gridContent 嘅水平 padding，令 ListHeader 內元素同食譜卡一樣只縮 14
@@ -2249,12 +2330,12 @@ const s = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#EBEBEB",
+    borderColor: "#E6DED4",
   },
   skeletonImg: {
     width: "100%",
     height: CARD_WIDTH * CARD_IMAGE_RATIO,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
   },
   skeletonInfo: {
     padding: 10,
@@ -2263,13 +2344,13 @@ const s = StyleSheet.create({
   skeletonNameLine: {
     width: "85%",
     height: 14,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
     borderRadius: 4,
   },
   skeletonNameLineShort: {
     width: "50%",
     height: 14,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
     borderRadius: 4,
   },
   skeletonMetaRow: {
@@ -2280,31 +2361,31 @@ const s = StyleSheet.create({
   skeletonMetaItem: {
     width: 45,
     height: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
     borderRadius: 4,
   },
 
   // Recipe card
-  card: { 
-    width: CARD_WIDTH, 
-    backgroundColor: "#fff", 
-    borderRadius: 16, 
-    overflow: "hidden", 
-    shadowColor: "#000", 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.08, 
-    shadowRadius: 12, 
+  card: {
+    width: CARD_WIDTH,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 4,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: "#E6DED4",
   },
   cardImg: { width: CARD_WIDTH, height: CARD_WIDTH * CARD_IMAGE_RATIO },
-  cardImgPH: { 
-    backgroundColor: "#F0F0F0", 
-    alignItems: "center", 
+  cardImgPH: {
+    backgroundColor: "#E6DED4",
+    alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#F5F5F5",
+    borderColor: "#FFF8EF",
   },
   placeholderContent: {
     alignItems: "center",
@@ -2326,10 +2407,10 @@ const s = StyleSheet.create({
     alignItems: "flex-start",
     zIndex: 1,
   },
-  sourceBadge: { 
-    backgroundColor: "rgba(1, 62, 119, 0.9)", 
-    borderRadius: 8, 
-    paddingHorizontal: 8, 
+  sourceBadge: {
+    backgroundColor: "rgba(1, 62, 119, 0.9)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -2337,9 +2418,9 @@ const s = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  sourceBadgeTxt: { 
-    fontSize: 10, 
-    fontWeight: "700", 
+  sourceBadgeTxt: {
+    fontSize: 10,
+    fontWeight: "700",
     color: "#fff",
     letterSpacing: 0.5,
   },
@@ -2360,15 +2441,15 @@ const s = StyleSheet.create({
     color: "#fff",
     letterSpacing: 0.5,
   },
-  cardPlanBtn: { 
-    position: "absolute", 
-    bottom: 8, 
-    right: 8, 
-    width: 36, 
-    height: 36, 
-    borderRadius: 12, 
-    backgroundColor: "rgba(1, 62, 119, 0.9)", 
-    alignItems: "center", 
+  cardPlanBtn: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(1, 62, 119, 0.9)",
+    alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -2377,38 +2458,38 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   cardInfo: { padding: 12 },
-  cardName: { 
-    fontSize: 14, 
-    fontWeight: "700", 
-    color: "#1A1A1A", 
-    lineHeight: 20, 
+  cardName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#183B56",
+    lineHeight: 20,
     marginBottom: 2,
     letterSpacing: 0.2,
   },
-  aiBadge: { 
-    backgroundColor: BRAND, 
-    borderRadius: 6, 
-    paddingHorizontal: 6, 
+  aiBadge: {
+    backgroundColor: BRAND,
+    borderRadius: 6,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 4,
   },
-  aiBadgeTxt: { 
-    fontSize: 9, 
-    fontWeight: "800", 
+  aiBadgeTxt: {
+    fontSize: 9,
+    fontWeight: "800",
     color: "#fff",
     letterSpacing: 0.5,
   },
-  cardNameEn: { 
-    fontSize: 11, 
-    color: "#9CA3AF", 
-    marginBottom: 6, 
+  cardNameEn: {
+    fontSize: 11,
+    color: "#8A99A8",
+    marginBottom: 6,
     lineHeight: 16,
     fontStyle: "italic",
   },
-  cardMeta: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 8, 
+  cardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginBottom: 6,
   },
   cardMetaItem: {
@@ -2417,27 +2498,27 @@ const s = StyleSheet.create({
     gap: 3,
   },
   cardCatEmoji: { fontSize: 12, marginRight: 2 },
-  cardMetaTxt: { 
-    fontSize: 11, 
-    color: "#6B7280",
+  cardMetaTxt: {
+    fontSize: 11,
+    color: "#5F6F80",
     fontWeight: "500",
   },
-  cardTags: { 
-    flexDirection: "row", 
-    flexWrap: "wrap", 
+  cardTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 4,
     marginTop: 4,
   },
-  cardTag: { 
-    paddingHorizontal: 8, 
-    paddingVertical: 3, 
-    borderRadius: 99, 
-    backgroundColor: "#EEF4FB", 
-    borderWidth: 1, 
-    borderColor: "#C5D9F0",
+  cardTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: "#E8F0F4",
+    borderWidth: 1,
+    borderColor: "#E6DED4",
   },
-  cardTagActive: { 
-    backgroundColor: BRAND, 
+  cardTagActive: {
+    backgroundColor: BRAND,
     borderColor: BRAND,
     shadowColor: BRAND,
     shadowOffset: { width: 0, height: 1 },
@@ -2445,29 +2526,29 @@ const s = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  cardTagTxt: { 
-    fontSize: 10, 
-    color: BRAND, 
+  cardTagTxt: {
+    fontSize: 10,
+    color: BRAND,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
-  cardTagTxtActive: { 
+  cardTagTxtActive: {
     color: "#fff",
     letterSpacing: 0.3,
   },
 
   // Empty state
   empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingTop: 48 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: BRAND, marginBottom: 6 },
+  emptyTitle: { ...typography.h3, color: BRAND, marginBottom: 6 },
   emptySub: { fontSize: 13, color: "#888", textAlign: "center", lineHeight: 20, marginBottom: 20 },
   emptyBtn: { backgroundColor: BRAND, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 },
-  emptyBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  emptyBtnTxt: { ...typography.button, color: "#fff" },
   emptySuggestChip: {
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 99, backgroundColor: "#EEF4FB",
-    borderWidth: 1, borderColor: "#C5D9F0",
+    borderRadius: 99, backgroundColor: "#E8F0F4",
+    borderWidth: 1, borderColor: "#E6DED4",
   },
-  emptySuggestChipTxt: { fontSize: 12, fontWeight: "600", color: BRAND },
+  emptySuggestChipTxt: { ...typography.caption, color: BRAND },
 
   // Filter sheet
   filterOverlay: {
@@ -2499,7 +2580,7 @@ const s = StyleSheet.create({
   filterTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: "#183B56",
   },
   filterLabel: {
     fontSize: 13,
@@ -2521,9 +2602,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 99,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFF8EF",
     borderWidth: 1.5,
-    borderColor: "#E8E8E8",
+    borderColor: "#E6DED4",
   },
   filterCategoryChipActive: {
     backgroundColor: BRAND,
@@ -2551,9 +2632,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 99,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFF8EF",
     borderWidth: 1.5,
-    borderColor: "#E8E8E8",
+    borderColor: "#E6DED4",
   },
   filterTimeChipActive: {
     backgroundColor: BRAND,
@@ -2578,9 +2659,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 99,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFF8EF",
     borderWidth: 1.5,
-    borderColor: "#E8E8E8",
+    borderColor: "#E6DED4",
   },
   filterTagChipActive: {
     backgroundColor: BRAND,
@@ -2601,7 +2682,7 @@ const s = StyleSheet.create({
     marginTop: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
+    borderTopColor: "#E6DED4",
   },
   filterResetBtn: {
     flex: 1,
@@ -2611,7 +2692,7 @@ const s = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#F5F5F7",
+    backgroundColor: "#FFF8EF",
   },
   filterResetBtnTxt: {
     fontSize: 14,
@@ -2655,13 +2736,13 @@ const s = StyleSheet.create({
   planOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   planSheet: { backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: Platform.OS === "ios" ? 44 : 24 },
   planHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 16 },
-  planLabel: { fontSize: 12, fontWeight: "700", color: "#9CA3AF", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
-  planDateChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: "#F3F4F6", marginRight: 8 },
+  planLabel: { ...typography.sectionLabel, color: "#8A99A8", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
+  planDateChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: "#F8F1E7", marginRight: 8 },
   planDateChipActive: { backgroundColor: BRAND },
-  planDateChipTxt: { fontSize: 13, fontWeight: "700", color: "#1A1A1A" },
+  planDateChipTxt: { ...typography.caption, color: "#183B56" },
   planMealRow: { flexDirection: "row", gap: 8, marginBottom: 24 },
-  planMealChip: { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center", gap: 4 },
+  planMealChip: { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: "#F8F1E7", alignItems: "center", gap: 4 },
   planMealChipActive: { backgroundColor: BRAND },
-  planMealTxt: { fontSize: 12, fontWeight: "700", color: "#374151" },
+  planMealTxt: { ...typography.caption, color: "#374151" },
   planConfirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: BRAND, paddingVertical: 16, borderRadius: 16, shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
 });

@@ -52,13 +52,13 @@ export function CollectionButton({
       accessibilityRole="button"
     >
       {isPending ? (
-        <ActivityIndicator size="small" color={isCollected ? "#013E77" : "#8E8E93"} />
+        <ActivityIndicator size="small" color={isCollected ? "#183B56" : "#8E8E93"} />
       ) : (
         <View style={s.iconWrapper}>
           <Ionicons
             name={isCollected ? "bookmark" : "bookmark-outline"}
             size={iconSize}
-            color={isCollected ? "#013E77" : "#8E8E93"}
+            color={isCollected ? "#183B56" : "#8E8E93"}
           />
         </View>
       )}
@@ -96,6 +96,6 @@ const s = StyleSheet.create({
   },
   label: {
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
 });

@@ -20,7 +20,7 @@ import { useToast } from "@/src/components/Toast";
 import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";

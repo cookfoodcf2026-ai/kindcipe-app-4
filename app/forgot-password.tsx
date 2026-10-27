@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
 import { friendlyError } from "@/lib/errors";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();

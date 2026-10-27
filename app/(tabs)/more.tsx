@@ -16,7 +16,6 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { colors } from "@/app/styles/colors";
-import { theme } from "@/app/styles/theme";
 import { typography } from "@/app/styles/typography";
 import {
   BookmarkIcon,
@@ -24,10 +23,8 @@ import {
   ImportIcon,
   StarIcon,
   PlannerIcon,
-  ShoppingIcon,
   HomeIcon,
   ReceiptIcon,
-  ChefHatIcon,
   SettingsIcon,
   LogOutIcon,
   AddIcon,
@@ -122,7 +119,7 @@ export default function MoreTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { user, isLoading, isAuthenticated, familyRole, logoutAsync, logoutPending, resetLogout } = useAuth();
+  const { user, isLoading, isAuthenticated, logoutAsync, logoutPending, resetLogout } = useAuth();
   const navLockRef = useRef(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showLogoutSheet, setShowLogoutSheet] = useState(false);

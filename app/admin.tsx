@@ -15,7 +15,7 @@ import { DISH_TYPE_KEYS } from "@/lib/dishType";
 import { CUISINE_OPTIONS } from "@/lib/taxonomy";
 
 const { width: SW } = Dimensions.get("window");
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F8FAFC";
 const CARD = "#FFFFFF";
 const TEXT = "#0F172A";

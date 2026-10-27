@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   term: {
     fontSize: 22,
     fontWeight: "900",
-    color: "#013E77",
+    color: "#183B56",
     marginBottom: 8,
   },
   desc: {

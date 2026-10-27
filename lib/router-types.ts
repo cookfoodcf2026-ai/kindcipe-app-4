@@ -25,6 +25,7 @@ export interface AppRouter {
   recipes: RecipesRouter;
   aiRecipe: AiRecipeRouter;
   weeklyMenu: WeeklyMenuRouter;
+  quickPlan: QuickPlanRouter;
   eatOut: EatOutRouter;
   recipeNotes: RecipeNotesRouter;
   priceWatch: PriceWatchRouter;
@@ -39,17 +40,37 @@ export interface AppRouter {
 // ============================================================================
 
 export interface BillingRouter {
-  status: { input: void; output: { configured: boolean } };
+  status: { input: void; output: { configured: boolean; promoEnabled: boolean } };
+  previewCheckout: {
+    input: { plan: "monthly" | "yearly" };
+    output: {
+      tier: "regular" | "founding";
+      amount: number;
+      currency: string;
+      chargeToday: number;
+      trialEnd: string | null;
+      trialDays: number;
+      promoActive: boolean;
+      trialEligible: boolean;
+      trialUsed: boolean;
+      foundingMember: boolean;
+      discountExpiresAt: string | null;
+      slotsRemaining: number;
+    };
+  };
   createCheckoutSession: {
     input: { plan: "monthly" | "yearly"; returnUrl?: string };
-    output: { url: string | null };
+    output: { url: string | null; tier: "regular" | "founding"; trialEnd: string | null };
   };
   createPortalSession: { input: void; output: { url: string } };
   confirmCheckout: {
     input: { sessionId: string };
-    output:
-      | { status: "pending" }
-      | { status: "active"; plan: "monthly" | "yearly"; expiresAt: string };
+    output: {
+      status: "pending" | "active" | "trial";
+      plan: "monthly" | "yearly";
+      trialEndsAt: string | null;
+      expiresAt: string | null;
+    };
   };
   current: { input: void; output: FamilySubscription | null };
 }
@@ -167,7 +188,8 @@ export interface UpdateMemberRoleInput {
 }
 
 export interface UpdateFamilySettingsInput {
-  settings: FamilySettings;
+  approvalRequired?: boolean;
+  mealPreferences?: MealPreferencesInput;
 }
 
 export interface Family {
@@ -194,15 +216,53 @@ export interface FamilySettings {
   maxMembers?: number;
   allowMealPlanSharing?: boolean;
   allowShoppingListSharing?: boolean;
+  mealPreferences?: MealPreferencesInput;
   [key: string]: any;
 }
 
+export interface MealPreferencesInput {
+  servings?: number;
+  time?: "quick" | "normal" | "leisure";
+  timeModes?: Array<"quick" | "normal" | "leisure">;
+  hasKids?: boolean;
+  hasElderly?: boolean;
+  dislikes?: string[];
+  allergens?: string[];
+}
+
+export interface FamilyPromoState {
+  promoActive: boolean;
+  promoEnabled: boolean;
+  trialEligible: boolean;
+  trialUsed: boolean;
+  trialEndsAt: string | null;
+  discountExpiresAt: string | null;
+  foundingMember: boolean;
+  earlybirdPaidCount: number;
+  earlybirdHeldCount: number;
+  earlybirdSlotsRemaining: number;
+  earlybirdCap: number;
+  priceTier: "regular" | "founding";
+  billingProvider: "stripe" | "apple" | "google" | null;
+}
+
 export interface FamilySubscription {
-  id: string;
-  familyId: string;
-  plan: 'free' | 'premium' | 'family';
-  status: 'active' | 'cancelled' | 'expired';
-  expiresAt?: string;
+  status: "free" | "trial" | "active" | "expired";
+  plan?: "free" | "trial" | "pro";
+  isPaid: boolean;
+  multiLang: boolean;
+  maxMembers: number;
+  maxImportsPerMonth: number;
+  maxCustomRecipesPerMonth: number | null;
+  aiChatLimit: number;
+  sharedLocked: boolean;
+  memberGraceEndsAt?: string | null;
+  memberGraceActive?: boolean;
+  memberCount?: number;
+  trialEndsAt: string | null;
+  subscriptionExpiresAt: string | null;
+  subscriptionPlan: string | null;
+  promo?: FamilyPromoState | null;
 }
 
 export interface FamilyUsageSummary {
@@ -762,6 +822,93 @@ export interface WeeklyMenuDay {
   recipeId?: string;
   mealType?: 'breakfast' | 'lunch' | 'dinner';
   recipe?: Recipe;
+}
+
+export interface QuickPlanRouter {
+  suggest: { input: QuickPlanSuggestInput; output: QuickPlanSuggestOutput };
+  accept: { input: QuickPlanAcceptInput; output: QuickPlanAcceptOutput };
+}
+
+export interface QuickPlanSuggestInput {
+  startDate: string;
+  days?: 1 | 2;
+  servings?: number;
+  exclusions?: string[];
+}
+
+export interface QuickPlanSuggestOutput {
+  startDate: string;
+  requestedServings: number;
+  days: QuickPlanDay[];
+  warnings: string[];
+}
+
+export interface QuickPlanAcceptInput {
+  clientRequestId: string;
+  items: Array<{
+    date: string;
+    buyDate: string;
+    recipeId: string;
+    recipeName: string;
+    recipeNameEn?: string | null;
+    recipeNameFil?: string | null;
+    recipeNameId?: string | null;
+    recipeImage?: string | null;
+    ingredients: Array<{
+      name: string;
+      nameEn?: string;
+      nameFil?: string;
+      nameId?: string;
+      quantity?: string;
+      unit?: string;
+      category?: string;
+    }>;
+  }>;
+}
+
+export interface QuickPlanAcceptOutput {
+  mealPlanCount: number;
+  shoppingCount: number;
+  newPlanIds: number[];
+}
+
+export interface QuickPlanDay {
+  date: string;
+  recipes: QuickPlanRecipe[];
+}
+
+export interface QuickPlanRecipe {
+  recipeId: string | null;
+  name: string;
+  nameEn?: string;
+  nameFil?: string;
+  nameId?: string;
+  description: string;
+  descriptionEn?: string;
+  descriptionFil?: string;
+  descriptionId?: string;
+  cookTime: number;
+  servings: number;
+  difficulty: string;
+  ingredients: Array<{
+    name: string;
+    nameEn?: string;
+    nameFil?: string;
+    nameId?: string;
+    quantity: string;
+    unit: string;
+  }>;
+  steps: string[];
+  stepsEn?: string[];
+  stepsFil?: string[];
+  stepsId?: string[];
+  tags: string[];
+  source?: 'official' | 'custom' | 'ai';
+  officialId?: number;
+  customId?: number;
+  thumbnailUrl?: string;
+  image?: string;
+  dishType?: string;
 }
 
 export interface WeeklyMenuSuggestion {

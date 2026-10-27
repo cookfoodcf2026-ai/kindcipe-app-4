@@ -13,10 +13,9 @@
  * require their own billing for digital goods.
  */
 import { Linking, Platform } from "react-native";
-import Constants from "expo-constants";
 import i18n from "./i18n";
 import { trpc } from "./trpc";
-import { isWeb } from "./platform";
+import { getWebappUrl, isWeb } from "./platform";
 import { track, Events } from "./analytics";
 
 export const PRODUCT_IDS = {
@@ -75,7 +74,7 @@ export async function getProducts(): Promise<{ productId: ProductId; price: stri
  * Start a purchase. On web this opens Stripe Checkout. On native this is a
  * no-op until Apple IAP / Google Play Billing are wired.
  */
-export async function purchaseSubscription(productId: ProductId, opts?: { promoCode?: string }): Promise<PurchaseResult> {
+export async function purchaseSubscription(productId: ProductId): Promise<PurchaseResult> {
   const plan = SUBSCRIPTION_TYPE[productId];
 
   if (isStripeSupported) {
@@ -86,7 +85,6 @@ export async function purchaseSubscription(productId: ProductId, opts?: { promoC
       const { url } = await trpc.billing.createCheckoutSession.mutate({
         plan,
         returnUrl,
-        promoCode: opts?.promoCode || undefined,
       });
       if (!url) {
         return { success: false, error: i18n.t("error.purchaseFailed" as any) };
@@ -105,11 +103,11 @@ export async function purchaseSubscription(productId: ProductId, opts?: { promoC
   return { success: false, error: i18n.t("error.iapUnavailable" as any) };
 }
 
-export async function manageSubscription(): Promise<void> {
+export async function manageSubscription(
+  provider?: "stripe" | "apple" | "google" | null
+): Promise<void> {
   try {
-    if (isStripeSupported) {
-      // Web: prefer the Stripe Billing Portal when a customer exists; otherwise
-      // fall back to the pricing page.
+    if (provider === "stripe" || (!provider && isStripeSupported)) {
       try {
         const { url } = await trpc.billing.createPortalSession.mutate();
         if (url) {
@@ -117,18 +115,17 @@ export async function manageSubscription(): Promise<void> {
           return;
         }
       } catch {
-        /* no customer yet → fall through */
+        /* fall back to the web account page */
       }
-      const fallback =
-        process.env.EXPO_PUBLIC_ACCOUNT_URL ??
-        (Constants.expoConfig?.extra as any)?.accountUrl ??
-        process.env.EXPO_PUBLIC_STORE_URL ??
-        "https://app.kindcipe.com/settings";
-      await Linking.openURL(fallback);
-    } else if (Platform.OS === "ios") {
+      await Linking.openURL(`${getWebappUrl()}/settings`);
+      return;
+    }
+    if (provider === "apple" || Platform.OS === "ios") {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
-    } else {
+    } else if (provider === "google" || Platform.OS === "android") {
       await Linking.openURL("https://play.google.com/store/account/subscriptions");
+    } else {
+      await Linking.openURL(`${getWebappUrl()}/settings`);
     }
   } catch {
     /* ignore */
@@ -143,13 +140,17 @@ export async function restorePurchases(): Promise<PurchaseResult> {
  * After a Stripe checkout redirect back to the app, confirm the session and
  * activate Pro without waiting for the webhook.
  */
-export async function confirmStripeCheckout(sessionId: string): Promise<boolean> {
+export type StripeConfirmStatus = "active" | "trial" | "pending" | "error";
+
+export async function confirmStripeCheckout(sessionId: string): Promise<StripeConfirmStatus> {
   try {
     const res = await trpc.billing.confirmCheckout.mutate({ sessionId });
-    const ok = res.status === "active";
-    if (ok) track(Events.PurchaseCompleted, { via: "stripe", sessionId });
-    return ok;
+    if (res.status === "active" || res.status === "trial") {
+      track(Events.PurchaseCompleted, { via: "stripe", sessionId, status: res.status });
+      return res.status;
+    }
+    return "pending";
   } catch {
-    return false;
+    return "error";
   }
 }

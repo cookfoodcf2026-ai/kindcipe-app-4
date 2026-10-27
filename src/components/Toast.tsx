@@ -100,7 +100,7 @@ export default function Toast({ visible, message, type = "success", onHide, dura
 
   if (!visible) return null;
 
-  const bgColor = type === "success" ? "#16A34A" : type === "error" ? "#DC2626" : "#013E77";
+  const bgColor = type === "success" ? "#16A34A" : type === "error" ? "#DC2626" : "#183B56";
   const icon = type === "success" ? "checkmark-circle" : type === "error" ? "alert-circle" : "information-circle";
 
   return (
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionTxt: {
-    color: "#013E77",
+    color: "#183B56",
     fontSize: 18,
     fontWeight: "800",
   },

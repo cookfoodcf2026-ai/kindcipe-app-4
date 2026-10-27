@@ -10,7 +10,7 @@ import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { friendlyError } from "@/lib/errors";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 
 export default function ChangePasswordScreen() {
   const { t } = useTranslation();

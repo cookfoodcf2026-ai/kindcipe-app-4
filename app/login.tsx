@@ -32,7 +32,7 @@ const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
 
 const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
-const BG = "#FAF8F5";
+const BG = "#FFF8EF";
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://kindcipe.com/privacy/";
 const APPLE_WEB_ENABLED = process.env.EXPO_PUBLIC_ENABLE_APPLE_WEB === "1";
 
@@ -625,13 +625,13 @@ export default function LoginScreen() {
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E0D8", alignSelf: "center", marginBottom: 20 }} />
             <View style={{ alignItems: "center", gap: 8, marginBottom: 24 }}>
               <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="scan-outline" size={32} color="#013E77" />
+                <Ionicons name="scan-outline" size={32} color="#183B56" />
               </View>
               <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("auth.enableFaceId")}</Text>
               <Text style={{ fontSize: 14, color: "#9CA3AF", textAlign: "center" }}>{t("auth.faceIdMsg")}</Text>
             </View>
             <TouchableOpacity
-              style={{ backgroundColor: "#013E77", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
+              style={{ backgroundColor: "#183B56", borderRadius: 14, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
               onPress={async () => {
                 await setBiometricEnabled(true);
                 setShowBiometricPrompt(false);

@@ -16,6 +16,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { FAMILY_ID_KEY, getAuthToken } from "./auth";
 
 function toHeaderRecord(headers: HeadersInit | undefined): Record<string, string> {
@@ -112,6 +113,7 @@ const makeClient = () => ({
         if (familyId) {
           headers["X-Family-Id"] = familyId;
         }
+        headers["X-Client-Platform"] = Platform.OS === "web" ? "web" : "native";
 
         // 使用 AbortController 實現逾時控制
         const controller = new AbortController();

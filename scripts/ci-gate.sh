@@ -26,10 +26,28 @@ npx eslint --max-warnings=0 \
   'app/pantry.tsx' \
   'app/shopping-templates.tsx' \
   'app/recipe/[id].tsx' \
+  'hooks/useScreenAwake.ts' \
+  'lib/featureFlags.ts' \
+  'lib/ingredientSanitize.ts' \
+  'src/components/HomePlanHero.tsx' \
+  'src/screens/AiPlanScreen.tsx' \
+  'app/ai-plan.tsx' \
+  'app/meal-preferences.tsx' \
+  'lib/mealPreferences.ts' \
   'src/components/RecipeCard.tsx' \
+  'src/components/ShoppingAddConfirm.tsx' \
+  'src/components/NextDayPrompt.tsx' \
+  'src/components/AiBubbleIcon.tsx' \
+  'src/components/MealConflictPrompt.tsx' \
   'src/components/Toast.tsx' \
   'e2e/ai-chef.smoke.test.js'
 echo "✅ ESLint passed (zero warnings)"
+echo ""
+
+# Step 3b: Typography token enforcement
+echo "🔍 Running typography lint..."
+npx eslint --max-warnings=0 app/settings.tsx "app/(tabs)/more.tsx" "app/(tabs)/index.tsx" src/components/RecipeCard.tsx app/visual-typography.tsx
+echo "✅ Typography lint passed"
 echo ""
 
 # Step 4: i18n key completeness (all t() keys present in all 4 locales)

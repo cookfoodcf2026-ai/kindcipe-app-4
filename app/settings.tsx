@@ -24,14 +24,15 @@ import { trpc } from "@/lib/trpc";
 import { confirmStripeCheckout } from "@/lib/purchase";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
-import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
-import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
 import { getMealReminderSetting, saveMealReminderSetting, applyMealReminder, type MealReminderSetting } from "@/lib/notifications";
 import PaywallModal from "@/components/PaywallModal";
 import { ChatBubbleIcon } from "@/src/components/icons";
 import { getHintsDisabled, setHintsDisabled } from "@/src/components/HintBanner";
 import { getAppLogo } from "@/lib/logo";
 import { friendlyError } from "@/lib/errors";
+import { aiChefQuickPlanEnabled } from "@/lib/featureFlags";
+import { typography } from "@/app/styles/typography";
 import { isWeb } from "@/lib/platform";
 import { signInWithGoogleWeb } from "@/lib/socialAuth";
 import { track, Events, loadAnalyticsOptOut, setAnalyticsOptOut } from "@/lib/analytics";
@@ -53,13 +54,15 @@ function formatYearMonthLabel(yearMonth: string): string {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { billing: billingReturn, session_id: billingSessionId } = useLocalSearchParams<{
+  const { billing: billingReturn, session_id: billingSessionId, paywall } = useLocalSearchParams<{
     billing?: string;
     session_id?: string;
+    paywall?: string;
   }>();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
   const { user, isAuthenticated, logout, familyRole, activeFamily, activeFamilyId, families } = useAuth();
+  const canManageBilling = familyRole === "owner" || familyRole === "admin";
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [showUsageHistory, setShowUsageHistory] = useState(false);
@@ -259,7 +262,9 @@ export default function SettingsScreen() {
 
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallFeature, setPaywallFeature] = useState<"generic" | "multilang">("generic");
-  const [promoOpen, setPromoOpen] = useState(false);
+  useEffect(() => {
+    if (paywall === "1") setShowPaywall(true);
+  }, [paywall]);
   const [promoCode, setPromoCode] = useState("");
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [promoState, setPromoState] = useState<"idle" | "redeeming" | "done">("idle");
@@ -272,6 +277,7 @@ export default function SettingsScreen() {
         utils.auth.me.invalidate(),
         utils.family.subscription.invalidate(),
         utils.family.usage.invalidate(),
+        utils.billing.previewCheckout.invalidate(),
       ]);
     },
     onError: (e) => setPromoMsg(`${t("settings.promoFailed")}: ${friendlyError(e)}`),
@@ -297,13 +303,27 @@ export default function SettingsScreen() {
     const sid = Array.isArray(billingSessionId) ? billingSessionId[0] : billingSessionId;
     if (!sid) {
       // No session id → rely on webhook; just refresh.
-      void Promise.all([utils.auth.me.invalidate(), utils.family.subscription.invalidate()]);
+      void Promise.all([
+        utils.auth.me.invalidate(),
+        utils.family.subscription.invalidate(),
+        utils.billing.previewCheckout.invalidate(),
+      ]);
       return;
     }
     (async () => {
-      const ok = await confirmStripeCheckout(sid);
-      await Promise.all([utils.auth.me.invalidate(), utils.family.subscription.invalidate()]);
-      setBillingNotice(ok ? t("settings.billingSuccess" as any) : t("settings.billingPending" as any));
+      const status = await confirmStripeCheckout(sid);
+      await Promise.all([
+        utils.auth.me.invalidate(),
+        utils.family.subscription.invalidate(),
+        utils.billing.previewCheckout.invalidate(),
+      ]);
+      setBillingNotice(
+        status === "active"
+          ? t("settings.billingSuccess" as any)
+          : status === "trial"
+            ? t("settings.billingTrialStarted" as any)
+            : t("settings.billingPending" as any)
+      );
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billingReturn, billingSessionId]);
@@ -340,6 +360,10 @@ export default function SettingsScreen() {
   const linkEmailVerifyM = trpc.auth.linkEmailVerify.useMutation();
   const linkedProviders = new Set(((identitiesQuery.data as any[]) ?? []).map((i: any) => i.provider));
   const hasEmailLinked = linkedProviders.has("otp") || linkedProviders.has("email");
+  const showMergeAccounts = Boolean(
+    linkedProviders.has("apple") ||
+    user?.email?.toLowerCase().includes("privaterelay.appleid.com")
+  );
 
   const handleLinkGoogle = async () => {
     try {
@@ -347,6 +371,7 @@ export default function SettingsScreen() {
       if (isWeb) {
         idToken = await signInWithGoogleWeb();
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { GoogleSignin } = require("@react-native-google-signin/google-signin");
         const userInfo = await GoogleSignin.signIn();
         idToken = userInfo?.data?.idToken ?? userInfo?.idToken;
@@ -427,6 +452,7 @@ export default function SettingsScreen() {
       if (isWeb) {
         idToken = await signInWithGoogleWeb();
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { GoogleSignin } = require("@react-native-google-signin/google-signin");
         const userInfo = await GoogleSignin.signIn();
         idToken = userInfo?.data?.idToken ?? userInfo?.idToken;
@@ -446,7 +472,7 @@ export default function SettingsScreen() {
   const currentYearMonth = new Date().toISOString().slice(0, 7);
   const currentUsageMonth = usageHistoryByMember.find((row) => row.yearMonth === currentYearMonth);
   const currentUsageMembers = currentUsageMonth?.members ?? [];
-  const currentUsageMax = Math.max(1, ...currentUsageMembers.map((m) => m.aiChat + m.imports));
+  const currentUsageMax = Math.max(1, ...currentUsageMembers.map((m) => m.aiChat));
 
   const getSubscriptionLabel = () => {
     if (!sub) return null;
@@ -454,11 +480,11 @@ export default function SettingsScreen() {
       const daysLeft = sub.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000))
         : 0;
-      return { label: `試用中（剩餘 ${daysLeft} 天）`, color: "#F59E0B", isPaid: true, daysLeft };
+      return { label: t("paywall.trialActiveNote" as any, { n: daysLeft }), color: "#F59E0B", isPaid: false, isTrial: true, daysLeft, canManage: canManageBilling };
     }
-    if (sub.status === "active") return { label: t("settings.subActive"), color: "#16A34A", isPaid: true, daysLeft: 0 };
-    if (sub.status === "expired") return { label: t("settings.subExpired"), color: "#EF4444", isPaid: false, daysLeft: 0 };
-    return { label: "免費版", color: "#6B7280", isPaid: false, daysLeft: 0 };
+    if (sub.status === "active") return { label: t("settings.subActive"), color: "#16A34A", isPaid: true, isTrial: false, daysLeft: 0, canManage: canManageBilling };
+    if (sub.status === "expired") return { label: t("settings.subExpired"), color: "#EF4444", isPaid: false, isTrial: false, daysLeft: 0, canManage: false };
+    return { label: "免費版", color: "#5F6F80", isPaid: false, isTrial: false, daysLeft: 0, canManage: false };
   };
   const subInfo = getSubscriptionLabel();
 
@@ -467,7 +493,7 @@ export default function SettingsScreen() {
       {/* 頭部 */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)"))} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color="#183B56" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("settings.title")}</Text>
         <View style={{ width: 32 }} />
@@ -493,7 +519,7 @@ export default function SettingsScreen() {
                   }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="pencil" size={14} color="#013E77" />
+                  <Ionicons name="pencil" size={14} color="#183B56" />
                 </TouchableOpacity>
               </View>
               <Text style={styles.profileEmail}>{user.email || ""}</Text>
@@ -516,7 +542,7 @@ export default function SettingsScreen() {
             style={styles.loginCard}
             onPress={() => router.push("/login")}
           >
-            <Ionicons name="person-circle-outline" size={48} color="#013E77" />
+            <Ionicons name="person-circle-outline" size={48} color="#183B56" />
             <Text style={styles.loginCardTitle}>{t("settings.notLoggedIn")}</Text>
             <Text style={styles.loginCardSubtitle}>{t("settings.loginPrompt")}</Text>
           </TouchableOpacity>
@@ -528,8 +554,8 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitle}>{t("settings.kitchen")}</Text>
             <View style={styles.kitchenCard}>
               <View style={styles.kitchenCardHeader}>
-                <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}> 
-                  <Ionicons name="home-outline" size={20} color="#013E77" />
+                <View style={[styles.settingIcon, { backgroundColor: "#E8F0F4" }]}>
+                  <Ionicons name="home-outline" size={20} color="#183B56" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.kitchenName}>{activeFamily?.name || families[0]?.name || t("settings.notInKitchen")}</Text>
@@ -551,19 +577,19 @@ export default function SettingsScreen() {
 
         {/* 訂閱狀態卡片 */}
         {isAuthenticated && subInfo && (
-          <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}> 
+          <View style={[styles.subCard, { borderLeftColor: subInfo.color }]}>
             <View style={styles.subCardLeft}>
               <Text style={styles.subCardTitle}>{t("settings.subscriptionStatus")}</Text>
               <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{t(subInfo.label as any)}</Text>
             </View>
-            {!subInfo.isPaid ? (
+            {!subInfo.isPaid && !subInfo.isTrial ? (
               <TouchableOpacity
                 style={styles.upgradeSmallBtn}
                 onPress={() => setShowPaywall(true)}
               >
                 <Text style={styles.upgradeSmallBtnText}>{t("settings.upgrade")}</Text>
               </TouchableOpacity>
-            ) : (
+            ) : subInfo.canManage ? (
               // Already Pro: offer a way to manage/cancel. On web/Android this
               // opens the Stripe Billing Portal; elsewhere it's a no-op-safe
               // upgrade view (Apple IAP path is unchanged).
@@ -571,8 +597,14 @@ export default function SettingsScreen() {
                 style={styles.manageSmallBtn}
                 onPress={() => setShowPaywall(true)}
               >
-                <Text style={styles.manageSmallBtnText}>{t("settings.manage" as any)}</Text>
+                <Text style={styles.manageSmallBtnText}>
+                  {subInfo.isTrial && sub?.promo?.billingProvider !== "stripe"
+                    ? t("settings.upgrade")
+                    : t("settings.manage" as any)}
+                </Text>
               </TouchableOpacity>
+            ) : (
+              <Text style={styles.subManagedNote}>{t("settings.managedByOwner" as any)}</Text>
             )}
           </View>
         )}
@@ -582,7 +614,7 @@ export default function SettingsScreen() {
         ) : null}
 
         {/* 兌換試用碼（IG follow 7日） */}
-        {isAuthenticated && (
+        {isAuthenticated && (sub?.promo?.trialEligible || promoState === "done") && (
           <View style={styles.promoCard}>
             {promoState === "done" ? (
               <Text style={styles.promoDoneText}>{promoMsg}</Text>
@@ -600,7 +632,7 @@ export default function SettingsScreen() {
                   <TextInput
                     style={styles.promoInput}
                     placeholder={t("settings.promoPlaceholder")}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     autoCapitalize="characters"
                     value={promoCode}
                     onChangeText={setPromoCode}
@@ -627,15 +659,15 @@ export default function SettingsScreen() {
         {/* 已連結登入方式 + 手動連結 */}
         {isAuthenticated && (
           <View style={styles.promoCard}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 8 }}>{t("settings.loginMethods" as any)}</Text>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#183B56", marginBottom: 8 }}>{t("settings.loginMethods" as any)}</Text>
             {(identitiesQuery.data as any[] ?? []).map((id: any) => {
               const icon = id.provider === "apple" ? "logo-apple" : id.provider === "google" ? "logo-google" : id.provider === "otp" ? "key-outline" : "mail-outline";
               const label = id.provider === "apple" ? t("settings.providerApple" as any) : id.provider === "google" ? t("settings.providerGoogle" as any) : id.provider === "otp" ? t("settings.providerOtp" as any) : t("settings.providerEmail" as any);
               return (
                 <View key={id.provider} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 }}>
-                  <Ionicons name={icon as any} size={18} color="#1C2E4A" />
-                  <Text style={{ fontSize: 14, color: "#1A1A1A" }}>{label}</Text>
-                  {id.email ? <Text style={{ fontSize: 12, color: "#9CA3AF", flex: 1, textAlign: "right" }} numberOfLines={1}>{id.email}</Text> : null}
+                  <Ionicons name={icon as any} size={18} color="#183B56" />
+                  <Text style={{ fontSize: 14, color: "#183B56" }}>{label}</Text>
+                  {id.email ? <Text style={{ fontSize: 12, color: "#8A99A8", flex: 1, textAlign: "right" }} numberOfLines={1}>{id.email}</Text> : null}
                 </View>
               );
             })}
@@ -643,26 +675,26 @@ export default function SettingsScreen() {
             {!linkedProviders.has("google") && (
               <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, marginTop: 4 }} onPress={handleLinkGoogle}>
                 <Ionicons name="logo-google" size={18} color="#DB4437" />
-                <Text style={{ fontSize: 14, color: "#013E77", fontWeight: "700" }}>{t("連結 Google" as any)}</Text>
+                <Text style={{ fontSize: 14, color: "#183B56", fontWeight: "700" }}>{t("連結 Google" as any)}</Text>
               </TouchableOpacity>
             )}
             {!hasEmailLinked && (
               <TouchableOpacity style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }} onPress={() => { setLinkEmailOpen(true); setLinkStep("email"); setLinkMsg(null); }}>
-                <Ionicons name="mail-outline" size={18} color="#013E77" />
-                <Text style={{ fontSize: 14, color: "#013E77", fontWeight: "700" }}>{t("連結電郵" as any)}</Text>
+                <Ionicons name="mail-outline" size={18} color="#183B56" />
+                <Text style={{ fontSize: 14, color: "#183B56", fontWeight: "700" }}>{t("連結電郵" as any)}</Text>
               </TouchableOpacity>
             )}
-            <Text style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 8, lineHeight: 16 }}>{t("settings.linkHint" as any)}</Text>
+            <Text style={{ fontSize: 11.5, color: "#8A99A8", marginTop: 8, lineHeight: 16 }}>{t("settings.linkHint" as any)}</Text>
           </View>
         )}
 
-        {/* 合併帳號（將另一個帳號嘅資料搬入呢個帳號）*/}
-        {isAuthenticated && (
+        {/* 合併帳號：只喺 Apple relay / 需要救援帳號時顯示 */}
+        {isAuthenticated && showMergeAccounts && (
           <View style={styles.promoCard}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A", marginBottom: 4 }}>{t("settings.mergeTitle" as any)}</Text>
-            <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 10, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#183B56", marginBottom: 4 }}>{t("settings.mergeTitle" as any)}</Text>
+            <Text style={{ fontSize: 12, color: "#5F6F80", marginBottom: 10, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
             <TouchableOpacity
-              style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
+              style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center" }}
               onPress={() => { setMergeOpen(true); setMergeStep("email"); setMergeMsg(null); setMergeEmail(""); setMergeCode(""); }}
             >
               <Text style={{ color: "#fff", fontWeight: "800" }}>{t("settings.mergeCta" as any)}</Text>
@@ -674,47 +706,47 @@ export default function SettingsScreen() {
         <Modal visible={mergeOpen} transparent animationType="fade" onRequestClose={() => setMergeOpen(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
             <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
-              <Text style={{ fontSize: 17, fontWeight: "800", color: "#1A1A1A", marginBottom: 6 }}>{t("settings.mergeTitle" as any)}</Text>
-              <Text style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>{t("settings.mergeTitle" as any)}</Text>
+              <Text style={{ fontSize: 12, color: "#5F6F80", marginBottom: 14, lineHeight: 17 }}>{t("settings.mergeHint" as any)}</Text>
               {mergeStep === "email" ? (
                 <>
                   <TextInput
-                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" }}
+                    style={{ borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#183B56" }}
                     placeholder={t("auth.emailPlaceholder" as any)}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     autoCapitalize="none"
                     keyboardType="email-address"
                     value={mergeEmail}
                     onChangeText={setMergeEmail}
                   />
                   {mergeMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mergeMsg}</Text> : null}
-                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailStart} disabled={mergeBusy}>
+                  <TouchableOpacity style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailStart} disabled={mergeBusy}>
                     {mergeBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("auth.sendCode" as any)}</Text>}
                   </TouchableOpacity>
                   <TouchableOpacity style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 12 }} onPress={handleMergeGoogle} disabled={mergeBusy}>
                     <Ionicons name="logo-google" size={18} color="#DB4437" />
-                    <Text style={{ color: "#013E77", fontWeight: "700" }}>{t("settings.mergeViaGoogle" as any)}</Text>
+                    <Text style={{ color: "#183B56", fontWeight: "700" }}>{t("settings.mergeViaGoogle" as any)}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: mergeEmail })}</Text>
+                  <Text style={{ fontSize: 13, color: "#5F6F80", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: mergeEmail })}</Text>
                   <TextInput
-                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#111827", letterSpacing: 4, textAlign: "center" }}
+                    style={{ borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#183B56", letterSpacing: 4, textAlign: "center" }}
                     placeholder="------"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     keyboardType="number-pad"
                     value={mergeCode}
                     onChangeText={setMergeCode}
                   />
                   {mergeMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{mergeMsg}</Text> : null}
-                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailVerify} disabled={mergeBusy}>
+                  <TouchableOpacity style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleMergeEmailVerify} disabled={mergeBusy}>
                     {mergeBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("settings.mergeConfirm" as any)}</Text>}
                   </TouchableOpacity>
                 </>
               )}
               <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => setMergeOpen(false)}>
-                <Text style={{ color: "#9CA3AF" }}>{t("取消" as any)}</Text>
+                <Text style={{ color: "#8A99A8" }}>{t("取消" as any)}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -724,42 +756,42 @@ export default function SettingsScreen() {
         <Modal visible={linkEmailOpen} transparent animationType="fade" onRequestClose={() => setLinkEmailOpen(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
             <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
-              <Text style={{ fontSize: 17, fontWeight: "800", color: "#1A1A1A", marginBottom: 12 }}>{t("連結電郵" as any)}</Text>
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#183B56", marginBottom: 12 }}>{t("連結電郵" as any)}</Text>
               {linkStep === "email" ? (
                 <>
                   <TextInput
-                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" }}
+                    style={{ borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#183B56" }}
                     placeholder={t("auth.emailPlaceholder" as any)}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     autoCapitalize="none"
                     keyboardType="email-address"
                     value={linkEmailAddr}
                     onChangeText={setLinkEmailAddr}
                   />
                   {linkMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{linkMsg}</Text> : null}
-                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailStart} disabled={linkBusy}>
+                  <TouchableOpacity style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailStart} disabled={linkBusy}>
                     {linkBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("auth.sendCode" as any)}</Text>}
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: linkEmailAddr })}</Text>
+                  <Text style={{ fontSize: 13, color: "#5F6F80", marginBottom: 8 }}>{t("auth.codeSentTo" as any, { email: linkEmailAddr })}</Text>
                   <TextInput
-                    style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#111827", letterSpacing: 4, textAlign: "center" }}
+                    style={{ borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: "#183B56", letterSpacing: 4, textAlign: "center" }}
                     placeholder="------"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     keyboardType="number-pad"
                     value={linkCode}
                     onChangeText={setLinkCode}
                   />
                   {linkMsg ? <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 8 }}>{linkMsg}</Text> : null}
-                  <TouchableOpacity style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailVerify} disabled={linkBusy}>
+                  <TouchableOpacity style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 14 }} onPress={handleLinkEmailVerify} disabled={linkBusy}>
                     {linkBusy ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "800" }}>{t("確定" as any)}</Text>}
                   </TouchableOpacity>
                 </>
               )}
               <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => setLinkEmailOpen(false)}>
-                <Text style={{ color: "#9CA3AF" }}>{t("取消" as any)}</Text>
+                <Text style={{ color: "#8A99A8" }}>{t("取消" as any)}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -780,9 +812,14 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
+                <Text style={{ fontSize: 36, lineHeight: 40, fontWeight: "900", color: "#183B56" }}>{usage.aiChat.used}</Text>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#5F6F80" }}>{t("settings.creditsUsed" as any)}</Text>
+              </View>
+
               <View style={styles.usageMetricRow}>
                 <Text style={styles.usageMetricLabel}>{t("settings.aiChat")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.aiChat.used}/${usage.aiChat.limit}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: usage.aiChat.used })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -790,7 +827,7 @@ export default function SettingsScreen() {
                     styles.usageBarFill,
                     {
                       width: `${Math.min(100, Math.round((usage.aiChat.used / Math.max(usage.aiChat.limit, 1)) * 100))}%`,
-                      backgroundColor: "#7C3AED",
+                      backgroundColor: "#183B56",
                     },
                   ]}
                 />
@@ -798,7 +835,7 @@ export default function SettingsScreen() {
 
               <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
                 <Text style={styles.usageMetricLabel}>{t("settings.recipeImport")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: `${usage.imports.used}/${usage.imports.limit}` })}</Text>
+                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: usage.imports.used })}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -806,7 +843,7 @@ export default function SettingsScreen() {
                     styles.usageBarFill,
                     {
                       width: `${Math.min(100, Math.round((usage.imports.used / Math.max(usage.imports.limit, 1)) * 100))}%`,
-                      backgroundColor: "#013E77",
+                      backgroundColor: "#183B56",
                     },
                   ]}
                 />
@@ -818,7 +855,7 @@ export default function SettingsScreen() {
               {currentUsageMembers.length > 0 ? (
                 <View style={styles.usageMemberList}>
                   {currentUsageMembers.map((member) => {
-                    const total = member.aiChat + member.imports;
+                    const total = member.aiChat;
                     const width = `${Math.max(6, Math.round((total / currentUsageMax) * 100))}%` as `${number}%`;
                     return (
                       <View key={member.userId} style={styles.usageMemberRow}>
@@ -834,7 +871,7 @@ export default function SettingsScreen() {
                           <View
                             style={[
                               styles.usageMemberBarFill,
-                              { width, backgroundColor: member.familyRole === "owner" ? "#013E77" : member.familyRole === "admin" ? "#7C3AED" : "#0F766E" },
+                              { width, backgroundColor: member.familyRole === "owner" ? "#183B56" : member.familyRole === "admin" ? "#183B56" : "#183B56" },
                             ]}
                           />
                         </View>
@@ -863,7 +900,7 @@ export default function SettingsScreen() {
                 <Ionicons
                   name={showUsageHistory ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color="#013E77"
+                  color="#183B56"
                 />
               </TouchableOpacity>
 
@@ -895,7 +932,7 @@ export default function SettingsScreen() {
                           <Ionicons
                             name={isExpanded ? "chevron-up" : "chevron-down"}
                             size={18}
-                            color={isCurrent ? "#013E77" : "#9CA3AF"}
+                            color={isCurrent ? "#183B56" : "#8A99A8"}
                           />
                         </TouchableOpacity>
 
@@ -903,7 +940,7 @@ export default function SettingsScreen() {
                           <View style={styles.usageMonthMembers}>
                             <View style={styles.usageTableHeader}>
                               <Text style={[styles.usageTableCell, styles.usageTableMember]}>{t("settings.member")}</Text>
-                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>AI</Text>
+                              <Text style={[styles.usageTableCell, styles.usageTableValue]}>{t("settings.aiChat")}</Text>
                               <Text style={[styles.usageTableCell, styles.usageTableValue]}>{t("settings.importLabel")}</Text>
                             </View>
                             {row.members.map((member) => (
@@ -938,7 +975,7 @@ export default function SettingsScreen() {
           >
             <View style={styles.settingLeft}>
               <View style={styles.settingIcon}>
-                <Ionicons name="language-outline" size={20} color="#013E77" />
+                <Ionicons name="language-outline" size={20} color="#183B56" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.displayLanguage")}</Text>
             </View>
@@ -949,7 +986,7 @@ export default function SettingsScreen() {
               <Ionicons
                 name={showLangPicker ? "chevron-up" : "chevron-down"}
                 size={16}
-                color="#9CA3AF"
+                color="#8A99A8"
               />
             </View>
           </TouchableOpacity>
@@ -989,7 +1026,7 @@ export default function SettingsScreen() {
                     {t(lang.label as any)}
                   </Text>
                   {selectedLang === lang.code && (
-                    <Ionicons name="checkmark" size={18} color="#013E77" />
+                    <Ionicons name="checkmark" size={18} color="#183B56" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -1003,19 +1040,19 @@ export default function SettingsScreen() {
           {biometricAvailable && (
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: "#EEF4FB" }]}>
-                  <Ionicons name="scan-outline" size={20} color="#013E77" />
+                <View style={[styles.settingIcon, { backgroundColor: "#E8F0F4" }]}>
+                  <Ionicons name="scan-outline" size={20} color="#183B56" />
                 </View>
                 <View>
                   <Text style={styles.settingLabel}>{t("settings.faceId")}</Text>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>{t("settings.faceIdSub")}</Text>
+                  <Text style={{ fontSize: 11, color: "#8A99A8", marginTop: 1 }}>{t("settings.faceIdSub")}</Text>
                 </View>
               </View>
               <Switch
                 value={biometricOn}
                 onValueChange={handleToggleBiometric}
-                trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
-                thumbColor={biometricOn ? "#013E77" : "#F9FAFB"}
+                trackColor={{ false: "#E6DED4", true: "#183B56" + "60" }}
+                thumbColor={biometricOn ? "#183B56" : "#FFF8EF"}
               />
             </View>
           )}
@@ -1029,10 +1066,10 @@ export default function SettingsScreen() {
               </View>
               <View>
                 <Text style={styles.settingLabel}>{t("settings.changePassword")}</Text>
-                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>{t("settings.updatePassword")}</Text>
+                <Text style={{ fontSize: 11, color: "#8A99A8", marginTop: 1 }}>{t("settings.updatePassword")}</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
         </View>
 
@@ -1042,11 +1079,11 @@ export default function SettingsScreen() {
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
-                <Ionicons name="alarm-outline" size={20} color="#EA580C" />
+                <Ionicons name="alarm-outline" size={20} color="#F47B3A" />
               </View>
               <View>
                 <Text style={styles.settingLabel}>{t("settings.dailyReminder")}</Text>
-                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>
+                <Text style={{ fontSize: 11, color: "#8A99A8", marginTop: 1 }}>
                   {reminderEnabled ? t("settings.reminderOn") : t("settings.reminderOff")}
                 </Text>
               </View>
@@ -1054,38 +1091,38 @@ export default function SettingsScreen() {
             <Switch
               value={reminderEnabled}
               onValueChange={handleToggleReminder}
-              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
-              thumbColor={reminderEnabled ? "#013E77" : "#F9FAFB"}
+              trackColor={{ false: "#E6DED4", true: "#183B56" + "60" }}
+              thumbColor={reminderEnabled ? "#183B56" : "#FFF8EF"}
             />
           </View>
 
           {reminderEnabled && (
             <>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6B7280", marginTop: 16, marginBottom: 8 }}>{t("settings.reminderTime")}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#5F6F80", marginTop: 16, marginBottom: 8 }}>{t("settings.reminderTime")}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#D1D5DB", backgroundColor: "#F9FAFB" }}>
-                  <Ionicons name="time-outline" size={18} color="#013E77" />
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#E6DED4", backgroundColor: "#FFF8EF" }}>
+                  <Ionicons name="time-outline" size={18} color="#183B56" />
                   <TextInput
                     value={reminderTimeText}
                     onChangeText={handleReminderTimeChange}
                     placeholder="HH:MM"
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="#8A99A8"
                     keyboardType="number-pad"
                     maxLength={5}
                     onSubmitEditing={applyReminderTimeText}
-                    style={{ flex: 1, fontSize: 16, fontWeight: "800", color: "#013E77" }}
+                    style={{ flex: 1, fontSize: 16, fontWeight: "800", color: "#183B56" }}
                   />
                 </View>
                 <TouchableOpacity
                   onPress={applyReminderTimeText}
-                  style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: "#013E77", alignItems: "center" }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: "#183B56", alignItems: "center" }}
                 >
                   <Text style={{ fontSize: 15, fontWeight: "800", color: "#fff" }}>{t("settings.apply")}</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>{t("settings.reminderHint", { time: loadedTimeLabel || "--:--" })}</Text>
+              <Text style={{ fontSize: 11, color: "#8A99A8", marginTop: 6 }}>{t("settings.reminderHint", { time: loadedTimeLabel || "--:--" })}</Text>
 
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6B7280", marginTop: 16, marginBottom: 8 }}>{t("settings.repeat")}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#5F6F80", marginTop: 16, marginBottom: 8 }}>{t("settings.repeat")}</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => { void commitReminder({ ...reminderSetting(), weekdays: [] }); }}
@@ -1124,7 +1161,7 @@ export default function SettingsScreen() {
                 </View>
                 <Text style={styles.settingLabel}>{t("settings.purchaseHistory")}</Text>
               </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
 
             <TouchableOpacity
@@ -1132,26 +1169,28 @@ export default function SettingsScreen() {
             onPress={() => router.push("/ai-chef")}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F5F3FF" }]}> 
-                <ChatBubbleIcon size={20} color="#013E77" />
+              <View style={[styles.settingIcon, { backgroundColor: "#E8F0F4" }]}>
+                <ChatBubbleIcon size={20} color="#183B56" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.aiChef")}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
 
+          {aiChefQuickPlanEnabled && (
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => router.push("/markets")}
+            onPress={() => router.push("/meal-preferences")}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F0FDF4" }]}>
-                <Ionicons name="storefront-outline" size={20} color="#16A34A" />
+              <View style={[styles.settingIcon, { backgroundColor: "#FDE7D7" }]}>
+                <Ionicons name="options-outline" size={20} color="#F47B3A" />
               </View>
-              <Text style={styles.settingLabel}>{t("settings.marketGuide")}</Text>
+              <Text style={styles.settingLabel}>{t("AI 排餐偏好" as any)}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.settingRow}
@@ -1163,7 +1202,7 @@ export default function SettingsScreen() {
               </View>
               <Text style={styles.settingLabel}>{t("settings.addCustomRecipe")}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
 
           {/* BUG#8 FIX: only show admin panel if user role is admin */}
@@ -1173,12 +1212,12 @@ export default function SettingsScreen() {
               onPress={() => router.push("/admin")}
             >
               <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: "#EFF6FF" }]}>
-                  <Ionicons name="server-outline" size={20} color="#3B82F6" />
+                <View style={[styles.settingIcon, { backgroundColor: "#E8F0F4" }]}>
+                  <Ionicons name="server-outline" size={20} color="#183B56" />
                 </View>
                 <Text style={styles.settingLabel}>{t("settings.adminPanel")}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
             </TouchableOpacity>
           )}
 
@@ -1192,8 +1231,8 @@ export default function SettingsScreen() {
             <Switch
               value={hintsEnabled}
               onValueChange={handleToggleHints}
-              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
-              thumbColor={hintsEnabled ? "#013E77" : "#F9FAFB"}
+              trackColor={{ false: "#E6DED4", true: "#183B56" + "60" }}
+              thumbColor={hintsEnabled ? "#183B56" : "#FFF8EF"}
             />
           </View>
         </View>
@@ -1208,8 +1247,8 @@ export default function SettingsScreen() {
 
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
-                <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
+              <View style={[styles.settingIcon, { backgroundColor: "#F8F1E7" }]}>
+                <Ionicons name="information-circle-outline" size={20} color="#5F6F80" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.version")}</Text>
             </View>
@@ -1226,43 +1265,43 @@ export default function SettingsScreen() {
             <Switch
               value={analyticsOn}
               onValueChange={handleToggleAnalytics}
-              trackColor={{ false: "#D1D5DB", true: "#013E77" + "60" }}
-              thumbColor={analyticsOn ? "#013E77" : "#F9FAFB"}
+              trackColor={{ false: "#E6DED4", true: "#183B56" + "60" }}
+              thumbColor={analyticsOn ? "#183B56" : "#FFF8EF"}
             />
           </View>
 
           <TouchableOpacity
             style={styles.settingRow}
             onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/privacy/', {
-              toolbarColor: '#013E77',
+              toolbarColor: '#183B56',
               controlsColor: '#ffffff',
               presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
             })}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
-                <Ionicons name="shield-checkmark-outline" size={20} color="#6B7280" />
+              <View style={[styles.settingIcon, { backgroundColor: "#F8F1E7" }]}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#5F6F80" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.privacyPolicy")}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.settingRow}
             onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_SUPPORT_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/support/', {
-              toolbarColor: '#013E77',
+              toolbarColor: '#183B56',
               controlsColor: '#ffffff',
               presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
             })}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.settingIcon, { backgroundColor: "#F3F4F6" }]}>
-                <Ionicons name="help-circle-outline" size={20} color="#6B7280" />
+              <View style={[styles.settingIcon, { backgroundColor: "#F8F1E7" }]}>
+                <Ionicons name="help-circle-outline" size={20} color="#5F6F80" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.support" as any)}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>
         </View>
 
@@ -1316,7 +1355,7 @@ export default function SettingsScreen() {
               value={nameDraft}
               onChangeText={setNameDraft}
               placeholder={t("settings.editNamePlaceholder")}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="#8A99A8"
               maxLength={64}
               autoFocus
             />
@@ -1347,15 +1386,15 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF8F5" },
+  container: { flex: 1, backgroundColor: "#FFF8EF" },
 
   header: {
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
     flexDirection: "row", alignItems: "center",
     paddingTop: 12, paddingBottom: 14, paddingHorizontal: 16,
   },
   backBtn: { padding: 4 },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
+  headerTitle: { ...typography.h3, flex: 1, textAlign: "center", color: "#183B56" },
 
   // 用戶資料
   profileCard: {
@@ -1366,22 +1405,22 @@ const styles = StyleSheet.create({
   },
   avatar: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: "#013E77", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#183B56", alignItems: "center", justifyContent: "center",
   },
-  avatarText: { fontSize: 24, fontWeight: "800", color: "#fff" },
+  avatarText: { ...typography.h1, color: "#fff" },
   profileInfo: { flex: 1 },
   profileNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   editNameButton: {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: "#EFF6FF",
+    width: 22, height: 22, borderRadius: 11, backgroundColor: "#E8F0F4",
     alignItems: "center", justifyContent: "center",
   },
-  profileName: { fontSize: 17, fontWeight: "800", color: "#1A1A1A" },
-  profileEmail: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+  profileName: { ...typography.h3, color: "#183B56" },
+  profileEmail: { ...typography.caption, color: "#5F6F80", marginTop: 2 },
   roleBadge: {
-    backgroundColor: "#EFF6FF", paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: "#E8F0F4", paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 6, alignSelf: "flex-start", marginTop: 6,
   },
-  roleText: { fontSize: 11, color: "#013E77", fontWeight: "700" },
+  roleText: { ...typography.caption, color: "#183B56" },
 
   loginCard: {
     alignItems: "center", backgroundColor: "#fff",
@@ -1389,12 +1428,12 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
   },
-  loginCardTitle: { fontSize: 16, fontWeight: "700", color: "#1A1A1A", marginTop: 8 },
-  loginCardSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 4 },
+  loginCardTitle: { ...typography.h3, color: "#183B56", marginTop: 8 },
+  loginCardSubtitle: { ...typography.caption, color: "#5F6F80", marginTop: 4 },
 
   // 設定區塊
   section: { marginHorizontal: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 12, fontWeight: "700", color: "#9CA3AF", marginBottom: 8, letterSpacing: 0.5 },
+  sectionTitle: { ...typography.sectionLabel, color: "#8A99A8", marginBottom: 8, letterSpacing: 0.5 },
   aboutLogoWrap: { alignItems: "center", paddingVertical: 20 },
   aboutLogo: { width: 120, height: 120, resizeMode: "contain" },
 
@@ -1407,11 +1446,11 @@ const styles = StyleSheet.create({
   settingLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   settingIcon: {
     width: 36, height: 36, borderRadius: 10,
-    backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#E8F0F4", alignItems: "center", justifyContent: "center",
   },
-  settingLabel: { fontSize: 14, fontWeight: "600", color: "#1A1A1A" },
+  settingLabel: { ...typography.label, color: "#183B56" },
   settingRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  settingValue: { fontSize: 13, color: "#6B7280" },
+  settingValue: { ...typography.caption, color: "#5F6F80" },
 
   // 語言選擇
   langPicker: {
@@ -1421,12 +1460,12 @@ const styles = StyleSheet.create({
   },
   langOption: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6",
+    padding: 14, borderBottomWidth: 1, borderBottomColor: "#F8F1E7",
   },
-  langOptionActive: { backgroundColor: "#EFF6FF" },
+  langOptionActive: { backgroundColor: "#E8F0F4" },
   langFlag: { fontSize: 22 },
-  langLabel: { flex: 1, fontSize: 14, color: "#374151", fontWeight: "600" },
-  langLabelActive: { color: "#013E77" },
+  langLabel: { ...typography.label, flex: 1, color: "#5F6F80" },
+  langLabelActive: { color: "#183B56" },
 
   // 訂閱狀態卡片
   subCard: {
@@ -1437,22 +1476,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   subCardLeft: { flex: 1 },
-  subCardTitle: { fontSize: 12, color: "#9CA3AF", marginBottom: 4 },
-  subCardStatus: { fontSize: 16, fontWeight: "800" },
-  billingNotice: { fontSize: 13, color: "#013E77", marginTop: 8, marginBottom: 4 },
+  subCardTitle: { fontSize: 12, color: "#8A99A8", marginBottom: 4 },
+  subCardStatus: { ...typography.body, fontWeight: "800" },
+  subManagedNote: { fontSize: 12, color: "#5F6F80", maxWidth: 130, textAlign: "right" },
+  billingNotice: { fontSize: 13, color: "#183B56", marginTop: 8, marginBottom: 4 },
   upgradeSmallBtn: {
-    backgroundColor: "#013E77", borderRadius: 10,
+    backgroundColor: "#183B56", borderRadius: 10,
     paddingVertical: 8, paddingHorizontal: 16,
   },
-  upgradeSmallBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  upgradeSmallBtnText: { ...typography.button, color: "#fff" },
   manageSmallBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
   },
-  manageSmallBtnText: { color: "#013E77", fontSize: 14, fontWeight: "700" },
+  manageSmallBtnText: { ...typography.button, color: "#183B56" },
 
   // 使用統計
   usageCard: {
@@ -1460,7 +1500,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1468,55 +1508,55 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   usageHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
-  usageTitle: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
-  usageSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 3 },
+  usageTitle: { ...typography.h3, color: "#183B56" },
+  usageSubtitle: { fontSize: 11, color: "#5F6F80", marginTop: 3 },
   usageMonthBadge: {
-    backgroundColor: "#EEF4FB",
+    backgroundColor: "#E8F0F4",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
   },
-  usageMonthBadgeText: { fontSize: 11, fontWeight: "800", color: "#013E77" },
+  usageMonthBadgeText: { fontSize: 11, fontWeight: "800", color: "#183B56" },
   usageMetricRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  usageMetricLabel: { fontSize: 13, fontWeight: "700", color: "#374151" },
-  usageMetricValue: { fontSize: 13, fontWeight: "800", color: "#1A1A1A" },
+  usageMetricLabel: { ...typography.caption, fontWeight: "700", color: "#5F6F80" },
+  usageMetricValue: { ...typography.caption, fontWeight: "800", color: "#183B56" },
   usageBarTrack: {
     height: 8,
     borderRadius: 999,
-    backgroundColor: "#EEF2F7",
+    backgroundColor: "#E8F0F4",
     overflow: "hidden",
     marginTop: 8,
   },
   usageBarFill: { height: "100%", borderRadius: 999 },
-  usageMemberSectionTitle: { fontSize: 13, fontWeight: "800", color: "#1A1A1A", marginBottom: 10 },
+  usageMemberSectionTitle: { ...typography.caption, fontWeight: "800", color: "#183B56", marginBottom: 10 },
   usageMemberList: { gap: 12 },
   usageMemberRow: {
-    backgroundColor: "#FAFBFD",
+    backgroundColor: "#FFF8EF",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEF2F7",
+    borderColor: "#E8F0F4",
   },
   usageMemberTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  usageMemberName: { flex: 1, fontSize: 13, fontWeight: "800", color: "#1A1A1A", marginRight: 8 },
-  usageMemberCount: { fontSize: 12, fontWeight: "800", color: "#013E77" },
+  usageMemberName: { ...typography.caption, flex: 1, fontWeight: "800", color: "#183B56", marginRight: 8 },
+  usageMemberCount: { ...typography.caption, fontWeight: "800", color: "#183B56" },
   usageMemberBarTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#E8EEF5",
+    backgroundColor: "#E6DED4",
     overflow: "hidden",
     marginTop: 10,
   },
   usageMemberBarFill: { height: "100%", borderRadius: 999 },
-  usageMemberSub: { fontSize: 11, color: "#6B7280", marginTop: 8 },
-  usageMemberEmpty: { fontSize: 12, color: "#9CA3AF", marginTop: 4 },
+  usageMemberSub: { fontSize: 11, color: "#5F6F80", marginTop: 8 },
+  usageMemberEmpty: { fontSize: 12, color: "#8A99A8", marginTop: 4 },
   usageTableCard: {
     backgroundColor: "#fff",
     marginTop: 12,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E6DED4",
   },
   usageTableToggle: {
     flexDirection: "row",
@@ -1525,11 +1565,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
-  usageTableToggleTitle: { fontSize: 14, fontWeight: "800", color: "#1A1A1A" },
-  usageTableToggleSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 3 },
+  usageTableToggleTitle: { ...typography.label, fontWeight: "800", color: "#183B56" },
+  usageTableToggleSubtitle: { fontSize: 11, color: "#5F6F80", marginTop: 3 },
   usageMonthCard: {
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: "#F8F1E7",
   },
   usageMonthHeader: {
     flexDirection: "row",
@@ -1539,15 +1579,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   usageMonthTitle: { fontSize: 14, fontWeight: "800" },
-  usageMonthSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 4 },
+  usageMonthSubtitle: { fontSize: 11, color: "#5F6F80", marginTop: 4 },
   usageMonthMembers: {
-    backgroundColor: "#FAFBFD",
+    backgroundColor: "#FFF8EF",
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: "#F8F1E7",
   },
   usageTableHeader: {
     flexDirection: "row",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFF8EF",
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
@@ -1556,15 +1596,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: "#F8F1E7",
   },
-  usageTableRowCurrent: { backgroundColor: "#EEF4FB" },
-  usageTableCell: { fontSize: 12, fontWeight: "700", color: "#374151" },
-  usageTableCellCurrent: { color: "#013E77" },
+  usageTableRowCurrent: { backgroundColor: "#E8F0F4" },
+  usageTableCell: { ...typography.caption, fontWeight: "700", color: "#5F6F80" },
+  usageTableCellCurrent: { color: "#183B56" },
   usageTableMonth: { flex: 1.6 },
   usageTableMember: { flex: 1.5 },
   usageTableValue: { flex: 0.7, textAlign: "center" },
-  usageTableMemberRole: { fontSize: 11, color: "#6B7280" },
+  usageTableMemberRole: { fontSize: 11, color: "#5F6F80" },
 
   // 廚房狀態
   kitchenCard: {
@@ -1574,7 +1614,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E0EAF4",
+    borderColor: "#E6DED4",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -1582,29 +1622,29 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   kitchenCardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  kitchenName: { fontSize: 16, fontWeight: "800", color: "#1A1A1A" },
-  kitchenSub: { fontSize: 12, color: "#9CA3AF", marginTop: 4, lineHeight: 17 },
+  kitchenName: { ...typography.h3, color: "#183B56" },
+  kitchenSub: { fontSize: 12, color: "#8A99A8", marginTop: 4, lineHeight: 17 },
   kitchenActions: { flexDirection: "row", gap: 10, marginTop: 14 },
   kitchenPrimaryBtn: {
     flex: 1,
     minHeight: 44,
     borderRadius: 12,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
   },
-  kitchenPrimaryBtnText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  kitchenPrimaryBtnText: { ...typography.caption, color: "#fff", fontWeight: "800" },
   kitchenSecondaryBtn: {
     flex: 1,
     minHeight: 44,
     borderRadius: 12,
-    backgroundColor: "#F3F6FA",
+    backgroundColor: "#FFF8EF",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
   },
-  kitchenSecondaryBtnText: { color: "#013E77", fontSize: 13, fontWeight: "800" },
+  kitchenSecondaryBtnText: { ...typography.caption, color: "#183B56", fontWeight: "800" },
 
   // 登出
   logoutBtn: {
@@ -1612,7 +1652,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2", padding: 16, borderRadius: 14,
     borderWidth: 1, borderColor: "#FECACA",
   },
-  logoutBtnText: { fontSize: 15, fontWeight: "700", color: "#EF4444" },
+  logoutBtnText: { ...typography.label, color: "#EF4444" },
 
   nameModalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
@@ -1622,38 +1662,38 @@ const styles = StyleSheet.create({
     width: "100%", maxWidth: 360, backgroundColor: "#FFFFFF", borderRadius: 16,
     padding: 20,
   },
-  nameModalTitle: { fontSize: 17, fontWeight: "800", color: "#111827", marginBottom: 14 },
+  nameModalTitle: { ...typography.h3, color: "#183B56", marginBottom: 14 },
   nameModalInput: {
-    borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: "#111827", marginBottom: 16,
+    borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: "#183B56", marginBottom: 16,
   },
   nameModalRow: { flexDirection: "row", gap: 10 },
   nameModalBtn: {
     flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", justifyContent: "center",
   },
-  nameModalCancel: { backgroundColor: "#F3F4F6" },
-  nameModalCancelText: { color: "#4B5563", fontSize: 15, fontWeight: "700" },
-  nameModalSave: { backgroundColor: "#013E77" },
-  nameModalSaveDisabled: { backgroundColor: "#6B7280" },
-  nameModalSaveText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  nameModalCancel: { backgroundColor: "#F8F1E7" },
+  nameModalCancelText: { ...typography.button, color: "#5F6F80" },
+  nameModalSave: { backgroundColor: "#183B56" },
+  nameModalSaveDisabled: { backgroundColor: "#5F6F80" },
+  nameModalSaveText: { ...typography.button, color: "#FFFFFF" },
 
   promoCard: {
     backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14, marginTop: 12,
-    borderWidth: 1, borderColor: "#EBEBEB",
+    borderWidth: 1, borderColor: "#E6DED4",
   },
   promoRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   promoInput: {
-    flex: 1, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827",
+    flex: 1, borderWidth: 1, borderColor: "#E6DED4", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#183B56",
   },
   promoBtn: {
-    backgroundColor: "#013E77", borderRadius: 10, paddingHorizontal: 18,
+    backgroundColor: "#183B56", borderRadius: 10, paddingHorizontal: 18,
     paddingVertical: 12, alignItems: "center", justifyContent: "center",
   },
-  promoBtnDisabled: { backgroundColor: "#6B7280" },
-  promoBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  promoBtnDisabled: { backgroundColor: "#5F6F80" },
+  promoBtnText: { ...typography.button, color: "#FFFFFF" },
   promoErrorText: { color: "#DC2626", fontSize: 13, marginTop: 6 },
-  promoDoneText: { color: "#16A34A", fontSize: 14, fontWeight: "700", textAlign: "center" },
+  promoDoneText: { ...typography.label, color: "#16A34A", textAlign: "center" },
 });
 
 const chipStyle = {
@@ -1664,10 +1704,10 @@ const chipStyle = {
   paddingVertical: 9,
   borderRadius: 10,
   borderWidth: 1,
-  borderColor: "#D1D5DB",
-  backgroundColor: "#F9FAFB",
+  borderColor: "#E6DED4",
+  backgroundColor: "#FFF8EF",
   minWidth: 52,
 };
-const chipActive = { backgroundColor: "#013E77", borderColor: "#013E77" };
-const chipTxt = { fontSize: 14, fontWeight: "700" as const, color: "#4B5563" };
+const chipActive = { backgroundColor: "#183B56", borderColor: "#183B56" };
+const chipTxt = { fontSize: 14, fontWeight: "700" as const, color: "#5F6F80" };
 const chipTxtActive = { color: "#fff" };

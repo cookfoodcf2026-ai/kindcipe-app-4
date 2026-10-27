@@ -29,7 +29,7 @@ export function computeStepParts(text: string, terms: readonly string[]): StepPa
 export function renderStepParts(
   parts: StepPart[],
   onTermPress: ((term: string) => void) | undefined,
-  termColor: ColorValue = "#013E77"
+  termColor: ColorValue = "#183B56"
 ) {
   return (
     <Text>

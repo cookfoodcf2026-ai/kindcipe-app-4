@@ -85,7 +85,7 @@ export function AppleRelayLinkPrompt({ enabled }: { enabled: boolean }) {
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
         <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Ionicons name="shield-checkmark" size={22} color="#013E77" />
+            <Ionicons name="shield-checkmark" size={22} color="#183B56" />
             <Text style={{ fontSize: 17, fontWeight: "800", color: "#1A1A1A", flex: 1 }}>
               {t("settings.accountLinkTitle" as any)}
             </Text>
@@ -94,7 +94,7 @@ export function AppleRelayLinkPrompt({ enabled }: { enabled: boolean }) {
             {t("settings.accountLinkBody" as any)}
           </Text>
           <TouchableOpacity
-            style={{ backgroundColor: "#013E77", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 16 }}
+            style={{ backgroundColor: "#183B56", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 16 }}
             onPress={goSettings}
           >
             <Text style={{ color: "#fff", fontWeight: "800" }}>

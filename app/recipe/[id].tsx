@@ -20,7 +20,6 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { Image as ExpoImage } from "expo-image";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useKeepAwake } from "expo-keep-awake";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -29,6 +28,7 @@ import { trpc, resolveImageUrl } from "@/lib/trpc";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { trackRecipeEvent } from "@/lib/analytics";
 import { useAuth } from "@/hooks/useAuth";
+import { useScreenAwake } from "@/hooks/useScreenAwake";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -48,6 +48,7 @@ import { CollectionButton } from "@/src/components/CollectionButton";
 import { isSeasoning, isWaterIngredient, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { friendlyError } from "@/lib/errors";
+import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
 
 export const isValidHttpUrl = (value: unknown): value is string =>
@@ -74,8 +75,8 @@ const openSourceUrl = async (url: string | undefined) => {
 };
 
 const { width: SW } = Dimensions.get("window");
-const BRAND = "#013E77";
-const COPPER = "#F5A823";
+const BRAND = "#183B56";
+const COPPER = "#F47B3A";
 const BG = "#FAFAF8";
 const CARD = "#FFFFFF";
 const TEXT = "#1C1C1E";
@@ -302,7 +303,7 @@ export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
-  useKeepAwake();
+  useScreenAwake();
 
   // Serving size
   const [servings, setServings] = useState(0); // 0 = use recipe default
@@ -651,7 +652,10 @@ export default function RecipeDetailScreen() {
     }
   };
 
-  const ingredients = useMemo<any[]>(() => recipe?.ingredients ?? [], [recipe?.ingredients]);
+  const ingredients = useMemo<any[]>(
+    () => sanitizeIngredients(recipe?.ingredients ?? []),
+    [recipe?.ingredients],
+  );
   const steps = useMemo<any[]>(() => getLocalizedSteps(recipe?.steps, recipe?.stepsEn, recipe?.stepsFil, recipe?.stepsId) ?? [], [recipe?.steps, recipe?.stepsEn, recipe?.stepsFil, recipe?.stepsId]);
 
   const allIngNames = useMemo(() => {
@@ -1138,7 +1142,7 @@ export default function RecipeDetailScreen() {
             )}
             {/* Back button */}
             <TouchableOpacity style={[s.heroBack, { backgroundColor: "rgba(255,255,255,0.9)" }]} onPress={handleBack}>
-              <Ionicons name="chevron-back" size={22} color="#013E77" />
+              <Ionicons name="chevron-back" size={22} color="#183B56" />
             </TouchableOpacity>
             {/* Collection button */}
             <View style={s.heroCollection}>
@@ -1157,7 +1161,7 @@ export default function RecipeDetailScreen() {
                 onPress={() => router.push({ pathname: "/recipe-editor", params: { id: recipeNumericId } })}
                 accessibilityLabel={t("編輯食譜" as any)}
               >
-                <Ionicons name="create-outline" size={20} color="#013E77" />
+                <Ionicons name="create-outline" size={20} color="#183B56" />
               </TouchableOpacity>
             )}
             {/* Share button */}
@@ -1229,7 +1233,7 @@ export default function RecipeDetailScreen() {
                 ]);
               }}
             >
-              <Ionicons name="share-outline" size={20} color="#013E77" />
+              <Ionicons name="share-outline" size={20} color="#183B56" />
             </TouchableOpacity>
             {/* Recipe info overlay */}
             <View style={s.heroInfo}>
@@ -1473,7 +1477,7 @@ export default function RecipeDetailScreen() {
                 {isShoppingExpanded && activeShoppingGroup && (
                   <View style={s.shopDateGroup}>
                     <View style={s.shopDateRow}>
-                      <Ionicons name="calendar-outline" size={12} color="#013E77" />
+                      <Ionicons name="calendar-outline" size={12} color="#183B56" />
                       <Text style={s.shopDateText}>{activeShoppingGroup.date ? formatMealDate(activeShoppingGroup.date) : t("dyn.noDate")}</Text>
                       <Text style={s.shopDateCount}>{t("dyn.nItems", { n: activeShoppingGroup.items.length })}</Text>
                     </View>
@@ -1554,8 +1558,8 @@ export default function RecipeDetailScreen() {
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="copy-outline" size={13} color="#013E77" />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>{t("recipe.copy")}</Text>
+                    <Ionicons name="copy-outline" size={13} color="#183B56" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#183B56" }}>{t("recipe.copy")}</Text>
                   </TouchableOpacity>
                   <Ionicons name={showIngredients ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
                 </View>
@@ -1655,8 +1659,8 @@ export default function RecipeDetailScreen() {
                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="copy-outline" size={13} color="#013E77" />
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#013E77" }}>{t("recipe.copy")}</Text>
+                    <Ionicons name="copy-outline" size={13} color="#183B56" />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#183B56" }}>{t("recipe.copy")}</Text>
                   </TouchableOpacity>
                   <Ionicons name={showSteps ? "chevron-up" : "chevron-down"} size={18} color={SUB} />
                 </View>
@@ -2677,7 +2681,7 @@ const s = StyleSheet.create({
   mealPlanExpandText: { fontSize: 12, fontWeight: "700", color: BRAND },
   shopDateGroup: { backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E2E8F0", gap: 6 },
   shopDateRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  shopDateText: { fontSize: 12, fontWeight: "700", color: "#013E77", flex: 1 },
+  shopDateText: { fontSize: 12, fontWeight: "700", color: "#183B56", flex: 1 },
   shopDateCount: { fontSize: 11, color: SUB },
   shopItemRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   shopItemName: { flex: 1, fontSize: 13, color: TEXT },
@@ -2855,7 +2859,7 @@ const s = StyleSheet.create({
   dateHintRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingVertical: 6, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: BORDER },
   dateHintText: { fontSize: 11, color: SUB },
   quickActionsRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: "#F9FAFB", borderBottomWidth: 1, borderBottomColor: BORDER },
-  quickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#E8F0FE" },
+  quickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#E8F0F4" },
   quickBtnText: { fontSize: 12, fontWeight: "600", color: BRAND },
   seasoningHintRow: { paddingHorizontal: 20, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: BORDER },
   seasoningHintText: { fontSize: 11, color: SUB, fontStyle: "italic" },

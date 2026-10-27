@@ -17,7 +17,7 @@ import { friendlyError } from "@/lib/errors";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { enumT } from "@/lib/i18nEnums";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";
@@ -30,13 +30,13 @@ const HOUSE_CATS = ["家居清潔", "個人護理", "嬰幼兒", "寵物用品"]
 
 const CAT_META: Record<string, { bg: string; border: string; label: string; emoji: string }> = {
   "蔬菜生果": { bg: "#F0FDF4", border: "#BBF7D0", label: "#15803D", emoji: "🥬" },
-  "肉類": { bg: "#EEF4FB", border: "#C5D9F0", label: "#013E77", emoji: "🥩" },
+  "肉類": { bg: "#EEF4FB", border: "#C5D9F0", label: "#183B56", emoji: "🥩" },
   "海鮮": { bg: "#EFF6FF", border: "#BFDBFE", label: "#012D56", emoji: "🐟" },
   "豆腐蛋類": { bg: "#FEFCE8", border: "#FEF08A", label: "#A16207", emoji: "🥚" },
   "乾貨調味": { bg: "#EEF4FB", border: "#C5D9F0", label: "#012D56", emoji: "🫙" },
   "飲品乳製品": { bg: "#F0F9FF", border: "#BAE6FD", label: "#0369A1", emoji: "🥛" },
   "家居清潔": { bg: "#F5F3FF", border: "#DDD6FE", label: "#6D28D9", emoji: "sparkles-outline" },
-  "個人護理": { bg: "#FDF2F8", border: "#F9A8D4", label: "#013E77", emoji: "water-outline" },
+  "個人護理": { bg: "#FDF2F8", border: "#F9A8D4", label: "#183B56", emoji: "water-outline" },
   "嬰幼兒": { bg: "#ECFDF5", border: "#A7F3D0", label: "#065F46", emoji: "happy-outline" },
   "寵物用品": { bg: "#EEF4FB", border: "#C5D9F0", label: "#012D56", emoji: "paw-outline" },
   "其他": { bg: "#F9FAFB", border: "#E5E7EB", label: "#374151", emoji: "grid-outline" },

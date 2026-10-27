@@ -5,7 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal }
 import { Ionicons } from "@expo/vector-icons";
 import type { CategoryDef } from "@/lib/category-storage";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 
 interface FilterModalProps {
   visible: boolean;

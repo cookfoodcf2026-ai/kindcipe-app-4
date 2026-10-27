@@ -51,7 +51,7 @@ export default function OnboardingScreen(
   ) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { logout, switchFamily } = useAuth();
+  const { logout, switchFamily, activeFamilyId } = useAuth();
   const utils = trpc.useUtils();
   const [step, setStep] = useState<OnboardingStep>("signin");
   const [guidePage, setGuidePage] = useState(0);
@@ -306,7 +306,7 @@ export default function OnboardingScreen(
           >
             {loading ? (
               <View style={styles.parseProgressRow}>
-                <ActivityIndicator color="#013E77" size={18} />
+                <ActivityIndicator color="#183B56" size={18} />
                 <Text style={styles.parseProgressText}>{t("onboarding.creating")}</Text>
               </View>
             ) : (
@@ -358,7 +358,7 @@ export default function OnboardingScreen(
                 setShowScanner(true);
               }}
             >
-              <Ionicons name="camera-outline" size={18} color="#013E77" />
+              <Ionicons name="camera-outline" size={18} color="#183B56" />
               <Text style={styles.scanQrButtonText}>{t("onboarding.scanQrBtn")}</Text>
             </TouchableOpacity>
           </View>
@@ -404,7 +404,7 @@ export default function OnboardingScreen(
           >
             {loading ? (
               <View style={styles.parseProgressRow}>
-                <ActivityIndicator color="#013E77" size={18} />
+                <ActivityIndicator color="#183B56" size={18} />
                 <Text style={styles.parseProgressText}>{t("onboarding.joining")}</Text>
               </View>
             ) : (
@@ -456,7 +456,7 @@ export default function OnboardingScreen(
                   {slide.ui === "mealplan" && (
                     <View style={styles.slideUI}>
                       <View style={styles.uiCardHeader}>
-                        <Ionicons name="calendar-outline" size={16} color="#013E77" />
+                        <Ionicons name="calendar-outline" size={16} color="#183B56" />
                         <Text style={styles.uiCardTitle}>{t("onboarding.uiWeekMenu")}</Text>
                       </View>
                       <View style={styles.uiWeekRow}>
@@ -481,7 +481,7 @@ export default function OnboardingScreen(
                   {slide.ui === "shopping" && (
                     <View style={styles.slideUI}>
                       <View style={styles.uiCardHeader}>
-                        <Ionicons name="cart-outline" size={16} color="#013E77" />
+                        <Ionicons name="cart-outline" size={16} color="#183B56" />
                         <Text style={styles.uiCardTitle}>{t("onboarding.uiShoppingList")}</Text>
                       </View>
                       <View style={styles.uiList}>
@@ -507,6 +507,15 @@ export default function OnboardingScreen(
                         <Text style={styles.genPillText}>{t("onboarding.startUsing")}</Text>
                         <Ionicons name="arrow-forward" size={18} color="#fff" />
                       </TouchableOpacity>
+                      {activeFamilyId ? (
+                        <TouchableOpacity
+                          style={styles.trialCodeLink}
+                          onPress={() => router.replace("/settings")}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.trialCodeLinkText}>{t("paywall.trialCodeTitle" as any)}</Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   )}
                 </View>
@@ -537,7 +546,7 @@ export default function OnboardingScreen(
                   accessibilityRole="button"
                   accessibilityLabel="previous slide"
                 >
-                  <Ionicons name="chevron-back" size={22} color={guidePage === 0 ? "#C7C7CC" : "#013E77"} />
+                  <Ionicons name="chevron-back" size={22} color={guidePage === 0 ? "#C7C7CC" : "#183B56"} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.webNavBtn, guidePage === GUIDE_SLIDES.length - 1 && styles.webNavBtnDisabled]}
@@ -546,7 +555,7 @@ export default function OnboardingScreen(
                   accessibilityRole="button"
                   accessibilityLabel="next slide"
                 >
-                  <Ionicons name="chevron-forward" size={22} color={guidePage === GUIDE_SLIDES.length - 1 ? "#C7C7CC" : "#013E77"} />
+                  <Ionicons name="chevron-forward" size={22} color={guidePage === GUIDE_SLIDES.length - 1 ? "#C7C7CC" : "#183B56"} />
                 </TouchableOpacity>
               </View>
             )}
@@ -574,8 +583,8 @@ export default function OnboardingScreen(
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#013E77" />
-          <Text style={{ fontSize: 16, color: "#013E77", marginTop: 16, fontWeight: "700" }}>
+          <ActivityIndicator size="large" color="#183B56" />
+          <Text style={{ fontSize: 16, color: "#183B56", marginTop: 16, fontWeight: "700" }}>
             正在載入完整匯入功能...
           </Text>
         </View>
@@ -589,7 +598,7 @@ export default function OnboardingScreen(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
@@ -606,7 +615,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backBtn: {
-    color: "#013E77",
+    color: "#183B56",
     fontSize: 16,
     fontWeight: "600",
   },
@@ -645,14 +654,14 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 32,
     fontWeight: "900",
-    color: "#013E77",
+    color: "#183B56",
     textAlign: "center",
     marginBottom: 16,
   },
   heroSubtitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
     textAlign: "center",
     marginBottom: 12,
   },
@@ -665,7 +674,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -692,7 +701,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   primaryBtn: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -711,10 +720,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
   },
   secondaryBtnText: {
-    color: "#013E77",
+    color: "#183B56",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -734,7 +743,7 @@ const styles = StyleSheet.create({
   },
   choiceBtnPrimary: {
     borderWidth: 2,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
   },
   choiceBtnSecondary: {
     borderWidth: 2,
@@ -750,7 +759,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -770,12 +779,12 @@ const styles = StyleSheet.create({
   choiceIconTextSecondary: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   choiceTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
     textAlign: "center",
   },
   choiceDesc: {
@@ -791,7 +800,7 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 26,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
     marginBottom: 12,
   },
   formSubtitle: {
@@ -862,7 +871,7 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
     marginBottom: 4,
   },
   benefitDesc: {
@@ -957,7 +966,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   uiDayActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   uiDayText: {
     fontSize: 12,
@@ -996,6 +1005,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#374151",
   },
+  trialCodeLink: { alignSelf: "center", marginTop: 14, paddingVertical: 8 },
+  trialCodeLinkText: { color: "#183B56", fontSize: 13, fontWeight: "700", textDecorationLine: "underline" },
   slideCTA: {
     position: "absolute",
     left: 24,
@@ -1044,7 +1055,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1D5DB",
   },
   dotActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     width: 20,
   },
   webNavRow: {
@@ -1106,7 +1117,7 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
   },
   importMethodTabTextActive: {
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "800",
   },
   supportedPlatforms: {
@@ -1124,7 +1135,7 @@ const styles = StyleSheet.create({
   },
   platformBadgeText: {
     fontSize: 12,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "600",
   },
   textAreaInput: {
@@ -1148,7 +1159,7 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
     marginBottom: 16,
   },
   previewInfoContainer: {
@@ -1173,7 +1184,7 @@ const styles = StyleSheet.create({
   previewInfoValue: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   pickerContainer: {
     backgroundColor: "#FFFFFF",
@@ -1183,7 +1194,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   picker: {
-    color: "#013E77",
+    color: "#183B56",
     backgroundColor: "#FFFFFF",
   },
   ingredientListContainer: {
@@ -1206,13 +1217,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
     alignItems: "center",
     justifyContent: "center",
   },
   ingredientCheckmark: {
     fontSize: 12,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "700",
   },
   ingredientItem: {
@@ -1239,14 +1250,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginTop: 16,
     borderWidth: 1.5,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
     borderRadius: 12,
     borderStyle: "dashed",
   },
   scanQrButtonText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   scannerOverlay: {
     flex: 1,

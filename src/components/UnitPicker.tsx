@@ -249,7 +249,7 @@ const s_unit = StyleSheet.create({
     borderBottomColor: "#E5E7EB",
   },
   title: { fontSize: 16, fontWeight: "700", color: "#1A1A1A" },
-  closeBtn: { fontSize: 15, fontWeight: "600", color: "#013E77" },
+  closeBtn: { fontSize: 15, fontWeight: "600", color: "#183B56" },
   opt: {
     flexDirection: "row",
     alignItems: "center",
@@ -260,8 +260,8 @@ const s_unit = StyleSheet.create({
   },
   optActive: { backgroundColor: "#EEF4FB" },
   optTxt: { flex: 1, fontSize: 15, color: "#1A1A1A" },
-  optTxtActive: { fontWeight: "700", color: "#013E77" },
-  check: { fontSize: 16, color: "#013E77", fontWeight: "700" },
+  optTxtActive: { fontWeight: "700", color: "#183B56" },
+  check: { fontSize: 16, color: "#183B56", fontWeight: "700" },
   sectionHeader: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -294,7 +294,7 @@ const s_unit = StyleSheet.create({
   customBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     borderRadius: 8,
   },
   customBtnTxt: { fontSize: 13, fontWeight: "700", color: "#fff" },

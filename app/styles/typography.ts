@@ -1,36 +1,36 @@
-import { theme } from './theme';
+import { Platform } from 'react-native';
+
+// One source of truth for UI typography.
+//
+// Web: an explicit system stack prevents the Safari/WebKit "unknown family ->
+// Times/serif" fallback that happened with the old, unloaded SFProDisplay-* names.
+// Native: undefined lets the platform use its system font, while fontWeight still
+// selects the native weight. No font assets / useFonts are required.
+const systemFontFamily = Platform.select({
+  web: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif',
+  android: 'sans-serif',
+  default: undefined,
+});
+
+const base = systemFontFamily ? { fontFamily: systemFontFamily } : {};
 
 export const typography = {
-  h1: {
-    fontSize: theme.fontSize.xxl,
-    fontFamily: theme.fontFamily.bold,
-    lineHeight: 32,
-  },
-  h2: {
-    fontSize: theme.fontSize.xl,
-    fontFamily: theme.fontFamily.bold,
-    lineHeight: 28,
-  },
-  h3: {
-    fontSize: theme.fontSize.lg,
-    fontFamily: theme.fontFamily.medium,
-    lineHeight: 24,
-  },
-  body: {
-    fontSize: theme.fontSize.md,
-    fontFamily: theme.fontFamily.regular,
-    lineHeight: 20,
-  },
-  bodySmall: {
-    fontSize: theme.fontSize.sm,
-    fontFamily: theme.fontFamily.regular,
-    lineHeight: 18,
-  },
-  caption: {
-    fontSize: theme.fontSize.xs,
-    fontFamily: theme.fontFamily.regular,
-    lineHeight: 16,
-  },
+  fontFamily: systemFontFamily,
+  display: { ...base, fontSize: 30, lineHeight: 38, fontWeight: '900' as const },
+  h1: { ...base, fontSize: 24, lineHeight: 32, fontWeight: '800' as const },
+  h2: { ...base, fontSize: 20, lineHeight: 28, fontWeight: '800' as const },
+  h3: { ...base, fontSize: 18, lineHeight: 24, fontWeight: '700' as const },
+  body: { ...base, fontSize: 16, lineHeight: 22, fontWeight: '400' as const },
+  bodySmall: { ...base, fontSize: 14, lineHeight: 20, fontWeight: '400' as const },
+  label: { ...base, fontSize: 14, lineHeight: 20, fontWeight: '700' as const },
+  caption: { ...base, fontSize: 12, lineHeight: 16, fontWeight: '500' as const },
+  button: { ...base, fontSize: 14, lineHeight: 20, fontWeight: '800' as const },
+  navTitle: { ...base, fontSize: 15, lineHeight: 20, fontWeight: '800' as const },
+  sectionLabel: { ...base, fontSize: 12, lineHeight: 16, fontWeight: '700' as const },
+  cardTitle: { ...base, fontSize: 14, lineHeight: 20, fontWeight: '700' as const },
+  meta: { ...base, fontSize: 11, lineHeight: 16, fontWeight: '500' as const },
 };
+
+export type TypographyToken = keyof typeof typography;
 
 export default function Typography() { return null; }

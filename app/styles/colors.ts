@@ -1,16 +1,16 @@
 export const colors = {
   primary: {
-    navy: '#013E77',
-    copper: '#F5A823',
-    cream: '#FAF8F5',
+    navy: '#183B56',
+    copper: '#F47B3A',
+    cream: '#FFF8EF',
     darkGray: '#333D4B',
   },
 
   brand: {
-    headerNavy: '#0D2040',
-    navy: '#013E77',
-    warmOrange: '#FF7A3D',
-    cream: '#FAF8F5',
+    headerNavy: '#183B56',
+    navy: '#183B56',
+    warmOrange: '#F47B3A',
+    cream: '#FFF8EF',
     heroText: '#FFFFFF',
     heroSub: 'rgba(255,255,255,0.92)',
   },
@@ -32,3 +32,20 @@ export const colors = {
 
 export type ColorKey = keyof typeof colors;
 export default function Colors() { return null; }
+
+export const canva = {
+  bg: "#FFF8EF",
+  surface: "#FFFFFF",
+  banner: "#F3D7B3",
+  apricot: "#F3D7B3",
+  brown: "#8A4B2A",
+  primary: "#183B56",
+  accent: "#F47B3A",
+  muted: "#5F6F80",
+  border: "#E6DED4",
+  softBlue: "#E8F0F4",
+  green: "#789B78",
+  greenText: "#4F6F4F",
+  danger: "#B42318",
+  textOnAccent: "#183B56",
+};

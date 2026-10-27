@@ -11,11 +11,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { approvalUiEnabled } from "@/lib/featureFlags";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 import { shareOrCopy } from "@/lib/share";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
@@ -275,6 +276,8 @@ export default function KitchenSettingsScreen() {
     ? ["owner", "helper", "member"]
     : ["helper", "member"];
   const hasKitchen = families.length > 0;
+  const hasOwnedKitchen = families.some((f: any) => f.role === "owner");
+  const canCreateOwnKitchen = !hasOwnedKitchen && families.length < 2;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -348,13 +351,24 @@ export default function KitchenSettingsScreen() {
             )}
             {hasKitchen && (
               <View style={s.switchActions}>
-                <TouchableOpacity
-                  style={s.switchActionBtn}
-                  onPress={() => setShowJoinModal(true)}
-                >
-                  <Ionicons name="qr-code-outline" size={18} color={BRAND} />
-                  <Text style={s.switchActionBtnText}>{t("kitchen.joinKitchen")}</Text>
-                </TouchableOpacity>
+                {canCreateOwnKitchen && (
+                  <TouchableOpacity
+                    style={s.switchActionBtn}
+                    onPress={() => setShowCreateModal(true)}
+                  >
+                    <Ionicons name="add-circle-outline" size={18} color={BRAND} />
+                    <Text style={s.switchActionBtnText}>{t("kitchen.createKitchen")}</Text>
+                  </TouchableOpacity>
+                )}
+                {families.length < 2 && (
+                  <TouchableOpacity
+                    style={s.switchActionBtn}
+                    onPress={() => setShowJoinModal(true)}
+                  >
+                    <Ionicons name="qr-code-outline" size={18} color={BRAND} />
+                    <Text style={s.switchActionBtnText}>{t("kitchen.joinKitchen")}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
             {!hasKitchen && (
@@ -491,6 +505,7 @@ export default function KitchenSettingsScreen() {
           </Modal>
         )}
 
+        {approvalUiEnabled && (
         <View style={s.section}>
           <Text style={s.sectionTitle}>{t("kitchen.approval")}</Text>
           <View style={s.card}>
@@ -500,15 +515,16 @@ export default function KitchenSettingsScreen() {
                 <Text style={s.rowSub}>{t("kitchen.approvalSub")}</Text>
               </View>
               <Switch
-                value={settings.approvalRequired !== false}
+                value={settings.approvalRequired === true}
                 onValueChange={(v) => updateSettingsM.mutate({ approvalRequired: v })}
                 trackColor={{ false: "#D1D5DB", true: BRAND + "60" }}
-                thumbColor={settings.approvalRequired !== false ? BRAND : "#F9FAFB"}
+                thumbColor={settings.approvalRequired === true ? BRAND : "#F9FAFB"}
                 disabled={!isAdmin}
               />
             </View>
           </View>
         </View>
+        )}
 
         <View style={s.section}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>

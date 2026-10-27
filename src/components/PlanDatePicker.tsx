@@ -12,7 +12,7 @@ import * as Haptics from "expo-haptics";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { useTranslation } from "react-i18next";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
 
@@ -418,7 +418,7 @@ const s = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,

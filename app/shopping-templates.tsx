@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -28,6 +28,8 @@ import type {
 import { friendlyError } from "@/lib/errors";
 import { getBilingualName, getLocalizedDescription } from "@/lib/bilingual";
 import { useEnum } from "@/lib/i18nEnums";
+import { useSubscription } from "@/hooks/useSubscription";
+import PaywallModal from "@/components/PaywallModal";
 
 // Template data carries zh + en/fil/id fields; pick by current app language.
 const localizeName = (o?: { name?: string | null; nameEn?: string | null; namePh?: string | null; nameId?: string | null } | null) =>
@@ -37,7 +39,7 @@ const localizeUnit = (o?: { unit?: string | null; unitEn?: string | null; unitPh
 const localizeDesc = (o?: { description?: string | null; descriptionEn?: string | null } | null) =>
   getLocalizedDescription(o?.description, o?.descriptionEn);
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#FFFBF5";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";
@@ -53,6 +55,38 @@ type CustomItem = {
   category: string;
   price?: number;
 };
+
+type SavedShoppingList = {
+  id: string;
+  name: string;
+  template: string;
+  people: number;
+  items: string[];
+  customItems?: CustomItem[];
+  quantityOverrides?: Record<string, number>;
+  unitOverrides?: Record<string, string>;
+  planDate?: string | null;
+};
+
+const makeEditFingerprint = (input: {
+  templateId: string;
+  people: number;
+  planDate: string | null;
+  items: string[];
+  quantityOverrides: Record<string, number>;
+  unitOverrides: Record<string, string>;
+  customItems: CustomItem[];
+}) => JSON.stringify({
+  templateId: input.templateId,
+  people: input.people,
+  planDate: input.planDate,
+  items: [...input.items].sort(),
+  quantity: Object.keys(input.quantityOverrides).sort().map((key) => [key, input.quantityOverrides[key]]),
+  units: Object.keys(input.unitOverrides).sort().map((key) => [key, input.unitOverrides[key]]),
+  custom: input.customItems
+    .map((item) => [item.id, item.name, item.quantity, item.unit, item.category, item.price ?? 0])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+});
 
 const safeParseArray = <T,>(raw: string): T[] | null => {
   try {
@@ -74,6 +108,14 @@ export default function ShoppingTemplatesScreen() {
 
   const templateIdParam = params.templateId as string;
   const dateParam = params.date as string;
+
+  const { isPaid } = useSubscription();
+  const [showPartyPaywall, setShowPartyPaywall] = useState(false);
+  const requirePro = () => {
+    if (isPaid) return true;
+    setShowPartyPaywall(true);
+    return false;
+  };
 
   // 1. 核心狀態
   const [selectedTemplate, setSelectedTemplate] = useState<ShoppingTemplate | null>(null);
@@ -111,7 +153,23 @@ export default function ShoppingTemplatesScreen() {
   // 儲存清單狀態
   const [showSaveListModal, setShowSaveListModal] = useState(false);
   const [savedListName, setSavedListName] = useState("");
-  const [savedLists, setSavedLists] = useState<{ id: string; name: string; template: string; people: number; items: string[] }[]>([]);
+  const [savedLists, setSavedLists] = useState<SavedShoppingList[]>([]);
+  const [lastSavedFingerprint, setLastSavedFingerprint] = useState("");
+  const [showLeavePrompt, setShowLeavePrompt] = useState(false);
+  const pendingBackAfterSaveRef = useRef(false);
+  const [lastShoppingFingerprint, setLastShoppingFingerprint] = useState("");
+  const [lastShoppingDecisionFingerprint, setLastShoppingDecisionFingerprint] = useState("");
+  const pendingShoppingFingerprintRef = useRef("");
+
+  const currentFingerprint = useMemo(() => makeEditFingerprint({
+    templateId: selectedTemplate?.id || "",
+    people: peopleCount,
+    planDate,
+    items: Array.from(selectedItems),
+    quantityOverrides,
+    unitOverrides,
+    customItems,
+  }), [selectedTemplate?.id, peopleCount, planDate, selectedItems, quantityOverrides, unitOverrides, customItems]);
 
   // 鍵盤高度（令底部浮動結算欄唔會被鍵盤遮住）
   const [keyboardH, setKeyboardH] = useState(0);
@@ -126,9 +184,17 @@ export default function ShoppingTemplatesScreen() {
     onSuccess: (_, variables) => {
       utils.shopping.list.invalidate();
       setShoppingConfirmCount(variables.items.length);
+      const fp = pendingShoppingFingerprintRef.current;
+      if (fp) {
+        setLastShoppingFingerprint(fp);
+        setLastShoppingDecisionFingerprint(fp);
+      }
+      pendingShoppingFingerprintRef.current = "";
+      pendingBackAfterSaveRef.current = false;
       setSelectedTemplate(null);
       setSelectedItems(new Set());
       setQuantityOverrides({});
+      setUnitOverrides({});
       setCustomItems([]);
     },
     onError: (e) => showToast(t("party.addFailed", { err: friendlyError(e) }), "error"),
@@ -151,20 +217,101 @@ export default function ShoppingTemplatesScreen() {
     }
   };
   
+  const openSaveListModal = (fromBack = false) => {
+    if (!requirePro()) return;
+    pendingBackAfterSaveRef.current = fromBack;
+    setShowSaveListModal(true);
+  };
+
+  const closeSaveListModal = () => {
+    pendingBackAfterSaveRef.current = false;
+    setShowSaveListModal(false);
+    setSavedListName("");
+  };
+
+  function exitTemplateToList() {
+    pendingBackAfterSaveRef.current = false;
+    setShowSaveListModal(false);
+    setShowLeavePrompt(false);
+    setSelectedTemplate(null);
+    setSelectedItems(new Set());
+    setQuantityOverrides({});
+    setUnitOverrides({});
+    setCustomItems([]);
+    setExpandedCategories(new Set());
+  }
+
+  const buildCurrentShoppingPayload = () => {
+    if (!selectedTemplate) return null;
+    const templateSelectedIds = Array.from(selectedItems).filter((id) => !id.startsWith("custom_"));
+    const items = templateToShoppingItems(selectedTemplate, peopleCount, templateSelectedIds, quantityOverrides);
+    const customSelected = customItems.filter((i) => selectedItems.has(i.id));
+    const formattedCustom = customSelected.map((i) => ({
+      name: i.name,
+      quantity: i.quantity.toString(),
+      unit: i.unit,
+      category: i.category === "soup-base" ? "湯底" : i.category === "meat" ? "肉類" : i.category === "seafood" ? "海鮮" : i.category === "vegetable" ? "蔬菜" : i.category === "staple" ? "主食" : i.category === "sauce" ? "調味料" : i.category === "tools" ? "工具" : i.category === "other" ? "其他" : "其他",
+    }));
+    return {
+      items: [...items, ...formattedCustom],
+      fromRecipeName: t("party.servings", { name: localizeName(selectedTemplate), n: peopleCount }),
+      plannedDate: planDate === null ? undefined : planDate,
+    };
+  };
+
+  const addCurrentSelectionToShopping = () => {
+    if (!requirePro()) return;
+    const payload = buildCurrentShoppingPayload();
+    if (!payload) return;
+    pendingShoppingFingerprintRef.current = currentFingerprint;
+    addShoppingBatchM.mutate(payload);
+  };
+
+  const promptSaveToShopping = (fingerprint: string) => {
+    Alert.alert(
+      t("party.savedTitle"),
+      t("party.saveToShoppingPrompt" as any),
+      [
+        {
+          text: t("party.saveOnly" as any),
+          style: "cancel",
+          onPress: () => {
+            setLastShoppingDecisionFingerprint(fingerprint);
+            if (pendingBackAfterSaveRef.current) {
+              pendingBackAfterSaveRef.current = false;
+              exitTemplateToList();
+            }
+          },
+        },
+        {
+          text: t("party.addToShopping" as any),
+          onPress: () => {
+            addCurrentSelectionToShopping();
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  };
+
   const saveCurrentList = async () => {
+    if (!requirePro()) return;
     if (!savedListName.trim()) {
-      Alert.alert(t("party.enterListName"));
+      showToast(t("party.enterListName" as any), "error");
       return;
     }
     
     const selectedIds = Array.from(selectedItems).filter(id => !id.startsWith("custom_"));
-    const newList = {
+    const newList: SavedShoppingList = {
       id: `list_${Date.now()}`,
       name: savedListName.trim(),
       template: selectedTemplate?.id || "",
       people: peopleCount,
       items: selectedIds,
       customItems: customItems.filter(i => selectedItems.has(i.id)),
+      quantityOverrides: { ...quantityOverrides },
+      unitOverrides: { ...unitOverrides },
+      planDate,
     };
     
     const updatedLists = [...savedLists, newList];
@@ -173,29 +320,59 @@ export default function ShoppingTemplatesScreen() {
     try {
       await AsyncStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t("party.savedTitle"), t("party.savedMsg", { name: savedListName }));
+      setLastSavedFingerprint(currentFingerprint);
       setShowSaveListModal(false);
       setSavedListName("");
+      showToast(t("party.savedMsg", { name: newList.name }), "success");
+      const needsShoppingPrompt = totalSelectedCount > 0
+        && currentFingerprint !== lastShoppingFingerprint
+        && currentFingerprint !== lastShoppingDecisionFingerprint;
+      if (needsShoppingPrompt) {
+        // Wait for the save modal to close before showing the native confirm.
+        setTimeout(() => promptSaveToShopping(currentFingerprint), 260);
+      } else if (pendingBackAfterSaveRef.current) {
+        pendingBackAfterSaveRef.current = false;
+        exitTemplateToList();
+      }
     } catch (e) {
-      Alert.alert(t("儲存失敗" as any), e instanceof Error ? friendlyError(e) : t("未知錯誤" as any));
+      showToast(t("儲存失敗：{{msg}}" as any, { msg: e instanceof Error ? friendlyError(e) : t("未知錯誤" as any) }), "error");
     }
   };
   
-  const loadSavedList = async (list: any) => {
+  const loadSavedList = async (list: SavedShoppingList) => {
     // 載入模板
     const template = SHOPPING_TEMPLATES.find(t => t.id === list.template);
     if (!template) {
-      Alert.alert(t("party.errorTitle"), t("party.templateNotFound"));
+      showToast(t("party.templateNotFound" as any), "error");
       return;
     }
-    
+    pendingBackAfterSaveRef.current = false;
+    setShowSaveListModal(false);
+    setLastShoppingFingerprint("");
+    setLastShoppingDecisionFingerprint("");
+    const loadedItems = new Set([...list.items, ...(list.customItems ?? []).map((i) => i.id)]);
+    const loadedQty = list.quantityOverrides ?? {};
+    const loadedUnits = list.unitOverrides ?? {};
+    const loadedDate = list.planDate ?? DateUtil.todayISO();
+    const loadedCustom = list.customItems ?? [];
     setSelectedTemplate(template);
     setPeopleCount(list.people);
-    setSelectedItems(new Set([...list.items, ...list.customItems.map((i: any) => i.id)]));
-    setCustomItems(list.customItems || []);
+    setPlanDate(loadedDate);
+    setSelectedItems(loadedItems);
+    setQuantityOverrides(loadedQty);
+    setUnitOverrides(loadedUnits);
+    setCustomItems(loadedCustom);
     setExpandedCategories(new Set([template.categories[0]?.id || ""]));
-    
-    Alert.alert(t("party.loadedTitle"), t("party.loadedMsg", { name: list.name }));
+    setLastSavedFingerprint(makeEditFingerprint({
+      templateId: template.id,
+      people: list.people,
+      planDate: loadedDate,
+      items: Array.from(loadedItems),
+      quantityOverrides: loadedQty,
+      unitOverrides: loadedUnits,
+      customItems: loadedCustom,
+    }));
+    showToast(t("party.loadedMsg", { name: list.name }), "success");
   };
   
   const deleteSavedList = async (listId: string) => {
@@ -229,30 +406,67 @@ export default function ShoppingTemplatesScreen() {
       const found = SHOPPING_TEMPLATES.find((t) => t.id === templateIdParam);
       if (found) {
         setSelectedTemplate(found);
+        setLastShoppingFingerprint("");
+        setLastShoppingDecisionFingerprint("");
         setExpandedCategories(new Set([found.categories[0]?.id || ""]));
+        setLastSavedFingerprint(makeEditFingerprint({
+          templateId: found.id,
+          people: peopleCount,
+          planDate: dateParam || planDate,
+          items: [],
+          quantityOverrides: {},
+          unitOverrides: {},
+          customItems: [],
+        }));
       } else {
         // 如果搵唔到，嘗試移除 "template_" 前綴再匹配
         const cleanedId = templateIdParam.replace("template_", "");
         const foundAlt = SHOPPING_TEMPLATES.find((t) => t.id.replace("template_", "") === cleanedId);
         if (foundAlt) {
           setSelectedTemplate(foundAlt);
+          setLastShoppingFingerprint("");
+          setLastShoppingDecisionFingerprint("");
           setExpandedCategories(new Set([foundAlt.categories[0]?.id || ""]));
+          setLastSavedFingerprint(makeEditFingerprint({
+            templateId: foundAlt.id,
+            people: peopleCount,
+            planDate: dateParam || planDate,
+            items: [],
+            quantityOverrides: {},
+            unitOverrides: {},
+            customItems: [],
+          }));
         }
       }
     }
     if (dateParam) {
       setPlanDate(dateParam);
     }
+    // Only re-run for URL params; people/date are read at initialization time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateIdParam, dateParam]);
 
   // 3. 處理選擇新模板
   const handleSelectTemplate = (template: ShoppingTemplate) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLastShoppingFingerprint("");
+    setLastShoppingDecisionFingerprint("");
     setSelectedTemplate(template);
     setExpandedCategories(new Set([template.categories[0]?.id]));
     setSelectedItems(new Set()); // 預設全部不勾選，由用戶自選！
     setQuantityOverrides({});
+    setUnitOverrides({});
     setCustomItems([]);
+    setShowLeavePrompt(false);
+    setLastSavedFingerprint(makeEditFingerprint({
+      templateId: template.id,
+      people: peopleCount,
+      planDate,
+      items: [],
+      quantityOverrides: {},
+      unitOverrides: {},
+      customItems: [],
+    }));
   };
 
   // 4. 人數加減 Stepper (1-20 人)
@@ -437,32 +651,8 @@ export default function ShoppingTemplatesScreen() {
       t("party.addToCartMsg", { n: totalSelectedCount, date: planDateLabel }),
       [
         { text: t("取消" as any), style: "cancel" },
-        {
-          text: t("確定" as any),
-          onPress: () => {
-            // A. 模板預設食材
-            const templateSelectedIds = Array.from(selectedItems).filter(id => !id.startsWith("custom_"));
-            const items = templateToShoppingItems(selectedTemplate, peopleCount, templateSelectedIds, quantityOverrides);
-            
-            // B. 自訂項目合併
-            const customSelected = customItems.filter(i => selectedItems.has(i.id));
-            const formattedCustom = customSelected.map(i => ({
-              name: i.name,
-              quantity: i.quantity.toString(),
-              unit: i.unit,
-              category: i.category === "soup-base" ? "湯底" : i.category === "meat" ? "肉類" : i.category === "seafood" ? "海鮮" : i.category === "vegetable" ? "蔬菜" : i.category === "staple" ? "主食" : i.category === "sauce" ? "調味料" : i.category === "tools" ? "工具" : i.category === "other" ? "其他" : "其他",
-            }));
-
-            const finalBatch = [...items, ...formattedCustom];
-
-            addShoppingBatchM.mutate({
-              items: finalBatch,
-              fromRecipeName: t("party.servings", { name: localizeName(selectedTemplate), n: peopleCount }),
-              plannedDate: planDate === null ? undefined : planDate,
-            });
-          },
-        },
-      ]
+        { text: t("確定" as any), onPress: addCurrentSelectionToShopping },
+      ],
     );
   };
 
@@ -674,39 +864,15 @@ export default function ShoppingTemplatesScreen() {
   // 若有編輯過則先確認離開/留下，並提醒儲存清單。
   const handleBackPress = () => {
     Keyboard.dismiss();
-    const hasEdits =
-      selectedItems.size > 0 ||
-      customItems.length > 0 ||
-      Object.keys(quantityOverrides).length > 0 ||
-      Object.keys(unitOverrides).length > 0;
-
-    const goBack = () => {
-      if (selectedTemplate) {
-        // 返回到同一 screen 內嘅「聚會買餸單」列表，唔好跳返去「更多」頁
-        setSelectedTemplate(null);
-        setSelectedItems(new Set());
-        setQuantityOverrides({});
-        setUnitOverrides({});
-        setCustomItems([]);
-        setExpandedCategories(new Set());
-      } else {
-        if (router.canGoBack()) router.back(); else router.replace("/(tabs)");
-      }
-    };
-
-    if (hasEdits) {
-      Alert.alert(
-        t("party.leaveTitle"),
-        t("party.leaveMsg"),
-        [
-          { text: t("繼續編輯" as any), style: "cancel" },
-          { text: t("儲存清單" as any), onPress: () => setShowSaveListModal(true) },
-          { text: t("離開" as any), style: "destructive", onPress: goBack },
-        ]
-      );
-    } else {
-      goBack();
+    if (!selectedTemplate) {
+      if (router.canGoBack()) router.back(); else router.replace("/(tabs)");
+      return;
     }
+    if (currentFingerprint !== lastSavedFingerprint) {
+      setShowLeavePrompt(true);
+      return;
+    }
+    exitTemplateToList();
   };
 
   const renderBackButton = () => (
@@ -909,7 +1075,7 @@ export default function ShoppingTemplatesScreen() {
                 style={{ padding: 8, backgroundColor: "#DCFCE7", borderRadius: 10 }}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowSaveListModal(true);
+                  openSaveListModal(false);
                 }}
                 disabled={!selectedTemplate || totalSelectedCount === 0}
               >
@@ -921,7 +1087,7 @@ export default function ShoppingTemplatesScreen() {
               </TouchableOpacity>
               {/* AA 制掣 */}
               <TouchableOpacity
-                style={{ padding: 8, backgroundColor: "#E8F0FE", borderRadius: 10 }}
+                style={{ padding: 8, backgroundColor: "#E8F0F4", borderRadius: 10 }}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowAASplitModal(true);
@@ -1575,7 +1741,7 @@ export default function ShoppingTemplatesScreen() {
                 <View style={s.modalContainer}>
                   <View style={s.modalHeader}>
                     <Text style={s.modalTitle}>{t("party.saveListTitle")}</Text>
-                    <TouchableOpacity onPress={() => setShowSaveListModal(false)}>
+                    <TouchableOpacity onPress={closeSaveListModal}>
                       <Ionicons name="close" size={20} color={TEXT} />
                     </TouchableOpacity>
                   </View>
@@ -1652,7 +1818,7 @@ export default function ShoppingTemplatesScreen() {
                     <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
                       <TouchableOpacity
                         style={[s.modalActionBtn, { flex: 1, backgroundColor: "#F3F4F6" }]}
-                        onPress={() => setShowSaveListModal(false)}
+                        onPress={closeSaveListModal}
                       >
                         <Text style={[s.modalActionBtnText, { color: SUB }]}>{t("recipe.cancel")}</Text>
                       </TouchableOpacity>
@@ -1672,6 +1838,49 @@ export default function ShoppingTemplatesScreen() {
         </Modal>
 
       </KeyboardAvoidingView>
+
+      <Modal visible={showLeavePrompt} transparent animationType="fade" onRequestClose={() => setShowLeavePrompt(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalContainer, { padding: 20 }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>{t("party.leaveTitle")}</Text>
+              <TouchableOpacity onPress={() => setShowLeavePrompt(false)}>
+                <Ionicons name="close" size={20} color={TEXT} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, lineHeight: 21, color: SUB, marginTop: 12, marginBottom: 18 }}>
+              {t("party.leaveMsg")}
+            </Text>
+            <View style={{ gap: 10 }}>
+              <TouchableOpacity
+                style={[s.modalActionBtn, { backgroundColor: "#F3F4F6" }]}
+                onPress={() => setShowLeavePrompt(false)}
+              >
+                <Text style={[s.modalActionBtnText, { color: SUB }]}>{t("繼續編輯" as any)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalActionBtn, { backgroundColor: "#16A34A" }]}
+                onPress={() => { setShowLeavePrompt(false); openSaveListModal(true); }}
+              >
+                <Ionicons name="save-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={s.modalActionBtnText}>{t("儲存清單" as any)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalActionBtn, { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" }]}
+                onPress={exitTemplateToList}
+              >
+                <Text style={[s.modalActionBtnText, { color: "#DC2626" }]}>{t("離開" as any)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <PaywallModal
+        visible={showPartyPaywall}
+        onClose={() => setShowPartyPaywall(false)}
+        feature="generic"
+      />
 
       <ShoppingAddConfirm
         visible={shoppingConfirmCount !== null}

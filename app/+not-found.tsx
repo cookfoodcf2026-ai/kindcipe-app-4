@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#FAFAF8";
 const TEXT = "#1C1C1E";
 

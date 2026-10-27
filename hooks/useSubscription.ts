@@ -4,8 +4,8 @@
  * 獲取當前家庭廚房的訂閱狀態，包括：
  * - status: "trial" | "active" | "free" | "expired"
  * - isPaid: 是否為付費用戶
- * - maxImportsPerMonth: 每月匯入上限 (付費 300，免費 5)
- * - aiChatLimit: 每月 AI 對話上限 (付費 300，免費 30)
+ * - maxImportsPerMonth: 每月匯入上限 (Pro 100，Free 10)
+ * - aiChatLimit: 每月 AI credits (Pro 250，Free 15)
  */
 import { trpc } from "@/lib/trpc";
 
@@ -22,7 +22,7 @@ export function useSubscription() {
     refetch,
     isPaid: subscription?.isPaid ?? false,
     status: subscription?.status ?? "free",
-    aiChatLimit: subscription?.aiChatLimit ?? 30,
-    maxImportsPerMonth: subscription?.maxImportsPerMonth ?? 5,
+    aiChatLimit: subscription?.aiChatLimit ?? 15,
+    maxImportsPerMonth: subscription?.maxImportsPerMonth ?? 10,
   };
 }

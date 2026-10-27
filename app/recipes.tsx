@@ -254,7 +254,7 @@ export default function RecipesPage() {
           style={s.backBtn}
           accessibilityLabel={t("recipes.back")}
         >
-          <Ionicons name="arrow-back" size={24} color="#013E77" />
+          <Ionicons name="arrow-back" size={24} color="#183B56" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>{getTitle()}</Text>
         <View style={s.headerRight} />
@@ -291,12 +291,12 @@ export default function RecipesPage() {
         
         {/* Sort Button */}
         <TouchableOpacity onPress={() => setSortBy(sortBy === "popular" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "popular")} style={s.sortBtn}>
-          <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color="#013E77" />
+          <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color="#183B56" />
         </TouchableOpacity>
         
         {/* Filter Button */}
         <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={s.filterBtn}>
-          <Ionicons name="filter-outline" size={18} color="#013E77" />
+          <Ionicons name="filter-outline" size={18} color="#183B56" />
           {hasFilters && (
             <View style={s.filterBadge}>
               <Text style={s.filterBadgeTxt}>
@@ -425,7 +425,7 @@ export default function RecipesPage() {
       {/* List */}
       {isLoading ? (
         <View style={s.center}>
-          <ActivityIndicator size="large" color="#013E77" />
+          <ActivityIndicator size="large" color="#183B56" />
         </View>
       ) : searchRecipes.length === 0 ? (
         <View style={s.center}>
@@ -447,7 +447,7 @@ export default function RecipesPage() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={s.footerLoader}>
-                <ActivityIndicator size="small" color="#013E77" />
+                <ActivityIndicator size="small" color="#183B56" />
               </View>
             ) : null
           }
@@ -455,7 +455,7 @@ export default function RecipesPage() {
             <RefreshControl
               refreshing={isLoading}
               onRefresh={onRefresh}
-              tintColor="#013E77"
+              tintColor="#183B56"
             />
           }
         />
@@ -596,7 +596,7 @@ const s = StyleSheet.create({
   },
   searchHistoryClear: {
     fontSize: 12,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "600",
   },
   searchHistoryList: {
@@ -642,7 +642,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 99,
@@ -683,8 +683,8 @@ const s = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   filterPillActive: {
-    backgroundColor: "#013E77",
-    borderColor: "#013E77",
+    backgroundColor: "#183B56",
+    borderColor: "#183B56",
   },
   filterPillTxt: {
     fontSize: 12,

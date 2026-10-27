@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import UnitPicker from "@/src/components/UnitPicker";
 import { useGoBackSafe } from "@/hooks/useGoBackSafe";
 import { compressImage } from "@/lib/image-utils";
+import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import i18n from "@/lib/i18n";
 import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
 
@@ -122,6 +123,7 @@ export default function ImportScreen() {
   const lastCaptionRef = useRef<string>("");
   // 記住最近一次截圖（解析後 pendingScreenshot 會清空；失敗存檔時用嚟做封面）
   const lastShotRef = useRef<{ uri: string; base64: string; mimeType: string } | null>(null);
+  const lastScreenshotUploadUrlRef = useRef<string | null>(null);
   // 記住最近一次解析用嘅原始 link（即使之後試截圖都保留，失敗存檔時存返條 link）
   const lastLinkRef = useRef<string>("");
   // 失敗 response 帶返嘅縮圖（FB／網站失敗都可能有封面）
@@ -173,7 +175,7 @@ export default function ImportScreen() {
             style={styles.modalOption}
             onPress={() => handlePickImage("camera")}
           >
-            <Ionicons name="camera" size={24} color="#013E77" />
+            <Ionicons name="camera" size={24} color="#183B56" />
             <Text style={styles.modalOptionText}>{t("importRecipe.takePhoto")}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
@@ -182,7 +184,7 @@ export default function ImportScreen() {
             style={styles.modalOption}
             onPress={() => handlePickImage("library")}
           >
-            <Ionicons name="image" size={24} color="#013E77" />
+            <Ionicons name="image" size={24} color="#183B56" />
             <Text style={styles.modalOptionText}>{t("importRecipe.chooseAlbum")}</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
@@ -235,11 +237,11 @@ export default function ImportScreen() {
     }
     setEditTags(finalTags.join(" "));
     setEditIngredients(
-      (recipe.ingredients || []).map((ing: any, i: number) => ({
+      sanitizeIngredients(recipe.ingredients).map((ing, i) => ({
         id: `ing_${i}`,
         name: pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "",
-        quantity: String(ing.quantity || ""),
-        unit: ing.unit || "",
+        quantity: ing.quantity,
+        unit: ing.unit,
       }))
     );
     setEditSteps(
@@ -284,11 +286,11 @@ export default function ImportScreen() {
     setEditIngredients((prev) => {
       const seen = new Set(prev.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
       const merged = [...prev];
-      (recipe.ingredients || []).forEach((ing: any) => {
+      sanitizeIngredients(recipe.ingredients).forEach((ing) => {
         const nm = (pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "").trim();
         if (!nm || seen.has(nm.toLowerCase())) return;
         seen.add(nm.toLowerCase());
-        merged.push({ id: `ing_m${Date.now()}_${merged.length}`, name: nm, quantity: String(ing.quantity || ""), unit: ing.unit || "" });
+        merged.push({ id: `ing_m${Date.now()}_${merged.length}`, name: nm, quantity: ing.quantity, unit: ing.unit });
       });
       return merged;
     });
@@ -650,6 +652,10 @@ export default function ImportScreen() {
           return;
         }
         mergeParsedIntoEdit(data);
+        if (!data?.thumbnailUrl && !data?.image && lastScreenshotUploadUrlRef.current) {
+          setRecipeImageUri(lastScreenshotUploadUrlRef.current);
+          setRecipeImageBase64(null);
+        }
         setStep("preview");
         return;
       }
@@ -657,6 +663,10 @@ export default function ImportScreen() {
       if (!reason || reason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
+        if (!data?.thumbnailUrl && !data?.image && lastScreenshotUploadUrlRef.current) {
+          setRecipeImageUri(lastScreenshotUploadUrlRef.current);
+          setRecipeImageBase64(null);
+        }
         setStep("preview");
       } else {
         const ocrName = String((data as any).name || "").trim();
@@ -1079,9 +1089,13 @@ export default function ImportScreen() {
         { base64: pendingScreenshot.base64, mimeType: pendingScreenshot.mimeType },
         ...(pendingScreenshot.extra ?? []),
       ].filter((im) => !!im.base64);
+      lastScreenshotUploadUrlRef.current = null;
       for (const im of all) {
         const up = await uploadImageMutation.mutateAsync({ base64: im.base64, mimeType: im.mimeType });
         if (up?.key) uploadedKeys.push(up.key);
+        if (!lastScreenshotUploadUrlRef.current && up?.url) {
+          lastScreenshotUploadUrlRef.current = up.url;
+        }
       }
       if (uploadedKeys.length === 0) throw new Error("upload failed");
       try {
@@ -1163,13 +1177,17 @@ export default function ImportScreen() {
 
   // Save edited recipe with overlay
   const handleSaveEdited = async () => {
+    const sanitizedIngredients = sanitizeIngredients(editIngredients).map((ing, i) => ({
+      id: `ing_${i}`,
+      ...ing,
+    }));
     // 共用驗證（與自訂食譜同一規則來源）
     const v = validateRecipeForm({
       name: editName,
       category: selectedCategory,
       dishType: editDishType,
       tags: editTags,
-      ingredients: editIngredients,
+      ingredients: sanitizedIngredients,
       steps: editSteps,
       servings: editServings,
       cookTime: editCookTime,
@@ -1180,7 +1198,7 @@ export default function ImportScreen() {
       return;
     }
 
-    const validIngredients = editIngredients.filter(i => i.name.trim());
+    const validIngredients = sanitizedIngredients.filter(i => i.name.trim());
     const validSteps = editSteps.filter(s => s.instruction.trim());
 
     setIsSaving(true);
@@ -1325,7 +1343,7 @@ export default function ImportScreen() {
   if (step === "parsing") {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#013E77" />
+        <ActivityIndicator size="large" color="#183B56" />
         <Text style={styles.parsingTitle}>{t("importRecipe.parsing")}</Text>
         <Text style={styles.parsingSubtitle}>
           {t("通常需要 10-30 秒，請耐心等候（如連結內容較長會耐少少）" as any)}
@@ -1339,7 +1357,7 @@ export default function ImportScreen() {
                 {isCompleted ? (
                   <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
                 ) : isActive ? (
-                  <ActivityIndicator size="small" color="#013E77" />
+                  <ActivityIndicator size="small" color="#183B56" />
                 ) : (
                   <View style={styles.parsingStepDot} />
                 )}
@@ -1397,7 +1415,7 @@ export default function ImportScreen() {
               <Image source={{ uri: parsedRecipe.thumbnailUrl }} style={es.recipeImage} onError={() => setImageError(true)} />
             ) : (
               <View style={es.imagePlaceholder}>
-                <Ionicons name="image-outline" size={40} color="#013E77" />
+                <Ionicons name="image-outline" size={40} color="#183B56" />
                 <Text style={es.imagePlaceholderTxt}>{t("importRecipe.tapUpload")}</Text>
               </View>
             )}
@@ -1522,12 +1540,12 @@ export default function ImportScreen() {
           <View style={es.card}>
             <View style={es.cardRow}>
               <View style={[es.cardIcon, { backgroundColor: "#E8F0FA" }]}>
-                <Ionicons name="restaurant-outline" size={16} color="#013E77" />
+                <Ionicons name="restaurant-outline" size={16} color="#183B56" />
               </View>
               <Text style={es.cardTitle}>{t("recipe.stepsCount", { n: editSteps.filter(s => s.instruction.trim()).length })}</Text>
               <TouchableOpacity style={es.addBtn} onPress={addStep}>
-                <Ionicons name="add" size={13} color="#013E77" />
-                <Text style={[es.addBtnTxt, { color: "#013E77" }]}>{t("importRecipe.addStep")}</Text>
+                <Ionicons name="add" size={13} color="#183B56" />
+                <Text style={[es.addBtnTxt, { color: "#183B56" }]}>{t("importRecipe.addStep")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -1566,8 +1584,8 @@ export default function ImportScreen() {
                       placeholderTextColor="#B0BAC9"
                     />
                     <TouchableOpacity style={es.stepCameraBtn} onPress={() => pickStepImage(idx)}>
-                      <Ionicons name="camera-outline" size={14} color={step.imageUri ? "#013E77" : "#9CA3AF"} />
-                      <Text style={[es.stepCameraTxt, step.imageUri && { color: "#013E77" }]}>
+                      <Ionicons name="camera-outline" size={14} color={step.imageUri ? "#183B56" : "#9CA3AF"} />
+                      <Text style={[es.stepCameraTxt, step.imageUri && { color: "#183B56" }]}>
                         {step.imageUri ? t("已上載" as any) : t("教學圖片" as any)}
                       </Text>
                     </TouchableOpacity>
@@ -1625,7 +1643,7 @@ export default function ImportScreen() {
         <Modal visible={isSaving} transparent animationType="fade">
           <View style={es.saveOverlay}>
             <View style={es.saveOverlayBox}>
-              <ActivityIndicator size="large" color="#013E77" />
+              <ActivityIndicator size="large" color="#183B56" />
               <Text style={es.saveOverlayTitle}>{t("importRecipe.saving")}</Text>
               <Text style={es.saveOverlaySub}>{t("importRecipe.savingSub")}</Text>
               <View style={es.saveStepsList}>
@@ -1637,11 +1655,11 @@ export default function ImportScreen() {
                       {done ? (
                         <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
                       ) : active ? (
-                        <ActivityIndicator size="small" color="#013E77" />
+                        <ActivityIndicator size="small" color="#183B56" />
                       ) : (
                         <View style={es.saveStepDot} />
                       )}
-                      <Text style={[es.saveStepTxt, active && { color: "#013E77", fontWeight: "700" }, done && { color: "#22C55E" }]}>{s}</Text>
+                      <Text style={[es.saveStepTxt, active && { color: "#183B56", fontWeight: "700" }, done && { color: "#22C55E" }]}>{s}</Text>
                     </View>
                   );
                 })}
@@ -1653,7 +1671,7 @@ export default function ImportScreen() {
           visible={showQuotaPaywall}
           onClose={() => setShowQuotaPaywall(false)}
           feature={paywallFeature}
-          isPaid={!!subQuery.data?.isPaid}
+          isPaid={subQuery.data?.status === "active"}
         />
       </>
     );
@@ -1686,7 +1704,7 @@ export default function ImportScreen() {
               style={styles.successSecondaryBtn}
               onPress={() => { setStep("input"); setParsedRecipe(null); setUniversalInput(""); setPendingScreenshot(null); setFailedInput(null); }}
             >
-              <Ionicons name="add-circle-outline" size={18} color="#013E77" />
+              <Ionicons name="add-circle-outline" size={18} color="#183B56" />
               <Text style={styles.successSecondaryBtnText}>{t("importRecipe.continueImport")}</Text>
             </TouchableOpacity>
           </View>
@@ -1707,7 +1725,7 @@ export default function ImportScreen() {
         disabled={importMutation.isPending}
         onPress={() => { Keyboard.dismiss(); void handleSaveIncomplete(); }}
       >
-        <Ionicons name="bookmark-outline" size={18} color={isPro ? "#013E77" : "#fff"} />
+        <Ionicons name="bookmark-outline" size={18} color={isPro ? "#183B56" : "#fff"} />
         <Text style={isPro ? styles.tryTextButtonText : styles.tryScreenshotText}>
           {importMutation.isPending ? t("儲存中…" as any) : (hasLink ? t("先存連結（之後再補充）" as any) : t("先儲存（之後再補充）" as any))}
         </Text>
@@ -1718,7 +1736,7 @@ export default function ImportScreen() {
         style={isPro ? styles.tryScreenshotButton : styles.tryTextButton}
         onPress={() => { Keyboard.dismiss(); setShowPhotoSourceModal(true); setErrorMsg(""); setFailedInput(null); }}
       >
-        <Ionicons name="image" size={18} color={isPro ? "#fff" : "#013E77"} />
+        <Ionicons name="image" size={18} color={isPro ? "#fff" : "#183B56"} />
         <Text style={isPro ? styles.tryScreenshotText : styles.tryTextButtonText}>
           {t("📷 上載相片" as any)}{!isPro ? " · Pro" : ""}
         </Text>
@@ -1799,7 +1817,7 @@ export default function ImportScreen() {
 
                 {/* 更多選項（收埋） */}
                 <TouchableOpacity style={styles.tryTextButton} onPress={() => setShowFailMore((v) => !v)}>
-                  <Ionicons name={showFailMore ? "chevron-up" : "ellipsis-horizontal"} size={18} color="#013E77" />
+                  <Ionicons name={showFailMore ? "chevron-up" : "ellipsis-horizontal"} size={18} color="#183B56" />
                   <Text style={styles.tryTextButtonText}>{showFailMore ? t("收起選項" as any) : t("更多選項" as any)}</Text>
                 </TouchableOpacity>
                 {showFailMore && (
@@ -1814,7 +1832,7 @@ export default function ImportScreen() {
                         if (clipboardUrl) setUniversalInput(clipboardUrl);
                       }}
                     >
-                      <Ionicons name="link-outline" size={18} color="#013E77" />
+                      <Ionicons name="link-outline" size={18} color="#183B56" />
                       <Text style={styles.tryTextButtonText}>{t("importRecipe.tryAnotherLink")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1825,7 +1843,7 @@ export default function ImportScreen() {
                         router.push({ pathname: "/recipe-editor", params: url ? { sourceUrl: url } : {} });
                       }}
                     >
-                      <Ionicons name="create-outline" size={18} color="#013E77" />
+                      <Ionicons name="create-outline" size={18} color="#183B56" />
                       <Text style={styles.tryTextButtonText}>{t("importRecipe.customRecipe")}</Text>
                     </TouchableOpacity>
                   </>
@@ -1849,7 +1867,7 @@ export default function ImportScreen() {
           visible={showQuotaPaywall}
           onClose={() => setShowQuotaPaywall(false)}
           feature={paywallFeature}
-          isPaid={!!subQuery.data?.isPaid}
+          isPaid={subQuery.data?.status === "active"}
         />
         <Modal visible={showAiHintModal} transparent animationType="fade" onRequestClose={() => setShowAiHintModal(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -1886,7 +1904,7 @@ export default function ImportScreen() {
         <Modal visible={aiBusy} transparent animationType="fade">
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center" }}>
             <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 28, alignItems: "center", width: "72%" }}>
-              <ActivityIndicator size="large" color="#013E77" />
+              <ActivityIndicator size="large" color="#183B56" />
               <Text style={{ marginTop: 14, fontSize: 14, fontWeight: "700", color: "#1A1A1A" }}>{t("AI 生成中…" as any)}</Text>
               <Text style={{ marginTop: 4, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{t("請稍等，可能需要 10-30 秒" as any)}</Text>
             </View>
@@ -1919,7 +1937,7 @@ export default function ImportScreen() {
         {clipboardUrl && detectedPlatform && (
           <View style={styles.magicClipboardCard}>
             <View style={styles.clipboardHeader}>
-              <Ionicons name="sparkles" size={20} color="#013E77" />
+              <Ionicons name="sparkles" size={20} color="#183B56" />
               <Text style={styles.clipboardTitle}>{t("dyn.detectedPlatform", { platform: detectedPlatform })}</Text>
             </View>
             <Text style={styles.clipboardUrl} numberOfLines={1}>{clipboardUrl}</Text>
@@ -1954,7 +1972,7 @@ export default function ImportScreen() {
             />
             {!universalInput && (
               <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
-                <Ionicons name="document" size={16} color="#013E77" />
+                <Ionicons name="document" size={16} color="#183B56" />
                 <Text style={styles.pasteButtonText}>{t("importRecipe.paste")}</Text>
               </TouchableOpacity>
             )}
@@ -2010,7 +2028,7 @@ export default function ImportScreen() {
               onPress={() => setShowPhotoSourceModal(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="image-outline" size={22} color="#013E77" />
+              <Ionicons name="image-outline" size={22} color="#183B56" />
               <Text style={styles.secondaryButtonText}>{t("importRecipe.photoUpload")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -2018,7 +2036,7 @@ export default function ImportScreen() {
               onPress={() => router.push("/recipe-editor")}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={22} color="#013E77" />
+              <Ionicons name="create-outline" size={22} color="#183B56" />
               <Text style={styles.secondaryButtonText}>{t("importRecipe.customRecipe")}</Text>
             </TouchableOpacity>
           </View>
@@ -2040,7 +2058,7 @@ export default function ImportScreen() {
           visible={showQuotaPaywall}
           onClose={() => setShowQuotaPaywall(false)}
           feature={paywallFeature}
-          isPaid={!!subQuery.data?.isPaid}
+          isPaid={subQuery.data?.status === "active"}
         />
       </>
     );
@@ -2053,7 +2071,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", padding: 32,
   },
   headerSection: {
-    backgroundColor: "#013E77", padding: 20, paddingBottom: 24,
+    backgroundColor: "#183B56", padding: 20, paddingBottom: 24,
   },
   pageTitle: { fontSize: 22, fontWeight: "900", color: "#fff", marginBottom: 4 },
   pageSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.75)" },
@@ -2079,7 +2097,7 @@ const styles = StyleSheet.create({
   clipboardTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   clipboardUrl: {
     fontSize: 12,
@@ -2093,7 +2111,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     paddingVertical: 14,
     borderRadius: 20,
     marginTop: 4,
@@ -2150,7 +2168,7 @@ const styles = StyleSheet.create({
   pasteButtonText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   clearButton: {
     position: "absolute",
@@ -2163,13 +2181,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     paddingVertical: 18,
     borderRadius: 20,
     marginTop: 12,
   },
   parseButtonDisabled: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     opacity: 0.6,
   },
   parseButtonText: {
@@ -2239,7 +2257,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   screenshotConfirmText: {
     fontSize: 14,
@@ -2261,7 +2279,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   
   // Xiaohongshu Tip
@@ -2280,13 +2298,13 @@ const styles = StyleSheet.create({
   },
   
   // Parsing
-  parsingTitle: { fontSize: 18, fontWeight: "800", color: "#013E77", marginTop: 16 },
+  parsingTitle: { fontSize: 18, fontWeight: "800", color: "#183B56", marginTop: 16 },
   parsingSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 4, marginBottom: 24 },
   parsingSteps: { gap: 12 },
   parsingStep: { flexDirection: "row", alignItems: "center", gap: 10 },
   parsingStepActive: { backgroundColor: "#F0F5FF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginHorizontal: -10 },
   parsingStepText: { fontSize: 14, color: "#9CA3AF" },
-  parsingStepTextActive: { fontSize: 14, color: "#013E77", fontWeight: "700" },
+  parsingStepTextActive: { fontSize: 14, color: "#183B56", fontWeight: "700" },
   parsingStepDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB" },
   cancelBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -2297,7 +2315,7 @@ const styles = StyleSheet.create({
   
   // Preview
   previewHeader: { alignItems: "center", padding: 20, paddingBottom: 12, backgroundColor: "#EEF4FB", borderRadius: 16, marginHorizontal: 16, marginTop: 16 },
-  previewTitle: { fontSize: 20, fontWeight: "800", color: "#013E77", marginTop: 8 },
+  previewTitle: { fontSize: 20, fontWeight: "800", color: "#183B56", marginTop: 8 },
   previewSubtitle: { fontSize: 13, color: "#5A4A3A" },
   
   // Success
@@ -2306,7 +2324,7 @@ const styles = StyleSheet.create({
   successActions: { width: "100%", marginTop: 32, gap: 10 },
   successPrimaryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", paddingVertical: 16, borderRadius: 14,
+    backgroundColor: "#183B56", paddingVertical: 16, borderRadius: 14,
   },
   successPrimaryBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
   successSecondaryBtn: {
@@ -2314,7 +2332,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF4FB", paddingVertical: 16, borderRadius: 14,
     borderWidth: 1.5, borderColor: "#C5D9F0",
   },
-  successSecondaryBtnText: { fontSize: 16, fontWeight: "700", color: "#013E77" },
+  successSecondaryBtnText: { fontSize: 16, fontWeight: "700", color: "#183B56" },
   
   // Failed
   failedTitle: { fontSize: 20, fontWeight: "800", color: "#EF4444", marginTop: 12 },
@@ -2322,7 +2340,7 @@ const styles = StyleSheet.create({
   failedActions: { gap: 10, width: "100%", marginTop: 8 },
   tryScreenshotButton: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", padding: 14, borderRadius: 12,
+    backgroundColor: "#183B56", padding: 14, borderRadius: 12,
   },
   tryScreenshotText: { color: "#fff", fontSize: 14, fontWeight: "700" },
   tryTextButton: {
@@ -2330,7 +2348,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF4FB", padding: 14, borderRadius: 12,
     borderWidth: 1.5, borderColor: "#C5D9F0",
   },
-  tryTextButtonText: { color: "#013E77", fontSize: 14, fontWeight: "700" },
+  tryTextButtonText: { color: "#183B56", fontSize: 14, fontWeight: "700" },
   retryButton: {
     alignItems: "center", padding: 12, borderRadius: 12,
     borderWidth: 1.5, borderColor: "#E5E0D8",
@@ -2385,7 +2403,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   modalCancelBtn: {
     marginTop: 8,
@@ -2413,7 +2431,7 @@ const es = StyleSheet.create({
     backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center",
     gap: 8,
   },
-  imagePlaceholderTxt: { fontSize: 14, color: "#013E77", fontWeight: "600" },
+  imagePlaceholderTxt: { fontSize: 14, color: "#183B56", fontWeight: "600" },
   imageOverlay: {
     position: "absolute", bottom: 26, right: 26,
     flexDirection: "row", alignItems: "center", gap: 4,
@@ -2436,7 +2454,7 @@ const es = StyleSheet.create({
     borderRadius: 20, backgroundColor: "#EEF4FB",
     borderWidth: 1.5, borderColor: "#E5D5C0",
   },
-  chipActive: { backgroundColor: "#013E77", borderColor: "#013E77" },
+  chipActive: { backgroundColor: "#183B56", borderColor: "#183B56" },
   chipTxt: { fontSize: 13, fontWeight: "700", color: "#5A4A3A" },
   chipTxtActive: { color: "#fff" },
   categoryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
@@ -2461,7 +2479,7 @@ const es = StyleSheet.create({
   stepRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   stepNum: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "#013E77", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#183B56", alignItems: "center", justifyContent: "center",
   },
   stepNumTxt: { fontSize: 12, fontWeight: "800", color: "#fff" },
   stepImageWrap: { position: "relative", marginBottom: 8 },
@@ -2478,7 +2496,7 @@ const es = StyleSheet.create({
   stepCameraTxt: { fontSize: 12, fontWeight: "600", color: "#9CA3AF" },
   saveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: "#013E77", paddingVertical: 16, borderRadius: 14,
+    backgroundColor: "#183B56", paddingVertical: 16, borderRadius: 14,
   },
   saveBtnTxt: { fontSize: 16, fontWeight: "700", color: "#fff" },
   saveOverlay: {
@@ -2489,7 +2507,7 @@ const es = StyleSheet.create({
     backgroundColor: "#fff", borderRadius: 20, padding: 24,
     alignItems: "center", width: "85%",
   },
-  saveOverlayTitle: { fontSize: 18, fontWeight: "800", color: "#013E77", marginTop: 16 },
+  saveOverlayTitle: { fontSize: 18, fontWeight: "800", color: "#183B56", marginTop: 16 },
   saveOverlaySub: { fontSize: 13, color: "#6B7280", marginTop: 4 },
   saveStepsList: { width: "100%", marginTop: 20, gap: 10 },
   saveStepRow: { flexDirection: "row", alignItems: "center", gap: 10 },

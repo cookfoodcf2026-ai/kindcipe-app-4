@@ -1,4 +1,4 @@
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 
 export function cleanIngredientName(name: string): string {
   return name
@@ -7,10 +7,43 @@ export function cleanIngredientName(name: string): string {
     .trim();
 }
 
-export const FRESH_KEYWORDS = ["洋蔥","豬","牛","雞","魚","蝦","蟹","豆腐","排骨","肉","菜","菠菜","白菜","椰菜","生菜","芥蘭","通菜","菜心","番茄","茄子","青椒","薑","蒜","蔥","芹菜","蘿蔔","薯","瓜","豆","芽","蘑菇","冬菇"];
+// Keep this list specific. Single-character/animal substrings used to mark
+// eggs, milk and tofu as "fresh" and skipped the Consumer Council lookup.
+
+const PRICE_KEYWORD_ALIASES: Record<string, string> = {
+  "egg": "雞蛋",
+  "eggs": "雞蛋",
+  "egg white": "雞蛋",
+  "egg whites": "雞蛋",
+  "egg yolk": "雞蛋",
+  "egg yolks": "雞蛋",
+  "蛋白": "雞蛋",
+  "蛋黃": "雞蛋",
+  "milk": "牛奶",
+  "protein powder": "蛋白粉",
+  "whey protein": "蛋白粉",
+  "蛋白粉": "蛋白粉",
+  "乳清蛋白": "蛋白粉",
+};
+
+/** Display name (English) and data search name (Consumer Council is Chinese) are different. */
+export function resolvePriceSearchKeyword(displayName: string, nameEn?: string, canonicalName?: string): string {
+  const candidates = [nameEn, displayName, canonicalName].map((v) => String(v ?? "").trim()).filter(Boolean);
+  for (const candidate of candidates) {
+    const direct = PRICE_KEYWORD_ALIASES[candidate.toLowerCase()];
+    if (direct) return direct;
+  }
+  const canonical = String(canonicalName ?? "").trim();
+  if (canonical && /[\u3400-\u9fff]/.test(canonical)) return cleanIngredientName(canonical);
+  return cleanIngredientName(displayName || nameEn || canonical);
+}
+
+export const FRESH_KEYWORDS = ["豬肉","牛肉","羊肉","雞肉","雞翼","雞腿","排骨","鮮魚","魚","蝦","蟹","帶子","蜆","菜心","菠菜","白菜","椰菜","生菜","芥蘭","通菜","番茄","茄子","青椒","薑","蒜頭","蔥","芹菜","蘿蔔","薯仔","洋蔥","蘑菇","冬菇"];
+export const FRESH_NEGATIONS = ["雞蛋","牛奶","豆奶","豆腐","魚蛋","蝦米","魚乾","肉乾","豬肉乾","牛肉乾","菜乾","薯片","薯條"];
 export const PROCESSED_SNACK_KEYWORDS = ["薯片","零食","忌廉味","燒烤味","芝士味","朱古力味","芝士波","蝦條","粟米片","爆谷","糖果","餅乾","曲奇"];
 
 export function isFreshIngredient(name: string): boolean {
+  if (FRESH_NEGATIONS.some(kw => name.includes(kw))) return false;
   return FRESH_KEYWORDS.some(kw => name.includes(kw));
 }
 
@@ -77,12 +110,29 @@ export const REDIRECT_PLATFORMS = [
   },
 ];
 
-export async function openPlatform(p: typeof REDIRECT_PLATFORMS[0], keyword: string) {
+export async function openPlatform(p: typeof REDIRECT_PLATFORMS[0], keyword: string): Promise<boolean> {
+  const webUrl = p.url(keyword);
+  // On web, React Native's canOpenURL() always returns true. Trying hktvmall://
+  // then opens a blank/unknown-scheme tab and never reaches the website.
+  if (Platform.OS === "web") {
+    if (typeof window === "undefined") return false;
+    try {
+      const opened = window.open(webUrl, "_blank", "noopener,noreferrer");
+      return !!opened;
+    } catch {
+      return false;
+    }
+  }
   if (p.app) {
     try {
       const can = await Linking.canOpenURL(p.app(keyword));
-      if (can) { await Linking.openURL(p.app(keyword)); return; }
+      if (can) { await Linking.openURL(p.app(keyword)); return true; }
     } catch {}
   }
-  await Linking.openURL(p.url(keyword));
+  try {
+    await Linking.openURL(webUrl);
+    return true;
+  } catch {
+    return false;
+  }
 }

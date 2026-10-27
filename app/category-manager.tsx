@@ -12,7 +12,7 @@ import {
   CategoryDef, DEFAULT_CATEGORIES, validateCategory,
 } from "@/lib/category-storage";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";

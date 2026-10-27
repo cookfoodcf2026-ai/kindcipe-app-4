@@ -19,13 +19,13 @@ import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useAuth } from "@/hooks/useAuth";
+import { approvalUiEnabled } from "@/lib/featureFlags";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import FilterModal from "@/src/components/FilterModal";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { useToast } from "@/src/components/Toast";
 import type { PickerRecipe } from "@/src/components/IngredientPickerModal";
 import RecipeCard from "@/src/components/RecipeCard";
-import HintBanner from "@/src/components/HintBanner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { getBilingualName } from "@/lib/bilingual";
@@ -54,7 +54,7 @@ const mealTypeLabel = (type: string) => i18n.t(`mealPlan.meal_${type}` as any);
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   confirmed: { label: "已確認", color: "#16A34A", bg: "#DCFCE7" },
-  pending: { label: "提案中", color: "#013E77", bg: "#E8F0FE" },
+  pending: { label: "提案中", color: "#183B56", bg: "#E8F0F4" },
   rejected: { label: "已拒絕", color: "#DC2626", bg: "#FEE2E2" },
 };
 
@@ -217,7 +217,7 @@ export default function PlannerTab() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const router = useRouter();
-  const { openRecommend } = useLocalSearchParams<{ openRecommend?: string }>();
+  const { openRecommend, pending: pendingParam } = useLocalSearchParams<{ openRecommend?: string; pending?: string }>();
   const [weekOffset, setWeekOffset] = useState(0);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -302,6 +302,29 @@ export default function PlannerTab() {
         },
       },
     );
+
+  const { data: allPendingPlans = [] } = trpc.mealPlan.list.useQuery(undefined, {
+    enabled: pendingParam === "1",
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (pendingParam !== "1") return;
+    const pendingPlans = (allPendingPlans as any[])
+      .filter((plan) => plan.status === "pending")
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (pendingPlans.length === 0) return;
+    const target = new Date(`${pendingPlans[0].date}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetMonday = new Date(target);
+    targetMonday.setDate(target.getDate() - ((target.getDay() + 6) % 7));
+    const todayMonday = new Date(today);
+    todayMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const offset = Math.round((targetMonday.getTime() - todayMonday.getTime()) / (7 * 86400000));
+    setWeekOffset(offset);
+    router.setParams({ pending: undefined } as any);
+  }, [pendingParam, allPendingPlans, router]);
 
   const [shouldLoadRecipes, setShouldLoadRecipes] = useState(false);
 
@@ -1277,9 +1300,10 @@ export default function PlannerTab() {
   };
 
   const renderMealItem = (mp: any) => {
-    const sConfig = STATUS_CONFIG[mp.status] || STATUS_CONFIG.confirmed;
+    const displayStatus = !approvalUiEnabled && mp.status === "pending" ? "confirmed" : mp.status;
+    const sConfig = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.confirmed;
     const mConfig = MEAL_TYPE_CONFIG[mp.mealType] || MEAL_TYPE_CONFIG.dinner;
-    const isPending = mp.status === "pending";
+    const isPending = approvalUiEnabled && mp.status === "pending";
     const isTemplate = mp.recipeId && mp.recipeId.startsWith("template_");
     const hasShoppingItem = Boolean(mp.hasShoppingItem)
       || mealShoppingLookup.byMealPlanId.has(mp.id)
@@ -1342,12 +1366,12 @@ export default function PlannerTab() {
           <View style={styles.mealInfo}>
             <View style={styles.mealTop}>
               <View style={[styles.mealTypeBadge, { flexDirection: "row", alignItems: "center", gap: 2 }]}>
-                <Ionicons name={mConfig.icon as any} size={9} color="#013E77" />
+                <Ionicons name={mConfig.icon as any} size={9} color="#183B56" />
                 <Text style={styles.mealTypeText}>{mealTypeLabel(mp.mealType)}</Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: sConfig.bg }]}>
                 <Text style={[styles.statusText, { color: sConfig.color }]}>
-                  {t(`planner.status_${mp.status}` as any)}
+                  {t(`planner.status_${displayStatus}` as any)}
                 </Text>
               </View>
             </View>
@@ -1493,8 +1517,8 @@ export default function PlannerTab() {
               )}
             </TouchableOpacity>
             {dayMeals.length > 0 ? (
-              <View style={[styles.countBadge, { backgroundColor: allConfirmed ? "#DCFCE7" : "#E8F0FE" }]}>
-                <Text style={[styles.countText, { color: allConfirmed ? "#16A34A" : "#013E77" }]}>
+              <View style={[styles.countBadge, { backgroundColor: allConfirmed ? "#DCFCE7" : "#E8F0F4" }]}>
+                <Text style={[styles.countText, { color: allConfirmed ? "#16A34A" : "#183B56" }]}>
                   {t("planner.mealCount", { n: dayMeals.length })}
                 </Text>
               </View>
@@ -1532,7 +1556,7 @@ export default function PlannerTab() {
                     onPress={() => openAddModal(idx, mt)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                      <Ionicons name={cfg.icon as any} size={11} color="#013E77" />
+                      <Ionicons name={cfg.icon as any} size={11} color="#183B56" />
                       <Text style={styles.addMealBtnText}>
                         + {mealTypeLabel(mt)}
                       </Text>
@@ -1556,23 +1580,16 @@ export default function PlannerTab() {
             style={styles.headerBtn}
             onPress={() => router.push("/import")}
           >
-            <Ionicons name="add" size={22} color="#013E77" />
+            <Ionicons name="add" size={22} color="#183B56" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerBtn}
             onPress={() => router.push("/ai-chef")}
           >
-            <Ionicons name="chatbubble-ellipses" size={19} color="#013E77" />
+            <Ionicons name="chatbubble-ellipses" size={19} color="#183B56" />
           </TouchableOpacity>
         </View>
       </View>
-
-      <HintBanner
-        hintId="meal_plan_shop"
-        icon="list"
-        title={t("planner.menuReadyTitle")}
-        body={t("planner.menuReadyBody")}
-      />
 
       <View style={styles.weekNav}>
         <TouchableOpacity
@@ -1590,7 +1607,7 @@ export default function PlannerTab() {
             setWeekOffset(0);
           }}
         >
-          <Ionicons name="today-outline" size={14} color="#013E77" />
+          <Ionicons name="today-outline" size={14} color="#183B56" />
           <Text style={styles.todayNavTxt}>{i18n.t("common.today")}</Text>
         </TouchableOpacity>
         <View style={styles.weekNavCenter}>
@@ -1693,11 +1710,11 @@ export default function PlannerTab() {
               ) : null}
 
               <TouchableOpacity onPress={() => setSortBy(sortBy === "popular" ? "cookTime" : sortBy === "cookTime" ? "difficulty" : "popular")} style={styles.pickerSortBtn}>
-                <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color="#013E77" />
+                <Ionicons name={sortBy === "popular" ? "star-outline" : sortBy === "cookTime" ? "flame-outline" : "swap-horizontal-outline"} size={18} color="#183B56" />
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setShowFilterSheet(true)} style={styles.pickerFilterBtn}>
-                <Ionicons name="filter-outline" size={18} color="#013E77" />
+                <Ionicons name="filter-outline" size={18} color="#183B56" />
                 {pickerFilterCount > 0 && (
                   <View style={styles.filterBadge}>
                     <Text style={styles.filterBadgeTxt}>{pickerFilterCount}</Text>
@@ -1803,7 +1820,7 @@ export default function PlannerTab() {
             alignItems: "center",
             gap: 12,
           }}>
-            <ActivityIndicator size="large" color="#013E77" />
+            <ActivityIndicator size="large" color="#183B56" />
             <Text style={{
               fontSize: 16,
               fontWeight: "700",
@@ -1900,7 +1917,7 @@ export default function PlannerTab() {
                   <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>{t("recipe.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
+                  style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#183B56", alignItems: "center" }}
                   onPress={() => {
                     if (!moveMealPlanTarget || !moveMealPlanDate) return;
                     if (syncShoppingItems && syncShoppingDateMode === "custom" && !syncShoppingDate) {
@@ -1964,11 +1981,11 @@ export default function PlannerTab() {
                     paddingVertical: 8,
                     borderRadius: 999,
                     borderWidth: 1,
-                    borderColor: draftSyncShoppingDateMode === opt.key ? "#013E77" : "#D1D5DB",
-                    backgroundColor: draftSyncShoppingDateMode === opt.key ? "#E8F0FE" : "#fff",
+                    borderColor: draftSyncShoppingDateMode === opt.key ? "#183B56" : "#D1D5DB",
+                    backgroundColor: draftSyncShoppingDateMode === opt.key ? "#E8F0F4" : "#fff",
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: draftSyncShoppingDateMode === opt.key ? "#013E77" : "#374151" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: draftSyncShoppingDateMode === opt.key ? "#183B56" : "#374151" }}>
                     {t(opt.label as any)}
                   </Text>
                 </TouchableOpacity>
@@ -2006,7 +2023,7 @@ export default function PlannerTab() {
                 <Text style={{ fontSize: 15, fontWeight: "700", color: "#374151" }}>{t("recipe.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#013E77", alignItems: "center" }}
+                style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: "#183B56", alignItems: "center" }}
                 onPress={confirmSyncDateModal}
               >
                 <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>{t("planner.ok")}</Text>
@@ -2178,10 +2195,10 @@ export default function PlannerTab() {
             <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: "#F0E8DC", backgroundColor: "#fff", flexDirection: "row", gap: 8 }}>
               {/* 套用本日推薦 */}
               <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E8F0FE", alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
+                style={{ flex: 1, paddingVertical: 11, borderRadius: 12, backgroundColor: "#E8F0F4", alignItems: "center", borderWidth: 1, borderColor: "#BFDBFE" }}
                 onPress={() => handleApplyToday(recommendItemsByDay[recommendCurrentDay])}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>{t("dyn.applyToday", { day: enumT.weekday(recommendCurrentDay) })}</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#183B56" }}>{t("dyn.applyToday", { day: enumT.weekday(recommendCurrentDay) })}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2430,7 +2447,7 @@ function RecipeDetailModal({
             <TouchableOpacity 
               onPress={onAddToPlan} 
               disabled={isAdding}
-              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#013E77", alignItems: "center" }}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#183B56", alignItems: "center" }}
             >
               {isAdding ? (
                 <ActivityIndicator color="#fff" size="small" />
@@ -2582,7 +2599,7 @@ function SlotPickerModal({
                   <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>{recipe.name}</Text>
                   {recipe.cookTime && <Text style={{ fontSize: 10, color: "#9CA3AF" }}>⏱ {recipe.cookTime}{t("recipe.min")}</Text>}
                 </View>
-                {isPending && <ActivityIndicator size="small" color="#013E77" />}
+                {isPending && <ActivityIndicator size="small" color="#183B56" />}
               </TouchableOpacity>
             )}
           />
@@ -3111,7 +3128,7 @@ function SwapPickerRN({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
   },
   aiRecommendBanner: {
     flexDirection: "row",
@@ -3146,7 +3163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -3179,7 +3196,7 @@ const styles = StyleSheet.create({
   },
   weekNavArrow: {
     fontSize: 14,
-    color: "#013E77",
+    color: "#183B56",
   },
   weekNavCenter: {
     alignItems: "center",
@@ -3216,7 +3233,7 @@ const styles = StyleSheet.create({
   },
   dayCardToday: {
     borderWidth: 2,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
   },
   dayCardPast: {
     opacity: 0.7,
@@ -3237,18 +3254,18 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   dayNameToday: {
-    color: "#013E77",
+    color: "#183B56",
   },
   dayDate: {
     fontSize: 13,
     color: "#666",
   },
   dayDateToday: {
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "600",
   },
   todayBadge: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     borderRadius: 5,
     paddingHorizontal: 5,
     paddingVertical: 1,
@@ -3344,14 +3361,14 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   mealTypeBadge: {
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 1,
   },
   mealTypeText: {
     fontSize: 11,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "700",
   },
   statusBadge: {
@@ -3430,14 +3447,14 @@ const styles = StyleSheet.create({
   },
   addMealBtn: {
     flex: 1,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 6,
     paddingVertical: 6,
     alignItems: "center",
   },
   addMealBtnText: {
     fontSize: 10,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "600",
   },
   mealTouchable: {
@@ -3464,7 +3481,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 4,
@@ -3473,7 +3490,7 @@ const styles = StyleSheet.create({
   todayNavTxt: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   modalOverlay: {
     flex: 1,
@@ -3576,7 +3593,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   pickerSourceChipActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   pickerSourceChipTxt: {
     fontSize: 12,

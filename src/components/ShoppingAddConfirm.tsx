@@ -2,6 +2,7 @@ import { Modal, View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { canva } from "@/app/styles/colors";
 
 type Props = {
   visible: boolean;
@@ -20,7 +21,7 @@ export default function ShoppingAddConfirm({ visible, count, onGoShopping, onClo
         <View style={[styles.card, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.row}>
             <View style={styles.iconWrap}>
-              <Ionicons name="checkmark-circle" size={26} color="#16A34A" />
+              <Ionicons name="checkmark-circle" size={26} color={canva.greenText} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{t("shopping.addedToCart")}</Text>
@@ -75,18 +76,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#E8F0E4",
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#1A1A1A",
+    color: canva.primary,
   },
   sub: {
     fontSize: 14,
-    color: "#6B7280",
+    color: canva.muted,
     marginTop: 2,
   },
   actions: {
@@ -101,14 +102,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F8F1E7",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: canva.border,
   },
   btnSecondaryTxt: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#4B5563",
+    color: canva.muted,
     textAlign: "center",
   },
   btnPrimary: {
@@ -119,12 +120,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: "#16A34A",
+    backgroundColor: canva.green,
   },
   btnPrimaryTxt: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#fff",
+    color: canva.primary,
     textAlign: "center",
   },
 });

@@ -13,8 +13,8 @@ import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 import { getPendingVerificationEmail, clearPendingVerificationEmail } from "@/lib/pending-verification";
 
-const BRAND = "#013E77";
-const COPPER = "#F5A823";
+const BRAND = "#183B56";
+const COPPER = "#F47B3A";
 const TEXT = "#1F2937";
 const SUB = "#6B7280";
 
@@ -124,11 +124,11 @@ export default function VerifyEmailScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FAF8F5" },
+  root: { flex: 1, backgroundColor: "#FFF8EF" },
   content: { flex: 1, paddingHorizontal: 28 },
   back: { marginBottom: 12 },
   iconWrap: {
-    width: 64, height: 64, borderRadius: 20, backgroundColor: "#E8F0FE",
+    width: 64, height: 64, borderRadius: 20, backgroundColor: "#E8F0F4",
     alignItems: "center", justifyContent: "center", marginBottom: 20,
   },
   title: { fontSize: 24, fontWeight: "800", color: TEXT, marginBottom: 8 },

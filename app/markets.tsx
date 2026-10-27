@@ -74,7 +74,7 @@ export default function MarketsPage() {
                 <Ionicons
                   name={(DISTRICT_EMOJI[item.districtZh] || "location-outline") as any}
                   size={16}
-                  color="#013E77"
+                  color="#183B56"
                 />
                 <Text style={styles.districtName}>{item.districtZh}</Text>
                 <Text style={styles.districtCount}>{item.markets.length}</Text>
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   districtHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#F0F0F0" },
 
   districtName: { fontSize: 16, fontWeight: "700", color: "#1A1A1A" },
-  districtCount: { marginLeft: "auto", fontSize: 14, fontWeight: "700", color: "#013E77", backgroundColor: "#E8F0FE", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  districtCount: { marginLeft: "auto", fontSize: 14, fontWeight: "700", color: "#183B56", backgroundColor: "#E8F0F4", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   marketItem: { marginBottom: 8, paddingLeft: 4 },
   marketName: { fontSize: 14, fontWeight: "600", color: "#1A1A1A" },
   marketAddress: { fontSize: 12, color: "#666", marginTop: 2, lineHeight: 16 },

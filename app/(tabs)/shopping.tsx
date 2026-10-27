@@ -12,6 +12,7 @@ import { buildIngredientLookup } from "@/lib/ingredientLookup";
 import { useMemo, useState, useCallback, useEffect, useRef, Fragment, memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { approvalUiEnabled } from "@/lib/featureFlags";
 import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -22,13 +23,12 @@ import { enumT } from "@/lib/i18nEnums";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import i18n from "@/lib/i18n";
 import PriceCompareModal from "@/src/components/PriceCompareModal";
-import HintBanner from "@/src/components/HintBanner";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "待採購", color: "#013E77", bg: "#E8F0FE" },
+  active: { label: "待採購", color: "#183B56", bg: "#E8F0F4" },
   pending: { label: "待確認", color: "#CA8A04", bg: "#FEF9C3" },
   bought: { label: "已購買", color: "#16A34A", bg: "#DCFCE7" },
 };
@@ -262,7 +262,7 @@ const CategoryCard = memo(function CategoryCard({ cat, catItems, onAdd, renderIt
           style={[styles.categoryAddBtn, isHouseholdCat && { borderTopColor: colors.border }]}
           onPress={() => onAdd(cat)}
         >
-          <Ionicons name="add-outline" size={16} color={t(isHouseholdCat ? colors.text : "#013E77" as any)} />
+          <Ionicons name="add-outline" size={16} color={t(isHouseholdCat ? colors.text : "#183B56" as any)} />
           <Text style={[styles.categoryAddBtnText, isHouseholdCat && { color: colors.text }]}>
             {t("shopping.manualAdd")}
           </Text>
@@ -313,6 +313,7 @@ export default function ShoppingTab() {
 
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
+  const [priceKwDisplay, setPriceKwDisplay] = useState("");
   const [priceKwEn, setPriceKwEn] = useState("");
 
   const [showSavePrice, setShowSavePrice] = useState(false);
@@ -329,12 +330,26 @@ export default function ShoppingTab() {
     prefillUnit?: string;
     prefillQty?: string;
     prefillPrice?: string;
+    focusDate?: string;
   }>();
 
   const { data: lastPricesMap = {} } = (trpc as any).purchaseHistory.lastPrices.useQuery(
     { itemNames: savePriceItem ? [savePriceItem.name] : [] },
     { enabled: !!savePriceItem },
   );
+
+  useEffect(() => {
+    const focusDate = params.focusDate;
+    if (!focusDate || !/^\d{4}-\d{2}-\d{2}$/.test(focusDate)) return;
+    // A focusDate redirect should always reveal the newly-added groceries:
+    // clear any previous type/search filter that could hide them.
+    setActiveTypeFilter("all");
+    setSearchQuery("");
+    setActiveDateFilter("custom");
+    setSelectedDate(focusDate);
+    setDateWindowStart(new Date(`${focusDate}T00:00:00`));
+    router.setParams({ focusDate: undefined } as any);
+  }, [params.focusDate, router]);
 
   useEffect(() => {
     if (!savePriceItem) {
@@ -686,8 +701,8 @@ export default function ShoppingTab() {
   const filteredUnboughtCount = activeItems.length;
 
   const pendingItems = useMemo(
-    () => filteredItems.filter((i) => i.status === "pending"),
-    [filteredItems],
+    () => items.filter((i) => i.status === "pending"),
+    [items],
   );
   const pendingCount = pendingItems.length;
 
@@ -890,7 +905,7 @@ export default function ShoppingTab() {
     const fil = item.nameFil || lookup?.fil;
     const id = item.nameId || lookup?.id;
     const bn = getDisplayName(item.name, en, fil, id);
-    const isPending = item.status === "pending";
+    const isPending = approvalUiEnabled && item.status === "pending";
     const isProcessing = toggleBoughtM.isPending || deleteItemM.isPending;
 
     const itemContent = (
@@ -965,9 +980,9 @@ export default function ShoppingTab() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" }}>
                 <TouchableOpacity
                   style={styles.compareBtn}
-                  onPress={() => { setPriceKw(item.name); setPriceKwEn(item.nameEn || ""); setShowPrice(true); }}
+                  onPress={() => { setPriceKw(item.name); setPriceKwDisplay(biName(item).primary); setPriceKwEn(item.nameEn || ""); setShowPrice(true); }}
                 >
-                  <Ionicons name="search-outline" size={13} color="#013E77" />
+                  <Ionicons name="search-outline" size={13} color="#183B56" />
                   <Text style={styles.compareBtnText}>{t("shopping.comparePrice")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -977,7 +992,7 @@ export default function ShoppingTab() {
                       { text: t("recipe.cancel"), style: "cancel" },
                       { text: t("shopping.editItem"), onPress: () => openBudgetEdit(item) },
                       { text: t("shopping.estPrice"), onPress: () => openBudgetEdit(item) },
-                      { text: t("shopping.comparePrice"), onPress: () => { setPriceKw(item.name); setPriceKwEn(item.nameEn || ""); setShowPrice(true); } },
+                      { text: t("shopping.comparePrice"), onPress: () => { setPriceKw(item.name); setPriceKwDisplay(biName(item).primary); setPriceKwEn(item.nameEn || ""); setShowPrice(true); } },
                       { text: t("shopping.delete"), style: "destructive", onPress: () => handleDelete(item) },
                     ]);
                   }}
@@ -1004,7 +1019,7 @@ export default function ShoppingTab() {
                 onPress={() => approveItemM.mutate({ id: item.id, itemName: item.name })}
                 disabled={approveItemM.isPending}
               >
-                <Ionicons name="checkmark-outline" size={14} color="#013E77" />
+                <Ionicons name="checkmark-outline" size={14} color="#183B56" />
                 <Text style={styles.approveBtnTxt}>{t("shopping.approvePurchase")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1050,13 +1065,6 @@ export default function ShoppingTab() {
           </TouchableOpacity>
         </View>
       </View>
-
-      <HintBanner
-        hintId="shopping_list"
-        icon="cart"
-        title={t("shopping.listTitle")}
-        body={t("shopping.listBody")}
-      />
 
       <View style={styles.typeFilterRow}>
         {[
@@ -1145,7 +1153,7 @@ export default function ShoppingTab() {
           <Text style={styles.dateCardsMonth}>{currentMonth}</Text>
           <View style={styles.dateCardsRow}>
               <TouchableOpacity style={styles.dateArrowBtn} onPress={() => shiftDateWindow(-1)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="chevron-back" size={18} color="#013E77" />
+                <Ionicons name="chevron-back" size={18} color="#183B56" />
               </TouchableOpacity>
             <ScrollView
               ref={dateCardsScrollRef}
@@ -1179,7 +1187,7 @@ export default function ShoppingTab() {
               ))}
             </ScrollView>
               <TouchableOpacity style={styles.dateArrowBtn} onPress={() => shiftDateWindow(1)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="chevron-forward" size={18} color="#013E77" />
+                <Ionicons name="chevron-forward" size={18} color="#183B56" />
               </TouchableOpacity>
           </View>
         </View>
@@ -1196,9 +1204,36 @@ export default function ShoppingTab() {
         />
       </View>
 
+      {approvalUiEnabled && isAdmin && pendingCount > 0 && (
+        <View style={styles.pendingBatchSection}>
+          <View style={styles.pendingBatchHeader}>
+            <Ionicons name="time-outline" size={18} color="#CA8A04" />
+            <Text style={styles.pendingBatchTitle}>{t("dyn.pendingItems", { n: pendingCount })}</Text>
+          </View>
+          <View style={styles.pendingBatchButtons}>
+            <TouchableOpacity
+              style={styles.pendingBatchApproveBtn}
+              onPress={() => approveAllM.mutate()}
+              disabled={approveAllM.isPending}
+            >
+              <Ionicons name="checkmark-circle" size={16} color="#183B56" />
+              <Text style={styles.pendingBatchApproveBtnText}>{t("shopping.approveAll")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.pendingBatchRejectBtn}
+              onPress={() => rejectAllM.mutate()}
+              disabled={rejectAllM.isPending}
+            >
+              <Ionicons name="close-circle" size={16} color="#EF4444" />
+              <Text style={styles.pendingBatchRejectBtnText}>{t("shopping.rejectAll")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color="#013E77" />
+          <ActivityIndicator size="large" color="#183B56" />
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginTop: 8 }}>{t("shopping.loading")}</Text>
         </View>
       ) : items.length === 0 ? (
@@ -1231,37 +1266,9 @@ export default function ShoppingTab() {
             return null;
           }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#013E77" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#183B56" />
           }
           keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            isAdmin && pendingCount > 0 ? (
-              <View style={styles.pendingBatchSection}>
-                <View style={styles.pendingBatchHeader}>
-                  <Ionicons name="time-outline" size={18} color="#CA8A04" />
-                  <Text style={styles.pendingBatchTitle}>{t("dyn.pendingItems", { n: pendingCount })}</Text>
-                </View>
-                <View style={styles.pendingBatchButtons}>
-                  <TouchableOpacity
-                    style={styles.pendingBatchApproveBtn}
-                    onPress={() => approveAllM.mutate()}
-                    disabled={approveAllM.isPending}
-                  >
-                    <Ionicons name="checkmark-circle" size={16} color="#013E77" />
-                    <Text style={styles.pendingBatchApproveBtnText}>{t("shopping.approveAll")}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.pendingBatchRejectBtn}
-                    onPress={() => rejectAllM.mutate()}
-                    disabled={rejectAllM.isPending}
-                  >
-                    <Ionicons name="close-circle" size={16} color="#EF4444" />
-                    <Text style={styles.pendingBatchRejectBtnText}>{t("shopping.rejectAll")}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null
-          }
           ListFooterComponent={null}
           contentContainerStyle={{ paddingBottom: 40 }}
         />
@@ -1550,10 +1557,10 @@ export default function ShoppingTab() {
                       <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                         {lastPricesMap[savePriceItem.name]?.price != null && (
                           <TouchableOpacity
-                            style={[styles.submitBtn, { flex: 1, backgroundColor: "#E8F0FE" }]}
+                            style={[styles.submitBtn, { flex: 1, backgroundColor: "#E8F0F4" }]}
                             onPress={() => { savePriceEditedRef.current = true; setSavePriceVal(String(lastPricesMap[savePriceItem.name].price)); }}
                           >
-                            <Text style={[styles.submitBtnText, { color: "#013E77" }]}>{t("shopping.useLastPrice")}</Text>
+                            <Text style={[styles.submitBtnText, { color: "#183B56" }]}>{t("shopping.useLastPrice")}</Text>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
@@ -1594,8 +1601,9 @@ export default function ShoppingTab() {
       <PriceCompareModal
         visible={showPrice}
         keyword={priceKw}
+        displayKeyword={priceKwDisplay}
         keywordEn={priceKwEn}
-        onClose={() => { setShowPrice(false); setPriceKw(""); setPriceKwEn(""); }}
+        onClose={() => { setShowPrice(false); setPriceKw(""); setPriceKwDisplay(""); setPriceKwEn(""); }}
       />
 
     </View>
@@ -1605,7 +1613,7 @@ export default function ShoppingTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
   },
   header: {
     flexDirection: "row",
@@ -1613,7 +1621,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: "#FAF8F5",
+    backgroundColor: "#FFF8EF",
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
@@ -1645,7 +1653,7 @@ const styles = StyleSheet.create({
   headerActionBtnText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   headerActionBtnTextGray: {
     fontSize: 12,
@@ -1653,7 +1661,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
   headerAddBtn: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     borderRadius: 20,
     width: 36,
     height: 36,
@@ -1678,7 +1686,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   typeFilterTabActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   typeFilterTabText: {
     fontSize: 13,
@@ -1701,7 +1709,7 @@ const styles = StyleSheet.create({
   typeFilterBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   dateFilterRow: {
     flexDirection: "row",
@@ -1719,7 +1727,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   dateFilterChipActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   dateFilterChipText: {
     fontSize: 12,
@@ -1744,7 +1752,7 @@ const styles = StyleSheet.create({
   dateCardsMonth: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -1757,7 +1765,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1780,7 +1788,7 @@ const styles = StyleSheet.create({
   },
   dateCardSelected: {
     borderWidth: 2,
-    borderColor: "#013E77",
+    borderColor: "#183B56",
     backgroundColor: "#EFF6FF",
   },
   dateCardDay: {
@@ -1789,7 +1797,7 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
   dateCardDaySelected: {
-    color: "#013E77",
+    color: "#183B56",
   },
   dateCardWeekday: {
     fontSize: 11,
@@ -1797,7 +1805,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   dateCardWeekdaySelected: {
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "600",
   },
   dateCardAllDay: {
@@ -1812,7 +1820,7 @@ const styles = StyleSheet.create({
   dateCardAllCount: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
     marginTop: 2,
   },
   swipeDeleteBtn: {
@@ -1845,7 +1853,7 @@ const styles = StyleSheet.create({
   dateCardBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   searchBar: {
     flexDirection: "row",
@@ -1950,7 +1958,7 @@ const styles = StyleSheet.create({
   categoryAddBtnText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   itemRow: {
     flexDirection: "row",
@@ -2005,14 +2013,14 @@ const styles = StyleSheet.create({
     color: "#CA8A04",
   },
   recipeTag: {
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   recipeTagText: {
     fontSize: 10,
-    color: "#013E77",
+    color: "#183B56",
     fontWeight: "500",
   },
   recipeTagNeutral: {
@@ -2059,7 +2067,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -2067,17 +2075,17 @@ const styles = StyleSheet.create({
   plannedDateText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   itemPrice: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   compareBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 3,
@@ -2086,7 +2094,7 @@ const styles = StyleSheet.create({
   compareBtnText: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
   },
   moreBtn: {
     width: 24,
@@ -2103,7 +2111,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   actionBtn: {
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -2111,7 +2119,7 @@ const styles = StyleSheet.create({
   actionBtnText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#013E77",
+    color: "#183B56",
   },
   actionIconBtn: {
     width: 30,
@@ -2133,12 +2141,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
   },
   approveBtnTxt: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   rejectBtn: {
     flexDirection: "row",
@@ -2186,12 +2194,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#E8F0FE",
+    backgroundColor: "#E8F0F4",
   },
   pendingBatchApproveBtnText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   pendingBatchRejectBtn: {
     flex: 1,
@@ -2259,7 +2267,7 @@ const styles = StyleSheet.create({
   priceSummaryPrice: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   priceSummaryTotal: {
     flexDirection: "row",
@@ -2278,7 +2286,7 @@ const styles = StyleSheet.create({
   priceSummaryTotalValue: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#013E77",
+    color: "#183B56",
   },
   boughtListItem: {
     flexDirection: "row",
@@ -2315,7 +2323,7 @@ const styles = StyleSheet.create({
   boughtListItemPrice: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#013E77",
+    color: "#183B56",
   },
   modalOverlay: {
     flex: 1,
@@ -2419,7 +2427,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   categoryChipActive: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
   },
   categoryChipText: {
     fontSize: 13,
@@ -2429,7 +2437,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   submitBtn: {
-    backgroundColor: "#013E77",
+    backgroundColor: "#183B56",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",

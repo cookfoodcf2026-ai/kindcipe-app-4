@@ -16,7 +16,7 @@ import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
 
 const { width: SW } = Dimensions.get("window");
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const CARD = "#FFFFFF";
 const TEXT = "#1A1A1A";
@@ -515,13 +515,13 @@ export default function PurchaseHistoryScreen() {
                                 {hasBudget && hasActual ? (
                                   <>
                                     <Text style={{ fontSize: 12, color: "#9CA3AF", textDecorationLine: "line-through" }}>HK${item.estimatedPrice}</Text>
-                                    <Text style={{ fontSize: 12, fontWeight: "700", color: showDiff ? "#DC2626" : "#013E77" }}>
+                                    <Text style={{ fontSize: 12, fontWeight: "700", color: showDiff ? "#DC2626" : "#183B56" }}>
                                       HK${item.actualPrice}
                                       {showDiff && <Text style={{ fontSize: 10, fontWeight: "700" }}> (+{diff})</Text>}
                                     </Text>
                                   </>
                                 ) : hasActual ? (
-                                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#013E77" }}>HK${item.actualPrice}</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#183B56" }}>HK${item.actualPrice}</Text>
                                 ) : hasBudget ? (
                                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
                                 ) : null}
@@ -687,7 +687,7 @@ export default function PurchaseHistoryScreen() {
                           {lastPrice != null && (
                             <>
                               <Text style={{ fontSize: 11, color: SUB }}>·</Text>
-                              <Text style={{ fontSize: 11, fontWeight: "600", color: "#013E77" }}>{t("dyn.avgHK", { price: Math.round(lastPrice) })}</Text>
+                              <Text style={{ fontSize: 11, fontWeight: "600", color: "#183B56" }}>{t("dyn.avgHK", { price: Math.round(lastPrice) })}</Text>
                             </>
                           )}
                         </View>

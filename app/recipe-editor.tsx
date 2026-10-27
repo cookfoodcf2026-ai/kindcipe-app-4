@@ -31,7 +31,7 @@ const normLang = (l: string): string =>
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 const BG = "#F5F8FC";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";

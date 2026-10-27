@@ -1,7 +1,8 @@
-import { colors } from './colors';
+import { colors, canva } from './colors';
 
 export const theme = {
   colors,
+  canva,
 
   spacing: {
     xs: 4,
@@ -28,11 +29,6 @@ export const theme = {
     full: 999,
   },
 
-  fontFamily: {
-    bold: 'SFProDisplay-Bold',
-    medium: 'SFProDisplay-Medium',
-    regular: 'SFProDisplay-Regular',
-  },
 };
 
 export type Theme = typeof theme;

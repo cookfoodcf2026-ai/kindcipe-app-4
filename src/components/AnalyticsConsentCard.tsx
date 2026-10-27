@@ -7,7 +7,7 @@ import {
   setAnalyticsOptOut,
 } from "@/lib/analytics";
 
-const BRAND = "#013E77";
+const BRAND = "#183B56";
 
 /**
  * 首啟一次性「匿名使用數據」同意卡（預設開啟 = opt-out）。

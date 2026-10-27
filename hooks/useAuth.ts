@@ -100,13 +100,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   );
 
-  // 當前用戶在活躍家庭中的角色
+  // 當前用戶在活躍家庭中的角色。
+  // `family.get` can still be loading/fail while `family.list` is already cached;
+  // fall back to the list/ownerId so owner/admin controls are not silently disabled.
   const familyRole = (() => {
-    if (!activeFamily?.members || !user) return null;
-    const myMember = activeFamily.members.find(
+    if (!user) return null;
+    const myMember = activeFamily?.members?.find(
       (m: any) => String(m.userId) === String(user.id),
     );
-    return myMember?.familyRole ?? null;
+    if (myMember?.familyRole) return myMember.familyRole;
+    if (activeFamily && String(activeFamily.ownerId) === String(user.id)) return "owner";
+    const family = families.find((f: any) => String(f.id) === String(activeFamilyId));
+    if (family?.role) return family.role;
+    return (user as any)?.activeFamilyRole ?? null;
   })();
 
   // 登出：先清本地（即時、可靠），再通知後端清 session cookie（best-effort）
