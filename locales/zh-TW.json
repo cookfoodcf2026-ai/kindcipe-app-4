@@ -1246,6 +1246,7 @@
     "balancedMeal": "{{range}} · 均衡膳食結構（三菜一湯）",
     "minutes": "{{n}} 分鐘",
     "servingsN": "{{n}} 人份",
+    "servingsNOne": "{{n}} 人份",
     "select": "選擇",
     "pendingItems": "{{n}} 個項目待確認",
     "cookMin": "⏱ {{n}}分",

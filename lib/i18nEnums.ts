@@ -114,6 +114,17 @@ export const enumT = {
       return out === k ? undefined : out;
     }));
   },
+  // 複數單位：只有英文有 plural 表，其他語言自動 fallback 單數
+  unitPlural: (v: string): string => {
+    return guardLeak(localizeUnitValue(v, (key) => {
+      const kp = `enums.unitPlural.${key}`;
+      const outP = String(i18n.t(kp as any));
+      if (outP !== kp) return outP;
+      const k = `enums.unit.${key}`;
+      const out = String(i18n.t(k as any));
+      return out === k ? undefined : out;
+    }));
+  },
   // 數量欄位：若係描述型量詞（適量…）→ 用單位譯名；純數字原樣；未知中文→非中文介面隱藏。
   qty: (v: string): string => {
     const s = String(v ?? "").trim();
@@ -161,9 +172,19 @@ export function useEnum() {
       const out = t(k as any);
       return out === k ? undefined : out;
     }));
+  const unitPluralL = (v: string): string =>
+    guardLeak(localizeUnitValue(v, (key) => {
+      const kp = `enums.unitPlural.${key}`;
+      const outP = t(kp as any);
+      if (outP !== kp) return outP;
+      const k = `enums.unit.${key}`;
+      const out = t(k as any);
+      return out === k ? undefined : out;
+    }));
   return {
     category: (v: string): string => guardLeak(tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? ""))),
     unit: unitL,
+    unitPlural: unitPluralL,
     qty: (v: string): string => {
       const s = String(v ?? "").trim();
       if (!s) return "";

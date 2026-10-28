@@ -14,7 +14,13 @@ export function formatIngredientDisplay(quantity?: string | number, unit?: strin
   if (qtyRaw && DESC_RE.test(qtyRaw) && !unitRaw) return enumT.qty(qtyRaw);
   if (unitRaw && DESC_RE.test(unitRaw)) return enumT.unit(unitRaw);
   const qty = qtyRaw ? enumT.qty(qtyRaw) : "";
-  const unitOut = unitRaw ? enumT.unit(unitRaw) : "";
+  // 數量 > 1 → 用複數單位（英文 "3 blocks" 而唔係 "3 block"）；其他語言 fallback 單數
+  const isPlural = (() => {
+    const m = qtyRaw.match(/\d+(?:\.\d+)?/);
+    if (!m) return false;
+    return Number(m[0]) > 1;
+  })();
+  const unitOut = unitRaw ? (isPlural ? enumT.unitPlural(unitRaw) : enumT.unit(unitRaw)) : "";
   if (!qty && !unitOut) return "";
   if (!qty) return unitOut;
   if (!unitOut) return qty;

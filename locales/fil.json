@@ -1246,6 +1246,7 @@
     "balancedMeal": "{{range}} · Balanseng pagkain",
     "minutes": "{{n}} min",
     "servingsN": "{{n}} pax",
+    "servingsNOne": "{{n}} pax",
     "select": "Pumili",
     "pendingItems": "{{n}} item kumpirmahin",
     "cookMin": "⏱ {{n}}min",

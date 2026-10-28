@@ -1246,6 +1246,7 @@
     "balancedMeal": "{{range}} · Makan seimbang",
     "minutes": "{{n}} mnt",
     "servingsN": "{{n}} porsi",
+    "servingsNOne": "{{n}} porsi",
     "select": "Pilih",
     "pendingItems": "{{n}} item untuk konfirmasi",
     "cookMin": "⏱ {{n}}mnt",

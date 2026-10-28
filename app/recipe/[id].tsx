@@ -1204,7 +1204,7 @@ export default function RecipeDetailScreen() {
                   (recipe as any).description ? `📝 ${getLocalizedDescription((recipe as any).description, (recipe as any).descriptionEn, (recipe as any).descriptionFil, (recipe as any).descriptionId)}` : "",
                   "",
                   recipe?.cookTime ? `⏱️ ${t("dyn.minutes", { n: recipe.cookTime })}` : "",
-                  `👥 ${t("dyn.servingsN", { n: effectiveServings })}`,
+                  `👥 ${t(effectiveServings === 1 ? "dyn.servingsNOne" : "dyn.servingsN", { n: effectiveServings })}`,
                   (recipe as any).difficulty ? `📊 ${enumT.difficulty((recipe as any).difficulty)}` : "",
                   "",
                   `🛒 ${t("食材清單：" as any)}`,
@@ -1264,7 +1264,7 @@ export default function RecipeDetailScreen() {
                 {(recipe.servings ?? 0) > 0 && (
                   <View style={s.metaChip}>
                     <Ionicons name="people-outline" size={12} color="#fff" />
-                    <Text style={s.metaChipTxt}>{t("dyn.servingsN", { n: effectiveServings })}</Text>
+                    <Text style={s.metaChipTxt}>{t(effectiveServings === 1 ? "dyn.servingsNOne" : "dyn.servingsN", { n: effectiveServings })}</Text>
                   </View>
                 )}
                 {(recipe as any).difficulty && (
