@@ -630,6 +630,15 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function stableClientMessageId(seed: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `cm_${(hash >>> 0).toString(36)}`;
+}
+
 // 拆「食譜一…\n---\n食譜二…」做獨立 recipe blocks；普通對話（無 ---）回空
 const splitRecipeBlocks = (text: string): string[] => {
   const clean = text.replace(/---next-steps---[\s\S]*$/, "").trim();
@@ -934,6 +943,7 @@ export default function AIChefScreen() {
 
   // ─── AI proactive next steps ───────────────────────────
   const [aiNextSteps, setAiNextSteps] = useState<string[]>([]);
+  const [contractQuickReplies, setContractQuickReplies] = useState<Array<{ actionId: string; labelKey: string }>>([]);
 
   // ─── Toast notification ────────────────────────────────
   const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
@@ -1320,6 +1330,26 @@ export default function AIChefScreen() {
         ai: data.sources?.ai ?? 0,
         resolved: requested === 0 ? true : served >= requested,
       });
+      const contractStatus = (data as any)?.status;
+      const rawQuickReplies = (data as any)?.quickReplies;
+      const contractReplies = Array.isArray(rawQuickReplies)
+        ? rawQuickReplies.filter((q: any) => q && typeof q.actionId === "string" && typeof q.labelKey === "string")
+        : [];
+      setContractQuickReplies(contractReplies);
+
+      if (contractStatus === "no_cards" || contractStatus === "clarify") {
+        const templateText = typeof (data as any)?.replyText === "string" && (data as any).replyText.trim()
+          ? (data as any).replyText
+          : t(contractStatus === "clarify" ? "aiChef.contractClarify" : "aiChef.contractNoCards");
+        updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: templateText }]);
+        setAiNextSteps([]);
+        setRecommendedRecipes([]);
+        setMealResult(null);
+        setChatStarted(true);
+        scrollToLatestMessage();
+        return;
+      }
+
       const { mainText, nextSteps } = parseAssistantResponse(data.content ?? "");
 
       // Direct use of recipes from backend（卡片防線：normalize + isValidRecipe 過濾，保證卡一定撳得）
@@ -1376,6 +1406,7 @@ export default function AIChefScreen() {
         : (rawMsg || "AI 暫時未能回應，請再試。");
       updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
       setAiNextSteps([]);
+      setContractQuickReplies([]);
       setRecommendedRecipes([]);
       setMealResult(null);
       setChatStarted(true);
@@ -1386,7 +1417,10 @@ export default function AIChefScreen() {
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
   const mutateChat = (payload: any, options?: any) => {
     chatSessionIdRef.current = activeChatIdRef.current;
-    chatMutation.mutate({ avoidIngredients: mealDefaults.allergens, ...payload }, options);
+    const seed = `${activeChatIdRef.current}:${payload.mode ?? "chat"}:${JSON.stringify(payload.messages ?? [])}:${JSON.stringify(payload.search ?? null)}`;
+    const clientMessageId = payload.clientMessageId ?? stableClientMessageId(seed);
+    setContractQuickReplies([]);
+    chatMutation.mutate({ avoidIngredients: mealDefaults.allergens, ...payload, clientMessageId }, options);
   };
 
   // Loading step animation
@@ -1623,6 +1657,7 @@ export default function AIChefScreen() {
     setMealStep("idle");
     setMealPrefs(EMPTY_PREFS);
     setAiNextSteps([]);
+    setContractQuickReplies([]);
     setAskingIngredients(false);
     setShowSessions(false);
 
@@ -1646,6 +1681,7 @@ export default function AIChefScreen() {
     setMealStep("idle");
     setMealPrefs(EMPTY_PREFS);
     setAiNextSteps([]);
+    setContractQuickReplies([]);
     setAskingIngredients(false);
     setShowSessions(false);
     setActiveChatId(id);
@@ -3236,7 +3272,7 @@ export default function AIChefScreen() {
     return msgs.map(m => ({ role: m.role, content: m.content }) as BackendMessage);
   };
 
-  const resetAiNextSteps = () => setAiNextSteps([]);
+  const resetAiNextSteps = () => { setAiNextSteps([]); setContractQuickReplies([]); };
 
   // ─── Chat Handlers ─────────────────────────────────────
 
@@ -3693,6 +3729,18 @@ export default function AIChefScreen() {
       return;
     }
     handlePrompt(text);
+  };
+
+  const handleContractQuickReply = (actionId: string) => {
+    if (chatMutation.isPending) return;
+    setContractQuickReplies([]);
+    if (actionId === "restart") {
+      handleNewChat();
+      return;
+    }
+    if (actionId === "ai_generate") {
+      requestInstantRecipes("ai");
+    }
   };
 
   const handleConvertToRecipeCard = () => {
@@ -4783,6 +4831,19 @@ export default function AIChefScreen() {
             </View>
           );
         })()}
+
+        {!chatMutation.isPending && contractQuickReplies.length > 0 && (
+          <View style={s.followUpBar}>
+            <Text style={s.followUpLabel}>{t("aiChef.nextStep")}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
+              {contractQuickReplies.map((q, i) => (
+                <TouchableOpacity key={`${q.actionId}-${i}`} style={s.followUpChip} onPress={() => handleContractQuickReply(q.actionId)} disabled={chatMutation.isPending}>
+                  <Text style={s.followUpTxt}>{t(q.labelKey as any)}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {askingIngredients && (
           <View style={s.hotKeyBar}>
