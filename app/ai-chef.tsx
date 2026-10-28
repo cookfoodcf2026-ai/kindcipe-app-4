@@ -40,6 +40,7 @@ import { normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@
 import { normalizeMealPreferences, type MealPreferenceTime } from "@/lib/mealPreferences";
 import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled } from "@/lib/featureFlags";
 import { canva } from "@/app/styles/colors";
+import { mergeAppendedCards } from "@/lib/appendCards";
 
 type MsgContent = string | Array<
   { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
@@ -48,6 +49,8 @@ type Message = { role: "user" | "assistant"; content: MsgContent };
 type BackendMessage = { role: "user" | "assistant"; content: MsgContent };
 type AIRecipe = {
   id?: string;
+  cardId?: string;
+  _identityFallback?: boolean;
   name: string; description: string;
   nameEn?: string; nameFil?: string; nameId?: string;
   cookTime: number; servings: number;
@@ -1343,8 +1346,11 @@ export default function AIChefScreen() {
           : t(contractStatus === "clarify" ? "aiChef.contractClarify" : "aiChef.contractNoCards");
         updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: templateText }]);
         setAiNextSteps([]);
-        setRecommendedRecipes([]);
-        setMealResult(null);
+        const keepExistingCards = (data as any)?.operation === "append" && recommendedRecipes.length > 0;
+        if (!keepExistingCards) {
+          setRecommendedRecipes([]);
+          setMealResult(null);
+        }
         setChatStarted(true);
         scrollToLatestMessage();
         return;
@@ -1354,6 +1360,7 @@ export default function AIChefScreen() {
 
       // Direct use of recipes from backend（卡片防線：normalize + isValidRecipe 過濾，保證卡一定撳得）
       let recipes = (data.recipes || []).map(normalizeRecipe).filter(isValidRecipe);
+      const isAppend = (data as any)?.operation === "append";
 
       // 記低今次睇過嘅菜式名 → 之後排除重複
       recordSeenRecipes(recipes);
@@ -1382,10 +1389,13 @@ export default function AIChefScreen() {
       }
       setAiNextSteps(nextSteps);
 
-      setRecommendedRecipes(recipes);
+      const mergedRecipes = isAppend
+        ? mergeAppendedCards(recommendedRecipes, recipes)
+        : recipes;
+      setRecommendedRecipes(mergedRecipes);
       // 多過一張卡（3餸1湯 / 2送一湯 / 打字要求出多卡）都 set mealResult，
       // 令「全部加入排餐」button 顯示（唔再淨係靠 3餸1湯問卷流程嘅 isSoupModeRef）
-      setMealResult(recipes.length >= 2 ? recipes : null);
+      setMealResult(mergedRecipes.length >= 2 ? mergedRecipes : null);
       setChatStarted(true);
       scrollToLatestMessage();
     },
@@ -1417,7 +1427,7 @@ export default function AIChefScreen() {
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
   const mutateChat = (payload: any, options?: any) => {
     chatSessionIdRef.current = activeChatIdRef.current;
-    const seed = `${activeChatIdRef.current}:${payload.mode ?? "chat"}:${JSON.stringify(payload.messages ?? [])}:${JSON.stringify(payload.search ?? null)}`;
+    const seed = `${activeChatIdRef.current}:${payload.mode ?? "chat"}:${payload.operation ?? "replace"}:${JSON.stringify(payload.messages ?? [])}:${JSON.stringify(payload.search ?? null)}`;
     const clientMessageId = payload.clientMessageId ?? stableClientMessageId(seed);
     setContractQuickReplies([]);
     chatMutation.mutate({ avoidIngredients: mealDefaults.allergens, ...payload, clientMessageId }, options);
@@ -2024,7 +2034,7 @@ export default function AIChefScreen() {
 
   // ─── Chat send helper ───────────────────────────────────
 
-  const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question") => {
+  const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
     lastChatModeRef.current = sourceMode ?? "";
     noveltyRetryRef.current = false;
     mutateChat({
@@ -2032,6 +2042,7 @@ export default function AIChefScreen() {
       mode: sourceMode ?? "chat",
       excludeNames: sessionSeenRecipeNames,
       lang: i18n.language,
+      ...(operation ? { operation } : {}),
     });
   };
 
@@ -3704,7 +3715,10 @@ export default function AIChefScreen() {
     } else {
       const msgs: Message[] = [...messages, { role: "user", content: p }];
       updateMessages(() => msgs);
-      sendChat(buildBackendMessages(msgs));
+      const appendCards = recommendedRecipes.length > 0
+        && /(加|再|仲有|有冇|有沒有|another|more|add|多一)/i.test(p)
+        && !/(換|唔要|不要|remove|replace|改)/i.test(p);
+      sendChat(buildBackendMessages(msgs), undefined, appendCards ? "append" : undefined);
       scrollToEnd();
     }
   };
