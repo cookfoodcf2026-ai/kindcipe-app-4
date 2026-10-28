@@ -1346,7 +1346,7 @@ export default function ImportScreen() {
         <ActivityIndicator size="large" color="#183B56" />
         <Text style={styles.parsingTitle}>{t("importRecipe.parsing")}</Text>
         <Text style={styles.parsingSubtitle}>
-          {t("通常需要 10-30 秒，請耐心等候（如連結內容較長會耐少少）" as any)}
+          {t("正在讀取並整理食譜，請稍等" as any)}
         </Text>
         <View style={styles.parsingSteps}>
           {PARSE_STEPS.map((s, i) => {
@@ -1906,7 +1906,7 @@ export default function ImportScreen() {
             <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 28, alignItems: "center", width: "72%" }}>
               <ActivityIndicator size="large" color="#183B56" />
               <Text style={{ marginTop: 14, fontSize: 14, fontWeight: "700", color: "#1A1A1A" }}>{t("AI 生成中…" as any)}</Text>
-              <Text style={{ marginTop: 4, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{t("請稍等，可能需要 10-30 秒" as any)}</Text>
+              <Text style={{ marginTop: 4, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{t("完成後會自動顯示" as any)}</Text>
             </View>
           </View>
         </Modal>
