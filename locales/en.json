@@ -2470,5 +2470,7 @@
   "此舊記錄未能還原，請重新生成食譜。": "This old card set could not be restored. Please generate it again.",
   "請長按輸入框貼上": "Long-press the box to paste",
   "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Your browser blocks automatic clipboard access (a Safari / in-app browser restriction).\n\nLong-press the box above â tap Paste. The link will be detected automatically.",
-  "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Your browser blocks automatic clipboard access (a Safari / in-app browser restriction).\n\nLong-press the box above → tap Paste. The link will be detected automatically."
+  "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Your browser blocks automatic clipboard access (a Safari / in-app browser restriction).\n\nLong-press the box above → tap Paste. The link will be detected automatically.",
+  "長按貼上": "Long-press to paste",
+  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS blocks web pages from reading the clipboard. Long-press the box above → tap Paste — the link is detected automatically."
 }

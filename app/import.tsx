@@ -993,6 +993,7 @@ export default function ImportScreen() {
   // （NotAllowedError），expo-clipboard 只會拋 NoPermissionException → 用戶見到「失敗」但唔知點做。
   // 所以 web 直接呼叫 Clipboard API，失敗就 focus 輸入框 + 教用戶長按貼上（原生 paste menu 一定 work）。
   const pasteInputRef = useRef<TextInput>(null);
+  const [pasteBlocked, setPasteBlocked] = useState(false);
   const handlePaste = async () => {
     let content = "";
     try {
@@ -1006,18 +1007,16 @@ export default function ImportScreen() {
     } catch (e: any) {
       console.warn("[handlePaste] clipboard blocked:", e?.name || e?.message);
       if (Platform.OS === "web") {
+        // UX：唔彈視窗。focus 輸入框 + 顯示 inline 提示，並把按鈕文字改成「長按貼上」
+        setPasteBlocked(true);
         pasteInputRef.current?.focus();
-        Alert.alert(
-          t("請長按輸入框貼上" as any),
-          t("瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。" as any),
-          [{ text: t("明白" as any) }]
-        );
         return;
       }
       Alert.alert(t("讀取剪貼板失敗" as any), friendlyError(e) || t("請檢查剪貼板權限" as any));
       return;
     }
     if (content) {
+      setPasteBlocked(false);
       setUniversalInput(content);
       const platform = detectPlatform(content.trim());
       if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
@@ -1033,6 +1032,19 @@ export default function ImportScreen() {
       );
     }
   };
+
+  // 手動貼上（長按輸入框 → 貼上）之後：自動偵測平台 + 顯示 Magic Card，唔需要用戶再撳任何掣
+  useEffect(() => {
+    const text = universalInput.trim();
+    if (!text) return;
+    const platform = detectPlatform(text);
+    if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+      setClipboardUrl(text);
+      setDetectedPlatform(platform);
+      setClipboardContent(text);
+      setPasteBlocked(false);
+    }
+  }, [universalInput]);
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
   const handlePickImage = async (source: "camera" | "library") => {
@@ -1994,8 +2006,10 @@ export default function ImportScreen() {
             />
             {!universalInput && (
               <TouchableOpacity style={styles.pasteButton} onPress={handlePaste}>
-                <Ionicons name="document" size={16} color="#183B56" />
-                <Text style={styles.pasteButtonText}>{t("importRecipe.paste")}</Text>
+                <Ionicons name={pasteBlocked ? "hand-left-outline" : "document"} size={16} color="#183B56" />
+                <Text style={styles.pasteButtonText}>
+                  {pasteBlocked ? t("長按貼上" as any) : t("importRecipe.paste")}
+                </Text>
               </TouchableOpacity>
             )}
             {!!universalInput && (
@@ -2007,6 +2021,14 @@ export default function ImportScreen() {
           <Text style={styles.inputHint}>
             💡 {t("importRecipe.pasteHint" as any)}
           </Text>
+          {pasteBlocked && !universalInput && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#EEF6FF", borderRadius: 10, padding: 10, marginTop: 6 }}>
+              <Ionicons name="hand-left-outline" size={16} color="#183B56" style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 18, color: "#183B56" }}>
+                {t("iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。" as any)}
+              </Text>
+            </View>
+          )}
           <Text style={styles.inputHint}>
             {t("importRecipe.igCopyHint" as any)}
           </Text>
