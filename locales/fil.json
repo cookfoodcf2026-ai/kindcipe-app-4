@@ -2437,5 +2437,8 @@
   "請貼上到平台搜尋": "I-paste ito sa platform search",
   "價格以各平台為準。": "Ang presyo ay nakabatay sa bawat platform.",
   "儲存失敗：{{msg}}": "Nabigo ang pag-save: {{msg}}",
-  "此舊記錄未能還原，請重新生成食譜。": "Hindi maibalik ang lumang card set. Paki-generate muli ang recipe."
+  "此舊記錄未能還原，請重新生成食譜。": "Hindi maibalik ang lumang card set. Paki-generate muli ang recipe.",
+  "請長按輸入框貼上": "Pindutin nang matagal ang kahon para i-paste",
+  "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Hindi pinapayagan ng browser ang automatic na pagbasa ng clipboard (limitasyon ng Safari / in-app browser).\n\nPindutin nang matagal ang kahon â Paste. Awtomatikong matutukoy ang link.",
+  "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Hindi pinapayagan ng browser ang automatic na pagbasa ng clipboard (limitasyon ng Safari / in-app browser).\n\nPindutin nang matagal ang kahon → Paste. Awtomatikong matutukoy ang link."
 }

@@ -989,27 +989,48 @@ export default function ImportScreen() {
   handleUniversalParseRef.current = (input: string, caption?: string) => { void handleUniversalParse(input, caption); };
 
   // 貼上按鈕邏輯
+  // Web（app.kindcipe.com）：iOS Safari／in-app browser 經常封 `navigator.clipboard.readText()`
+  // （NotAllowedError），expo-clipboard 只會拋 NoPermissionException → 用戶見到「失敗」但唔知點做。
+  // 所以 web 直接呼叫 Clipboard API，失敗就 focus 輸入框 + 教用戶長按貼上（原生 paste menu 一定 work）。
+  const pasteInputRef = useRef<TextInput>(null);
   const handlePaste = async () => {
+    let content = "";
     try {
-      const content = await Clipboard.getStringAsync();
-      if (content) {
-        setUniversalInput(content);
-        const platform = detectPlatform(content.trim());
-        if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
-          setClipboardUrl(content.trim());
-          setDetectedPlatform(platform);
-          setClipboardContent(content.trim());
-        }
+      if (Platform.OS === "web") {
+        const nav: any = typeof navigator !== "undefined" ? navigator : undefined;
+        if (!nav?.clipboard?.readText) throw new Error("clipboard-api-unavailable");
+        content = await nav.clipboard.readText();
       } else {
-        Alert.alert(
-          t("剪貼板是空的" as any),
-          t("請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上" as any),
-          [{ text: t("明白" as any) }]
-        );
+        content = await Clipboard.getStringAsync();
       }
     } catch (e: any) {
-      console.error("[handlePaste] Error:", friendlyError(e));
+      console.warn("[handlePaste] clipboard blocked:", e?.name || e?.message);
+      if (Platform.OS === "web") {
+        pasteInputRef.current?.focus();
+        Alert.alert(
+          t("請長按輸入框貼上" as any),
+          t("瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。" as any),
+          [{ text: t("明白" as any) }]
+        );
+        return;
+      }
       Alert.alert(t("讀取剪貼板失敗" as any), friendlyError(e) || t("請檢查剪貼板權限" as any));
+      return;
+    }
+    if (content) {
+      setUniversalInput(content);
+      const platform = detectPlatform(content.trim());
+      if (platform && SUPPORTED_PLATFORMS.includes(platform)) {
+        setClipboardUrl(content.trim());
+        setDetectedPlatform(platform);
+        setClipboardContent(content.trim());
+      }
+    } else {
+      Alert.alert(
+        t("剪貼板是空的" as any),
+        t("請先在 iPhone 上複製連結：\n1. 在 Safari/Instagram 長按連結 → 複製\n2. 返來呢度撳「貼上」\n\n或者長按輸入框 → 貼上" as any),
+        [{ text: t("明白" as any) }]
+      );
     }
   };
 
@@ -1959,6 +1980,7 @@ export default function ImportScreen() {
           <Text style={styles.inputLabel}>{t("importRecipe.pasteLabel")}</Text>
           <View style={styles.inputWrapper}>
             <TextInput
+              ref={pasteInputRef}
               style={styles.universalInput}
               placeholder={t("importRecipe.pastePlaceholder")}
               placeholderTextColor="#9CA3AF"

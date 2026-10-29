@@ -2437,5 +2437,8 @@
   "請貼上到平台搜尋": "Tempel di pencarian platform",
   "價格以各平台為準。": "Harga mengikuti masing-masing platform.",
   "儲存失敗：{{msg}}": "Gagal menyimpan: {{msg}}",
-  "此舊記錄未能還原，請重新生成食譜。": "Set kartu lama tidak dapat dipulihkan. Silakan buat ulang resep."
+  "此舊記錄未能還原，請重新生成食譜。": "Set kartu lama tidak dapat dipulihkan. Silakan buat ulang resep.",
+  "請長按輸入框貼上": "Tekan lama kotak untuk menempel",
+  "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Browser memblokir akses clipboard otomatis (batasan Safari / in-app browser).\n\nTekan lama kotak di atas â tempel. Tautan akan terdeteksi otomatis.",
+  "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Browser memblokir akses clipboard otomatis (batasan Safari / in-app browser).\n\nTekan lama kotak di atas → tempel. Tautan akan terdeteksi otomatis."
 }
