@@ -9,6 +9,7 @@ interface UseRecipeSearchOptions {
   popularChips?: string[];
   ingredientCategory?: string;
   source?: "all" | "official" | "user" | "kol" | "hot" | "ai";
+  sort?: "popular" | "newest" | "updated";
   limit?: number;
 }
 
@@ -21,6 +22,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     popularChips,
     ingredientCategory,
     source,
+    sort,
     limit = 20,
   } = options;
 
@@ -33,6 +35,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
       popularChips: popularChips || undefined,
       ingredientCategory: ingredientCategory || undefined,
       source: source || undefined,
+      sort: sort || undefined,
       limit,
     },
     {

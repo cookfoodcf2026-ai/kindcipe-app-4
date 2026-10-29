@@ -550,6 +550,13 @@ export default function RecipesTab() {
   const [mineSub, setMineSub] = useState<"all" | "manual" | "imported">("all");
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("popular");
+  // 「我嘅食譜／已匯入」預設按「最新新增」排（新匯入排第一）；
+  // 用戶手動揀過排序之後，就唔再自動蓋過佢嘅選擇。
+  const sortByUserSet = useRef(false);
+  useEffect(() => {
+    if (sortByUserSet.current) return;
+    setSortBy(viewMode === "user" || viewMode === "imported" ? "newest" : "popular");
+  }, [viewMode]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
@@ -677,6 +684,7 @@ export default function RecipesTab() {
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
     source: (viewMode === "imported" ? "user" : viewMode) as any,  // imported 由前端 filter；後端認 all/official/user/kol/hot/ai
+    sort: sortBy === "newest" || sortBy === "updated" ? sortBy : ("popular" as const),  // 後端支援 popular/newest/updated；cookTime／difficulty 由 client 本地排
     limit: 20,
   });
 
@@ -1479,7 +1487,7 @@ export default function RecipesTab() {
               <TouchableOpacity
                 key={opt.key}
                 style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14 }}
-                onPress={() => { setSortBy(opt.key); setShowSortSheet(false); }}
+                onPress={() => { setSortBy(opt.key); sortByUserSet.current = true; setShowSortSheet(false); }}
               >
                 <Text style={{ flex: 1, fontSize: 15, fontWeight: sortBy === opt.key ? "800" : "500", color: sortBy === opt.key ? BRAND : "#374151" }}>{opt.label}</Text>
                 {sortBy === opt.key && <Ionicons name="checkmark" size={20} color={BRAND} />}
