@@ -2034,12 +2034,15 @@ export default function AIChefScreen() {
 
   // ─── Chat send helper ───────────────────────────────────
 
+  type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai";
+
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
     lastChatModeRef.current = sourceMode ?? "";
     noveltyRetryRef.current = false;
     mutateChat({
       messages: msgs,
       mode: sourceMode ?? "chat",
+      ...(sourceMode === "ai" ? { aiEntry: "ai_tab" as AiEntry } : {}),
       excludeNames: sessionSeenRecipeNames,
       lang: i18n.language,
       ...(operation ? { operation } : {}),
@@ -2055,7 +2058,7 @@ export default function AIChefScreen() {
     return `user_${id}`;
   };
 
-  const regenerateWithMode = (mode: "library" | "ai", force = false, preserveRetryState = false) => {
+  const regenerateWithMode = (mode: "library" | "ai", force = false, preserveRetryState = false, aiEntry: AiEntry = "quick_reply") => {
     if (chatMutation.isPending && !force) return;
     if (!preserveRetryState) noveltyRetryRef.current = false;
     lastChatModeRef.current = mode;
@@ -2071,11 +2074,11 @@ export default function AIChefScreen() {
         : "請從食譜庫再提供一組唔同嘅建議，避免同之前建議過嘅菜式重複。";
     const newMsgs: Message[] = [...messages, { role: "user", content: regeneratePrompt }];
     updateMessages(() => newMsgs);
-    mutateChat({ messages: buildBackendMessages(newMsgs), mode, excludeNames: sessionSeenRecipeNames, lang: i18n.language });
+    mutateChat({ messages: buildBackendMessages(newMsgs), mode, ...(mode === "ai" ? { aiEntry } : {}), excludeNames: sessionSeenRecipeNames, lang: i18n.language });
     scrollToEnd();
   };
 
-  const requestInstantRecipes = (source: "library" | "ai") => {
+  const requestInstantRecipes = (source: "library" | "ai", aiEntry?: AiEntry) => {
     if (chatMutation.isPending) return;
     if (source === "ai" && !aiCanGenerate) {
       setShowPaywall(true);
@@ -2140,6 +2143,7 @@ export default function AIChefScreen() {
     mutateChat({
       messages: buildBackendMessages(backendMsgs),
       mode: source === "ai" ? "ai" : "library",
+      ...(source === "ai" && aiEntry ? { aiEntry } : {}),
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       lang: i18n.language,
       search: searchParam as any,
@@ -2147,8 +2151,8 @@ export default function AIChefScreen() {
     scrollToEnd();
   };
 
-  const handleInstantRecipeAction = (mode: "library" | "ai") => {
-    requestInstantRecipes(mode);
+  const handleInstantRecipeAction = (mode: "library" | "ai", aiEntry?: AiEntry) => {
+    requestInstantRecipes(mode, aiEntry);
   };
 
   // ─── Daily 3-dish-1-soup flow helpers ──────────────────
@@ -2418,7 +2422,7 @@ export default function AIChefScreen() {
     updateMessages(prev => [...prev, { role: "user", content: display }]);
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
-    mutateChat({ messages: [{ role: "user", content: prompt }], mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
+    mutateChat({ messages: [{ role: "user", content: prompt }], mode: "ai", aiEntry: "ai_tab" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -2489,7 +2493,7 @@ export default function AIChefScreen() {
     // 唔自動叫 AI：由用戶主動撳先至用 AI（只用「AI 生成」掣）
     showToast(t("aiChef.aiFallbackPrompt" as any), {
       label: t("aiChef.aiGenerate" as any),
-      onPress: () => requestInstantRecipes("ai"),
+      onPress: () => requestInstantRecipes("ai", "toast_fallback"),
     }, 8000);
   };
 
@@ -2583,7 +2587,7 @@ export default function AIChefScreen() {
     resetAiNextSteps();
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
-    mutateChat({ messages: buildBackendMessages(fullMsgs), mode: "ai", excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients: splitAvoidList(prefs.allergens), lang: i18n.language }, {
+    mutateChat({ messages: buildBackendMessages(fullMsgs), mode: "ai", aiEntry: "ai_fallback" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients: splitAvoidList(prefs.allergens), lang: i18n.language }, {
       onSuccess: (data) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -2744,7 +2748,7 @@ export default function AIChefScreen() {
         requestInstantRecipes("library");
         break;
       case "ai":
-        requestInstantRecipes("ai");
+        requestInstantRecipes("ai", "ai_tab");
         break;
       case "daily":
         // 3餸1湯流程：一開始就標記為 soup mode，令「直接 AI 生成/食譜庫」都出 4 張卡
@@ -3065,6 +3069,7 @@ export default function AIChefScreen() {
             const res = await apiClient.aiRecipe.chat.mutate({
               messages: [{ role: "user", content: `${prompt}${extra}` }],
               mode: "ai",
+              aiEntry: "swap_ai" as AiEntry,
               avoidIngredients: mealDefaults.allergens,
               lang: i18n.language,
               excludeNames: [...sessionAvoidNames, ...swappedRecipeNames],
@@ -3753,7 +3758,7 @@ export default function AIChefScreen() {
       return;
     }
     if (actionId === "ai_generate") {
-      requestInstantRecipes("ai");
+      requestInstantRecipes("ai", "quick_reply");
     }
   };
 
@@ -4806,7 +4811,7 @@ export default function AIChefScreen() {
                       <TouchableOpacity style={[s.sourceBtnLib, { flex: 1 }]} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending}>
                         <Text style={s.sourceBtnTxt}>{t("aiChef.library")}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }, !aiCanGenerate && { opacity: 0.45 }]} onPress={() => handleInstantRecipeAction("ai")} disabled={chatMutation.isPending || !aiCanGenerate}>
+                      <TouchableOpacity style={[s.sourceBtnAI, { flex: 1 }, !aiCanGenerate && { opacity: 0.45 }]} onPress={() => handleInstantRecipeAction("ai", "ai_tab")} disabled={chatMutation.isPending || !aiCanGenerate}>
                         <Text style={s.sourceBtnTxt}>{t("aiChef.aiGenerate")}</Text>
                       </TouchableOpacity>
                     </View>
@@ -4879,7 +4884,7 @@ export default function AIChefScreen() {
               <TouchableOpacity style={{ flex: 1, backgroundColor: "#183B56", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending}>
                 <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.library")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center", opacity: aiCanGenerate ? 1 : 0.45 }} onPress={() => handleInstantRecipeAction("ai")} disabled={chatMutation.isPending || !aiCanGenerate}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center", opacity: aiCanGenerate ? 1 : 0.45 }} onPress={() => handleInstantRecipeAction("ai", "ai_tab")} disabled={chatMutation.isPending || !aiCanGenerate}>
                 <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.aiGenerate")}</Text>
               </TouchableOpacity>
             </View>
