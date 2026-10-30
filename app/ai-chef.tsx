@@ -652,6 +652,13 @@ function resolveClientMessageId(
   };
 }
 
+function isQuotaBlocked(quota: any): boolean {
+  if (!quota || typeof quota !== "object") return false;
+  const used = Number(quota.used);
+  const limit = Number(quota.limit);
+  return quota.nearLimit === true || (Number.isFinite(used) && Number.isFinite(limit) && limit > 0 && used >= limit);
+}
+
 // 拆「食譜一…\n---\n食譜二…」做獨立 recipe blocks；普通對話（無 ---）回空
 const splitRecipeBlocks = (text: string): string[] => {
   const clean = text.replace(/---next-steps---[\s\S]*$/, "").trim();
@@ -957,6 +964,9 @@ export default function AIChefScreen() {
   // ─── AI proactive next steps ───────────────────────────
   const [aiNextSteps, setAiNextSteps] = useState<string[]>([]);
   const [contractQuickReplies, setContractQuickReplies] = useState<Array<{ actionId: string; labelKey: string }>>([]);
+  const [contractAiBlocked, setContractAiBlocked] = useState(false);
+  const [libraryAlternatives, setLibraryAlternatives] = useState<AIRecipe[]>([]);
+  const [libraryMissScenario, setLibraryMissScenario] = useState<string | null>(null);
 
   // ─── Toast notification ────────────────────────────────
   const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
@@ -1319,6 +1329,7 @@ export default function AIChefScreen() {
   const aiLimit = statusCredits?.limit ?? usage?.aiChat?.limit ?? 0;
   const aiPercent = aiLimit > 0 ? aiUsed / aiLimit : 0;
   const creditsExhausted = aiLimit > 0 && aiUsed >= aiLimit;
+  const aiReplyBlocked = contractAiBlocked || creditsExhausted || chefStatus?.canGenerate === false;
   const capBlocked = chefStatus?.reason === "internal_cap" || chefStatus?.reason === "free_ai_off";
   const safeMode = chefStatus?.reason === "safe_mode" || chefStatus?.mode === "library_only" || chefStatus?.mode === "disabled";
   const aiCanGenerate = chefStatus?.canGenerate ?? (aiLimit > 0 && aiUsed < aiLimit);
@@ -1332,6 +1343,7 @@ export default function AIChefScreen() {
       if (failedChatRequestRef.current?.clientMessageId === variables?.clientMessageId) {
         failedChatRequestRef.current = null;
       }
+      setContractAiBlocked(isQuotaBlocked((data as any)?.quota));
       void usageUtils.family.usage.invalidate();
       void (usageUtils.aiRecipe as any).status.invalidate();
       if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length });
@@ -2056,7 +2068,7 @@ export default function AIChefScreen() {
 
   // ─── Chat send helper ───────────────────────────────────
 
-  type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai";
+  type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai" | `tab_${"quick" | "healthy" | "ricecooker" | "kids" | "guest"}`;
 
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
     lastChatModeRef.current = sourceMode ?? "";
@@ -2481,6 +2493,10 @@ export default function AIChefScreen() {
     config: { search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string; scenario?: string }; rank?: "shortestTime" | "default"; aiPrompt: string },
   ) => {
     setLibraryLoading(true);
+    resetAiNextSteps();
+    setContractAiBlocked(false);
+    setLibraryAlternatives([]);
+    setLibraryMissScenario(null);
     setRecommendedRecipes([]);
     setMealResult(null);
     if (config.search) {
@@ -2514,6 +2530,31 @@ export default function AIChefScreen() {
           setChatStarted(true);
           recordSeenRecipes(picked);
           addBotMessage(t("aiChef.libMatched") + recipeNameList(picked));
+          setLibraryLoading(false);
+          return;
+        }
+        const clarifyReason = String((res as any)?.clarifyReason ?? "");
+        const served = Number((res as any)?.served ?? rawRecipes.length);
+        const isLibraryMiss = (clarifyReason === "library_miss" || clarifyReason === "lib_search_fail") && served === 0;
+        if (isLibraryMiss) {
+          const rawAlternatives = Array.isArray((res as any)?.alternatives) ? (res as any).alternatives : [];
+          const alternatives = rawAlternatives.map(normalizeRecipe).filter(isValidRecipe);
+          const rawReplies = Array.isArray((res as any)?.quickReplies) ? (res as any).quickReplies : [];
+          const knownReplies = rawReplies.filter((q: any) =>
+            q && ["ai_generate", "closest_library", "import_recipe"].includes(q.actionId) && typeof q.labelKey === "string"
+          );
+          const usableReplies = knownReplies.filter((q: any) => q.actionId !== "closest_library" || alternatives.length > 0);
+          const replies = usableReplies.length > 0
+            ? usableReplies
+            : [
+                { actionId: "ai_generate", labelKey: "aiChef.aiGenerate" },
+                ...(alternatives.length > 0 ? [{ actionId: "closest_library", labelKey: "aiChef.closestLibrary" }] : []),
+              ];
+          setLibraryAlternatives(alternatives);
+          setLibraryMissScenario(id);
+          setContractAiBlocked(isQuotaBlocked((res as any)?.quota));
+          setContractQuickReplies(replies);
+          addBotMessage(t("aiChef.libraryMissCta"));
           setLibraryLoading(false);
           return;
         }
@@ -3785,13 +3826,31 @@ export default function AIChefScreen() {
 
   const handleContractQuickReply = (actionId: string) => {
     if (chatMutation.isPending) return;
+    if (actionId === "ai_generate" && aiReplyBlocked) return;
     setContractQuickReplies([]);
     if (actionId === "restart") {
       handleNewChat();
       return;
     }
     if (actionId === "ai_generate") {
-      requestInstantRecipes("ai", "quick_reply");
+      const aiEntry = (libraryMissScenario ? `tab_${libraryMissScenario}` : "quick_reply") as AiEntry;
+      setLibraryMissScenario(null);
+      requestInstantRecipes("ai", aiEntry);
+      return;
+    }
+    if (actionId === "closest_library") {
+      if (libraryAlternatives.length === 0) return;
+      const picked = libraryAlternatives;
+      setRecommendedRecipes(picked);
+      setMealResult(picked.length >= 2 ? picked : null);
+      setChatStarted(true);
+      recordSeenRecipes(picked);
+      addBotMessage(t("aiChef.closestLibraryResult"));
+      return;
+    }
+    if (actionId === "import_recipe") {
+      router.push("/import");
+      return;
     }
   };
 
@@ -4888,11 +4947,19 @@ export default function AIChefScreen() {
           <View style={s.followUpBar}>
             <Text style={s.followUpLabel}>{t("aiChef.nextStep")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
-              {contractQuickReplies.map((q, i) => (
-                <TouchableOpacity key={`${q.actionId}-${i}`} style={s.followUpChip} onPress={() => handleContractQuickReply(q.actionId)} disabled={chatMutation.isPending}>
-                  <Text style={s.followUpTxt}>{t(q.labelKey as any)}</Text>
-                </TouchableOpacity>
-              ))}
+              {contractQuickReplies.map((q, i) => {
+                const blocked = q.actionId === "ai_generate" && aiReplyBlocked;
+                return (
+                  <TouchableOpacity
+                    key={`${q.actionId}-${i}`}
+                    style={[s.followUpChip, blocked && { opacity: 0.45 }]}
+                    onPress={() => handleContractQuickReply(q.actionId)}
+                    disabled={chatMutation.isPending || blocked}
+                  >
+                    <Text style={s.followUpTxt}>{blocked ? t("aiChef.quotaExhausted") : t(q.labelKey as any)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         )}

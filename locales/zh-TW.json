@@ -379,6 +379,10 @@
     "libMatched": "我喺食譜庫搵到呢啲食譜：",
     "libNoMatch": "食譜庫暫時冇合適食譜，我用 AI 幫你諗：",
     "aiFallbackPrompt": "食譜庫暫時冇合適食譜 — 要唔要用 AI 生成？",
+    "libraryMissCta": "呢個場景庫存暫時未有合適食譜。要我用 AI 即場設計嗎？（1 credit）",
+    "closestLibrary": "睇最接近",
+    "closestLibraryResult": "呢啲係最接近嘅食譜：",
+    "quotaExhausted": "今個月 AI 額度用完",
     "swapNoLibrary": "📚 食譜庫冇新嘅相近替代",
     "pantryPrompt": "我想用以下食材煮餸：{{items}}。請推薦可以用到呢啲食材嘅食譜。"
   },

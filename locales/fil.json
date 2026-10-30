@@ -379,6 +379,10 @@
     "libMatched": "Nakahanap ako ng mga recipe na ito sa library:",
     "libNoMatch": "Wala pang angkop na recipe sa library — tatanungin ko ang AI:",
     "aiFallbackPrompt": "Walang tumugma sa library — gumawa gamit ang AI?",
+    "libraryMissCta": "Wala pang angkop na recipe sa scenario na ito. Gusto mo bang gumawa ako agad gamit ang AI? (1 credit)",
+    "closestLibrary": "Tingnan ang pinakamalapit",
+    "closestLibraryResult": "Ito ang pinakamalapit na recipe:",
+    "quotaExhausted": "Naubos na ang AI quota ngayong buwan",
     "swapNoLibrary": "📚 Walang bagong katulad na recipe sa library",
     "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito."
   },
