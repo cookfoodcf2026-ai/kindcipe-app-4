@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
+import { SCENARIO_KEYS, SCENARIO_LABEL_KEYS, normalizeScenarios, deriveScenarioSuggestions, type ScenarioKey } from "@/lib/scenarioTags";
 import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
@@ -92,6 +93,9 @@ export default function RecipeEditorScreen() {
   const [dishType, setDishType] = useState<DishTypeKey | "">("");
   const [sourceUrl, setSourceUrl] = useState(!params.id && params.sourceUrl ? String(params.sourceUrl) : "");
   const [tags, setTags] = useState("");
+  const [scenarios, setScenarios] = useState<ScenarioKey[]>([]);
+  const [scenariosTouched, setScenariosTouched] = useState(false);
+  const [scenariosDirty, setScenariosDirty] = useState(false);
   const [ingredients, setIngredients] = useState<Ingredient[]>([
     { id: `ing_${Date.now()}`, name: "", quantity: "", unit: "克" },
   ]);
@@ -150,6 +154,21 @@ const scrollToFocused = useCallback((e: any) => {
     });
   }, []);
 
+  const toggleScenario = useCallback((key: ScenarioKey) => {
+    setScenariosTouched(true);
+    setScenariosDirty(true);
+    setScenarios(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }, []);
+
+  const scenarioSuggestion = useMemo(
+    () => deriveScenarioSuggestions({ name, cookTime, dishType, tags: currentTagList, difficulty }),
+    [name, cookTime, dishType, currentTagList, difficulty],
+  );
+
+  useEffect(() => {
+    if (!scenariosTouched) setScenarios(scenarioSuggestion);
+  }, [scenarioSuggestion, scenariosTouched]);
+
   // Load existing recipe if editing
   const recipeQ = trpc.recipes.getById.useQuery(
     { id: String(editingId ?? "") },
@@ -176,6 +195,10 @@ const scrollToFocused = useCallback((e: any) => {
       setDishType(guardDishTypeByName(r.name || "", r.dishType ? normalizeDishType(r.dishType) : inferDishTypeKeyFromName(r.name || "")));
       setSourceUrl(r.sourceUrl ?? "");
       setTags(((r.tags || []).length ? r.tags : ["家常菜"]).join(" "));
+      const rawScenarios = (r as any).scenarios ?? (r as any).scenarioTagsUser ?? (r as any).scenario_tags_user;
+      setScenarios(normalizeScenarios(rawScenarios));
+      setScenariosTouched(rawScenarios !== undefined && rawScenarios !== null);
+      setScenariosDirty(false);
       setImageError(false);
       if (r.image || r.thumbnailUrl) setImageUri(r.thumbnailUrl || r.image);
       if (Array.isArray(r.ingredients) && r.ingredients.length > 0) {
@@ -229,6 +252,10 @@ const scrollToFocused = useCallback((e: any) => {
     setDishType(guardDishTypeByName(d.name || "", d.dishType ? normalizeDishType(d.dishType) : inferDishTypeKeyFromName(d.name || "")));
     setSourceUrl(d.sourceUrl ?? "");
     setTags(((d.tags || []).length ? d.tags : ["家常菜"]).join(" "));
+    const rawScenarios = (d as any).scenarios ?? (d as any).scenarioTagsUser ?? (d as any).scenario_tags_user;
+    setScenarios(normalizeScenarios(rawScenarios));
+    setScenariosTouched(rawScenarios !== undefined && rawScenarios !== null);
+    setScenariosDirty(false);
     setImageError(false);
     if (d.image || d.thumbnailUrl) setImageUri(d.thumbnailUrl || d.image);
     if (Array.isArray(d.ingredients) && d.ingredients.length > 0) {
@@ -485,6 +512,7 @@ const scrollToFocused = useCallback((e: any) => {
         difficulty,
         recipeCategory: category,
         dishType,
+        scenarios,
         tags: recipeTags.length > 0 ? recipeTags : [t("自訂" as any)],
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
@@ -519,14 +547,14 @@ const scrollToFocused = useCallback((e: any) => {
     if (
       name.trim() || description.trim() || sourceUrl.trim() || tags.trim() ||
       servings !== "4" || prepTime !== "15" || cookTime !== "30" ||
-      difficulty !== "中等" || category !== "" || dishType !== ""
+      difficulty !== "中等" || category !== "" || dishType !== "" || scenariosDirty
     ) return true;
     if (ingredients.some(i => i.name.trim())) return true;
     if (steps.some(s => s.instruction.trim())) return true;
     if (imageUri || imageBase64) return true;
     if (steps.some(s => s.imageUri || s.imageBase64)) return true;
     return false;
-  }, [name, description, sourceUrl, tags, servings, prepTime, cookTime, difficulty, category, dishType, ingredients, steps, imageUri, imageBase64]);
+  }, [name, description, sourceUrl, tags, servings, prepTime, cookTime, difficulty, category, dishType, scenariosDirty, ingredients, steps, imageUri, imageBase64]);
 
   // 是否可發佈（完整：有名 + ≥1 食材 + ≥1 步驟 + 數字有效）
   const isComplete = useMemo(() => {
@@ -581,6 +609,7 @@ const scrollToFocused = useCallback((e: any) => {
         difficulty,
         recipeCategory: category,
         dishType: dishType || undefined,
+        scenarios,
         tags: recipeTags.length > 0 ? recipeTags : [t("自訂" as any)],
         ingredients: ingredients.map(i => ({
           name: i.name || "", quantity: i.quantity, unit: i.unit || "克", category: "食材",
@@ -617,7 +646,7 @@ const scrollToFocused = useCallback((e: any) => {
     }
     setIsSaving(false);
     leave(opts);
-  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, dishType, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave]);
+  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, dishType, scenarios, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave]);
 
   // 統一退出入口：header ✕ / iOS 滑動返回 / Android back / usePreventRemove
   const onExitRequested = useCallback((opts: { action?: any } = {}) => {
@@ -815,6 +844,20 @@ const scrollToFocused = useCallback((e: any) => {
                 <Text style={[st.catLabel, dishType === opt.key && st.catLabelActive]}>{t(opt.label as any)}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+
+          <Text style={[st.label, { marginTop: 12 }]}>{t("editor.scenarios")} <Text style={st.hintTxt}>{t("editor.scenariosHint")}</Text></Text>
+          <View style={st.catGrid}>
+            {SCENARIO_KEYS.map(key => {
+              const active = scenarios.includes(key);
+              return (
+                <TouchableOpacity key={key}
+                  style={[st.chip, active && st.chipActive]}
+                  onPress={() => toggleScenario(key)}>
+                  <Text style={[st.chipTxt, active && st.chipTxtActive]}>{t(SCENARIO_LABEL_KEYS[key] as any)}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <Text style={[st.label, { marginTop: 12 }]}>{t("filter.tags")}</Text>

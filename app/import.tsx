@@ -31,6 +31,7 @@ const normLang = (l: string): string =>
 import { enumT } from "@/lib/i18nEnums";
 import { friendlyError } from "@/lib/errors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
+import { SCENARIO_KEYS, SCENARIO_LABEL_KEYS, normalizeScenarios, deriveScenarioSuggestions, type ScenarioKey } from "@/lib/scenarioTags";
 import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import { track, Events } from "@/lib/analytics";
@@ -113,6 +114,8 @@ export default function ImportScreen() {
   const [showPhotoSourceModal, setShowPhotoSourceModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
+  const [editScenarios, setEditScenarios] = useState<ScenarioKey[]>([]);
+  const [scenariosTouched, setScenariosTouched] = useState(false);
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
   // true → parseImage 結果以「合併」方式加入現有編輯內容（預覽頁截圖補充），而非取代
@@ -154,6 +157,26 @@ export default function ImportScreen() {
 
   const SAVE_STEPS = [t("上載圖片..." as any), t("整理食譜資料..." as any), t("儲存到食譜庫..." as any)];
   const PARSE_STEPS = [t("讀取內容" as any), t("識別食材" as any), t("整理步驟" as any), t("生成食譜" as any)];
+
+  const scenarioSuggestion = useMemo(
+    () => deriveScenarioSuggestions({
+      name: editName,
+      cookTime: editCookTime,
+      dishType: editDishType,
+      tags: editTags,
+      difficulty: editDifficulty,
+    }),
+    [editName, editCookTime, editDishType, editTags, editDifficulty],
+  );
+
+  useEffect(() => {
+    if (!scenariosTouched) setEditScenarios(scenarioSuggestion);
+  }, [scenarioSuggestion, scenariosTouched]);
+
+  const toggleScenario = useCallback((key: ScenarioKey) => {
+    setScenariosTouched(true);
+    setEditScenarios(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }, []);
 
   // 渲染圖片來源選擇 Modal（封裝成函式，可在多個 step 中复用）
   const renderPhotoSourceModal = () => (
@@ -236,6 +259,9 @@ export default function ImportScreen() {
       finalTags = [normalizeCuisine(recipe.recipeCategory), backfillTag, "家常菜"].filter((x): x is string => !!x && x !== "其他");
     }
     setEditTags(finalTags.join(" "));
+    const rawScenarios = recipe.scenarios ?? recipe.scenarioTagsUser ?? recipe.scenario_tags_user;
+    setEditScenarios(normalizeScenarios(rawScenarios));
+    setScenariosTouched(rawScenarios !== undefined && rawScenarios !== null);
     setEditIngredients(
       sanitizeIngredients(recipe.ingredients).map((ing, i) => ({
         id: `ing_${i}`,
@@ -1291,6 +1317,7 @@ export default function ImportScreen() {
         difficulty: editDifficulty,
         recipeCategory: selectedCategory,
         dishType: editDishType,
+        scenarios: editScenarios,
         ingredients: validIngredients.map(i => ({
           name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
         })),
@@ -1505,6 +1532,22 @@ export default function ImportScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <Text style={[es.label, { marginTop: 14 }]}>
+              {t("importRecipe.autoClassified", { dishType: t(`enums.dishType.${editDishType || "other"}` as any) })}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#5A4A3A" }}>{t("importRecipe.suggestedScenarios")}</Text>
+              {SCENARIO_KEYS.map(key => {
+                const active = editScenarios.includes(key);
+                return (
+                  <TouchableOpacity key={key} style={[es.chip, active && es.chipActive]} onPress={() => toggleScenario(key)}>
+                    <Text style={[es.chipTxt, active && es.chipTxtActive]}>{t(SCENARIO_LABEL_KEYS[key] as any)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4, marginBottom: 4 }}>{t("importRecipe.scenariosHint")}</Text>
 
             <Text style={[es.label, { marginTop: 14 }]}>{t("filter.tags")}</Text>
             <TextInput style={es.input} value={editTags} onChangeText={setEditTags} placeholder={t("importRecipe.tagsPlaceholder")} placeholderTextColor="#B0BAC9" />

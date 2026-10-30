@@ -499,6 +499,13 @@
       "drink": "Minuman",
       "other": "Lainnya"
     },
+    "scenario": {
+      "quick": "Cepat",
+      "healthy": "Sehat",
+      "ricecooker": "Rice cooker",
+      "kids": "Ramah anak",
+      "guest": "Pesta"
+    },
     "unit": {
       "piece": "pcs",
       "pack": "bungkus",
@@ -1116,7 +1123,10 @@
     "photoUpload": "📷 Unggah foto",
     "xiaohongshuTip": "Resep Xiaohongshu / Threads: gunakan unggah tangkapan layar",
     "pasteHint": "Cara tempel: di Safari/Instagram ketuk ⋯ atau tekan lama → Copy link, lalu ketuk Tempel. Otomatis terdeteksi saat kamu kembali.",
-    "igCopyHint": "Instagram tidak muncul di share sheet sistem: ketuk ⋯/pesawat kertas → 'Copy link'. App akan mendeteksi otomatis saat kamu kembali."
+    "igCopyHint": "Instagram tidak muncul di share sheet sistem: ketuk ⋯/pesawat kertas → 'Copy link'. App akan mendeteksi otomatis saat kamu kembali.",
+    "autoClassified": "Diklasifikasikan otomatis: {{dishType}}",
+    "suggestedScenarios": "Saran skenario:",
+    "scenariosHint": "Saran sistem, bisa diubah"
   },
   "editor": {
     "photo": "Foto resep",
@@ -1132,6 +1142,8 @@
     "commonTags": "Tag umum",
     "sourceUrl": "Tautan sumber (opsional)",
     "sourceUrlHint": "Tutorial akan muncul setelah ditambah",
+    "scenarios": "Cocok untuk",
+    "scenariosHint": "Saran sistem, bisa diubah",
     "saveRecipe": "Simpan resep",
     "discard": "Buang",
     "saving": "Menyimpan"

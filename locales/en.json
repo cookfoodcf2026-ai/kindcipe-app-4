@@ -499,6 +499,13 @@
       "drink": "Drink",
       "other": "Other"
     },
+    "scenario": {
+      "quick": "Quick",
+      "healthy": "Healthy",
+      "ricecooker": "Rice cooker",
+      "kids": "Kids",
+      "guest": "Guest"
+    },
     "unitPlural": {
       "piece": "pcs",
       "pack": "packs",
@@ -1146,7 +1153,10 @@
     "photoUpload": "📷 Upload photo",
     "xiaohongshuTip": "Xiaohongshu / Threads recipes: use screenshot upload",
     "pasteHint": "How to paste: in Safari/Instagram tap ⋯ or long-press → Copy link, then tap Paste (or long-press the box). We auto-detect it when you return.",
-    "igCopyHint": "Instagram isn't in the system share sheet: tap ⋯/the paper-plane on the post → 'Copy link'. The app will auto-detect it when you come back."
+    "igCopyHint": "Instagram isn't in the system share sheet: tap ⋯/the paper-plane on the post → 'Copy link'. The app will auto-detect it when you come back.",
+    "autoClassified": "Auto-classified: {{dishType}}",
+    "suggestedScenarios": "Suggested scenarios:",
+    "scenariosHint": "System suggestions, editable"
   },
   "editor": {
     "photo": "Recipe photo",
@@ -1162,6 +1172,8 @@
     "commonTags": "Common tags",
     "sourceUrl": "Source link (optional)",
     "sourceUrlHint": "After adding a source link, the recipe page shows Tutorial by author",
+    "scenarios": "Best for",
+    "scenariosHint": "System suggestions, editable",
     "saveRecipe": "Save recipe",
     "discard": "Discard",
     "saving": "Saving"

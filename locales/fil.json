@@ -499,6 +499,13 @@
       "drink": "Inumin",
       "other": "Iba Pa"
     },
+    "scenario": {
+      "quick": "Mabilis",
+      "healthy": "Malusog",
+      "ricecooker": "Rice cooker",
+      "kids": "Pambata",
+      "guest": "Piyesta"
+    },
     "unit": {
       "piece": "pcs",
       "pack": "pack",
@@ -1116,7 +1123,10 @@
     "photoUpload": "📷 Mag-upload ng larawan",
     "xiaohongshuTip": "Mga recipe sa Xiaohongshu / Threads: gamitin ang screenshot upload",
     "pasteHint": "Paano i-paste: sa Safari/Instagram i-tap ang ⋯ o long-press → Copy link, tapos i-tap ang Paste. Awtomatikong ma-detect pagbalik mo.",
-    "igCopyHint": "Hindi lumalabas ang Instagram sa share sheet: i-tap ang ⋯/paper-plane → 'Copy link'. Awtomatikong ma-detect ng app pagbalik mo."
+    "igCopyHint": "Hindi lumalabas ang Instagram sa share sheet: i-tap ang ⋯/paper-plane → 'Copy link'. Awtomatikong ma-detect ng app pagbalik mo.",
+    "autoClassified": "Awtomatikong na-classify: {{dishType}}",
+    "suggestedScenarios": "Mga mungkahing scenario:",
+    "scenariosHint": "Mungkahi ng system, maaaring baguhin"
   },
   "editor": {
     "photo": "Larawan ng recipe",
@@ -1132,6 +1142,8 @@
     "commonTags": "Karaniwang tag",
     "sourceUrl": "Source link (opsyonal)",
     "sourceUrlHint": "Lalabas ang tutorial pagkatapos",
+    "scenarios": "Angkop para sa",
+    "scenariosHint": "Mungkahi ng system, maaaring baguhin",
     "saveRecipe": "I-save ang recipe",
     "discard": "Itapon",
     "saving": "Sine-save"

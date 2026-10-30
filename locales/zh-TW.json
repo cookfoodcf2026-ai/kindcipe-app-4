@@ -499,6 +499,13 @@
       "drink": "飲品",
       "other": "其他"
     },
+    "scenario": {
+      "quick": "快煮",
+      "healthy": "健康",
+      "ricecooker": "電飯煲",
+      "kids": "兒童",
+      "guest": "宴客"
+    },
     "unit": {
       "piece": "個",
       "pack": "包",
@@ -1116,7 +1123,10 @@
     "photoUpload": "📷 上載相片",
     "xiaohongshuTip": "小紅書 / Threads 食譜，請用「截圖上傳」分析",
     "pasteHint": "貼上方法：喺 Safari／Instagram 撳 ⋯ 或長按 → 複製連結，返嚟撳「貼上」或長按輸入框貼上。（去完 Instagram 返嚟會自動偵測）",
-    "igCopyHint": "Instagram 唔會出現喺系統分享清單：請撳帖子嘅 ⋯／紙飛機 → 「複製連結」，返嚟 App 會自動彈出匯入。"
+    "igCopyHint": "Instagram 唔會出現喺系統分享清單：請撳帖子嘅 ⋯／紙飛機 → 「複製連結」，返嚟 App 會自動彈出匯入。",
+    "autoClassified": "幫你分好類：{{dishType}}",
+    "suggestedScenarios": "建議場景：",
+    "scenariosHint": "系統建議，可修改"
   },
   "editor": {
     "photo": "食譜相片",
@@ -1132,6 +1142,8 @@
     "commonTags": "常用標籤",
     "sourceUrl": "來源連結（選填）",
     "sourceUrlHint": "新增來源連結後，食譜詳情頁將顯示「教學影片 by 作者」",
+    "scenarios": "適用場景",
+    "scenariosHint": "系統建議，可修改",
     "saveRecipe": "儲存食譜",
     "discard": "放棄",
     "saving": "儲存中"
