@@ -23,6 +23,7 @@ import UnitPicker from "@/src/components/UnitPicker";
 import { useGoBackSafe } from "@/hooks/useGoBackSafe";
 import { compressImage } from "@/lib/image-utils";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
+import { mergeImportedIngredients } from "@/lib/importIngredientMerge";
 import i18n from "@/lib/i18n";
 import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
 
@@ -48,7 +49,7 @@ function isQuotaError(err: any): boolean {
 }
 
 type ImportStep = "input" | "parsing" | "preview" | "success" | "failed";
-type EditableIngredient = { id: string; name: string; quantity: string; unit: string };
+type EditableIngredient = { id: string; name: string; nameEn?: string; quantity: string; unit: string };
 type EditableStep = { id: number; instruction: string; duration: number; imageUri?: string | null; imageBase64?: string | null };
 
 // 高成功率平台清單（顯示 Magic Card）
@@ -266,6 +267,7 @@ export default function ImportScreen() {
       sanitizeIngredients(recipe.ingredients).map((ing, i) => ({
         id: `ing_${i}`,
         name: pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "",
+        nameEn: ing.nameEn,
         quantity: ing.quantity,
         unit: ing.unit,
       }))
@@ -309,17 +311,23 @@ export default function ImportScreen() {
     const stepTexts = (recipe.steps || []).map((s: any) => (typeof s === "string" ? s : (s.instruction || s.description || "")));
     setEditName((prev) => prev || (pickName(L, recipe.name, recipe.nameEn, recipe.nameFil, recipe.nameId).primary || ""));
     setEditDesc((prev) => prev || (pickDescription(L, recipe.description, recipe.descriptionEn, recipe.descriptionFil, recipe.descriptionId) || ""));
-    setEditIngredients((prev) => {
-      const seen = new Set(prev.map((p) => p.name.trim().toLowerCase()).filter(Boolean));
-      const merged = [...prev];
-      sanitizeIngredients(recipe.ingredients).forEach((ing) => {
-        const nm = (pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "").trim();
-        if (!nm || seen.has(nm.toLowerCase())) return;
-        seen.add(nm.toLowerCase());
-        merged.push({ id: `ing_m${Date.now()}_${merged.length}`, name: nm, quantity: ing.quantity, unit: ing.unit });
-      });
-      return merged;
-    });
+    setEditIngredients((prev) => mergeImportedIngredients(
+      prev,
+      sanitizeIngredients(recipe.ingredients).map((ing, i) => ({
+        id: `ing_m${Date.now()}_${i}`,
+        name: (pickName(L, ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary || "").trim(),
+        nameEn: ing.nameEn,
+        quantity: String(ing.quantity ?? ""),
+        unit: String(ing.unit ?? ""),
+      })).filter((ing) => !!ing.name),
+      (message, detail) => console.log(`[import] ${message}`, detail),
+    ).map((ing) => ({
+      id: ing.id || `ing_m${Date.now()}`,
+      name: ing.name,
+      nameEn: ing.nameEn,
+      quantity: ing.quantity ?? "",
+      unit: ing.unit ?? "",
+    })));
     setEditSteps((prev) => {
       const seen = new Set(prev.map((p) => p.instruction.trim().toLowerCase()).filter(Boolean));
       const merged = [...prev];
@@ -1319,7 +1327,7 @@ export default function ImportScreen() {
         dishType: editDishType,
         scenarios: editScenarios,
         ingredients: validIngredients.map(i => ({
-          name: i.name, quantity: i.quantity, unit: i.unit, category: "食材",
+          name: i.name, nameEn: i.nameEn, quantity: i.quantity, unit: i.unit, category: "食材",
         })),
         steps: validSteps.map((s, i) => ({
           instruction: s.instruction, duration: s.duration || 0,
