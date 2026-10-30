@@ -2095,7 +2095,8 @@ export default function AIChefScreen() {
         ? "請隨機提供一組新食譜。如果諗唔到新嘢，可以用預設值（4 人份/清淡/簡單~中等）生成，最緊要即刻有嘢睇。"
         : "請從食譜庫再提供一組唔同嘅建議，避免同之前建議過嘅菜式重複。";
     const newMsgs: Message[] = [...messages, { role: "user", content: regeneratePrompt }];
-    updateMessages(() => newMsgs);
+    const displayPrompt = mode === "ai" ? t("aiChef.qa_aiLabel" as any) : t("aiChef.qa_randomLabel" as any);
+    updateMessages(() => [...messages, { role: "user", content: displayPrompt }]);
     mutateChat({ messages: buildBackendMessages(newMsgs), mode, ...(mode === "ai" ? { aiEntry } : {}), excludeNames: sessionSeenRecipeNames, lang: i18n.language });
     scrollToEnd();
   };
@@ -2130,10 +2131,11 @@ export default function AIChefScreen() {
     const mealIntent = detectMealIntent(lastUserContent);
     const flavor = detectFlavorConstraint(lastUserContent);
     const isStructuredMealPrompt = !!mealIntent || /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
+    const promptPrefs = mealStep === "idle" ? buildMealPrefs() : mealPrefs;
     // 有結構化一餐意圖 → 直接用結構化 prompt（帶 count + 口味），確保出夠卡數同尊重 constraint
     const userPrompt = isStructuredMealPrompt
       ? buildMealPrompt(
-          mealStep === "idle" ? buildMealPrefs() : mealPrefs,
+          promptPrefs,
           mealIntent ?? { dishes: 3, soups: 1 },
           flavor,
         )
@@ -2144,15 +2146,24 @@ export default function AIChefScreen() {
           : source === "ai"
             ? `提供 1 個唔同嘅家常菜食譜。`
             : `家常菜。提供 1 個唔同嘅食譜。`;
+    // 可見 messages 只用用戶友善文字；完整 prompt 只送 backend
+    const displayPrompt = lastUserContent.length >= 2
+      ? lastUserContent
+      : activeConfig
+        ? t(activeConfig.aiPrompt as any)
+        : source === "ai"
+          ? t("aiChef.qa_aiLabel" as any)
+          : t("aiChef.qa_randomLabel" as any);
 
     const newMsg: Message = { role: "user", content: userPrompt };
-    const msgs: Message[] = [...messages, newMsg];
+    const visibleMsg: Message = { role: "user", content: displayPrompt };
+    const msgs: Message[] = [...messages, visibleMsg];
     updateMessages(() => msgs);
     // 記低今次 mode，令「換」button 之後識用 AI 生成替代
     lastChatModeRef.current = source === "ai" ? "ai" : "library";
     // AI mode：淨係傳新 prompt 俾後端（唔帶成個 history，避免 LLM 抄返之前建議過嘅菜式導致重複）
     // library mode：後端唔理 messages 內容，傳咩都得
-    const backendMsgs: Message[] = source === "ai" ? [newMsg] : msgs;
+    const backendMsgs: Message[] = source === "ai" ? [newMsg] : [...messages, newMsg];
     // 熱鍵場景：source 掣「食譜庫」都傳 search（排除甜品/湯水 + 7日去重）
     const searchParam = source === "library" && activeConfig?.search
       ? {
