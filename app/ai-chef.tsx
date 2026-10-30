@@ -633,13 +633,23 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-function stableClientMessageId(seed: string): string {
-  let hash = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    hash ^= seed.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `cm_${(hash >>> 0).toString(36)}`;
+function chatRequestFingerprint(payload: Record<string, any>): string {
+  const rest: Record<string, any> = { ...(payload ?? {}) };
+  delete rest.clientMessageId;
+  return JSON.stringify(rest);
+}
+
+function resolveClientMessageId(
+  payload: Record<string, any>,
+  failed: { fingerprint: string; clientMessageId: string } | null,
+): { fingerprint: string; clientMessageId: string; isRetry: boolean } {
+  const fingerprint = chatRequestFingerprint(payload);
+  const retryClientMessageId = failed?.fingerprint === fingerprint ? failed.clientMessageId : null;
+  return {
+    fingerprint,
+    clientMessageId: payload.clientMessageId ?? retryClientMessageId ?? `cm_${generateId()}`,
+    isRetry: !!retryClientMessageId,
+  };
 }
 
 // 拆「食譜一…\n---\n食譜二…」做獨立 recipe blocks；普通對話（無 ---）回空
@@ -1318,7 +1328,10 @@ export default function AIChefScreen() {
   const aiNearLimit = aiLimit > 0 && aiUsed / aiLimit >= 0.8;
   const hideUpgradePromo = sub?.status === "active";
   const chatMutation = trpc.aiRecipe.chat.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables: any) => {
+      if (failedChatRequestRef.current?.clientMessageId === variables?.clientMessageId) {
+        failedChatRequestRef.current = null;
+      }
       void usageUtils.family.usage.invalidate();
       void (usageUtils.aiRecipe as any).status.invalidate();
       if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length });
@@ -1399,7 +1412,14 @@ export default function AIChefScreen() {
       setChatStarted(true);
       scrollToLatestMessage();
     },
-    onError: (err: any) => {
+    onError: (err: any, variables: any) => {
+      const failedClientMessageId = typeof variables?.clientMessageId === "string" ? variables.clientMessageId : "";
+      if (failedClientMessageId) {
+        failedChatRequestRef.current = {
+          fingerprint: chatRequestFingerprint(variables),
+          clientMessageId: failedClientMessageId,
+        };
+      }
       // 達到配額 → 彈 paywall。優先靠 error code（穩定），message regex 只作後備。
       const code = err?.data?.code ?? err?.shape?.data?.code;
       if (
@@ -1427,10 +1447,11 @@ export default function AIChefScreen() {
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
   const mutateChat = (payload: any, options?: any) => {
     chatSessionIdRef.current = activeChatIdRef.current;
-    const seed = `${activeChatIdRef.current}:${payload.mode ?? "chat"}:${payload.operation ?? "replace"}:${JSON.stringify(payload.messages ?? [])}:${JSON.stringify(payload.search ?? null)}`;
-    const clientMessageId = payload.clientMessageId ?? stableClientMessageId(seed);
+    const requestBody = { avoidIngredients: mealDefaults.allergens, ...payload };
+    const { clientMessageId, isRetry } = resolveClientMessageId(requestBody, failedChatRequestRef.current);
+    if (isRetry) failedChatRequestRef.current = null;
     setContractQuickReplies([]);
-    chatMutation.mutate({ avoidIngredients: mealDefaults.allergens, ...payload, clientMessageId }, options);
+    chatMutation.mutate({ ...requestBody, clientMessageId }, options);
   };
 
   // Loading step animation
@@ -1776,6 +1797,7 @@ export default function AIChefScreen() {
   const [planMeal, setPlanMeal] = useState("dinner");
   const lastChatModeRef = useRef<"library" | "ai" | "chat" | "question" | "">("");
   const noveltyRetryRef = useRef(false);
+  const failedChatRequestRef = useRef<{ fingerprint: string; clientMessageId: string } | null>(null);
 
   const utils = trpc.useUtils();
   const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();
