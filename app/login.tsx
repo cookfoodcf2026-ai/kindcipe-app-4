@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
 import { saveAuthTokenFromResponse, isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, FAMILY_ID_KEY } from "@/lib/auth";
+import { setLoginNext } from "@/lib/loginNext";
 import { getAppLogo } from "@/lib/logo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -50,7 +51,17 @@ type Mode = "login" | "register" | "admin" | "otp";
 export default function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; apple?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; apple?: string; next?: string }>();
+
+  // Validate and store next param synchronously during render so AuthGuard's useEffect can see it
+  const rawNext = typeof params.next === "string" ? params.next : "";
+  const validNext = rawNext.startsWith("/") && rawNext !== "/login" ? rawNext : "";
+  setLoginNext(validNext || null);
+  // Also persist to AsyncStorage for the unauthenticated → login → logged-in flow
+  const LOGIN_NEXT_KEY = "kindcipe_login_next";
+  if (validNext) {
+    void AsyncStorage.setItem(LOGIN_NEXT_KEY, validNext);
+  }
   const [mode, setMode] = useState<Mode>(params.mode === "admin" ? "admin" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -30,6 +30,8 @@ import { I18nextProvider } from "react-i18next";
 import { initLanguage } from "@/lib/i18n";
 import KitchenSwitcher from "@/app/components/KitchenSwitcher";
 import { authenticateBiometric, isBiometricAvailable, isBiometricEnabled, clearAuthToken } from "@/lib/auth";
+import { authGuardRedirect } from "@/lib/authGuardRedirect";
+import { getLoginNext } from "@/lib/loginNext";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Sentry from "@sentry/react-native";
@@ -60,6 +62,7 @@ void SplashScreen.preventAutoHideAsync();
 // 以用戶 ID 為 key，確保不同帳戶都有獨立的 onboarding 狀態
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
 const PENDING_ADMIN_REDIRECT_KEY = "kindcipe_pending_admin_redirect";
+const LOGIN_NEXT_KEY = "kindcipe_login_next";
 
 // Helper functions for clipboard detection
 function isValidUrl(url: string): boolean {
@@ -468,53 +471,66 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const seg0 = segments[0] as string;
       const isLoggedIn = !!meQuery.data;
 
-      // 未登入，跳轉到登入頁（admin 頁面走管理員登入模式）
-      if (!isLoggedIn && !inVisualTest && !inLoginPage && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
-        if (seg0 === "admin") {
-          router.replace("/login?mode=admin");
-        } else {
-          router.replace("/login");
-        }
-        return;
-      }
-
-      // 已登入
+      // Admin redirect (preserved — not part of authGuardRedirect)
       if (isLoggedIn) {
-        if (inForgotPassword || inResetPassword) {
-          return;
-        }
-
         const pendingAdminRedirect = await AsyncStorage.getItem(PENDING_ADMIN_REDIRECT_KEY);
         if (pendingAdminRedirect === "1") {
           await AsyncStorage.removeItem(PENDING_ADMIN_REDIRECT_KEY);
           if (seg0 !== "admin") router.replace("/admin");
           return;
         }
+      }
 
-        if (!onboardingDone) {
-          // 若用戶已擁有 kitchen，直接視為完成 onboarding 並返回 tabs，
-          // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
-          if (meQuery.data?.activeFamilyId) {
-            const key = getOnboardingKey(meQuery.data.id);
-            AsyncStorage.setItem(key, "true");
-            setOnboardingDone(true);
-            // 匯入進行中（冷啟分享）時唔好重定向走，否則會蓋走 /import
-            // （症狀：顯示匯入第一步後彈返主頁）。/import 自己負責完成後續導航。
-            if (!inImport) router.replace("/(tabs)");
-          } else if (!inOnboarding && (inLoginPage || inTabsGroup)) {
-            if (inTabsGroup) {
-              ensureOnboardingCheck();
-            } else {
-              router.replace("/onboarding");
-            }
+      // Onboarding key side-effect (preserved)
+      if (isLoggedIn && !onboardingDone && meQuery.data?.activeFamilyId) {
+        const key = getOnboardingKey(meQuery.data.id);
+        await AsyncStorage.setItem(key, "true");
+        setOnboardingDone(true);
+      }
+
+      // Check for pending next-redirect (stored by login.tsx synchronously during render,
+      // or by unauth redirect in AsyncStorage). MUST be checked BEFORE authGuardRedirect
+      // because authGuardRedirect returns "/(tabs)" for logged-in users on /login.
+      const nextFromRender = isLoggedIn && inLoginPage ? getLoginNext() : null;
+      const pendingNext = isLoggedIn ? await AsyncStorage.getItem(LOGIN_NEXT_KEY) : null;
+      const effectiveNext = nextFromRender || pendingNext;
+      if (effectiveNext) {
+        if (pendingNext) await AsyncStorage.removeItem(LOGIN_NEXT_KEY);
+        const target = effectiveNext.startsWith("/") ? effectiveNext : `/${effectiveNext}`;
+        router.replace(target as any);
+        return;
+      }
+
+      const redirectTarget = authGuardRedirect({
+        isLoggedIn,
+        onboardingDone,
+        activeFamilyId: meQuery.data?.activeFamilyId,
+        inLoginPage,
+        inOnboarding,
+        inForgotPassword,
+        inResetPassword,
+        inVerifyEmail,
+        inTabsGroup,
+        seg0,
+      });
+
+      if (redirectTarget) {
+        if (redirectTarget === "/login" && !inLoginPage && !inVisualTest && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
+          // Unauthenticated: preserve current path for post-login redirect
+          const pathParts = segments.filter((s) => s !== "(tabs)");
+          const currentPath = pathParts.length > 0 ? "/" + pathParts.join("/") : "/";
+          if (currentPath !== "/login" && currentPath !== "/") {
+            await AsyncStorage.setItem(LOGIN_NEXT_KEY, currentPath);
+            router.replace("/login");
+          } else if (seg0 === "admin") {
+            router.replace("/login?mode=admin");
+          } else {
+            router.replace("/login");
           }
-        } else {
-          // 已完成 onboarding → 只在 login/onboarding 頁面時跳回 tabs
-          // 不干擾 stack screens（如 recipe/[id]、ai-chef、pantry 等）
-          if (inLoginPage || inForgotPassword || inResetPassword || inOnboarding || inVerifyEmail || seg0 === "index") {
-            router.replace("/(tabs)");
-          }
+          return;
         }
+        router.replace(redirectTarget as any);
+        return;
       }
     })();
   }, [meQuery.isLoading, meQuery.data, segments, onboardingChecked, onboardingDone]);
