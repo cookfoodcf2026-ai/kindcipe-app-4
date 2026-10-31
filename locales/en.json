@@ -510,6 +510,17 @@
       "kids": "Kids",
       "guest": "Guest"
     },
+    "dishTypeShort": {
+      "meat": "Meat",
+      "seafood": "Seafood",
+      "vegetable": "Vegetable",
+      "soup": "Soup",
+      "carb": "Rice & noodles",
+      "appetizer": "Snack",
+      "dessert": "Dessert",
+      "drink": "Drink",
+      "other": "Other"
+    },
     "unitPlural": {
       "piece": "pcs",
       "pack": "packs",

@@ -510,6 +510,17 @@
       "kids": "兒童",
       "guest": "宴客"
     },
+    "dishTypeShort": {
+      "meat": "肉類",
+      "seafood": "海鮮",
+      "vegetable": "蔬菜",
+      "soup": "湯",
+      "carb": "麵飯",
+      "appetizer": "小食",
+      "dessert": "甜品",
+      "drink": "飲品",
+      "other": "其他"
+    },
     "unit": {
       "piece": "個",
       "pack": "包",

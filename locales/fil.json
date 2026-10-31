@@ -510,6 +510,17 @@
       "kids": "Pambata",
       "guest": "Piyesta"
     },
+    "dishTypeShort": {
+      "meat": "Karne",
+      "seafood": "Pagkaing-dagat",
+      "vegetable": "Gulay",
+      "soup": "Sabaw",
+      "carb": "Kanin at pancit",
+      "appetizer": "Meryenda",
+      "dessert": "Panghimagas",
+      "drink": "Inumin",
+      "other": "Iba pa"
+    },
     "unit": {
       "piece": "pcs",
       "pack": "pack",

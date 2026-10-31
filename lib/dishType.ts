@@ -41,6 +41,30 @@ export const DISH_TYPE_ICONS: Record<DishTypeKey, string> = {
   other: "grid-outline",
 };
 
+export const DISH_TYPE_LABEL_KEYS: Record<DishTypeKey, string> = {
+  meat: "enums.dishTypeShort.meat",
+  seafood: "enums.dishTypeShort.seafood",
+  vegetable: "enums.dishTypeShort.vegetable",
+  soup: "enums.dishTypeShort.soup",
+  carb: "enums.dishTypeShort.carb",
+  appetizer: "enums.dishTypeShort.appetizer",
+  dessert: "enums.dishTypeShort.dessert",
+  drink: "enums.dishTypeShort.drink",
+  other: "enums.dishTypeShort.other",
+};
+
+const DISH_TYPE_LABELS_ZH: Record<DishTypeKey, string> = {
+  meat: "肉類",
+  seafood: "海鮮",
+  vegetable: "蔬菜",
+  soup: "湯",
+  carb: "麵飯",
+  appetizer: "小食",
+  dessert: "甜品",
+  drink: "飲品",
+  other: "其他",
+};
+
 // 中文（新舊）→ key
 const ZH_TO_KEY: Record<string, DishTypeKey> = {
   "主菜": "meat",
@@ -55,6 +79,7 @@ const ZH_TO_KEY: Record<string, DishTypeKey> = {
   "飯": "carb",
   "麵": "carb",
   "飯麵": "carb",
+  "麵飯": "carb",
   "主食": "carb",
   "飯麵/主食": "carb",
   "前菜": "appetizer",
@@ -72,6 +97,20 @@ export const normalizeDishType = (v?: string | null): DishTypeKey => {
   if (!raw) return "other";
   if ((DISH_TYPE_KEYS as string[]).includes(raw)) return raw as DishTypeKey;
   return ZH_TO_KEY[raw] ?? "other";
+};
+
+/** 顯示用短標籤：接受英文 enum / 中文，未知 → 其他。translate 可傳 i18n.t。 */
+export const dishTypeLabel = (
+  v?: string | null,
+  translate?: (key: string) => string,
+): string => {
+  const key = normalizeDishType(v);
+  if (translate) {
+    const path = DISH_TYPE_LABEL_KEYS[key];
+    const out = translate(path);
+    if (out && out !== path) return out;
+  }
+  return DISH_TYPE_LABELS_ZH[key];
 };
 
 /** 由菜名推斷（冇 dishType 時嘅兜底），永遠回一個 key */

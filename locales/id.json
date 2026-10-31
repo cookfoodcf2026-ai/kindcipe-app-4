@@ -510,6 +510,17 @@
       "kids": "Ramah anak",
       "guest": "Pesta"
     },
+    "dishTypeShort": {
+      "meat": "Daging",
+      "seafood": "Seafood",
+      "vegetable": "Sayur",
+      "soup": "Sup",
+      "carb": "Nasi & mie",
+      "appetizer": "Camilan",
+      "dessert": "Hidangan penutup",
+      "drink": "Minuman",
+      "other": "Lainnya"
+    },
     "unit": {
       "piece": "pcs",
       "pack": "bungkus",

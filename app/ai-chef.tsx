@@ -36,7 +36,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { categorizeIngredient, calcAdjustedQty, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore, getDayAfter } from "@/src/lib/date";
 import { friendlyError } from "@/lib/errors";
-import { normalizeDishType, inferDishTypeKeyFromName, type DishTypeKey } from "@/lib/dishType";
+import { normalizeDishType, inferDishTypeKeyFromName, dishTypeLabel, type DishTypeKey } from "@/lib/dishType";
 import { normalizeMealPreferences, type MealPreferenceTime } from "@/lib/mealPreferences";
 import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled } from "@/lib/featureFlags";
 import { canva } from "@/app/styles/colors";
@@ -4746,11 +4746,15 @@ export default function AIChefScreen() {
                             <Ionicons name="restaurant-outline" size={14} color={BRAND} />
                             <Text style={s.recCardDiff}>
                               {(() => {
-                                const raw = String(r.recipeCategory || "").trim();
-                                if (aiChefNoodleRoleEnabled && (!raw || raw === "其他") && (r.dishType === "carb" || /麵|面|拉麵|拉面|烏冬|乌冬|米線|米线|意粉|noodle|ramen|udon|soba|pasta/i.test(`${r.name ?? ""} ${(r.tags ?? []).join(" ")}`))) {
+                                const dishKey = normalizeDishType(r.dishType || inferDishTypeKeyFromName(String(r.name ?? "")));
+                                if (
+                                  aiChefNoodleRoleEnabled &&
+                                  !r.dishType &&
+                                  /麵|面|拉麵|拉面|烏冬|乌冬|米線|米线|意粉|noodle|ramen|udon|soba|pasta/i.test(`${r.name ?? ""} ${(r.tags ?? []).join(" ")}`)
+                                ) {
                                   return t("aiChef.noodleCategory" as any);
                                 }
-                                return enumT.category(raw || "其他");
+                                return dishTypeLabel(dishKey, (key) => t(key as any));
                               })()}
                             </Text>
                             <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
