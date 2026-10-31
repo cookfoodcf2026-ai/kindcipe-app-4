@@ -4676,7 +4676,7 @@ export default function AIChefScreen() {
                       >
                         {batchPlanBusy ? (
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <ActivityIndicator size="small" color="#183B56" />
+                            <ActivityIndicator size="small" color={canva.textOnAccent} />
                             <Text style={s.batchShopTxt}>{t("aiChef.adding")}</Text>
                           </View>
                         ) : (
@@ -4701,7 +4701,7 @@ export default function AIChefScreen() {
                       >
                         {batchPlanBusy ? (
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <ActivityIndicator size="small" color="#183B56" />
+                            <ActivityIndicator size="small" color={canva.textOnAccent} />
                             <Text style={s.batchPlanTxtWide}>{t("aiChef.adding")}</Text>
                           </View>
                         ) : (
@@ -5243,8 +5243,8 @@ const s = StyleSheet.create({
   heroCardContent: { zIndex: 2, gap: 2, maxWidth: "58%" },
   heroCardTitle: { fontSize: 22, fontWeight: "900", color: "#183B56", textShadowColor: "rgba(90,60,20,0.35)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   heroCardSubtitle: { fontSize: 13, color: "#183B56", marginTop: 2, fontWeight: "700", textShadowColor: "rgba(90,60,20,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#F47B3A", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
-  heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: "#183B56" },
+  heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: canva.action, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
+  heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: canva.textOnAccent },
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   toolBtn: { width: "48%", flexGrow: 1, backgroundColor: CARD, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   toolIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
@@ -5274,8 +5274,8 @@ const s = StyleSheet.create({
   restoreBar: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 14, marginTop: 4, marginBottom: 12, padding: 12, borderRadius: 14, backgroundColor: "#FFF8EF", borderWidth: 1, borderColor: "#F3DFC7" },
   restoreTitle: { fontSize: 13, fontWeight: "800", color: "#183B56" },
   restoreSub: { fontSize: 11, color: SUB, marginTop: 2, lineHeight: 15 },
-  restoreBtn: { backgroundColor: "#F47B3A", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, minWidth: 90, alignItems: "center" },
-  restoreBtnTxt: { fontSize: 12, fontWeight: "900", color: "#183B56" },
+  restoreBtn: { backgroundColor: canva.action, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, minWidth: 90, alignItems: "center" },
+  restoreBtnTxt: { fontSize: 12, fontWeight: "900", color: canva.textOnAccent },
   recBar: { borderTopWidth: 1, borderTopColor: BORDER, padding: 12 },
   recHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   recTitle: { fontSize: 12, fontWeight: "700", color: BRAND },
@@ -5285,12 +5285,12 @@ const s = StyleSheet.create({
   batchActionRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   batchMeta: { flex: 1, minWidth: 0, gap: 3 },
   selectedCount: { fontSize: 11, fontWeight: "700", color: SUB },
-  batchPlanBtnWide: { flex: 1, backgroundColor: "#F47B3A", paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  batchPlanTxtWide: { fontSize: 13, fontWeight: "900", color: "#183B56" },
+  batchPlanBtnWide: { flex: 1, backgroundColor: canva.action, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  batchPlanTxtWide: { fontSize: 13, fontWeight: "900", color: canva.textOnAccent },
   recCardCheck: { position: "absolute", top: 34, left: 7, zIndex: 5, width: 23, height: 23, borderRadius: 12, backgroundColor: "rgba(255,248,239,0.92)", alignItems: "center", justifyContent: "center" },
   batchMealBtn: { backgroundColor: BRAND, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   batchMealTxt: { fontSize: 11, fontWeight: "800", color: "#fff" },
-  batchPlanBtn: { backgroundColor: "#F47B3A", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  batchPlanBtn: { backgroundColor: canva.action, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   batchShopBtn: { backgroundColor: GREEN, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
   batchShopTxt: { fontSize: 11, fontWeight: "800", color: "#183B56" },
   recScroll: { gap: 10 },

@@ -340,7 +340,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
               </Text>
               <View style={s.heroCta}>
                 <Text style={s.heroCtaTxt}>{t("aiChef.heroCta")}</Text>
-                <Ionicons name="arrow-forward" size={15} color="#183B56" />
+                <Ionicons name="arrow-forward" size={15} color={canva.textOnAccent} />
               </View>
             </View>
           </View>
@@ -1697,13 +1697,13 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: "#F47B3A",
+    backgroundColor: canva.action,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginTop: 11,
   },
-  heroCtaTxt: { ...typography.button, color: "#183B56" },
+  heroCtaTxt: { ...typography.button, color: canva.textOnAccent },
   tonightHeroText: { zIndex: 2, gap: 2, maxWidth: "58%" },
   tonightHeroScrim: {
     position: "absolute",
@@ -1725,7 +1725,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#F47B3A",
+    backgroundColor: canva.action,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 9,

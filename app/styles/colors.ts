@@ -41,11 +41,12 @@ export const canva = {
   brown: "#8A4B2A",
   primary: "#183B56",
   accent: "#F47B3A",
+  action: "#F37021", // Hermès orange — CTA 底；配 textOnAccent #10293D = 5.08:1（WCAG AA）
   muted: "#5F6F80",
   border: "#E6DED4",
   softBlue: "#E8F0F4",
   green: "#789B78",
   greenText: "#4F6F4F",
-  danger: "#B42318",
-  textOnAccent: "#183B56",
+  danger: "#B4231A",
+  textOnAccent: "#10293D", // 壓 #F37021 5.08:1；唔准用 #183B56（只有 3.98）
 };

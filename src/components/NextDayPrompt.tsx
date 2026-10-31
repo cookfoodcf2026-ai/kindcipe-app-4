@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { canva } from "@/app/styles/colors";
 import { useTranslation } from "react-i18next";
 
 type Props = {
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#F47B3A",
+    backgroundColor: canva.action,
   },
-  primaryTxt: { fontSize: 15, fontWeight: "900", color: "#183B56" },
+  primaryTxt: { fontSize: 15, fontWeight: "900", color: canva.textOnAccent },
 });

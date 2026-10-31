@@ -329,7 +329,7 @@ export default function MealPreferencesScreen() {
           disabled={!canEdit || updateSettingsM.isPending}
         >
           {updateSettingsM.isPending ? (
-            <ActivityIndicator size="small" color="#183B56" />
+            <ActivityIndicator size="small" color={canva.textOnAccent} />
           ) : (
             <Text style={s.saveTxt}>{t("儲存" as any)}</Text>
           )}
@@ -378,6 +378,6 @@ const s = StyleSheet.create({
   secondaryBtn: { marginTop: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F8F1E7" },
   secondaryBtnTxt: { fontSize: 13, fontWeight: "700", color: BRAND },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: BORDER },
-  saveBtn: { minHeight: 46, borderRadius: 13, backgroundColor: ORANGE, alignItems: "center", justifyContent: "center" },
-  saveTxt: { fontSize: 15, fontWeight: "900", color: "#183B56" },
+  saveBtn: { minHeight: 46, borderRadius: 13, backgroundColor: canva.action, alignItems: "center", justifyContent: "center" },
+  saveTxt: { fontSize: 15, fontWeight: "900", color: canva.textOnAccent },
 });

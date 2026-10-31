@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { typography } from "@/app/styles/typography";
+import { canva } from "@/app/styles/colors";
 
 /**
  * Auth-free visual fixture for typography regression.
@@ -56,6 +57,6 @@ const styles = StyleSheet.create({
   muted: { color: "#6B7280" },
   bodyStrong: { color: "#183B56", fontWeight: "700" },
   section: { color: "#1A1A1A", marginTop: 8 },
-  button: { color: "#FFFFFF", backgroundColor: "#F47B3A", alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, overflow: "hidden" },
+  button: { color: canva.textOnAccent, backgroundColor: canva.action, alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, overflow: "hidden" },
   smallButton: { color: "#FFFFFF", backgroundColor: "#183B56", alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, overflow: "hidden" },
 });
