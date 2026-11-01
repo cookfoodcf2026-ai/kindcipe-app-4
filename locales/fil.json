@@ -384,7 +384,13 @@
     "closestLibraryResult": "Ito ang pinakamalapit na recipe:",
     "quotaExhausted": "Naubos na ang AI quota ngayong buwan",
     "swapNoLibrary": "📚 Walang bagong katulad na recipe sa library",
-    "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito."
+    "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito.",
+    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinSub": "Pampalakas・2+ pinagmumulan ng protina",
+    "qa_vegetarianLabel": "Vegetarian",
+    "qa_vegetarianSub": "Lacto-ovo・walang karne o seafood",
+    "hk_highProteinPrompt": "Mataas sa protina na pagkain na may dalawa o higit pang pinagmumulan ng protina",
+    "hk_vegetarianPrompt": "Vegetarian na ulam (lacto-ovo, walang karne o seafood)"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

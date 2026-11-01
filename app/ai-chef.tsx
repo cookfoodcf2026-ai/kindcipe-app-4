@@ -439,6 +439,8 @@ const QUICK_ACTIONS = [
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲懶人", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客/有朋友", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
+  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "蛋白/健康餐", subtitle: "增肌飽肚・每餐 ≥2 蛋白來源", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
+  { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
 ];
 
 const HOT_KEY_CONFIG: Record<string, {
@@ -470,6 +472,16 @@ const HOT_KEY_CONFIG: Record<string, {
     search: { query: "宴客", scenario: "guest" },
     rank: "default",
     aiPrompt: "aiChef.hk_guestPrompt",
+  },
+  highProtein: {
+    search: { query: "蛋白質", scenario: "highProtein" },
+    rank: "default",
+    aiPrompt: "aiChef.hk_highProteinPrompt",
+  },
+  vegetarian: {
+    search: { query: "素食", scenario: "vegetarian" },
+    rank: "default",
+    aiPrompt: "aiChef.hk_vegetarianPrompt",
   },
 };
 
@@ -642,12 +654,14 @@ function chatRequestFingerprint(payload: Record<string, any>): string {
 function resolveClientMessageId(
   payload: Record<string, any>,
   failed: { fingerprint: string; clientMessageId: string } | null,
+  pending: Record<string, string> = {},
 ): { fingerprint: string; clientMessageId: string; isRetry: boolean } {
   const fingerprint = chatRequestFingerprint(payload);
   const retryClientMessageId = failed?.fingerprint === fingerprint ? failed.clientMessageId : null;
+  const pendingClientMessageId = typeof pending[fingerprint] === "string" ? pending[fingerprint] : null;
   return {
     fingerprint,
-    clientMessageId: payload.clientMessageId ?? retryClientMessageId ?? `cm_${generateId()}`,
+    clientMessageId: payload.clientMessageId ?? pendingClientMessageId ?? retryClientMessageId ?? `cm_${generateId()}`,
     isRetry: !!retryClientMessageId,
   };
 }
@@ -1340,6 +1354,7 @@ export default function AIChefScreen() {
   const hideUpgradePromo = sub?.status === "active";
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data, variables: any) => {
+      delete pendingChatRequestRef.current[chatRequestFingerprint(variables ?? {})];
       if (failedChatRequestRef.current?.clientMessageId === variables?.clientMessageId) {
         failedChatRequestRef.current = null;
       }
@@ -1425,6 +1440,7 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
     },
     onError: (err: any, variables: any) => {
+      delete pendingChatRequestRef.current[chatRequestFingerprint(variables ?? {})];
       const failedClientMessageId = typeof variables?.clientMessageId === "string" ? variables.clientMessageId : "";
       if (failedClientMessageId) {
         failedChatRequestRef.current = {
@@ -1460,7 +1476,18 @@ export default function AIChefScreen() {
   const mutateChat = (payload: any, options?: any) => {
     chatSessionIdRef.current = activeChatIdRef.current;
     const requestBody = { avoidIngredients: mealDefaults.allergens, ...payload };
-    const { clientMessageId, isRetry } = resolveClientMessageId(requestBody, failedChatRequestRef.current);
+    const { fingerprint, clientMessageId, isRetry } = resolveClientMessageId(
+      requestBody,
+      failedChatRequestRef.current,
+      pendingChatRequestRef.current,
+    );
+    pendingChatRequestRef.current[fingerprint] = clientMessageId;
+    const pendingKeys = Object.keys(pendingChatRequestRef.current);
+    if (pendingKeys.length > 20) {
+      for (const key of pendingKeys.slice(0, pendingKeys.length - 20)) {
+        delete pendingChatRequestRef.current[key];
+      }
+    }
     if (isRetry) failedChatRequestRef.current = null;
     setContractQuickReplies([]);
     chatMutation.mutate({ ...requestBody, clientMessageId }, options);
@@ -1810,6 +1837,8 @@ export default function AIChefScreen() {
   const lastChatModeRef = useRef<"library" | "ai" | "chat" | "question" | "">("");
   const noveltyRetryRef = useRef(false);
   const failedChatRequestRef = useRef<{ fingerprint: string; clientMessageId: string } | null>(null);
+  // fingerprint → 進行中 request 嘅 clientMessageId（double-tap 重用同一個 id，讓 backend dedupe）
+  const pendingChatRequestRef = useRef<Record<string, string>>({});
 
   const utils = trpc.useUtils();
   const invalidateMealPlanAndCart = useInvalidateMealPlanAndCart();

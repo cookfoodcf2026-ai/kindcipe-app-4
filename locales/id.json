@@ -384,7 +384,13 @@
     "closestLibraryResult": "Ini resep yang paling mendekati:",
     "quotaExhausted": "Kuota AI bulan ini sudah habis",
     "swapNoLibrary": "📚 Tidak ada resep serupa baru di pustaka",
-    "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya."
+    "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya.",
+    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinSub": "Bikin kenyang・2+ sumber protein",
+    "qa_vegetarianLabel": "Vegetarian",
+    "qa_vegetarianSub": "Lakto-ovo・tanpa daging atau seafood",
+    "hk_highProteinPrompt": "Makanan tinggi protein dengan dua atau lebih sumber protein",
+    "hk_vegetarianPrompt": "Hidangan vegetarian (lakto-ovo, tanpa daging atau seafood)"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

@@ -384,7 +384,13 @@
     "closestLibraryResult": "Here are the closest recipes:",
     "quotaExhausted": "AI quota used up this month",
     "swapNoLibrary": "📚 No new similar recipe in the library",
-    "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them."
+    "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them.",
+    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinSub": "Muscle-friendly・2+ protein sources",
+    "qa_vegetarianLabel": "Vegetarian",
+    "qa_vegetarianSub": "Lacto-ovo・no meat or seafood",
+    "hk_highProteinPrompt": "High-protein muscle-friendly meal with two or more protein sources",
+    "hk_vegetarianPrompt": "Vegetarian dish (lacto-ovo, no meat or seafood)"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
