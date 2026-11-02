@@ -692,11 +692,6 @@ export default function OnboardingScreen(
                 <Text style={styles.genPillText}>幫我計劃今晚</Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => runQuickPlan(2)} style={{ paddingVertical: 12, alignItems: "center" }}>
-                <Text style={{ color: "#183B56", fontSize: 14, fontWeight: "700", textDecorationLine: "underline" }}>
-                  順便排埋聽晚（共 2 日）
-                </Text>
-              </TouchableOpacity>
               <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 10, alignItems: "center" }}>
                 <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
               </TouchableOpacity>
