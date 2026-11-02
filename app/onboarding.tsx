@@ -127,7 +127,8 @@ export default function OnboardingScreen(
         days: 1,
         servings: 4,
         starter: true,
-        starterVariant: Math.min(2, swapCount),
+        // swap 時要跳去下一組（A→B→C）；唔加 1 會一直抽返 A 再被 excludeNames 清空 → fallback 亂抽
+        starterVariant: Math.min(2, swapCount + (opts?.swap ? 1 : 0)),
         ...(excludeNames ? { excludeNames } : {}),
       });
       if (opts?.swap) setSwapCount((c) => c + 1);
