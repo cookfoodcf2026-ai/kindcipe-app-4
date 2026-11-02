@@ -33,6 +33,7 @@ import MealConflictPrompt from "@/src/components/MealConflictPrompt";
 import MealLimitPrompt from "@/src/components/MealLimitPrompt";
 import AdSlot from "@/src/components/AdSlot";
 import PaywallModal from "@/components/PaywallModal";
+import FreeUpsellModal from "@/src/components/FreeUpsellModal";
 import { categorizeIngredient, calcAdjustedQty, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore, getDayAfter } from "@/src/lib/date";
 import { friendlyError } from "@/lib/errors";
@@ -1348,6 +1349,25 @@ export default function AIChefScreen() {
   const aiLimit = statusCredits?.limit ?? usage?.aiChat?.limit ?? 0;
   const aiPercent = aiLimit > 0 ? aiUsed / aiLimit : 0;
   const creditsExhausted = aiLimit > 0 && aiUsed >= aiLimit;
+  // 免費升級 modal（Life360 式）：額度剩 ≤20% 時彈一次，7 日內唔重複
+  const [upsellVisible, setUpsellVisible] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const paidNow = sub?.status === "active" || (sub as any)?.isPaid === true;
+        if (!user || paidNow || showPaywall || (sub as any)?.coveredBy) return;
+        if (aiLimit <= 0 || aiPercent < 0.8) return;
+        const familyKey = String((user as any)?.familyId ?? "default");
+        const key = `kindcipe_upsell_shown_${familyKey}`;
+        const last = await AsyncStorage.getItem(key);
+        if (last && Date.now() - Number(last) < 7 * 24 * 60 * 60 * 1000) return;
+        await AsyncStorage.setItem(key, String(Date.now()));
+        if (!cancelled) setUpsellVisible(true);
+      } catch { /* 唔阻流程 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, sub?.status, showPaywall, aiLimit, aiPercent]);
   const aiReplyBlocked = contractAiBlocked || creditsExhausted || chefStatus?.canGenerate === false;
   const capBlocked = chefStatus?.reason === "internal_cap" || chefStatus?.reason === "free_ai_off";
   const safeMode = chefStatus?.reason === "safe_mode" || chefStatus?.mode === "library_only" || chefStatus?.mode === "disabled";
@@ -5251,6 +5271,14 @@ export default function AIChefScreen() {
           </View>
         </View>
       </Modal>
+
+      <FreeUpsellModal
+        visible={upsellVisible}
+        remaining={Math.max(0, aiLimit - aiUsed)}
+        onClose={() => setUpsellVisible(false)}
+        onUpgrade={() => { setUpsellVisible(false); setShowPaywall(true); }}
+        onHaveCode={() => { setUpsellVisible(false); setShowPaywall(true); }}
+      />
 
       <PaywallModal
         visible={showPaywall}
