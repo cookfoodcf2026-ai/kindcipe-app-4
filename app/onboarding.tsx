@@ -64,8 +64,13 @@ export default function OnboardingScreen(
   const [swapCount, setSwapCount] = useState(0);
   const [pool, setPool] = useState<any[][] | null>(null);
   const [slotPick, setSlotPick] = useState<number[]>([0, 0, 0, 0]);
-  // 16:00 之後買餸＋煮飯已經趕唔切今晚 → 自動排聽日
-  const planIsTomorrow = new Date().getHours() >= 16;
+  // 16:30 之後買餸＋煮飯已經趕唔切今晚 → 預設排聽日（用戶仍可切換）
+  const autoTomorrow = (() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes() >= 16 * 60 + 30;
+  })();
+  const [forceTomorrow, setForceTomorrow] = useState<boolean | null>(null);
+  const planIsTomorrow = forceTomorrow ?? autoTomorrow;
   const planWord = planIsTomorrow ? "聽晚" : "今晚";
   const planCta = `幫我計劃${planWord}`;
   const [selection, setSelection] = useState<any[] | null>(null);
@@ -751,6 +756,14 @@ export default function OnboardingScreen(
                 <View style={styles.genPillIcon}><Ionicons name="moon-outline" size={16} color="#fff" /></View>
                 <Text style={styles.genPillText}>{planCta}</Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setForceTomorrow(!planIsTomorrow)}
+                style={{ paddingVertical: 10, alignItems: "center" }}
+              >
+                <Text style={{ color: "#2F5D7C", fontSize: 13, fontWeight: "700" }}>
+                  {planIsTomorrow ? "改為今晚 ›" : "改為聽晚 ›"}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 10, alignItems: "center" }}>
                 <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
