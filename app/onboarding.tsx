@@ -127,6 +127,7 @@ export default function OnboardingScreen(
         days: 1,
         servings: 4,
         starter: true,
+        starterVariant: Math.min(2, swapCount),
         ...(excludeNames ? { excludeNames } : {}),
       });
       if (opts?.swap) setSwapCount((c) => c + 1);
