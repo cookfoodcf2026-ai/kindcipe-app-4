@@ -64,8 +64,8 @@ export default function OnboardingScreen(
   const [swapCount, setSwapCount] = useState(0);
   const [pool, setPool] = useState<any[][] | null>(null);
   const [slotPick, setSlotPick] = useState<number[]>([0, 0, 0, 0]);
-  // 18:00 之後「今晚」已經趕唔切 → 自動排聽日
-  const planIsTomorrow = new Date().getHours() >= 18;
+  // 16:00 之後買餸＋煮飯已經趕唔切今晚 → 自動排聽日
+  const planIsTomorrow = new Date().getHours() >= 16;
   const planWord = planIsTomorrow ? "聽晚" : "今晚";
   const planCta = `幫我計劃${planWord}`;
   const [selection, setSelection] = useState<any[] | null>(null);
