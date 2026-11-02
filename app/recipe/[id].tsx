@@ -2210,6 +2210,11 @@ export default function RecipeDetailScreen() {
                       const p = aiEditPreview as any;
                       saveEditedRecipeM.mutate({
                         editPrompt: aiEditPrompt,
+                        // 改「我嘅食譜」→ 要求後端原地更新，避免重複卡
+                        sourceRecipeId:
+                          typeof id === "string" && id.startsWith("user_") && Number.isFinite(Number(id.slice(5)))
+                            ? Number(id.slice(5))
+                            : undefined,
                         recipe: {
                           name: p.name ?? recipe.name,
                           nameEn: p.nameEn,
