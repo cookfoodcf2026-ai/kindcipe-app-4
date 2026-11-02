@@ -439,8 +439,8 @@ const QUICK_ACTIONS = [
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲懶人", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客/有朋友", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "蛋白/健康餐", subtitle: "增肌飽肚・每餐 ≥2 蛋白來源", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
+  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "蛋白/健康餐", subtitle: "增肌飽肚・每餐 ≥2 蛋白來源", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
+  { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", group: "scenario", tint: "#EAF5E6", color: "#183B56" },
 ];
 
 const HOT_KEY_CONFIG: Record<string, {
@@ -3114,6 +3114,9 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
           mode: "library",
+          // 換卡要保留 hotkey 嘅搜尋條件（例如 scenario: highProtein），
+          // 否則只靠 keyword + dishType，換兩次之後候選變 0 → 誤彈「AI 建議」。
+          search: hotkeyCtx ? { ...hotkeyCtx, count: 1 } : undefined,
           avoidIngredients: mealDefaults.allergens,
           lang: i18n.language,
           // 瘦身：7 日去重由後端 cache 負責；前端只排除「其他卡 + 現卡 + 已換過」（sessionAvoidNames 太肥會爆池錯誤 fallback AI）
@@ -4358,13 +4361,17 @@ export default function AIChefScreen() {
                 disabled={chatMutation.isPending}
                 style={s.scenarioCard}
               >
-                <ExpoImage
-                  source={a.image}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  transition={0}
-                />
+                {a.image ? (
+                  <ExpoImage
+                    source={a.image}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={0}
+                  />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: (a as any).tint ?? "#FFFFFF" }]} />
+                )}
                 <View style={s.scenarioCardScrim} />
                 <View style={s.scenarioCardContent}>
                   <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
