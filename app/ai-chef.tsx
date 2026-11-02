@@ -447,6 +447,9 @@ const HOT_KEY_CONFIG: Record<string, {
   search?: { query?: string; tags?: string[]; cookTimeMax?: number; category?: string; scenario?: string };
   rank?: "shortestTime" | "default";
   aiPrompt: string;
+  // single: true → 唔行「三餸一湯」角色組合，直接由食譜庫出 1 張卡
+  // （素食／高蛋白池冇「肉」角色，行角色組合會 served=0）
+  single?: boolean;
 }> = {
   quick: {
     search: { cookTimeMax: 30, scenario: "quick" },
@@ -477,11 +480,13 @@ const HOT_KEY_CONFIG: Record<string, {
     search: { query: "蛋白質", scenario: "highProtein" },
     rank: "default",
     aiPrompt: "aiChef.hk_highProteinPrompt",
+    single: true,
   },
   vegetarian: {
     search: { query: "素食", scenario: "vegetarian" },
     rank: "default",
     aiPrompt: "aiChef.hk_vegetarianPrompt",
+    single: true,
   },
 };
 
@@ -2831,6 +2836,12 @@ export default function AIChefScreen() {
     activeHotKeyRef.current = config ? id : null;
 
     // 熱鍵（quick/healthy/ricecooker/kids/guest）：直接用預設偏好生成（唔出問卷，同 3餸1湯 skip 一致）
+    if (config && config.single) {
+      // 單卡 hotkey：直接由食譜庫出 1 張（唔行角色組合）
+      requestInstantRecipes("library");
+      return;
+    }
+
     if (config) {
       const defaultPrefs: MealPlanPreferences = {
         people: 4,
