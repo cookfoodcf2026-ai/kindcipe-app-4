@@ -659,7 +659,7 @@ export default function OnboardingScreen(
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
-            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : "想我幫你計劃幾多日？"}
+            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : "想我幫你計劃今晚晚餐？"}
           </Text>
           <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
             {planData ? "每日 3 餸 1 湯，食材自動合併成買餸清單。" : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
