@@ -78,14 +78,18 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
   const plan = SUBSCRIPTION_TYPE[productId];
 
   if (isStripeSupported) {
+    let step = "init";
     try {
+      step = "track";
       try {
         track(Events.PurchaseStarted, { productId, plan, platform: Platform.OS });
       } catch {
         /* analytics 唔可以阻住付款 */
       }
+      step = "returnUrl";
       const returnUrl =
         isWeb && typeof window !== "undefined" ? window.location.origin : undefined;
+      step = "mutate";
       const { url } = await trpc.billing.createCheckoutSession.mutate({
         plan,
         returnUrl,
@@ -93,6 +97,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
       if (!url) {
         return { success: false, error: i18n.t("error.purchaseFailed" as any) };
       }
+      step = "redirect";
       // Web：直接跳轉（expo Linking 喺 web 有時冇 openURL → "e[] is not a function"）
       if (isWeb && typeof window !== "undefined") {
         window.location.assign(url);
@@ -103,7 +108,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
       // activates Pro. Caller should refresh subscription state after redirect.
       return { success: true, purchase: { productId } };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = `[${step}] ${e instanceof Error ? e.message : String(e)}`;
       return { success: false, error: msg || i18n.t("error.purchaseFailed" as any) };
     }
   }
