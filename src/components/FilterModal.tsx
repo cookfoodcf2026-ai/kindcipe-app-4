@@ -174,6 +174,7 @@ export default function FilterModal({
             { key: "tonight", label: " 今晚食" },
             { key: "kids", label: "👶 小朋友啱食" },
             { key: "light", label: "🥗 清淡少油" },
+            { key: "high-protein", label: "💪 高蛋白" },
             { key: "vegetarian", label: " 素食主義" },
             { key: "soup", label: "🍲 湯水" },
             { key: "quick30", label: "⏱ 30 分鐘內" },
