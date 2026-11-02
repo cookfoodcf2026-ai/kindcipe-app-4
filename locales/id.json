@@ -2199,7 +2199,9 @@
     "slotsLeft": "Penawaran terbatas · sisa {{n}}",
     "claimBy": "Harga founding berlaku hingga {{date}}",
     "startTrialCta": "Gratis hingga {{date}}, lalu {{price}}",
-    "webOnlyCta": "Berlangganan di web"
+    "webOnlyCta": "Berlangganan di web",
+    "coveredTitle": "Anda sudah memiliki Pro",
+    "coveredBody": "Pro sudah aktif di dapur \"{{name}}\" anda. Tukar ke dapur itu untuk menggunakannya."
   },
   " · 主人": " · Pemilik",
   " · 幫手": " · Asisten",

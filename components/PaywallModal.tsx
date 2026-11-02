@@ -131,6 +131,8 @@ export default function PaywallModal({
   const chargeToday = quote?.chargeToday ?? amount;
   const claimEnd = founding ? quote?.discountExpiresAt ?? promo?.discountExpiresAt ?? null : null;
   const slotsRemaining = promo?.earlybirdSlotsRemaining ?? quote?.slotsRemaining;
+  // 已享有 Pro：用戶所屬另一個廚房已 active → 唔應該再賣
+  const coveredBy = (sub as any)?.coveredBy as { familyId: number; name: string } | null | undefined;
 
   const redeemM = trpc.subscription.redeemTrialCode.useMutation({
     onSuccess: async (res: any) => {
@@ -298,7 +300,16 @@ export default function PaywallModal({
     </View>
   );
 
-  const cta = managed ? (
+  const cta = coveredBy ? (
+    <View style={{ backgroundColor: "#ECFDF5", borderRadius: 12, padding: 14, marginTop: 16 }}>
+      <Text style={{ fontSize: 14, fontWeight: "800", color: "#065F46", marginBottom: 4 }}>
+        {t("paywall.coveredTitle" as any)}
+      </Text>
+      <Text style={{ fontSize: 13, color: "#047857", lineHeight: 19 }}>
+        {t("paywall.coveredBody" as any, { name: coveredBy.name })}
+      </Text>
+    </View>
+  ) : managed ? (
     canManageBilling ? (
       <TouchableOpacity style={styles.upgradeBtn} onPress={handleManageSubscription}>
         <Text style={styles.upgradeBtnText}>{t("paywall.manage" as any)}</Text>

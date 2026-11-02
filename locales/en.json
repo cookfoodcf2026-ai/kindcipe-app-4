@@ -2229,7 +2229,9 @@
     "slotsLeft": "Limited-time offer · {{n}} left",
     "claimBy": "Founding price available until {{date}}",
     "startTrialCta": "Free until {{date}}, then {{price}}",
-    "webOnlyCta": "Subscribe on the web"
+    "webOnlyCta": "Subscribe on the web",
+    "coveredTitle": "You already have Pro",
+    "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again."
   },
   " · 主人": " · Owner",
   " · 幫手": " · Helper",

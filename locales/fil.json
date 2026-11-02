@@ -2199,7 +2199,9 @@
     "slotsLeft": "Limitadong offer · {{n}} natitira",
     "claimBy": "Founding price hanggang {{date}}",
     "startTrialCta": "Libre hanggang {{date}}, pagkatapos {{price}}",
-    "webOnlyCta": "Mag-subscribe sa web"
+    "webOnlyCta": "Mag-subscribe sa web",
+    "coveredTitle": "You already have Pro",
+    "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again."
   },
   " · 主人": " · May-ari",
   " · 幫手": " · Katulong",
