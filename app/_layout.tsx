@@ -317,7 +317,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
       // 若用戶已擁有 kitchen（activeFamilyId 已設定），視為已完成 onboarding。
       // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
-      if (meQuery.data?.activeFamilyId) {
+      // ⚠️ 但用戶啱啱喺 /onboarding 建立廚房時，要繼續行 guide + quick-plan，唔可以即刻踢走。
+      const onOnboardingRoute = (pathname ?? "").startsWith("/onboarding");
+      if (meQuery.data?.activeFamilyId && !onOnboardingRoute) {
         await AsyncStorage.setItem(key, "true");
         setOnboardingDone(true);
         router.replace("/(tabs)");
@@ -327,7 +329,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } catch {
       router.replace("/onboarding");
     }
-  }, [meQuery.data?.id, meQuery.data?.activeFamilyId, router]);
+  }, [meQuery.data?.id, meQuery.data?.activeFamilyId, router, pathname]);
 
   // 檢查是否已完成 Onboarding（以用戶 ID 為 key）
   useEffect(() => {
