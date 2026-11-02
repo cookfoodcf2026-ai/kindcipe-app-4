@@ -14,7 +14,7 @@
  */
 import { Linking, Platform } from "react-native";
 import i18n from "./i18n";
-import { trpc } from "./trpc";
+import { apiClient } from "./trpc";
 import { getWebappUrl, isWeb } from "./platform";
 import { track, Events } from "./analytics";
 
@@ -90,7 +90,7 @@ export async function purchaseSubscription(productId: ProductId): Promise<Purcha
       const returnUrl =
         isWeb && typeof window !== "undefined" ? window.location.origin : undefined;
       step = "mutate";
-      const { url } = await trpc.billing.createCheckoutSession.mutate({
+      const { url } = await apiClient.billing.createCheckoutSession.mutate({
         plan,
         returnUrl,
       });
@@ -123,7 +123,7 @@ export async function manageSubscription(
   try {
     if (provider === "stripe" || (!provider && isStripeSupported)) {
       try {
-        const { url } = await trpc.billing.createPortalSession.mutate();
+        const { url } = await apiClient.billing.createPortalSession.mutate();
         if (url) {
           await Linking.openURL(url);
           return;
@@ -158,7 +158,7 @@ export type StripeConfirmStatus = "active" | "trial" | "pending" | "error";
 
 export async function confirmStripeCheckout(sessionId: string): Promise<StripeConfirmStatus> {
   try {
-    const res = await trpc.billing.confirmCheckout.mutate({ sessionId });
+    const res = await apiClient.billing.confirmCheckout.mutate({ sessionId });
     if (res.status === "active" || res.status === "trial") {
       track(Events.PurchaseCompleted, { via: "stripe", sessionId, status: res.status });
       return res.status;
