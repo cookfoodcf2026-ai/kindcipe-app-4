@@ -54,10 +54,12 @@ function formatYearMonthLabel(yearMonth: string): string {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { billing: billingReturn, session_id: billingSessionId, paywall } = useLocalSearchParams<{
+  const { billing: billingReturn, session_id: billingSessionId, paywall, code: codeParam } = useLocalSearchParams<{
     billing?: string;
     session_id?: string;
     paywall?: string;
+    /** IG 派發嘅創始會員碼：/settings?code=C9F-XXXXXXXX */
+    code?: string;
   }>();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
@@ -266,6 +268,10 @@ export default function SettingsScreen() {
     if (paywall === "1") setShowPaywall(true);
   }, [paywall]);
   const [promoCode, setPromoCode] = useState("");
+  // 由 IG DM 帶入嘅 code：自動填入（用戶只需撳「兌換」）
+  useEffect(() => {
+    if (codeParam) setPromoCode(String(codeParam).trim().toUpperCase());
+  }, [codeParam]);
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
   const [promoState, setPromoState] = useState<"idle" | "redeeming" | "done">("idle");
 
