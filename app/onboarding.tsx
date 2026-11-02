@@ -563,7 +563,7 @@ export default function OnboardingScreen(
                         disabled={loading}
                       >
                         <View style={styles.genPillIcon}><Ionicons name="sparkles" size={16} color="#fff" /></View>
-                        <Text style={styles.genPillText}>{t("onboarding.startUsing")}</Text>
+                        <Text style={styles.genPillText}>{t("onboarding.planTwoDays" as any)}</Text>
                         <Ionicons name="arrow-forward" size={18} color="#fff" />
                       </TouchableOpacity>
                       {activeFamilyId ? (

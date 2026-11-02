@@ -161,7 +161,8 @@
     "uiWeekMenu": "This week's plan",
     "uiShoppingList": "Shopping list",
     "startUsing": "Get started",
-    "skip": "Skip for now"
+    "skip": "Skip for now",
+    "planTwoDays": "Plan 2 days for me"
   },
   "settings": {
     "title": "Settings",
