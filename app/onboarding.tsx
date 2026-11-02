@@ -62,6 +62,8 @@ export default function OnboardingScreen(
   const [planData, setPlanData] = useState<any>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const [swapCount, setSwapCount] = useState(0);
+  const [pool, setPool] = useState<any[][] | null>(null);
+  const [selection, setSelection] = useState<any[] | null>(null);
 
   // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
   const gotoGuidePage = (page: number) => {
@@ -131,8 +133,14 @@ export default function OnboardingScreen(
         starterVariant: Math.min(2, swapCount + (opts?.swap ? 1 : 0)),
         ...(excludeNames ? { excludeNames } : {}),
       });
-      if (opts?.swap) setSwapCount((c) => c + 1);
       setPlanData(res);
+      setSelection(res?.days?.[0]?.recipes ?? null);
+      if (!pool) {
+        try {
+          const sets: any = await (apiClient.quickPlan as any).starterPool.query();
+          if (Array.isArray(sets) && sets.length) setPool(sets);
+        } catch {}
+      }
     } catch (e: any) {
       setPlanError(String(e?.message ?? ""));
     } finally {
@@ -140,12 +148,28 @@ export default function OnboardingScreen(
     }
   };
 
+  /** 逐道換：同一角色喺 A/B/C 之間輪換，全部預先審核 */
+  const swapDish = (idx: number) => {
+    if (!pool || !selection || swapCount >= 2) return;
+    const options = pool.map((set) => set[idx]).filter(Boolean);
+    if (options.length < 2) return;
+    const curId = selection[idx]?.recipeId;
+    const pos = options.findIndex((o: any) => o.recipeId === curId);
+    const next = options[(pos + 1) % options.length];
+    if (!next) return;
+    const ns = selection.slice();
+    ns[idx] = next;
+    setSelection(ns);
+    setSwapCount((c) => c + 1);
+  };
+
   const acceptQuickPlan = async () => {
     if (!planData?.days?.length) return;
     setPlanLoading(true);
     try {
-      const items = planData.days.flatMap((d: any) =>
-        (d.recipes ?? []).map((r: any) => ({
+      const dayRecipes = selection && selection.length ? selection : (planData.days[0]?.recipes ?? []);
+      const items = planData.days.flatMap((d: any, di: number) =>
+        (di === 0 && selection ? dayRecipes : (d.recipes ?? [])).map((r: any) => ({
           date: d.date,
           buyDate: d.date,
           recipeId: r.recipeId,
@@ -682,14 +706,28 @@ export default function OnboardingScreen(
           {!planLoading && planData?.days?.map((d: any) => (
             <View key={d.date} style={{ marginBottom: 18 }}>
               <Text style={{ fontSize: 15, fontWeight: "800", color: "#183B56", marginBottom: 8 }}>{d.date}</Text>
-              {(d.recipes ?? []).map((r: any) => (
-                <View key={r.recipeId} style={{ backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#E6DED4" }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#183B56" }}>{r.name}</Text>
-                  <Text style={{ fontSize: 12, color: "#5F6F80", marginTop: 2 }}>
-                    {r.cookTime ? `${r.cookTime} 分鐘` : ""}{r.servings ? ` · ${r.servings} 人` : ""}
-                  </Text>
-                </View>
-              ))}
+              {(d.recipes ?? []).map((r0: any, idx: number) => {
+                const r = selection && idx < selection.length ? selection[idx] : r0;
+                const canSwap = !!pool && swapCount < 2;
+                return (
+                  <View key={`${r.recipeId}-${idx}`} style={{ backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#E6DED4", flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: "#183B56" }}>{r.name}</Text>
+                      <Text style={{ fontSize: 12, color: "#5F6F80", marginTop: 2 }}>
+                        {r.cookTime ? `${r.cookTime} 分鐘` : ""}{r.servings ? ` · ${r.servings} 人` : ""}
+                      </Text>
+                    </View>
+                    {canSwap && (
+                      <TouchableOpacity
+                        onPress={() => swapDish(idx)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#EEF3F7" }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#2F5D7C" }}>換</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           ))}
 
@@ -711,19 +749,9 @@ export default function OnboardingScreen(
 
           {!planLoading && !!planData && (
             <>
-              {swapCount < 2 ? (
-                <TouchableOpacity
-                  style={[styles.genPill, { marginTop: 8, backgroundColor: "#2F5D7C" }]}
-                  onPress={() => runQuickPlan({ swap: true })}
-                >
-                  <View style={styles.genPillIcon}><Ionicons name="refresh" size={16} color="#fff" /></View>
-                  <Text style={styles.genPillText}>換一組（仲可以換 {2 - swapCount} 次）</Text>
-                </TouchableOpacity>
-              ) : (
-                <Text style={{ color: "#92400E", fontSize: 12, marginTop: 8, textAlign: "center" }}>
-                  已換 2 次，開始用呢一組啦
-                </Text>
-              )}
+              <Text style={{ color: swapCount >= 2 ? "#92400E" : "#5F6F80", fontSize: 12, marginTop: 4, marginBottom: 4, textAlign: "center" }}>
+                {swapCount >= 2 ? "已換 2 次，開始用呢一組啦" : `每道菜都可以撳「換」，仲可以換 ${2 - swapCount} 次`}
+              </Text>
               <TouchableOpacity
                 style={[styles.genPill, { marginTop: 10 }]}
                 onPress={acceptQuickPlan}
