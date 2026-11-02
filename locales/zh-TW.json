@@ -2201,7 +2201,8 @@
     "startTrialCta": "免費至 {{date}}，之後 {{price}}",
     "webOnlyCta": "在網頁版訂閱",
     "coveredTitle": "你已享有 Pro",
-    "coveredBody": "你目前喺「{{name}}」廚房已經有 Pro，唔需要再訂閱。切換去該廚房即可使用。"
+    "coveredBody": "你目前喺「{{name}}」廚房已經有 Pro，唔需要再訂閱。切換去該廚房即可使用。",
+    "coveredSwitch": "切換去「{{name}}」"
   },
   " · 主人": " · 主人",
   " · 幫手": " · 幫手",

@@ -85,7 +85,7 @@ export default function PaywallModal({
   const { isDesktop } = useBreakpoint();
   const msg = FEATURE_MESSAGES[feature];
   const utils = trpc.useUtils();
-  const { familyRole } = useAuth();
+  const { familyRole, switchFamily } = useAuth();
   const canManageBilling = familyRole === "owner" || familyRole === "admin";
 
   const [plan, setPlan] = useState<Plan>("yearly");
@@ -308,6 +308,19 @@ export default function PaywallModal({
       <Text style={{ fontSize: 13, color: "#047857", lineHeight: 19 }}>
         {t("paywall.coveredBody" as any, { name: coveredBy.name })}
       </Text>
+      <TouchableOpacity
+        style={[styles.upgradeBtn, { backgroundColor: "#047857", marginTop: 12 }]}
+        onPress={async () => {
+          try {
+            await switchFamily(String(coveredBy.familyId));
+            onClose();
+          } catch (e) {
+            console.error("[Paywall] switchFamily failed:", e);
+          }
+        }}
+      >
+        <Text style={styles.upgradeBtnText}>{t("paywall.coveredSwitch" as any, { name: coveredBy.name })}</Text>
+      </TouchableOpacity>
     </View>
   ) : managed ? (
     canManageBilling ? (
@@ -359,7 +372,7 @@ export default function PaywallModal({
               {["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"].map((fk) => <FeatureRow key={fk} fk={fk} />)}
             </View>
 
-            {!managed ? (
+            {!managed && !coveredBy ? (
               <View style={[isDesktop && styles.twoCol]}>
                 <View style={isDesktop ? styles.colLeft : undefined}>
                   <Text style={styles.sectionTitle}>{t("paywall.choosePlan" as any)}</Text>

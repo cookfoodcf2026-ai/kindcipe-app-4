@@ -2231,7 +2231,8 @@
     "startTrialCta": "Free until {{date}}, then {{price}}",
     "webOnlyCta": "Subscribe on the web",
     "coveredTitle": "You already have Pro",
-    "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again."
+    "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again.",
+    "coveredSwitch": "Switch to {{name}}"
   },
   " · 主人": " · Owner",
   " · 幫手": " · Helper",

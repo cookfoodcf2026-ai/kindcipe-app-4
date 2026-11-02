@@ -2201,7 +2201,8 @@
     "startTrialCta": "Gratis hingga {{date}}, lalu {{price}}",
     "webOnlyCta": "Berlangganan di web",
     "coveredTitle": "Anda sudah memiliki Pro",
-    "coveredBody": "Pro sudah aktif di dapur \"{{name}}\" anda. Tukar ke dapur itu untuk menggunakannya."
+    "coveredBody": "Pro sudah aktif di dapur \"{{name}}\" anda. Tukar ke dapur itu untuk menggunakannya.",
+    "coveredSwitch": "Tukar ke {{name}}"
   },
   " · 主人": " · Pemilik",
   " · 幫手": " · Asisten",
