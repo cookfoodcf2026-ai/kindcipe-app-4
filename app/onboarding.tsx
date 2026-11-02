@@ -64,6 +64,10 @@ export default function OnboardingScreen(
   const [swapCount, setSwapCount] = useState(0);
   const [pool, setPool] = useState<any[][] | null>(null);
   const [slotPick, setSlotPick] = useState<number[]>([0, 0, 0, 0]);
+  // 18:00 之後「今晚」已經趕唔切 → 自動排聽日
+  const planIsTomorrow = new Date().getHours() >= 18;
+  const planWord = planIsTomorrow ? "聽晚" : "今晚";
+  const planCta = `幫我計劃${planWord}`;
   const [selection, setSelection] = useState<any[] | null>(null);
 
   // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
@@ -122,8 +126,9 @@ export default function OnboardingScreen(
     setPlanLoading(true);
     setPlanError(null);
     try {
-      const today = new Date();
-      const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const base = new Date();
+      if (planIsTomorrow) base.setDate(base.getDate() + 1);
+      const startDate = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
       const excludeNames = opts?.swap ? (planData?.days?.[0]?.recipes ?? []).map((r: any) => r.name) : undefined;
       const res: any = await apiClient.quickPlan.suggest.mutate({
         startDate,
@@ -689,7 +694,7 @@ export default function OnboardingScreen(
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
-            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : "想我幫你計劃今晚晚餐？"}
+            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : `想我幫你計劃${planWord}晚餐？`}
           </Text>
           <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
             {planData ? "每日 3 餸 1 湯，食材自動合併成買餸清單。" : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
@@ -744,7 +749,7 @@ export default function OnboardingScreen(
                 onPress={() => runQuickPlan()}
               >
                 <View style={styles.genPillIcon}><Ionicons name="moon-outline" size={16} color="#fff" /></View>
-                <Text style={styles.genPillText}>幫我計劃今晚</Text>
+                <Text style={styles.genPillText}>{planCta}</Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 10, alignItems: "center" }}>
