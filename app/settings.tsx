@@ -813,13 +813,19 @@ export default function SettingsScreen() {
               </View>
 
               <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
-                <Text style={{ fontSize: 36, lineHeight: 40, fontWeight: "900", color: "#183B56" }}>{usage.aiChat.used}</Text>
+                <Text style={{ fontSize: 36, lineHeight: 40, fontWeight: "900", color: "#183B56" }}>
+                  {usage.aiChat.used + usage.imports.used}
+                  <Text style={{ fontSize: 18, fontWeight: "800", color: "#9CA3AF" }}>
+                    {" / "}
+                    {usage.aiChat.limit + usage.imports.limit}
+                  </Text>
+                </Text>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: "#5F6F80" }}>{t("settings.creditsUsed" as any)}</Text>
               </View>
 
               <View style={styles.usageMetricRow}>
                 <Text style={styles.usageMetricLabel}>{t("settings.aiChat")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: usage.aiChat.used })}</Text>
+                <Text style={styles.usageMetricValue}>{usage.aiChat.used} / {usage.aiChat.limit}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
@@ -835,7 +841,7 @@ export default function SettingsScreen() {
 
               <View style={[styles.usageMetricRow, { marginTop: 14 }]}>
                 <Text style={styles.usageMetricLabel}>{t("settings.recipeImport")}</Text>
-                <Text style={styles.usageMetricValue}>{t("dyn.times", { n: usage.imports.used })}</Text>
+                <Text style={styles.usageMetricValue}>{usage.imports.used} / {usage.imports.limit}</Text>
               </View>
               <View style={styles.usageBarTrack}>
                 <View
