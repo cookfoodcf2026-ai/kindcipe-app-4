@@ -61,6 +61,7 @@ export default function OnboardingScreen(
   const [planLoading, setPlanLoading] = useState(false);
   const [planData, setPlanData] = useState<any>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [swapCount, setSwapCount] = useState(0);
 
   // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
   const gotoGuidePage = (page: number) => {
@@ -114,13 +115,21 @@ export default function OnboardingScreen(
   };
 
   /** 用戶揀完日數才真正配餐（1 = 今晚，2 = 今晚＋聽晚） */
-  const runQuickPlan = async (days: number) => {
+  const runQuickPlan = async (opts?: { swap?: boolean }) => {
     setPlanLoading(true);
     setPlanError(null);
     try {
       const today = new Date();
       const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const res: any = await apiClient.quickPlan.suggest.mutate({ startDate, days, servings: 4 });
+      const excludeNames = opts?.swap ? (planData?.days?.[0]?.recipes ?? []).map((r: any) => r.name) : undefined;
+      const res: any = await apiClient.quickPlan.suggest.mutate({
+        startDate,
+        days: 1,
+        servings: 4,
+        starter: true,
+        ...(excludeNames ? { excludeNames } : {}),
+      });
+      if (opts?.swap) setSwapCount((c) => c + 1);
       setPlanData(res);
     } catch (e: any) {
       setPlanError(String(e?.message ?? ""));
@@ -686,7 +695,7 @@ export default function OnboardingScreen(
             <>
               <TouchableOpacity
                 style={[styles.genPill, { marginTop: 8 }]}
-                onPress={() => runQuickPlan(1)}
+                onPress={() => runQuickPlan()}
               >
                 <View style={styles.genPillIcon}><Ionicons name="moon-outline" size={16} color="#fff" /></View>
                 <Text style={styles.genPillText}>幫我計劃今晚</Text>
@@ -700,8 +709,21 @@ export default function OnboardingScreen(
 
           {!planLoading && !!planData && (
             <>
+              {swapCount < 2 ? (
+                <TouchableOpacity
+                  style={[styles.genPill, { marginTop: 8, backgroundColor: "#2F5D7C" }]}
+                  onPress={() => runQuickPlan({ swap: true })}
+                >
+                  <View style={styles.genPillIcon}><Ionicons name="refresh" size={16} color="#fff" /></View>
+                  <Text style={styles.genPillText}>換一組（仲可以換 {2 - swapCount} 次）</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ color: "#92400E", fontSize: 12, marginTop: 8, textAlign: "center" }}>
+                  已換 2 次，開始用呢一組啦
+                </Text>
+              )}
               <TouchableOpacity
-                style={[styles.genPill, { marginTop: 8 }]}
+                style={[styles.genPill, { marginTop: 10 }]}
                 onPress={acceptQuickPlan}
                 disabled={!planData}
               >
