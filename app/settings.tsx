@@ -466,6 +466,8 @@ export default function SettingsScreen() {
     finally { setMergeBusy(false); }
   };
   const sub = subscriptionQuery.data;
+  // 已享有 Pro（同一用戶另一個廚房 active）→ 唔顯示升級掣
+  const coveredBy = (sub as any)?.coveredBy as { familyId: number; name: string } | null | undefined;
   const usage = usageQuery.data;
   const usageHistoryByMember = usageHistoryByMemberQuery.data ?? [];
   const hasFamily = families.length > 0;
@@ -582,7 +584,11 @@ export default function SettingsScreen() {
               <Text style={styles.subCardTitle}>{t("settings.subscriptionStatus")}</Text>
               <Text style={[styles.subCardStatus, { color: subInfo.color }]}>{t(subInfo.label as any)}</Text>
             </View>
-            {!subInfo.isPaid && !subInfo.isTrial ? (
+            {!subInfo.isPaid && !subInfo.isTrial && coveredBy ? (
+              <Text style={[styles.subManagedNote, { color: "#047857" }]}>
+                {t("paywall.coveredTitle" as any)}
+              </Text>
+            ) : !subInfo.isPaid && !subInfo.isTrial ? (
               <TouchableOpacity
                 style={styles.upgradeSmallBtn}
                 onPress={() => setShowPaywall(true)}
