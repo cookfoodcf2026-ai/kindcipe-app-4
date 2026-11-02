@@ -63,6 +63,7 @@ export default function OnboardingScreen(
   const [planError, setPlanError] = useState<string | null>(null);
   const [swapCount, setSwapCount] = useState(0);
   const [pool, setPool] = useState<any[][] | null>(null);
+  const [slotPick, setSlotPick] = useState<number[]>([0, 0, 0, 0]);
   const [selection, setSelection] = useState<any[] | null>(null);
 
   // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
@@ -135,6 +136,7 @@ export default function OnboardingScreen(
       });
       setPlanData(res);
       setSelection(res?.days?.[0]?.recipes ?? null);
+      setSlotPick([0, 0, 0, 0]);
       if (!pool) {
         try {
           const sets: any = await (apiClient.quickPlan as any).starterPool.query();
@@ -148,19 +150,22 @@ export default function OnboardingScreen(
     }
   };
 
-  /** 逐道換：同一角色喺 A/B/C 之間輪換，全部預先審核 */
+  /** 逐道換：每格記住自己嘅組別索引，A→B→C 輪換（唔靠比對 recipeId，避免名字/ref 差異） */
   const swapDish = (idx: number) => {
     if (!pool || !selection || swapCount >= 2) return;
-    const options = pool.map((set) => set[idx]).filter(Boolean);
-    if (options.length < 2) return;
-    const cur = selection[idx] ?? {};
-    let pos = options.findIndex((o: any) => o.recipeId === cur.recipeId);
-    if (pos === -1) pos = options.findIndex((o: any) => String(o.name) === String(cur.name));
-    const next = options[(pos + 1) % options.length];
+    const setCount = pool.length;
+    if (setCount < 2) return;
+    const nextSet = (slotPick[idx] + 1) % setCount;
+    const next = pool[nextSet]?.[idx];
     if (!next) return;
     const ns = selection.slice();
     ns[idx] = next;
     setSelection(ns);
+    setSlotPick((prev) => {
+      const cp = prev.slice();
+      cp[idx] = nextSet;
+      return cp;
+    });
     setSwapCount((c) => c + 1);
   };
 
