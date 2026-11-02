@@ -101,20 +101,26 @@ export default function OnboardingScreen(
     }
   };
 
-  /** guide 最後一步 → owner/admin 直接計劃 2 日；member/helper 跳過（跟 OpenCode 鎖定設計） */
+  /** guide 最後一步 → owner/admin 入「計劃晚餐」選擇；member/helper 直接跳過（OpenCode 鎖定設計） */
   const startQuickPlan = async () => {
     const role = (familyRole || "").toLowerCase();
     if (role !== "owner" && role !== "admin") {
       await finishOnboarding();
       return;
     }
+    setPlanData(null);
+    setPlanError(null);
     setStep("plan");
+  };
+
+  /** 用戶揀完日數才真正配餐（1 = 今晚，2 = 今晚＋聽晚） */
+  const runQuickPlan = async (days: number) => {
     setPlanLoading(true);
     setPlanError(null);
     try {
       const today = new Date();
       const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const res: any = await apiClient.quickPlan.suggest.mutate({ startDate, days: 2, servings: 4 });
+      const res: any = await apiClient.quickPlan.suggest.mutate({ startDate, days, servings: 4 });
       setPlanData(res);
     } catch (e: any) {
       setPlanError(String(e?.message ?? ""));
@@ -642,10 +648,10 @@ export default function OnboardingScreen(
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
-            幫你計劃好 2 日
+            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : "想我幫你計劃幾多日？"}
           </Text>
           <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
-            每日 3 餸 1 湯，食材自動合併成買餸清單。（免費帳號會用 1 次 AI 額度）
+            {planData ? "每日 3 餸 1 湯，食材自動合併成買餸清單。" : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
           </Text>
 
           {planLoading && (
@@ -676,7 +682,28 @@ export default function OnboardingScreen(
             </View>
           ))}
 
-          {!planLoading && (
+          {!planLoading && !planData && !planError && (
+            <>
+              <TouchableOpacity
+                style={[styles.genPill, { marginTop: 8 }]}
+                onPress={() => runQuickPlan(1)}
+              >
+                <View style={styles.genPillIcon}><Ionicons name="moon-outline" size={16} color="#fff" /></View>
+                <Text style={styles.genPillText}>幫我計劃今晚</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => runQuickPlan(2)} style={{ paddingVertical: 12, alignItems: "center" }}>
+                <Text style={{ color: "#183B56", fontSize: 14, fontWeight: "700", textDecorationLine: "underline" }}>
+                  順便排埋聽晚（共 2 日）
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 10, alignItems: "center" }}>
+                <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {!planLoading && !!planData && (
             <>
               <TouchableOpacity
                 style={[styles.genPill, { marginTop: 8 }]}
