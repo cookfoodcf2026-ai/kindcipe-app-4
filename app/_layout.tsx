@@ -483,7 +483,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       // Onboarding key side-effect (preserved)
-      if (isLoggedIn && !onboardingDone && meQuery.data?.activeFamilyId) {
+      // ⚠️ 唔可以喺 /onboarding 期間設定：用戶一建立廚房就會有 activeFamilyId，
+      // 若即刻標記完成，AuthGuard 會踢去 tabs，guide + quick-plan 永遠唔會出現。
+      const inOnboardingRoute = seg0 === "onboarding";
+      if (isLoggedIn && !onboardingDone && meQuery.data?.activeFamilyId && !inOnboardingRoute) {
         const key = getOnboardingKey(meQuery.data.id);
         await AsyncStorage.setItem(key, "true");
         setOnboardingDone(true);
