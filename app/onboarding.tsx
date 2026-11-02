@@ -38,7 +38,7 @@ import { isWeb } from "@/lib/platform";
 const { width, height } = Dimensions.get("window");
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
 
-type OnboardingStep = "signin" | "choice" | "create" | "join" | "guide" | "import";
+type OnboardingStep = "signin" | "choice" | "create" | "join" | "guide" | "plan" | "import";
 
 const GUIDE_SLIDES = [
   { img: require("../assets/slide1.jpg"), title: "今晚食咩？AI 一鍵搞定", caption: "自動配好三餸一湯，唔使再煩", ui: null as string | null },
@@ -51,12 +51,16 @@ export default function OnboardingScreen(
   ) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { logout, switchFamily, activeFamilyId } = useAuth();
+  const { logout, switchFamily, activeFamilyId, familyRole } = useAuth();
   const utils = trpc.useUtils();
   const [step, setStep] = useState<OnboardingStep>("signin");
   const [guidePage, setGuidePage] = useState(0);
   const guideScrollRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
+  // Onboarding quick-plan（OpenCode 鎖定設計：guide → 自動計劃 2 日 → 開始使用／跳過）
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planData, setPlanData] = useState<any>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
   const gotoGuidePage = (page: number) => {
@@ -94,6 +98,61 @@ export default function OnboardingScreen(
     } catch (error) {
       console.error("Onboarding 完成失敗:", error);
       setLoading(false);
+    }
+  };
+
+  /** guide 最後一步 → owner/admin 直接計劃 2 日；member/helper 跳過（跟 OpenCode 鎖定設計） */
+  const startQuickPlan = async () => {
+    const role = (familyRole || "").toLowerCase();
+    if (role !== "owner" && role !== "admin") {
+      await finishOnboarding();
+      return;
+    }
+    setStep("plan");
+    setPlanLoading(true);
+    setPlanError(null);
+    try {
+      const today = new Date();
+      const startDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      const res: any = await apiClient.quickPlan.suggest.mutate({ startDate, days: 2, servings: 4 });
+      setPlanData(res);
+    } catch (e: any) {
+      setPlanError(String(e?.message ?? ""));
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const acceptQuickPlan = async () => {
+    if (!planData?.days?.length) return;
+    setPlanLoading(true);
+    try {
+      const items = planData.days.flatMap((d: any) =>
+        (d.recipes ?? []).map((r: any) => ({
+          date: d.date,
+          buyDate: d.date,
+          recipeId: r.recipeId,
+          recipeName: r.name,
+          recipeNameEn: r.nameEn ?? null,
+          recipeNameFil: r.nameFil ?? null,
+          recipeNameId: r.nameId ?? null,
+          recipeImage: r.thumbnailUrl ?? r.image ?? null,
+          ingredients: (r.ingredients ?? []).map((i: any) => ({
+            name: i.name,
+            nameEn: i.nameEn,
+            nameFil: i.nameFil,
+            nameId: i.nameId,
+            quantity: String(i.quantity ?? ""),
+            unit: String(i.unit ?? ""),
+            category: i.category ?? "",
+          })),
+        })),
+      );
+      await apiClient.quickPlan.accept.mutate({ clientRequestId: `onboarding-${Date.now()}`, items });
+      await finishOnboarding();
+    } catch (e: any) {
+      Alert.alert("儲存計劃失敗", String(e?.message ?? ""));
+      setPlanLoading(false);
     }
   };
   
@@ -500,7 +559,7 @@ export default function OnboardingScreen(
                       <TouchableOpacity
                         style={styles.genPill}
                         activeOpacity={0.85}
-                        onPress={finishOnboarding}
+                        onPress={startQuickPlan}
                         disabled={loading}
                       >
                         <View style={styles.genPillIcon}><Ionicons name="sparkles" size={16} color="#fff" /></View>
@@ -578,6 +637,66 @@ export default function OnboardingScreen(
   }
 
   // 第五屏：匯入食譜（跳轉到完整匯入頁面）
+  if (step === "plan") {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
+            幫你計劃好 2 日
+          </Text>
+          <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
+            每日 3 餸 1 湯，食材自動合併成買餸清單。（免費帳號會用 1 次 AI 額度）
+          </Text>
+
+          {planLoading && (
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
+              <ActivityIndicator color="#183B56" />
+              <Text style={{ marginTop: 10, color: "#5F6F80" }}>正在配餐…</Text>
+            </View>
+          )}
+
+          {!!planError && !planLoading && (
+            <View style={{ backgroundColor: "#FEF3C7", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+              <Text style={{ color: "#92400E", fontWeight: "700", marginBottom: 4 }}>暫時配唔到</Text>
+              <Text style={{ color: "#92400E", fontSize: 13 }}>你可以先入 app，之後喺「計劃」再試。</Text>
+            </View>
+          )}
+
+          {!planLoading && planData?.days?.map((d: any) => (
+            <View key={d.date} style={{ marginBottom: 18 }}>
+              <Text style={{ fontSize: 15, fontWeight: "800", color: "#183B56", marginBottom: 8 }}>{d.date}</Text>
+              {(d.recipes ?? []).map((r: any) => (
+                <View key={r.recipeId} style={{ backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: "#E6DED4" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#183B56" }}>{r.name}</Text>
+                  <Text style={{ fontSize: 12, color: "#5F6F80", marginTop: 2 }}>
+                    {r.cookTime ? `${r.cookTime} 分鐘` : ""}{r.servings ? ` · ${r.servings} 人` : ""}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          {!planLoading && (
+            <>
+              <TouchableOpacity
+                style={[styles.genPill, { marginTop: 8 }]}
+                onPress={acceptQuickPlan}
+                disabled={!planData}
+              >
+                <View style={styles.genPillIcon}><Ionicons name="checkmark" size={16} color="#fff" /></View>
+                <Text style={styles.genPillText}>開始使用</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 14, alignItems: "center" }}>
+                <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (step === "import") {
     router.replace("/import?onboarding=true");
     return (
