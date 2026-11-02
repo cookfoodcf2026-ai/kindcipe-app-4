@@ -14,7 +14,7 @@ import "react-native-gesture-handler";
 import "@/lib/webAlertShim";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
+import { Stack, useRouter, useSegments, useRootNavigationState, usePathname } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -200,6 +200,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
   const rootNavigationState = useRootNavigationState();
   const navigationReady = !!rootNavigationState?.key;
   const { pending: pendingShare } = usePendingShare();
@@ -518,10 +519,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         if (redirectTarget === "/login" && !inLoginPage && !inVisualTest && !inForgotPassword && !inResetPassword && !inVerifyEmail) {
           // Unauthenticated: preserve current path for post-login redirect
           const pathParts = segments.filter((s) => s !== "(tabs)");
-          const currentPath = pathParts.length > 0 ? "/" + pathParts.join("/") : "/";
+          const fallbackPath = pathParts.length > 0 ? "/" + pathParts.join("/") : "/";
+          const currentPath =
+            pathname && pathname !== "/" && !pathname.startsWith("/login")
+              ? pathname
+              : fallbackPath;
           if (currentPath !== "/login" && currentPath !== "/") {
             await AsyncStorage.setItem(LOGIN_NEXT_KEY, currentPath);
-            router.replace("/login");
+            router.replace(`/login?next=${encodeURIComponent(currentPath)}` as any);
           } else if (seg0 === "admin") {
             router.replace("/login?mode=admin");
           } else {
