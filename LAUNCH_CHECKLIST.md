@@ -47,7 +47,8 @@
 - [ ] Web = Stripe
 - [ ] Android = **Google Play Billing**（唔可以用 Stripe）
 - [ ] iOS = Apple IAP
-- [x] ✅ 已移除 Android Stripe（`lib/purchase.ts` 只限 web，2026-10-21）；Play Billing 待接入
+- [x] ✅ 已移除 Android Stripe（`lib/purchase.ts` 只限 web，2026-10-21）
+- [ ] **Launch 暫時 native 免費 only**：iOS/Android 不顯示購買 CTA；C9T 試用碼仍可兌換，付款 CTA 開 web（待 IAP/Play Billing 接通）
 
 ---
 
@@ -55,19 +56,25 @@
 
 ### Stripe 切 Live（**只 Web** — iOS 用 IAP、Android 用 Play Billing）
 - [ ] 👤 去 Stripe Dashboard → **切換到 Live mode**（右上角 Test/Live toggle）
-- [ ] 👤 Live 建 **Product + Price**：月費 HK$30、年費 HK$288（早鳥價；正價 HK$38 / HK$365，見 `TIER_SPEC.md`）→ 攞 **live price IDs**（`price_...`）
+- [ ] 👤 Live 建 **Product `Kindcipe Pro` + 4 個 recurring Price**：
+  - 正價月費 HK$38 → `STRIPE_PRICE_MONTHLY`
+  - 正價年費 HK$365 → `STRIPE_PRICE_YEARLY`
+  - 創始月費 HK$30 → `STRIPE_PRICE_MONTHLY_PROMO`
+  - 創始年費 HK$288 → `STRIPE_PRICE_YEARLY_PROMO`
 - [ ] 👤 Live 攞 **`sk_live_...`** secret key
 - [ ] 👤 Live 加 **Webhook endpoint**（見下方逐步）→ 攞 **`whsec_...`**
 - [ ] 👤 Live 開 **Customer Portal**（Settings → Billing → Customer portal）
 - [ ] 👤 改 Railway env（見下方）
-- [ ] 🤖 驗證 `billing.status` → `configured: true`；webhook 收 `200`
-- [ ] 👤 用**真卡**試一單 → 確認家庭變 Pro → 退款測試單
+- [ ] 🤖 跑 `npm run db:migrate` 套用 pending migrations（**先做 DB backup**；唔好用 `db:push`，manual 0032–0042 未入 drizzle journal）
+- [ ] 🤖 驗證 `billing.status` → `configured: true`、`promoEnabled: true`；webhook 收 `200`
+- [ ] 👤 用**真卡**試一單 HK$30（創始）→ 確認家庭變 Pro / `price_tier=founding` → 退款測試單
+- [ ] 👤 試 C9T trial → 7 日 Pro → claim window → 轉 Stripe trial（HK$0 today）
 
 ### iOS — Apple IAP（唯一合法方式；App Store 3.1.1）
 - [ ] 🤖 裝 `react-native-iap`（`npm install --save-exact`）+ 需要 **EAS dev build**（唔可以 Expo Go）
 - [ ] 🤖 `lib/purchase.ts`：`initIAP` / `getProducts` / `purchaseSubscription`（攞 **signed transaction JWS**）→ `subscription.verifyIap`；`IAP_LIVE = true`
 - [ ] 🤖 `restorePurchases()` → `getAvailablePurchases()` → verifyIap
-- [ ] 👤 App Store Connect → **Subscriptions** → 建月/年產品（product ID：`kindcipe_monthly_30` / `kindcipe_yearly_288`）→ **提交審批**
+- [ ] 👤 App Store Connect → **Subscriptions** → 建月/年產品（product ID：`kindcipe_monthly_30` / `kindcipe_yearly_288`；價格 HK$38 / HK$365）→ **提交審批**
 - [ ] 👤 填 IAP 本地化（價格、描述）
 - [ ] 👤 Sandbox 帳號測試（購買 / 恢復 / 取消）
 - [ ] 🤖 後端已支援 Apple JWS 驗證（`_core/appleIap.ts`）✅；confirm `APPLE_BUNDLE_ID=com.kindcipe.app`
@@ -179,13 +186,16 @@
 - 登入 `dashboard.stripe.com`
 - 右上角 **Test mode** toggle → **關閉**（即進入 Live）
 
-### 2. 建 Product + Price（Live）
+### 2. 建 Product + 4 個 Price（Live）
 - **Products** → **Add product**
   - 名：`Kindcipe Pro`
-  - 建兩個 **recurring price**：
-    - 月費：HK$30 / month → **記低 `price_...`**
-    - 年費：HK$288 / year → **記低 `price_...`**
+  - 建四個 **recurring price**：
+    - 正價月費：HK$38 / month → `STRIPE_PRICE_MONTHLY`
+    - 正價年費：HK$365 / year → `STRIPE_PRICE_YEARLY`
+    - 創始月費：HK$30 / month → `STRIPE_PRICE_MONTHLY_PROMO`
+    - 創始年費：HK$288 / year → `STRIPE_PRICE_YEARLY_PROMO`
 - ⚠️ Live 同 Test 嘅 price ID **唔同**，要重新攞。
+- ⚠️ 唔好用 Coupon / Promotion Code 做創始價；創始價係獨立 recurring price，永久保留俾連續訂閱嘅首 100 個家庭。
 
 ### 3. 攞 Live Secret Key
 - **Developers → API keys**
@@ -197,10 +207,14 @@
   ```
   https://kindcipe-backend-production.up.railway.app/api/stripe/webhook
   ```
-- 監聽事件（**必須**呢三個）：
+- 監聽事件（**必須**）：
   - `checkout.session.completed`
+  - `checkout.session.expired`
+  - `checkout.session.async_payment_succeeded`
+  - `checkout.session.async_payment_failed`
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
+  - `invoice.paid`
 - 建立後 → 複製 **Signing secret**：`whsec_...`
 
 ### 5. 開 Customer Portal（Live）
@@ -211,11 +225,16 @@
 - Railway → `kindcipe-backend` → **Variables**，改：
   ```
   STRIPE_SECRET_KEY=sk_live_...
-  STRIPE_PRICE_MONTHLY=price_...（Live 月）
-  STRIPE_PRICE_YEARLY=price_...（Live 年）
+  STRIPE_PRICE_MONTHLY=price_...（正價 38）
+  STRIPE_PRICE_YEARLY=price_...（正價 365）
+  STRIPE_PRICE_MONTHLY_PROMO=price_...（創始 30）
+  STRIPE_PRICE_YEARLY_PROMO=price_...（創始 288）
   STRIPE_WEBHOOK_SECRET=whsec_...（Live）
   STRIPE_SUCCESS_URL=https://app.kindcipe.com/settings?billing=success
   STRIPE_CANCEL_URL=https://app.kindcipe.com/settings?billing=cancel
+  EARLYBIRD_PROMO_ACTIVE=true
+  EARLYBIRD_CAP=100
+  EARLYBIRD_WINDOW_DAYS=7
   BETA_ALL_PAID=false
   ```
 - 儲存 → Railway 會自動重新部署
@@ -231,12 +250,14 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 - App 內：`billing.status` 應回 `configured: true`
 
 ### 8. 真卡測試
-- Web/Android → 升級 → Stripe Checkout → 用**真卡**付 HK$30
+- Web → 升級 → Stripe Checkout → 用**真卡**付 HK$30（創始）
 - 確認：
   - 家庭 `isPaid` / Pro 生效
-  - `stripe_subscriptions` 有 `status: active`
+  - `stripe_subscriptions` 有 `status: active`、`price_tier: founding`
+  - `earlybird_redemptions` 由 `reserved` → `paid`
   - Stripe Dashboard → Payments 見到交易
 - 完成後 **退款** 測試單（Stripe Dashboard → 該 payment → Refund）
+- 另外試 C9T：兌換 → trial → claim window → Stripe trial（今日 HK$0）→ 到期自動扣款
 
 ### 9. 取消流程測試
 - App → 設定 → 管理訂閱 → Stripe Portal → 取消
@@ -251,40 +272,40 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 
 ---
 
-# 🎁 優惠策略（早鳥 Coupon，自動回正價）
+# 🎁 創始會員 + C9T 試用
 
-> 定價定案：**早鳥 HK$30/月 · HK$288/年**；**正價 HK$38/月 · HK$365/年**（見 `lib/pricing.ts`）。
-> 做法：Stripe base price 用**正價**，早鳥用 **amount-off coupon** 自動減 → promo 結束**自動回正價**。
+> 定價：**正價 HK$38/月 · HK$365/年**；**創始 HK$30/月 · HK$288/年**，首 100 個 held 家庭（`reserved + paid`）。
+> 創始價用**獨立 recurring price**，唔用 Coupon；連續訂閱期間永久保留。取消後再訂 = 正價。
 
 ### Stripe（👤）
-- [ ] 建**正價** price：HK$38/月、HK$365/年（喺 `Kindcipe Pro` product 下）
-- [ ] **刪除 / 歸檔**舊早鳥 price（HK$30/HK$288，冇訂閱可刪）
-- [ ] 建 Coupon `EARLY_M`：**−HK$8**、`repeating`、`3 個月`
-- [ ] 建 Coupon `EARLY_Y`：**−HK$77**、`repeating`、`3 個月`
-- [ ] （可選）Promotion code + `expires_at` 控制早鳥登記窗口
+- [ ] 建 4 個 recurring price（正價 38/365、創始 30/288），填入 Railway env（見上）
+- [ ] **唔好**再建舊文件提過嘅 EARLY_M / EARLY_Y Coupon；`STRIPE_COUPON_*` 已移除
+- [ ] 確認 Customer Portal 可以取消 / 更新付款方式
 
 ### 後端 / env（🤖 + 👤）
-- [ ] ✅ `billing.ts` 加 `discounts`（`couponForPlan`）— **已做**
-- [ ] 👤 Railway env：
-  ```
-  STRIPE_PRICE_MONTHLY=price_...（正價 38）
-  STRIPE_PRICE_YEARLY=price_...（正價 365）
-  STRIPE_COUPON_MONTHLY=coupon_...（EARLY_M）
-  STRIPE_COUPON_YEARLY=coupon_...（EARLY_Y）
-  ```
-- [ ] 👤 測試：checkout 顯示 **38 − 8 = 30**；3 個月後回正價
-- [ ] ⚠️ Promo 結束後：改 `lib/pricing.ts`（`PRICE.monthly` 回正價、移除劃線）
+- [x] ✅ `billing.previewCheckout` 由 server 決定 regular/founding 價、trial_end、charge today
+- [x] ✅ `billing.createCheckoutSession` 只信 server；client 不能傳 price / promo code
+- [x] ✅ `earlybird_redemptions` 追蹤 `reserved / paid / released`，容量 100
+- [x] ✅ C9T 兌換 transaction + advisory lock；任何家庭成員可兌換
+- [x] ✅ 自動 C9D 綁定家庭；client 唔會見到 / 不能提交
+- [ ] 👤 Railway env：4 個 price IDs、`EARLYBIRD_PROMO_ACTIVE=true`、`EARLYBIRD_CAP=100`、`EARLYBIRD_WINDOW_DAYS=7`
+- [x] ✅ `0041_earlybird_billing.sql` 已 apply（2026-10-21）
+- [ ] 👤 Railway 憑證輪換後，先備份 DB，再跑 `npm run db:migrate`（`0042_billing_webhook_ordering.sql`）
+- [x] ✅ 已產生首批 100 個 C9T（`~/kindcipe-promo/c9t-2026-10-21.csv`；如 DB 曾被存取，發放前重新產生）
+- [ ] 🤖 7 日後用 `npm run promo:codes -- reconcile` 睇 held / paid，再決定補碼（總 held 上限 100）
 
-### 原理（點解用 Coupon）
-| | Stripe base | Coupon | 客人俾 | Promo 後 |
-|--|:---:|:---:|:---:|:---:|
-| ✅ Coupon 方案 | 38 / 365 | −8 / −77 | **30 / 288** | **自動 38 / 365** |
-| ❌ 淨用早鳥價 | 30 / 288 | 冇 | 30 / 288 | 唔會自動變 |
-
-> ⚠️ `discounts` 同 `allow_promotion_codes` **互斥** → 我哋用 `discounts`（自動套用），
-> 令結帳金額同 App 顯示嘅 HK$30 **一致**。KOL / referral 碼將來另開。
-
----
+### 規則（實作）
+| 情境 | 結果 |
+|---|---|
+| C9T 兌換 | 7 日 Pro trial、免卡、不自動扣款 |
+| 試用完 + 7 日內，剩餘 ≥48h | Stripe trial 到試用完結；今日 HK$0；創始價 |
+| 試用完 + 7 日內，剩餘 <48h / 已完 | 即時收 HK$30 或 HK$288（清楚顯示） |
+| 過咗 trialEnd + 7 日 | 正價 HK$38 / HK$365 |
+| 100 個 held 滿 | 新客只能正價；已 trial 客 claim window 內仍可搶最後名額 |
+| 創始客取消 | slot 永遠計 paid；再訂 = 正價 |
+| 創始 trial 取消（未付款） | slot 釋放 |
+| 任何家庭成員 | 可兌換 / 可 checkout |
+| 管理 / 取消 | 只有 owner/admin |
 
 # 📈 未來加價 Playbook
 
@@ -322,7 +343,9 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 | 條件 | 現況 |
 |------|:---:|
 | `BETA_ALL_PAID=false` | ✅ 已 |
-| Stripe `sk_live`（Web） | 🔴 未 |
+| `0041_earlybird_billing.sql` 已 apply | ✅ 已 |
+| `0042_billing_webhook_ordering.sql` 已 apply | 🔴 未（等 Railway 憑證輪換） |
+| Stripe `sk_live` + 4 個 Live price | 🔴 未 |
 | **iOS IAP 接通**（前端 + 審批） | 🔴 未（`IAP_LIVE=false`）|
 | **Android Play Billing 接通** | 🔴 未（後端 Play 驗證未做）|
 | 服務條款 | 🔴 冇 |
@@ -342,8 +365,8 @@ curl -X POST https://kindcipe-backend-production.up.railway.app/api/stripe/webho
 - **SPA fallback 陷阱**：缺失 asset 會回 `index.html` 且被 `immutable` 快取 → 部署後**驗** `content-type: application/javascript`，唔對就 purge cache。
 - **`Alert.alert` 喺 web 係 no-op** → 已加 `lib/webAlertShim.ts`（web 映射 window.confirm/alert）。
 - **外部連結**（IG／帳戶）走 `app.json extra`（`instagramUrl` / `accountUrl`）。
-- **Paywall 平台感知**：web/Android 主「直接訂閱（Stripe）」＋次「IG 7 日試用」；iOS 主「IG 7 日試用」；**免費用戶隱藏「管理訂閱」**。
+- **Paywall 平台感知**：web 顯示方案 + server quote + Stripe CTA；native 暫時只顯示 C9T 試用碼 + 開 web 的 CTA（無 native 購買）。
 - Web 直接訂閱需要 **Stripe Live**（見階段 0）。
-- **IG 優惠碼**：用 **Stripe Promotion Code**（Coupon: 月 HK$30 / 年 HK$288，`duration` 依策略）。Paywall「套用」會呼叫 `billing.previewPromoCode` 顯示折後總額；`createCheckoutSession` 帶 `promoCode` 套折扣。**唔用自動 `discounts`**。
-- **補回**：另一 session 曾加嘅 `STRIPE_COUPON_*` 自動折扣已移除。要喺 Stripe Dashboard 建 Coupon + Promotion Code 先有 code 可用。
-- **Paywall 版面**：響應式（桌面兩欄）；iOS 只顯示 IG 試用變體。
+- **C9T 試用碼**：IG DM 只發 `C9T-XXXXXXXX`；C9D 由 server 自動發出並綁定家庭，client 永遠唔會見到。Paywall 只接受 C9T。
+- **唔再用 Stripe Promotion Code / Coupon**。創始價係獨立 recurring price；`billing.previewCheckout` 回傳 server 計算嘅 tier / amount / chargeToday / trialEnd。
+- **Paywall 版面**：響應式（桌面兩欄）；trial active 顯示狀態，Stripe trial 顯示「管理訂閱」。

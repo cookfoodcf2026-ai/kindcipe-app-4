@@ -47,3 +47,4 @@ dist/_expo/static/js/ios/
 dist/**/*.js.map
 dist/assetmap.json
 dist/metadata.json
+test-results/

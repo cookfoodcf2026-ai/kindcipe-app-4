@@ -1,5 +1,6 @@
 # Kindcipe — Rollback Runbook
 
+> Database：Railway Postgres = production canonical；Supabase = legacy — do not use。
 > 最後更新：2026-10-21
 > 目的：出事時 **5 分鐘內決定、30 分鐘內回滾**。
 > 原則：**先止血，後查因**。唔好即場 debug production。

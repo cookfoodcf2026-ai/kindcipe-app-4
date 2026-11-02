@@ -1,49 +1,55 @@
-# Webapp 部署清單（app.kindcipe.com）
+# Webapp 部署清單（`<app-host>`）
 
 > 只包含 webapp（Expo Web）。App 端（iOS/Android）行為不受影響。
+
+## 0. Database target（先讀）
+
+- **Railway Postgres = production canonical**
+- **Supabase = legacy — do not use**；不要跑 migration、validation 或 deploy 驗證
+- 真 host／密碼只存在 Railway env；文件只用 placeholder
 
 ## 架構
 
 ```
-app.kindcipe.com  → Expo Web (SPA, noindex)  ─┐
-                                               ├→ 同一個 backend API
-kindcipe.com      → Astro (GEO/SEO)       ────┘
+<app-host>       → Expo Web (SPA, noindex)  ─┐
+                                             ├→ 同一個 Railway backend API
+<marketing-host> → Astro (GEO/SEO)        ────┘
 ```
 
 ## 1. Backend 環境變數（Railway）— ✅ 已完成
 ```
-ALLOWED_ORIGINS=https://kindcipe.com,https://app.kindcipe.com
+ALLOWED_ORIGINS=<marketing-origin>,<app-origin>
 COOKIE_DOMAIN=.kindcipe.com
 ```
 
 - `ALLOWED_ORIGINS`：容許嘅 web origin（CORS）。**不可設為 `*`** —— 後端會過濾 `*` 變成空集合，令所有 web 請求 500（且 cookie 模式本身唔容許 `*`）。必須逐一列出，逗號分隔、含 `https://`、結尾無 `/`。
-- `COOKIE_DOMAIN`：令 `api.kindcipe.com` 派嘅 session cookie 可被 `app.kindcipe.com` 讀取（開頭 `.`）。
+- `COOKIE_DOMAIN`：令 `<api-host>` 派嘅 session cookie 可被 `<app-host>` 讀取（開頭 `.`）。
 
 **已驗證（2026-09-29）：**
-- `OPTIONS` preflight（`Origin: https://kindcipe.com` / `https://app.kindcipe.com`）→ **204/200**，回 `access-control-allow-origin` + `allow-credentials: true`
-- 非白名單 origin（如 `https://evil.com`）→ 仍被擋（500）
+- `OPTIONS` preflight（`Origin: <marketing-origin>` / `<app-origin>`）→ **204/200**，回 `access-control-allow-origin` + `allow-credentials: true`
+- 非白名單 origin（如 `<untrusted-origin>`）→ 仍被擋（500）
 - Native（無 Origin header）→ 200，App 不受影響
 
 ## 2. Google Cloud Console
 OAuth client（Web）→ Authorized JavaScript origins 加：
 ```
-https://app.kindcipe.com
+<app-origin>
 ```
 
 ## 3. Apple Web 登入
 登入流程：web 撳 Apple → `GET /api/auth/apple/web/start`（302 去 Apple）→ Apple `form_post` 去
-`APPLE_WEB_REDIRECT_URI` → 後端設 session cookie 並轉返 `app.kindcipe.com/login?apple=success`。
+`APPLE_WEB_REDIRECT_URI` → 後端設 session cookie 並轉返 `<app-host>/login?apple=success`。
 
 ### 3a. Apple Developer（developer.apple.com）
 1. **Team ID** → Membership 頁複製（10 字元）
 2. **Services ID** → Certificates, Identifiers & Profiles → Identifiers →
-   新 Identifier（Services IDs），例：`com.kindcipe.app.web`
+   新 Identifier（Services IDs），例：`<apple-services-id>`
    ・勾選 **Sign In with Apple** → Configure
-   ・**Primary App ID** 揀 `com.kindcipe.app`
-   ・**Domains and Subdomains**：`api.kindcipe.com`
-      （若後端仍在 railway.app，填 `kindcipe-backend-production.up.railway.app`）
-   ・**Return URLs**：`https://api.kindcipe.com/api/auth/apple/callback`
-      （或 Railway 版：`https://kindcipe-backend-production.up.railway.app/api/auth/apple/callback`）
+   ・**Primary App ID** 揀 `<bundle-id>`
+   ・**Domains and Subdomains**：`<api-host>`
+      （若後端仍在 railway.app，填 `<railway-backend-host>`）
+   ・**Return URLs**：`https://<api-host>/api/auth/apple/callback`
+      （或 Railway 版：`https://<railway-backend-host>/api/auth/apple/callback`）
    ・Save
 3. **Key** → Keys → 新 Key → 勾 **Sign In with Apple** → 下載 `.p8`（只可下載一次）
    ・記低 **Key ID**（10 字元）
@@ -52,9 +58,9 @@ https://app.kindcipe.com
 ```
 APPLE_TEAM_ID=<Team ID>
 APPLE_KEY_ID=<Key ID>
-APPLE_SERVICES_ID=com.kindcipe.app.web
+APPLE_SERVICES_ID=<apple-services-id>
 APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-APPLE_WEB_REDIRECT_URI=https://api.kindcipe.com/api/auth/apple/callback
+APPLE_WEB_REDIRECT_URI=https://<api-host>/api/auth/apple/callback
 ```
 > `APPLE_PRIVATE_KEY` 用 `.p8` 全文；Railway 可直接貼多行值。兩個 redirect URI
 > （Apple Developer 設定 與 Railway env）**必須完全一致**。
@@ -86,7 +92,7 @@ npm run build:web      # 產出 dist/
   SPA fallback 由 `wrangler.jsonc` 處理。
 
 ## 6. 驗證
-- [ ] `https://app.kindcipe.com` → login 頁
+- [ ] `<app-origin>` → login 頁
 - [ ] Google 登入成功
 - [ ] 桌面寬度 → 左側側欄；窄 → 底部 tabs
 - [ ] Onboarding：桌面可用箭咀／圓點切換投影片

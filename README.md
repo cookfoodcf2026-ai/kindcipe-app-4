@@ -146,12 +146,18 @@ export type { AppRouter } from "../../cookfood/server/routers";
 
 ---
 
+## 部署資料庫
+
+- Production canonical：**Railway Postgres**
+- Supabase：**legacy — do not use**；不要再連線、跑 migration 或用作驗證
+- Deploy / preflight / rollback 詳見 `WEBAPP_DEPLOY.md` 與 `ROLLBACK_RUNBOOK.md`
+
 ## 技術棧
 
 - **框架**：Expo SDK 54 + React Native 0.81.5（New Architecture）
 - **路由**：expo-router（文件路由）
 - **API**：tRPC 11 + React Query 5
-- **後端**：https://kindcipe-backend-production.up.railway.app
+- **後端**：Railway backend（實際 host 只放在本機 `.env`，不要 commit）
 - **認證**：expo-secure-store + Manus OAuth
 - **相機**：expo-image-picker
 - **剪貼板**：expo-clipboard

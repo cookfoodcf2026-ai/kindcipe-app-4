@@ -2,6 +2,8 @@
 
 > 目的：上架後遇到問題，**快速判斷用 OTA 定 build**，避免拖延。
 > 對象：任何負責發佈嘅人（release captain）。
+>
+> Database：Railway Postgres = production canonical；Supabase = legacy — do not use。
 
 ---
 
@@ -59,7 +61,7 @@ cd kindcipe-backend
 git log --oneline -1
 railway up --detach
 # 驗證
-curl -s https://kindcipe-backend-production.up.railway.app/health
+curl -s https://<railway-backend-host>/health
 ```
 
 ### C. 新 build（native）
@@ -129,8 +131,8 @@ xcrun altool --upload-app -f /tmp/app.ipa -t ios \
 | ASC API key | `~/.appstoreconnect/private_keys/AuthKey_56TU9932W8.p8` |
 | ASC app id | `6815294638` |
 | Bundle id | `com.kindcipe.app` |
-| 後端 | `https://kindcipe-backend-production.up.railway.app` |
-| 隱私/支援 URL | `https://kindcipe.com/privacy/` `https://kindcipe.com/support/` |
+| 後端 | `https://<railway-backend-host>` |
+| 隱私/支援 URL | `https://<marketing-host>/privacy/` `https://<marketing-host>/support/` |
 
 ---
 
