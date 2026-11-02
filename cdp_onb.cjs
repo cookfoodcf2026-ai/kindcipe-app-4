@@ -1,0 +1,53 @@
+const http=require('http'),fs=require('fs');
+function get(p,m='GET'){return new Promise((res,rej)=>{const r=http.request({host:'127.0.0.1',port:9222,path:p,method:m},x=>{let d='';x.on('data',c=>d+=c);x.on('end',()=>res(d))});r.on('error',rej);r.end()})}
+const SHOTS=process.env.SHOTS||'~/.hermes/cache/scratch/shots';
+const path=require('path');
+const out=(n)=>path.join(SHOTS,n);
+(async()=>{
+  const list=JSON.parse(await get('/json/list'));
+  const page=list.find(t=>t.type==='page'&&/app\.kindcipe\.com/.test(t.url));
+  const ws=new WebSocket(page.webSocketDebuggerUrl);
+  let id=0;const pend=new Map();
+  const send=(m,p={})=>new Promise((res,rej)=>{const i=++id;pend.set(i,{res,rej});ws.send(JSON.stringify({id:i,method:m,params:p}))});
+  ws.addEventListener('message',ev=>{const m=JSON.parse(ev.data);if(m.id&&pend.has(m.id)){const p=pend.get(m.id);pend.delete(m.id);m.error?p.rej(new Error(m.error.message)):p.res(m.result)}});
+  await new Promise(r=>ws.addEventListener('open',r));
+  await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
+  const ev=async(e)=>{const r=await send('Runtime.evaluate',{expression:e,returnByValue:true,awaitPromise:true});return r.result.value};
+  const shot=async(n)=>{const s=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(out(n),Buffer.from(s.data,'base64'));};
+  const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const clickText=async(t)=>{
+    await ev(`(()=>{const t=${JSON.stringify(t)};const els=Array.from(document.querySelectorAll('div,span,button,a'));const h=els.find(e=>(e.innerText||'').trim()===t);if(!h)return 'nf';h.scrollIntoView({block:'center',inline:'center'});return 'ok'})()`);
+    await sleep(700);
+    const b=JSON.parse(await ev(`(()=>{const t=${JSON.stringify(t)};const els=Array.from(document.querySelectorAll('div,span,button,a'));const h=els.find(e=>(e.innerText||'').trim()===t);if(!h)return JSON.stringify({e:1});const r=h.getBoundingClientRect();return JSON.stringify({x:r.x+r.width/2,y:r.y+r.height/2,v:r.y>0&&r.y<innerHeight})})()`));
+    if(b.e||!b.v) return 'invisible';
+    for(const type of ['mousePressed','mouseReleased']) await send('Input.dispatchMouseEvent',{type,x:b.x,y:b.y,button:'left',clickCount:1});
+    await sleep(2500);
+    return 'clicked';
+  };
+  // 1) 清 onboarding flag + 導航
+  console.log('CLEAR', await ev(`(()=>{const ks=Object.keys(localStorage).filter(k=>k.includes('onboard')||k.includes('active_family'));ks.forEach(k=>localStorage.removeItem(k));return ks.join(',')})()`));
+  await send('Network.setCacheDisabled',{cacheDisabled:true});
+  await send('Page.navigate',{url:'https://app.kindcipe.com/onboarding'});
+  await sleep(8000);
+  console.log('AT', await ev('location.href'));
+  console.log('S1', await clickText('開始使用 Kindcipe'));
+  console.log('S2', await clickText('建立廚房'));
+  await ev(`(()=>{const ins=Array.from(document.querySelectorAll('input'));const set=(el,v)=>{const s=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;s.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))};if(ins[0])set(ins[0],'Mavis ABC Test');if(ins[1])set(ins[1],'Mavis');return ins.length})()`);
+  await sleep(800);
+  console.log('S3', await clickText('建立廚房'));
+  await sleep(2000);
+  await shot('abc_0_guide.png');
+  console.log('S4 plan', await clickText('幫我計劃今晚'));
+  await sleep(9000);
+  await shot('abc_A.png');
+  console.log('A TEXT', (await ev('document.body.innerText')).replace(/\n+/g,' | ').slice(0,400));
+  console.log('S5 swap1', await clickText('換一組（仲可以換 2 次）'));
+  await sleep(9000);
+  await shot('abc_B.png');
+  console.log('B TEXT', (await ev('document.body.innerText')).replace(/\n+/g,' | ').slice(0,400));
+  console.log('S6 swap2', await clickText('換一組（仲可以換 1 次）'));
+  await sleep(9000);
+  await shot('abc_C.png');
+  console.log('C TEXT', (await ev('document.body.innerText')).replace(/\n+/g,' | ').slice(0,400));
+  ws.close();
+})().catch(e=>{console.error('ERR',e.message);process.exit(1)});
