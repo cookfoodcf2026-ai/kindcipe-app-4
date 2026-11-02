@@ -14,7 +14,7 @@ import { track, Events } from "@/lib/analytics";
 import { getPendingVerificationEmail, clearPendingVerificationEmail } from "@/lib/pending-verification";
 
 const BRAND = "#183B56";
-const COPPER = "#F47B3A";
+const COPPER = "#F37021";
 const TEXT = "#1F2937";
 const SUB = "#6B7280";
 

@@ -22,7 +22,7 @@ export default function NextDayPrompt({ visible, title, body, acceptLabel, onAcc
       <View style={styles.backdrop}>
         <View style={[styles.card, { paddingBottom: insets.bottom + 18 }]}>
           <View style={styles.iconWrap}>
-            <Ionicons name="calendar-outline" size={24} color="#F47B3A" />
+            <Ionicons name="calendar-outline" size={24} color="#F37021" />
           </View>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.body}>{body}</Text>

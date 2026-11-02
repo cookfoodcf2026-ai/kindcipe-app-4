@@ -76,7 +76,7 @@ const openSourceUrl = async (url: string | undefined) => {
 
 const { width: SW } = Dimensions.get("window");
 const BRAND = "#183B56";
-const COPPER = "#F47B3A";
+const COPPER = "#F37021";
 const BG = "#FAFAF8";
 const CARD = "#FFFFFF";
 const TEXT = "#1C1C1E";

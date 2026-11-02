@@ -429,7 +429,7 @@ const scaleIngredients = (r: AIRecipe, overrideServings?: number | null): AIReci
 };
 
 const QUICK_ACTIONS = [
-  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F47B3A", color: "#FFFFFF" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
   { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#E8F0F4", color: "#183B56" },
   { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
   { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
@@ -4784,7 +4784,7 @@ export default function AIChefScreen() {
                             <Ionicons
                               name={selectedCardIndexes.has(i) ? "checkmark-circle" : "ellipse-outline"}
                               size={21}
-                              color={selectedCardIndexes.has(i) ? "#F47B3A" : "#5F6F80"}
+                              color={selectedCardIndexes.has(i) ? "#F37021" : "#5F6F80"}
                             />
                           </TouchableOpacity>
                         )}

@@ -1091,7 +1091,7 @@ export default function SettingsScreen() {
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#FFF7ED" }]}>
-                <Ionicons name="alarm-outline" size={20} color="#F47B3A" />
+                <Ionicons name="alarm-outline" size={20} color="#F37021" />
               </View>
               <View>
                 <Text style={styles.settingLabel}>{t("settings.dailyReminder")}</Text>
@@ -1196,7 +1196,7 @@ export default function SettingsScreen() {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#FDE7D7" }]}>
-                <Ionicons name="options-outline" size={20} color="#F47B3A" />
+                <Ionicons name="options-outline" size={20} color="#F37021" />
               </View>
               <Text style={styles.settingLabel}>{t("AI 排餐偏好" as any)}</Text>
             </View>

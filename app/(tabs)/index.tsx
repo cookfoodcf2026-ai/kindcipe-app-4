@@ -1891,9 +1891,9 @@ const s = StyleSheet.create({
 
   // Weekly bar
   weekDot: { width: 58, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", padding: 6, alignItems: "center" },
-  weekDotToday: { backgroundColor: "#F47B3A", borderColor: "#F47B3A" },
+  weekDotToday: { backgroundColor: "#F37021", borderColor: "#F37021" },
   weekDotEmpty: { backgroundColor: "#FFF8EF", borderColor: "#E6DED4" },
-  weekDotLabel: { fontSize: 12, fontWeight: "700", color: "#F47B3A" },
+  weekDotLabel: { fontSize: 12, fontWeight: "700", color: "#F37021" },
   weekDotDish: { fontSize: 8, color: "#5F6F80", marginTop: 2, textAlign: "center", width: 50 },
 
   // Search

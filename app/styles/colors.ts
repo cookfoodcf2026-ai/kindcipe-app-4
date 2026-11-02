@@ -1,7 +1,7 @@
 export const colors = {
   primary: {
     navy: '#183B56',
-    copper: '#F47B3A',
+    copper: '#F37021',
     cream: '#FFF8EF',
     darkGray: '#333D4B',
   },
@@ -9,7 +9,7 @@ export const colors = {
   brand: {
     headerNavy: '#183B56',
     navy: '#183B56',
-    warmOrange: '#F47B3A',
+    warmOrange: '#F37021',
     cream: '#FFF8EF',
     heroText: '#FFFFFF',
     heroSub: 'rgba(255,255,255,0.92)',
@@ -40,7 +40,7 @@ export const canva = {
   apricot: "#F3D7B3",
   brown: "#8A4B2A",
   primary: "#183B56",
-  accent: "#F47B3A",
+  accent: "#F37021",
   action: "#F37021", // Hermès orange — CTA 底；配 textOnAccent #10293D = 5.08:1（WCAG AA）
   muted: "#5F6F80",
   border: "#E6DED4",

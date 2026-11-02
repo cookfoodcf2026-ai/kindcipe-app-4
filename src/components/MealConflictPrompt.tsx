@@ -28,7 +28,7 @@ export default function MealConflictPrompt({ visible, dateLabel, mealLabel, meal
       <View style={styles.backdrop}>
         <View style={[styles.card, { paddingBottom: insets.bottom + 18 }]}>
           <View style={styles.iconWrap}>
-            <Ionicons name="alert-circle-outline" size={24} color="#F47B3A" />
+            <Ionicons name="alert-circle-outline" size={24} color="#F37021" />
           </View>
           <Text style={styles.title}>{t("當日已有{{meal}}" as any, { meal: subject })}</Text>
           <Text style={styles.body}>
