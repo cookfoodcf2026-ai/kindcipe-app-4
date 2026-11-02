@@ -153,8 +153,9 @@ export default function OnboardingScreen(
     if (!pool || !selection || swapCount >= 2) return;
     const options = pool.map((set) => set[idx]).filter(Boolean);
     if (options.length < 2) return;
-    const curId = selection[idx]?.recipeId;
-    const pos = options.findIndex((o: any) => o.recipeId === curId);
+    const cur = selection[idx] ?? {};
+    let pos = options.findIndex((o: any) => o.recipeId === cur.recipeId);
+    if (pos === -1) pos = options.findIndex((o: any) => String(o.name) === String(cur.name));
     const next = options[(pos + 1) % options.length];
     if (!next) return;
     const ns = selection.slice();

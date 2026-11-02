@@ -3,7 +3,8 @@ function get(p,m='GET'){return new Promise((res,rej)=>{const r=http.request({hos
 const IDX=Number(process.env.IDX||0), VAL=process.env.VAL||'', OUT=process.env.OUT||'/tmp/filled.png';
 (async()=>{
   const list=JSON.parse(await get('/json/list'));
-  const page=list.find(t=>t.type==='page'&&/app\.kindcipe\.com/.test(t.url));
+  const cands=list.filter(t=>t.type==='page'&&/app\.kindcipe\.com/.test(t.url));
+  const page=cands[cands.length-1];
   const ws=new WebSocket(page.webSocketDebuggerUrl);
   let id=0;const pend=new Map();
   const send=(m,p={})=>new Promise((res,rej)=>{const i=++id;pend.set(i,{res,rej});ws.send(JSON.stringify({id:i,method:m,params:p}))});

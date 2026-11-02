@@ -2,7 +2,8 @@ const http=require('http'),fs=require('fs');
 function get(p,m='GET'){return new Promise((res,rej)=>{const r=http.request({host:'127.0.0.1',port:9222,path:p,method:m},x=>{let d='';x.on('data',c=>d+=c);x.on('end',()=>res(d))});r.on('error',rej);r.end()})}
 (async()=>{
   const list=JSON.parse(await get('/json/list'));
-  const page=list.find(t=>t.type==='page'&&/app\.kindcipe\.com/.test(t.url));
+  const cands=list.filter(t=>t.type==='page'&&/app\.kindcipe\.com/.test(t.url));
+  const page=cands[cands.length-1];
   const ws=new WebSocket(page.webSocketDebuggerUrl);
   let id=0;const pend=new Map();
   const send=(m,p={})=>new Promise((res,rej)=>{const i=++id;pend.set(i,{res,rej});ws.send(JSON.stringify({id:i,method:m,params:p}))});
@@ -10,6 +11,7 @@ function get(p,m='GET'){return new Promise((res,rej)=>{const r=http.request({hos
   await new Promise(r=>ws.addEventListener('open',r));
   await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
   const ev=async(e)=>{const r=await send('Runtime.evaluate',{expression:e,returnByValue:true,awaitPromise:true});return r.result.value};
+  console.log('CLEAR:', await ev(`(()=>{const ks=Object.keys(localStorage).filter(k=>k.includes('onboard')||k.includes('active_family'));ks.forEach(k=>localStorage.removeItem(k));return ks.join(',')||'none'})()`));
   console.log('SW unregister:', await ev(`(async()=>{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister();const ks=await caches.keys();for(const k of ks)await caches.delete(k);return 'unreg='+rs.length+' caches='+ks.length})()`));
   await send('Network.setCacheDisabled',{cacheDisabled:true});
   await send('Page.navigate',{url:'https://app.kindcipe.com/onboarding'});
