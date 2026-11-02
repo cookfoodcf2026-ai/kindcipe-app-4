@@ -48,8 +48,10 @@ export function authGuardRedirect(input: AuthGuardRedirectInput): string | undef
     if (!onboardingDone) {
       // User has a kitchen but onboarding flag not yet set
       if (activeFamilyId) {
-        // Only redirect from entry points, NOT deep links
-        if (inLoginPage || inOnboarding || seg0 === "index") {
+        // Only redirect from entry points, NOT deep links.
+        // ⚠️ 唔包括 inOnboarding：用戶啱啱建立廚房就係喺 /onboarding，
+        // 呢刻踢去 tabs 會令 guide + quick-plan 永遠唔會出現。
+        if (inLoginPage || seg0 === "index") {
           return "/(tabs)";
         }
         // Deep links (recipe, settings, ai-chef, ...) and /import are preserved

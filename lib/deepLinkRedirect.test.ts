@@ -133,7 +133,9 @@ test("FIX: /login → /(tabs) when !onboardingDone && activeFamilyId", () => {
   assert.equal(result, "/(tabs)", "/login should redirect to /(tabs)");
 });
 
-test("FIX: /onboarding → /(tabs) when !onboardingDone && activeFamilyId", () => {
+test("REGRESSION GUARD: stay on /onboarding when !onboardingDone && activeFamilyId", () => {
+  // 用戶啱啱喺 onboarding 建立完廚房 → activeFamilyId 即刻有值。
+  // 若喺呢刻踢去 /(tabs)，guide carousel + quick-plan 永遠唔會出現（onboarding 被架空）。
   const result = authGuardRedirect({
     ...loggedInWithFamily,
     onboardingDone: false,
@@ -142,7 +144,7 @@ test("FIX: /onboarding → /(tabs) when !onboardingDone && activeFamilyId", () =
     inTabsGroup: false,
     seg0: "onboarding",
   });
-  assert.equal(result, "/(tabs)", "/onboarding should redirect to /(tabs)");
+  assert.equal(result, undefined, "/onboarding must stay so the flow can finish");
 });
 
 test("FIX: index → /(tabs) when !onboardingDone && activeFamilyId", () => {
