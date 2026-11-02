@@ -6,7 +6,18 @@ export function normalizeDisplayUnit(unit?: string): string {
   return u;
 }
 
-export function formatIngredientDisplay(quantity?: string | number, unit?: string): string {
+export function formatIngredientDisplay(
+  quantity?: string | number,
+  unit?: string,
+  quantityStatus?: "exact" | "estimated" | string,
+): string {
+  const approx = String(quantityStatus ?? "") === "estimated";
+  const body = formatIngredientBody(quantity, unit);
+  if (!body) return "";
+  return approx ? `≈ ${body}` : body;
+}
+
+function formatIngredientBody(quantity?: string | number, unit?: string): string {
   const qtyRaw = String(quantity ?? "").trim();
   const unitRaw = String(unit ?? "").trim();
   // 描述型量詞（適量/少許/适量…）落喺 quantity 或 unit → 一律本地化為單位字

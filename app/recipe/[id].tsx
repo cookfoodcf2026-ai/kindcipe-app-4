@@ -1485,7 +1485,7 @@ export default function RecipeDetailScreen() {
                       <View key={it.id} style={s.shopItemRow}>
                         <Text style={s.shopItemName} numberOfLines={1}>{it.name}</Text>
                         {(it.quantity || it.unit) && (
-                          <Text style={s.shopItemQty}>{formatIngredientDisplay(it.quantity, it.unit)}</Text>
+                          <Text style={s.shopItemQty}>{formatIngredientDisplay(it.quantity, it.unit, (it as any).quantityStatus)}</Text>
                         )}
                       </View>
                     ))}
@@ -2180,7 +2180,7 @@ export default function RecipeDetailScreen() {
                             <Text style={{ fontSize: 12, color: BRAND, fontWeight: "700", marginTop: 4 }}>{t("recipe.ingredientsN", { n: (aiEditPreview.ingredients || []).length })}</Text>
                             {(aiEditPreview.ingredients || []).map((ing: any, ingIdx: number) => (
                               <Text key={ingIdx} style={{ fontSize: 12, color: TEXT, lineHeight: 18 }}>
-                                • {getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary}{formatIngredientDisplay(ing.quantity, ing.unit) ? ` ${formatIngredientDisplay(ing.quantity, ing.unit)}` : ""}
+                                • {getBilingualName(ing.name, ing.nameEn, ing.nameFil, ing.nameId).primary}{formatIngredientDisplay(ing.quantity, ing.unit, (ing as any).quantityStatus) ? ` ${formatIngredientDisplay(ing.quantity, ing.unit, (ing as any).quantityStatus)}` : ""}
                               </Text>
                             ))}
                           </>

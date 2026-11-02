@@ -950,7 +950,7 @@ export default function ShoppingTab() {
             {/* 左側資訊區 (flex: 1) */}
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {(item.quantity || item.unit) && (
-                <Text style={styles.itemQty}>{formatIngredientDisplay(item.quantity, item.unit)}</Text>
+                <Text style={styles.itemQty}>{formatIngredientDisplay(item.quantity, item.unit, (item as any).quantityStatus)}</Text>
               )}
               {item.proposedByName && (
                 <Text style={styles.itemProposer}>{t("shopping.addedBy", { name: item.proposedByName })}</Text>
