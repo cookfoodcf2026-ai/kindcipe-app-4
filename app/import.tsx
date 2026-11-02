@@ -105,6 +105,8 @@ export default function ImportScreen() {
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
   const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
   const [parsedRecipe, setParsedRecipe] = useState<any>(null);
+  // C3：AI 推測警告（backend 已回 importWarning + parseToken）
+  const [ackWarning, setAckWarning] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [failedInput, setFailedInput] = useState<{ type: "url" | "text"; value: string } | null>(null);
   const [showFailMore, setShowFailMore] = useState(false);
@@ -584,6 +586,32 @@ export default function ImportScreen() {
     return () => sub.remove();
   }, []);
 
+  // C3：匯入警告 — 原文對唔上嘅食材／步驟係 AI 推測，要用戶明確同意
+  const promptImportWarning = (data: any) => {
+    setAckWarning(false);
+    const w = data?.importWarning;
+    if (!w?.shouldWarn) return;
+    const names = (w.inferredIngredients ?? [])
+      .map((i: any) => String(i?.name ?? "").trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const lines = [
+      `原文只對得上 ${w.groundedCount}/${w.totalIngredients} 樣食材。`,
+      names.length ? `AI 推測：${names.join("、")}` : "",
+      w.code === "steps_inferred" || w.code === "both" ? "步驟亦有部分係 AI 補寫。" : "",
+      "",
+      "用 AI 推測（會標示為推測），定係換另一個連結？",
+    ].filter(Boolean);
+    Alert.alert("部分內容係 AI 推測", lines.join("\n"), [
+      {
+        text: "換其他 link",
+        style: "cancel",
+        onPress: () => { setStep("input"); setParsedRecipe(null); setAckWarning(false); },
+      },
+      { text: "用 AI 推測", onPress: () => setAckWarning(true) },
+    ]);
+  };
+
   // tRPC mutations
   const parseUrlMutation = trpc.recipes.parseUrl.useMutation({
     onSuccess: (data) => {
@@ -593,6 +621,7 @@ export default function ImportScreen() {
       if (data.parseReason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
+        promptImportWarning(data);
         setStep("preview");
       } else if (data.parseReason === "no_recipe_content") {
         lastThumbRef.current = String((data as any).thumbnailUrl || "") || lastThumbRef.current;
@@ -642,6 +671,7 @@ export default function ImportScreen() {
       if (!reason || reason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
+        promptImportWarning(data);
         setStep("preview");
       } else {
         setErrorMsg(t("文字內容沒有足夠的食譜資訊。\n\n請確保文字包含食材清單和烹飪步驟。" as any));
@@ -697,6 +727,7 @@ export default function ImportScreen() {
       if (!reason || reason === "ok") {
         setParsedRecipe(data);
         initEditFromParsed(data);
+        promptImportWarning(data);
         if (!data?.thumbnailUrl && !data?.image && lastScreenshotUploadUrlRef.current) {
           setRecipeImageUri(lastScreenshotUploadUrlRef.current);
           setRecipeImageBase64(null);
@@ -1315,7 +1346,18 @@ export default function ImportScreen() {
         .map(t => t.replace(/^#/, "").trim())
         .filter(t => t.length > 0);
 
+      const warning = parsedRecipe?.importWarning;
+      if (warning?.requiresAck && !ackWarning) {
+        Alert.alert(
+          "部分內容係 AI 推測",
+          "請先揀「用 AI 推測」（會標示）或換另一個連結，才儲存。",
+        );
+        setIsSaving(false);
+        return;
+      }
       importMutation.mutate({
+        ackWarning: ackWarning || undefined,
+        parseToken: parsedRecipe?.parseToken || undefined,
         name: editName.trim(),
         description: editDesc.trim(),
         image: imageUrl,
@@ -1457,6 +1499,28 @@ export default function ImportScreen() {
             <Text style={styles.previewTitle}>{t("importRecipe.parseSuccess")}</Text>
             <Text style={styles.previewSubtitle}>{t("importRecipe.parseSuccessSub")}</Text>
           </View>
+
+          {/* C3：AI 推測警告橫幅（backend importWarning） */}
+          {parsedRecipe?.importWarning?.shouldWarn && (
+            <View style={{ marginHorizontal: 16, marginBottom: 12, backgroundColor: ackWarning ? "#ECFDF5" : "#FEF3C7", borderRadius: 12, padding: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: ackWarning ? "#065F46" : "#92400E", marginBottom: 4 }}>
+                {ackWarning ? "已標示 AI 推測" : "部分內容係 AI 推測"}
+              </Text>
+              <Text style={{ fontSize: 12, color: ackWarning ? "#047857" : "#92400E", lineHeight: 18 }}>
+                原文對得上 {parsedRecipe.importWarning.groundedCount}/{parsedRecipe.importWarning.totalIngredients} 樣食材
+                {parsedRecipe.importWarning.inferredCount > 0 ? `，其餘 ${parsedRecipe.importWarning.inferredCount} 樣係 AI 推測` : ""}
+                {parsedRecipe.importWarning.code === "steps_inferred" || parsedRecipe.importWarning.code === "both" ? "；步驟亦有 AI 補寫" : ""}。
+              </Text>
+              {!ackWarning && (
+                <TouchableOpacity
+                  style={{ marginTop: 8, alignSelf: "flex-start", backgroundColor: "#92400E", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+                  onPress={() => setAckWarning(true)}
+                >
+                  <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>用 AI 推測（會標示）</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* 用截圖補充（辨識食材/步驟）— 只在內容未完整時顯示；Pro */}
           {(editIngredients.length === 0 || editSteps.length === 0) && (
