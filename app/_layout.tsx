@@ -11,6 +11,8 @@
  * - 同一帳戶完成後不再重複顯示
  */
 import "react-native-gesture-handler";
+// web OAuth 回程 token 必須喺 router mount 前擷取
+import "../lib/webAuthCapture";
 import "@/lib/webAlertShim";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
