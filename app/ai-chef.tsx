@@ -2241,13 +2241,16 @@ export default function AIChefScreen() {
           excludeCategories: ["甜品", "湯水"],
         }
       : undefined;
+    // 場景熱鍵（素食／高蛋白／快手…）行 chat 路徑：library 快路徑會因為
+    // 「指定菜式」＋7 日去重而回 0 卡（素食熱鍵實測 0 張）。
+    const hotkeyUsesChat = Boolean(activeConfig && source === "library");
     mutateChat({
       messages: buildBackendMessages(backendMsgs),
-      mode: source === "ai" ? "ai" : "library",
+      mode: source === "ai" ? "ai" : hotkeyUsesChat ? "chat" : "library",
       ...(source === "ai" && aiEntry ? { aiEntry } : {}),
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       lang: i18n.language,
-      search: searchParam as any,
+      search: hotkeyUsesChat ? undefined : (searchParam as any),
     });
     scrollToEnd();
   };
