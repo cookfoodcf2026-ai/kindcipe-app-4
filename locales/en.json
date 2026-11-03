@@ -391,7 +391,8 @@
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lacto-ovo・no meat or seafood",
     "hk_highProteinPrompt": "High-protein muscle-friendly meal with two or more protein sources",
-    "hk_vegetarianPrompt": "Vegetarian dish (lacto-ovo, no meat or seafood)"
+    "hk_vegetarianPrompt": "Vegetarian dish (lacto-ovo, no meat or seafood)",
+    "aiAsk": "What would you like to cook? Name an ingredient or dish and I'll design it."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

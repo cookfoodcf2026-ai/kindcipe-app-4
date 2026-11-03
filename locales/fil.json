@@ -391,7 +391,8 @@
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lacto-ovo・walang karne o seafood",
     "hk_highProteinPrompt": "Mataas sa protina na pagkain na may dalawa o higit pang pinagmumulan ng protina",
-    "hk_vegetarianPrompt": "Vegetarian na ulam (lacto-ovo, walang karne o seafood)"
+    "hk_vegetarianPrompt": "Vegetarian na ulam (lacto-ovo, walang karne o seafood)",
+    "aiAsk": "Ano ang gusto mong lutuin? Sabihin ang sangkap o putahe at idedesign ko."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
