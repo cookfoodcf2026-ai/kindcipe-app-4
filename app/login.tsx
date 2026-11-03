@@ -374,27 +374,16 @@ export default function LoginScreen() {
   // iOS native uses handleAppleSignIn (expo-apple-authentication) — unchanged.
   const handleAppleWebSignIn = async () => {
     if (isWeb) {
-      // Web: Apple JS popup → id_token → POST (mirrors Google). No redirect, so
-      // there is no cookie/URL-fragment dependency that expo-router can mangle.
-      setIsLoading(true);
-      setLoadingType("apple");
+      // Web：用 Apple 官方 OAuth redirect（backend /api/auth/apple/web/start）。
+      // 唔需要 apple-developer-domain-association.txt，只要有登記 Return URL；
+      // 完成後 backend 會帶 token 返 /login?apple=success#token=…（下面 useEffect 處理）。
       try {
-        const { idToken, name } = await signInWithAppleWeb();
-        const res = await fetch(`${BACKEND_URL}/api/auth/apple/web`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ idToken, name }),
-        });
-        if (!res.ok) throw new Error("Apple login failed");
-        const data = await res.json();
-        await saveAuthTokenFromResponse(data);
-        await onLoginSuccess("apple");
-      } catch (err: any) {
-        if (__DEV__) console.error("Apple web login error:", err);
+        const { startAppleWebLogin } = require("../lib/socialAuth");
+        setLoadingType("apple");
+        startAppleWebLogin(`${window.location.origin}/login`);
+      } catch (err) {
+        if (__DEV__) console.error("Apple web redirect error:", err);
         Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));
-      } finally {
-        setIsLoading(false);
         setLoadingType("");
       }
       return;
@@ -568,7 +557,7 @@ export default function LoginScreen() {
           ) : (
             /* 用戶：只留 Apple + Google */
             <View style={styles.socialSection}>
-              {(Platform.OS === "ios" || (isWeb && APPLE_WEB_ENABLED)) && (
+              {(Platform.OS === "ios" || isWeb || APPLE_WEB_ENABLED) && (
                 <TouchableOpacity
                   style={[styles.appleBtn, ((Platform.OS === "ios" && !appleAvailable) || isLoading) && styles.socialBtnDisabled]}
                   onPress={Platform.OS === "ios" ? handleAppleSignIn : handleAppleWebSignIn}
