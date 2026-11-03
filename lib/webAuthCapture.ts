@@ -18,14 +18,11 @@ function capture(): void {
   try {
     const search = window.location.search || "";
     const hash = window.location.hash || "";
-    const isAppleSuccess = /apple=success/.test(search) || /apple=success/.test(hash);
-    if (!isAppleSuccess) return;
-
-    const match = hash.match(/[#&?]token=([^&]+)/);
+    const match = `${search}${hash}`.match(/[#&?]token=(eyJ[A-Za-z0-9._-]+)/);
     if (!match) return;
 
     const token = decodeURIComponent(match[1]);
-    if (token.length < 20) return;
+    if (token.length < 40) return;
 
     window.localStorage.setItem(AUTH_TOKEN_KEY, token);
     window.history.replaceState({}, "", window.location.pathname);

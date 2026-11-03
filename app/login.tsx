@@ -153,11 +153,12 @@ export default function LoginScreen() {
     const search = window.location.search || "";
     const hash = window.location.hash || "";
     const combined = `${search}${hash}`;
-    if (!/apple=success/.test(combined)) return;
-    const m = combined.match(/[#&?]token=([^&?]+)/);
+    // 只要見到 JWT 形 token 就當係 OAuth 回程（後端嘅 ?apple=success 會被
+    // expo-router 併入 hash 後消失，所以唔可以靠佢判斷）
+    const m = combined.match(/[#&?]token=(eyJ[A-Za-z0-9._-]+)/);
     if (!m) return;
     const token = decodeURIComponent(m[1]);
-    if (token.length < 20) return;
+    if (token.length < 40) return;
     void (async () => {
       try {
         await saveAuthTokenFromResponse({ token } as any);
