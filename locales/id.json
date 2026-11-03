@@ -350,7 +350,7 @@
     "qa_randomLabel": "Acak dari perpustakaan",
     "qa_aiLabel": "Resep AI",
     "qa_pantryLabel": "Pakai isi kulkas",
-    "qa_quickLabel": "Cepat 30 mnt",
+    "qa_quickLabel": "Cepat",
     "qa_quickSub": "Cepat setelah kerja",
     "qa_healthyLabel": "Ringan & sehat",
     "qa_healthySub": "Sedikit minyak & garam",
@@ -386,7 +386,7 @@
     "quotaExhausted": "Kuota AI bulan ini sudah habis",
     "swapNoLibrary": "📚 Tidak ada resep serupa baru di pustaka",
     "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya.",
-    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinLabel": "Tinggi protein",
     "qa_highProteinSub": "Bikin kenyang・2+ sumber protein",
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lakto-ovo・tanpa daging atau seafood",
@@ -1458,7 +1458,7 @@
   "待採購": "Perlu Dibeli",
   "待確認": "Konfirmasi",
   "從相簿選擇": "Dari Galeri",
-  "快手": "Cepat & Mudah",
+  "快手": "Cepat",
   "快手菜": "Resep Cepat",
   "快手（30分鐘內）": "Cepat (<30m)",
   "快炒": "Tumis Cepat",
@@ -2500,5 +2500,9 @@
   "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Browser memblokir akses clipboard otomatis (batasan Safari / in-app browser).\n\nTekan lama kotak di atas â tempel. Tautan akan terdeteksi otomatis.",
   "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Browser memblokir akses clipboard otomatis (batasan Safari / in-app browser).\n\nTekan lama kotak di atas → tempel. Tautan akan terdeteksi otomatis.",
   "長按貼上": "Tekan lama untuk tempel",
-  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS memblokir halaman web membaca clipboard. Tekan lama kotak di atas → tempel — tautan terdeteksi otomatis."
+  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS memblokir halaman web membaca clipboard. Tekan lama kotak di atas → tempel — tautan terdeteksi otomatis.",
+  "電飯煲": "Rice cooker",
+  "親子": "Keluarga",
+  "宴客": "Tamu",
+  "高蛋白": "Tinggi protein"
 }

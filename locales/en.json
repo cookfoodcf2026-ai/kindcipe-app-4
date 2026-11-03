@@ -350,7 +350,7 @@
     "qa_randomLabel": "Random from library",
     "qa_aiLabel": "AI generate recipe",
     "qa_pantryLabel": "Use fridge items",
-    "qa_quickLabel": "Quick 30 min",
+    "qa_quickLabel": "Quick",
     "qa_quickSub": "Cook fast after work",
     "qa_healthyLabel": "Light & healthy",
     "qa_healthySub": "Less oil & salt",
@@ -386,7 +386,7 @@
     "quotaExhausted": "AI quota used up this month",
     "swapNoLibrary": "📚 No new similar recipe in the library",
     "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them.",
-    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinLabel": "High protein",
     "qa_highProteinSub": "Muscle-friendly・2+ protein sources",
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lacto-ovo・no meat or seafood",
@@ -1488,7 +1488,7 @@
   "待採購": "To Buy",
   "待確認": "To Confirm",
   "從相簿選擇": "From Gallery",
-  "快手": "Quick & Easy",
+  "快手": "Quick",
   "快手菜": "Quick Recipes",
   "快手（30分鐘內）": "Quick (<30m)",
   "快炒": "Quick Stir-fry",
@@ -2530,5 +2530,9 @@
   "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Your browser blocks automatic clipboard access (a Safari / in-app browser restriction).\n\nLong-press the box above â tap Paste. The link will be detected automatically.",
   "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Your browser blocks automatic clipboard access (a Safari / in-app browser restriction).\n\nLong-press the box above → tap Paste. The link will be detected automatically.",
   "長按貼上": "Long-press to paste",
-  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS blocks web pages from reading the clipboard. Long-press the box above → tap Paste — the link is detected automatically."
+  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS blocks web pages from reading the clipboard. Long-press the box above → tap Paste — the link is detected automatically.",
+  "電飯煲": "Rice cooker",
+  "親子": "Family",
+  "宴客": "Guests",
+  "高蛋白": "High protein"
 }

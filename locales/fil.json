@@ -350,7 +350,7 @@
     "qa_randomLabel": "Random sa library",
     "qa_aiLabel": "AI na recipe",
     "qa_pantryLabel": "Gamitin ang nasa ref",
-    "qa_quickLabel": "Mabilis 30 min",
+    "qa_quickLabel": "Mabilis",
     "qa_quickSub": "Mabilis pagkatapos ng trabaho",
     "qa_healthyLabel": "Magaan at healthy",
     "qa_healthySub": "Kaunting mantika at asin",
@@ -386,7 +386,7 @@
     "quotaExhausted": "Naubos na ang AI quota ngayong buwan",
     "swapNoLibrary": "📚 Walang bagong katulad na recipe sa library",
     "pantryPrompt": "Gusto kong magluto gamit ang mga sangkap na ito: {{items}}. Magmungkahi ng recipe na gumagamit ng mga ito.",
-    "qa_highProteinLabel": "Protein / Fit Meals",
+    "qa_highProteinLabel": "Mataas na protein",
     "qa_highProteinSub": "Pampalakas・2+ pinagmumulan ng protina",
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lacto-ovo・walang karne o seafood",
@@ -1458,7 +1458,7 @@
   "待採購": "Bilhin Pa",
   "待確認": "Kumpirmahin Pa",
   "從相簿選擇": "Piliin sa Galerya",
-  "快手": "Mabilis at Madali",
+  "快手": "Mabilis",
   "快手菜": "Mabilis na Resipe",
   "快手（30分鐘內）": "Mabilis (<30m)",
   "快炒": "Mabilis na Tumis",
@@ -1593,7 +1593,7 @@
   "系統搜尋時遇到問題，請稍後再試": "May Error sa Paghahanap. Subukan Ulit",
   "紅燒": "Ginisang",
   "紅豆沙": "Pasta ng Adzuki",
-  "素食": "Vegetariano",
+  "素食": "Vegetarian",
   "素食主義": "Vegetarianismo",
   "綠豆沙": "Pasta ng Munggo",
   "網紅 (KOL)": "Influencer",
@@ -2500,5 +2500,9 @@
   "çè¦½å¨åä¿¾æèªåè®åªè²¼æ¿ï¼Safariï¼App å§çè¦½å¨åéå¶ï¼ã\n\nè«åºè¼¸å¥æ¡ä¸é¢é·æ â æãè²¼ä¸ï¼Pasteãï¼è²¼å°ä¹å¾ææèªååµæ¸¬ã": "Hindi pinapayagan ng browser ang automatic na pagbasa ng clipboard (limitasyon ng Safari / in-app browser).\n\nPindutin nang matagal ang kahon â Paste. Awtomatikong matutukoy ang link.",
   "瀏覽器唔俾我自動讀剪貼板（Safari／App 內瀏覽器嘅限制）。\n\n請喺輸入框上面長按 → 揀「貼上／Paste」，貼到之後我會自動偵測。": "Hindi pinapayagan ng browser ang automatic na pagbasa ng clipboard (limitasyon ng Safari / in-app browser).\n\nPindutin nang matagal ang kahon → Paste. Awtomatikong matutukoy ang link.",
   "長按貼上": "Pindutin nang matagal para i-paste",
-  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "Hindi pinapayagan ng iOS ang web page na magbasa ng clipboard. Pindutin nang matagal ang kahon → Paste — awtomatikong matutukoy ang link."
+  "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "Hindi pinapayagan ng iOS ang web page na magbasa ng clipboard. Pindutin nang matagal ang kahon → Paste — awtomatikong matutukoy ang link.",
+  "電飯煲": "Rice cooker",
+  "親子": "Pamilya",
+  "宴客": "Bisita",
+  "高蛋白": "Mataas na protein"
 }
