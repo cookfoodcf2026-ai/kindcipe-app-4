@@ -77,7 +77,6 @@ export default function LoginScreen() {
 
   // Apple Sign-In availability (async; native module may not register synchronously in the New Architecture).
   const [appleAvailable, setAppleAvailable] = useState<boolean>(hasAppleAuth);
-  const [debugUrl, setDebugUrl] = useState<string>("");
   useEffect(() => {
     if (Platform.OS === "ios") {
       try {
@@ -149,7 +148,6 @@ export default function LoginScreen() {
   // 因為 router 會將 ?apple=success 併入 hash 或清走）。成功就存 token 再 refresh。
   useEffect(() => {
     if (!isWeb || typeof window === "undefined") return;
-    try { setDebugUrl(window.location.href.slice(0, 160)); } catch {}
     const search = window.location.search || "";
     const hash = window.location.hash || "";
     const combined = `${search}${hash}`;
@@ -622,13 +620,6 @@ export default function LoginScreen() {
                 <Text style={styles.googleBtnText}>{t("auth.continueEmail" as any)}</Text>
               </TouchableOpacity>
             </View>
-          )}
-
-          {/* 臨時 debug：Apple 回程 URL（確認有冇帶 token／error） */}
-          {isWeb && !!debugUrl && (
-            <Text style={{ fontSize: 10, color: "#94A3B8", marginTop: 8, textAlign: "center" }}>
-              {debugUrl}
-            </Text>
           )}
 
           {/* 私隱同意 */}
