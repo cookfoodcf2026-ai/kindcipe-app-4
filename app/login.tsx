@@ -407,7 +407,7 @@ export default function LoginScreen() {
       try {
         const { startAppleWebLogin } = require("../lib/socialAuth");
         setLoadingType("apple");
-        startAppleWebLogin(`${window.location.origin}/login`);
+        startAppleWebLogin(`${window.location.origin}/auth/apple-callback.html`);
       } catch (err) {
         if (__DEV__) console.error("Apple web redirect error:", err);
         Alert.alert(t("auth.appleFailed"), t("auth.tryLater"));

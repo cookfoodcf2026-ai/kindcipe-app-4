@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kindcipe · 登入中</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #F7F4EF; }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang HK", sans-serif;
+      color: #183B56;
+    }
+    .box { text-align: center; }
+    .spinner {
+      width: 28px; height: 28px; margin: 0 auto 14px;
+      border: 3px solid #E6DED4; border-top-color: #F37021; border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+    p { font-size: 13px; color: #5F6F80; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <h1>正在完成登入…</h1>
+    <p>請稍等，唔好關閉頁面</p>
+  </div>
+  <script>
+    (function () {
+      var KEY = "kindcipe_auth_token";
+      var hash = window.location.hash || "";
+      var search = window.location.search || "";
+      var combined = search + hash;
+      var m = combined.match(/[#&?]token=([^&?]+)/);
+
+      if (!m) {
+        document.querySelector("h1").textContent = "登入未完成";
+        document.querySelector("p").textContent = "請返回 App 再試一次";
+        setTimeout(function () { window.location.replace("/login"); }, 1500);
+        return;
+      }
+
+      var token = decodeURIComponent(m[1]);
+      try { window.localStorage.setItem(KEY, token); } catch (e) {}
+
+      // 清走 URL（避免 refresh 重複觸發、避免 token 留在歷史紀錄）
+      try { window.history.replaceState({}, "", "/auth/apple-callback.html"); } catch (e) {}
+
+      // 交給 App：根路徑會讀 localStorage 嘅 token
+      window.location.replace("/");
+    })();
+  </script>
+</body>
+</html>
