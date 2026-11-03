@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { Audio } from "expo-av";
+import * as Haptics from "expo-haptics";
+import { Vibration } from "react-native";
 
 const BRAND = "#183B56";
 const COPPER = "#F37021";
@@ -49,6 +52,22 @@ export default function StepTimer({ defaultSeconds = 0, onTimerEnd }: Props) {
   useEffect(() => {
     if (remaining === 0 && totalSec > 0 && !running && !timerEndedRef.current) {
       timerEndedRef.current = true;
+      // 夠鐘：震動 + 響聲（重覆 3 次，每次 1.2 秒）
+      Vibration.vibrate([0, 400, 300, 400, 300, 400]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      (async () => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("../assets/sounds/timer-done.wav"),
+            { shouldPlay: true, volume: 1.0 },
+          );
+          for (let i = 0; i < 2; i++) {
+            await new Promise((r) => setTimeout(r, 1400));
+            await sound.replayAsync();
+          }
+          setTimeout(() => { sound.unloadAsync().catch(() => {}); }, 2000);
+        } catch {}
+      })();
       if (onTimerEnd) onTimerEnd();
     }
     if (running && totalSec > 0) {

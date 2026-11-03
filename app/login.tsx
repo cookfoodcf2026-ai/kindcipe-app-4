@@ -35,6 +35,9 @@ const BRAND = "#1C2E4A";
 const COPPER = "#C48A3A";
 const BG = "#FFF8EF";
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://kindcipe.com/privacy/";
+// Apple 網頁登入默認關閉：Apple JS popup 嘅 redirectURI = app.kindcipe.com，
+// 喺手機／PWA 會觸發「開啟 App」然後 App 即刻關閉（實測 2026-11-03）。
+// 要重開必須先：Apple Service ID 加 domain verification + 更新 Return URL。
 const APPLE_WEB_ENABLED = process.env.EXPO_PUBLIC_ENABLE_APPLE_WEB === "1";
 
 // Google Sign In — Client IDs from Google Cloud Console (Kindcipe project)
@@ -565,7 +568,7 @@ export default function LoginScreen() {
           ) : (
             /* 用戶：只留 Apple + Google */
             <View style={styles.socialSection}>
-              {(Platform.OS === "ios" || isWeb || APPLE_WEB_ENABLED) && (
+              {(Platform.OS === "ios" || (isWeb && APPLE_WEB_ENABLED)) && (
                 <TouchableOpacity
                   style={[styles.appleBtn, ((Platform.OS === "ios" && !appleAvailable) || isLoading) && styles.socialBtnDisabled]}
                   onPress={Platform.OS === "ios" ? handleAppleSignIn : handleAppleWebSignIn}
