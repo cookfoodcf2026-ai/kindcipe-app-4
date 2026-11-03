@@ -736,9 +736,9 @@ export default function OnboardingScreen(
                     {canSwap && (
                       <TouchableOpacity
                         onPress={() => swapDish(idx)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: "#EEF3F7" }}
+                        style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: "transparent", borderWidth: 1, borderColor: "#E0D8CE" }}
                       >
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#2F5D7C" }}>換</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#8A8A8E" }}>換</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1242,7 +1242,9 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: "#B96A50",
     borderRadius: 40,
-    paddingVertical: 14,
+    minHeight: 58,
+    justifyContent: "center",
+    paddingVertical: 16,
     paddingHorizontal: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -1260,8 +1262,9 @@ const styles = StyleSheet.create({
   },
   genPillText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "800",
+    letterSpacing: 0.2,
   },
   dotsRow: {
     flexDirection: "row",
