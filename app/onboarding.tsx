@@ -699,10 +699,26 @@ export default function OnboardingScreen(
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
-            {planData ? `計劃好 ${planData.days?.length ?? 1} 日` : `想我幫你計劃${planWord}晚餐？`}
+            {planData
+              ? (planData.days?.length ?? 1) > 1
+                ? `幫你排好 ${planData.days.length} 日`
+                : "今晚食呢 4 道"
+              : `想我幫你計劃${planWord}晚餐？`}
           </Text>
           <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
-            {planData ? "每日 3 餸 1 湯，食材自動合併成買餸清單。" : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
+            {planData
+              ? (() => {
+                  const dishes = selection ?? planData.days?.[0]?.recipes ?? [];
+                  const maxMin = Math.max(0, ...dishes.map((r: any) => Number(r.cookTime) || 0));
+                  const ingCount = new Set(
+                    dishes.flatMap((r: any) => (r.ingredients ?? []).map((i: any) => String(i.name ?? "").trim()).filter(Boolean)),
+                  ).size;
+                  const parts = ["3 餸 1 湯"];
+                  if (maxMin > 0) parts.push(`同時煮約 ${maxMin} 分鐘`);
+                  if (ingCount > 0) parts.push(`${ingCount} 樣食材已合併成一張清單`);
+                  return parts.join(" · ");
+                })()
+              : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
           </Text>
 
           {planLoading && (
