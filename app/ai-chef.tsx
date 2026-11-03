@@ -4845,6 +4845,12 @@ export default function AIChefScreen() {
                             </Text>
                             <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
                             <Text style={s.recCardDiff}>{enumT.difficulty(r.difficulty)}</Text>
+                            {typeof r.cookTime === "number" && r.cookTime > 0 ? (
+                              <>
+                                <Text style={[s.recCardDiff, { color: SUB }]}>·</Text>
+                                <Text style={s.recCardDiff}>{r.cookTime} 分鐘</Text>
+                              </>
+                            ) : null}
                           </View>
                           <View
                             testID={`recipe-card-source-${i}`}
