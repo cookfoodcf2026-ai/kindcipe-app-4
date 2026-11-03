@@ -773,8 +773,10 @@ export default function OnboardingScreen(
 
           {!planLoading && !!planData && (
             <>
-              <Text style={{ color: swapCount >= 2 ? "#92400E" : "#5F6F80", fontSize: 12, marginTop: 4, marginBottom: 4, textAlign: "center" }}>
-                {swapCount >= 2 ? "已換 2 次，開始用呢一組啦" : `每道菜都可以撳「換」，仲可以換 ${2 - swapCount} 次`}
+              <Text style={{ color: swapCount >= 2 ? "#92400E" : "#5F6F80", fontSize: swapCount >= 2 ? 13 : 12, marginTop: 4, marginBottom: 6, textAlign: "center", lineHeight: swapCount >= 2 ? 20 : 16 }}>
+                {swapCount >= 2
+                  ? "你已經換咗 2 次食譜 —— 不如直接開始，入到 APP 可以睇更多食譜、自己排餐同加自己嘅菜。"
+                  : `每道菜都可以撳「換」，仲可以換 ${2 - swapCount} 次`}
               </Text>
               <TouchableOpacity
                 style={[styles.genPill, { marginTop: 10 }]}
@@ -782,7 +784,9 @@ export default function OnboardingScreen(
                 disabled={!planData}
               >
                 <View style={styles.genPillIcon}><Ionicons name="checkmark" size={16} color="#fff" /></View>
-                <Text style={styles.genPillText}>開始使用</Text>
+                <Text style={styles.genPillText}>
+                  {swapCount >= 2 ? "開始使用，查看更多食譜" : "開始使用"}
+                </Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 14, alignItems: "center" }}>
