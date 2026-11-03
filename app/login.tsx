@@ -144,20 +144,27 @@ export default function LoginScreen() {
     router.replace("/admin");
   };
 
-  // Web：Apple redirect 返嚟時，lib/webAuthCapture 已經喺 router mount 前救走
-  // #token 並寫入 localStorage。呢度見到標記就 refresh 登入狀態並離開 login 頁。
+  // Web：Apple redirect 返嚟 → 直接讀 window.location（唔靠 expo-router params，
+  // 因為 router 會將 ?apple=success 併入 hash 或清走）。成功就存 token 再 refresh。
   useEffect(() => {
     if (!isWeb || typeof window === "undefined") return;
-    try {
-      const flag = window.sessionStorage.getItem("kindcipe_oauth_return");
-      const tok = window.localStorage.getItem("kindcipe_auth_token");
-      if (flag && tok) {
-        window.sessionStorage.removeItem("kindcipe_oauth_return");
-        void onLoginSuccess("apple");
-      }
-    } catch {
-      /* ignore */
-    }
+    const search = window.location.search || "";
+    const hash = window.location.hash || "";
+    const combined = `${search}${hash}`;
+    if (!/apple=success/.test(combined)) return;
+    const m = combined.match(/[#&?]token=([^&?]+)/);
+    if (!m) return;
+    const token = decodeURIComponent(m[1]);
+    if (token.length < 20) return;
+    void (async () => {
+      try {
+        await saveAuthTokenFromResponse({ token } as any);
+      } catch {}
+      try {
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch {}
+      await onLoginSuccess("apple");
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
