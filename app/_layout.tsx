@@ -664,6 +664,14 @@ function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="cook/[id]"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                      gestureEnabled: false,
+                    }}
+                  />
+                  <Stack.Screen
                     name="login"
                     options={{ headerShown: false, gestureEnabled: false }}
                   />

@@ -397,6 +397,26 @@
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
     "upgradeSubtitle": "I-follow sa Instagram para mag-redeem ng libreng 7-araw na trial"
   },
+  "cook": {
+    "start": "Simulan ang pagluluto",
+    "exit": "Lumabas sa cook mode",
+    "exitTitle": "Lumabas sa cook mode?",
+    "exitBody": "Hindi ma-save ang progress. Lumabas pa rin?",
+    "continueCooking": "Magpatuloy",
+    "leave": "Lumabas",
+    "stepProgress": "Hakbang {{n}} ng {{total}}",
+    "previous": "Bumalik",
+    "next": "Susunod",
+    "finish": "Tapusin",
+    "allDone": "Tapos na!",
+    "allDoneBody": "Kain na — sana magustuhan ng pamilya mo.",
+    "backToRecipe": "Bumalik sa recipe",
+    "cookAgain": "Magluto muli",
+    "loading": "Naglo-load ng recipe...",
+    "notFound": "Hindi mahanap ang recipe",
+    "noSteps": "Wala pang hakbang ang recipe na ito.",
+    "back": "Bumalik"
+  },
   "recipe": {
     "setTimer": "Itakda ang timer",
     "timer": "Timer:",

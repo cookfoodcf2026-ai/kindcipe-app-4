@@ -397,6 +397,26 @@
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
     "upgradeSubtitle": "Ikuti Instagram untuk tukar uji coba gratis 7 hari"
   },
+  "cook": {
+    "start": "Mulai memasak",
+    "exit": "Keluar dari mode masak",
+    "exitTitle": "Keluar dari mode masak?",
+    "exitBody": "Progres tidak akan disimpan. Tetap keluar?",
+    "continueCooking": "Lanjut memasak",
+    "leave": "Keluar",
+    "stepProgress": "Langkah {{n}} dari {{total}}",
+    "previous": "Sebelumnya",
+    "next": "Berikutnya",
+    "finish": "Selesai",
+    "allDone": "Selesai!",
+    "allDoneBody": "Selamat menikmati — semoga keluarga suka.",
+    "backToRecipe": "Kembali ke resep",
+    "cookAgain": "Masak lagi",
+    "loading": "Memuat resep...",
+    "notFound": "Resep tidak ditemukan",
+    "noSteps": "Resep ini belum punya langkah.",
+    "back": "Kembali"
+  },
   "recipe": {
     "setTimer": "Atur timer",
     "timer": "Timer:",

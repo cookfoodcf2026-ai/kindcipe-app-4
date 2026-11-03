@@ -397,6 +397,26 @@
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
     "upgradeSubtitle": "Follow on Instagram to redeem a free 7-day trial"
   },
+  "cook": {
+    "start": "Start cooking",
+    "exit": "Exit cook mode",
+    "exitTitle": "Leave cook mode?",
+    "exitBody": "Your progress won't be saved. Leave anyway?",
+    "continueCooking": "Keep cooking",
+    "leave": "Leave",
+    "stepProgress": "Step {{n}} of {{total}}",
+    "previous": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "allDone": "All done!",
+    "allDoneBody": "Enjoy your meal — hope you and your family love it.",
+    "backToRecipe": "Back to recipe",
+    "cookAgain": "Cook again",
+    "loading": "Loading recipe...",
+    "notFound": "Recipe not found",
+    "noSteps": "This recipe has no steps yet.",
+    "back": "Back"
+  },
   "recipe": {
     "setTimer": "Set timer",
     "timer": "Timer:",
