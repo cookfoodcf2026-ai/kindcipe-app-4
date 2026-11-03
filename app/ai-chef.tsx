@@ -2208,7 +2208,9 @@ export default function AIChefScreen() {
       : lastUserContent.length >= 2
         ? lastUserContent
         : activeConfig
-          ? `${t(activeConfig.aiPrompt as any)}。`
+          // 熱鍵送短句（例：素食／高蛋白）俾後端，唔好送長 prompt：
+          // 長句會被當成「指定菜式」而導致 library_miss（素食熱鍵 0 卡）。
+          ? (QUICK_ACTIONS.find((a) => a.id === activeHotKeyRef.current)?.label ?? `${t(activeConfig.aiPrompt as any)}。`)
           : source === "ai"
             ? `提供 1 個唔同嘅家常菜食譜。`
             : `家常菜。提供 1 個唔同嘅食譜。`;
