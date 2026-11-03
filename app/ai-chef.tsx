@@ -1826,6 +1826,7 @@ export default function AIChefScreen() {
   const isSoupModeRef = useRef(false);
   // 記住最近撳嘅 hotkey（快手/清淡/電飯煲/小朋友/宴客）—— source 掣跟返場景；打字或撳其他掣就清空
   const activeHotKeyRef = useRef<string | null>(null);
+  const aiGeneratePendingRef = useRef(false);
 
   // ─── Keyboard ──────────────────────────────────────────
 
@@ -2125,12 +2126,16 @@ export default function AIChefScreen() {
   type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai" | `tab_${"quick" | "healthy" | "ricecooker" | "kids" | "guest"}`;
 
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
-    lastChatModeRef.current = sourceMode ?? "";
+    // 用戶撳過「AI 助手設計食譜」→ 下一句一定行 LLM 生成，唔好行食譜庫。
+    const forcedAi = sourceMode === undefined && aiGeneratePendingRef.current;
+    if (forcedAi) aiGeneratePendingRef.current = false;
+    const effectiveMode = sourceMode ?? (forcedAi ? "ai" : "chat");
+    lastChatModeRef.current = effectiveMode;
     noveltyRetryRef.current = false;
     mutateChat({
       messages: msgs,
-      mode: sourceMode ?? "chat",
-      ...(sourceMode === "ai" ? { aiEntry: "ai_tab" as AiEntry } : {}),
+      mode: effectiveMode,
+      ...(effectiveMode === "ai" ? { aiEntry: "ai_tab" as AiEntry } : {}),
       excludeNames: sessionSeenRecipeNames,
       lang: i18n.language,
       ...(operation ? { operation } : {}),
@@ -2859,6 +2864,7 @@ export default function AIChefScreen() {
     // 「AI 生成食譜」唔應該一撳就出食譜：先打招呼，等用戶講想食咩。
     if (id === "ai") {
       activeHotKeyRef.current = null;
+      aiGeneratePendingRef.current = true;   // 下一句 → 直接 LLM 生成
       setChatStarted(true);
       addBotMessage(t("aiChef.aiAsk" as any));
       return;
