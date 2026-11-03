@@ -430,10 +430,10 @@ const scaleIngredients = (r: AIRecipe, overrideServings?: number | null): AIReci
 };
 
 const QUICK_ACTIONS = [
-  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "AI 助手一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
   { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#E8F0F4", color: "#183B56" },
   { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
-  { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
+  { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 助手設計食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
   { id: "pantry", icon: "basket-outline", emoji: "🧺", label: "用雪櫃食材", group: "tools", tint: "#E8F0E4", color: "#4F6F4F" },
   { id: "quick", icon: "time-outline", emoji: "⏱️", label: "快手", subtitle: "收工即煮，快手搞定", image: require("../assets/recipes/scene-quick.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "healthy", icon: "heart-outline", emoji: "🥦", label: "清淡", subtitle: "少油少鹽，食得輕盈", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },

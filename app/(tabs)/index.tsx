@@ -336,7 +336,7 @@ function TonightHeroCard({ router }: { router: ReturnType<typeof useRouter> }) {
                 {t("幫我諗晚餐" as any)}
               </Text>
               <Text style={s.heroSubtitle} numberOfLines={2}>
-                {t("AI 一鍵生成 3 餸 1 湯" as any)}
+                {t("AI 助手一鍵生成 3 餸 1 湯" as any)}
               </Text>
               <View style={s.heroCta}>
                 <Text style={s.heroCtaTxt}>{t("aiChef.heroCta")}</Text>
