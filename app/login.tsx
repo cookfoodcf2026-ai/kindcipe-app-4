@@ -144,6 +144,23 @@ export default function LoginScreen() {
     router.replace("/admin");
   };
 
+  // Web：Apple redirect 返嚟時，lib/webAuthCapture 已經喺 router mount 前救走
+  // #token 並寫入 localStorage。呢度見到標記就 refresh 登入狀態並離開 login 頁。
+  useEffect(() => {
+    if (!isWeb || typeof window === "undefined") return;
+    try {
+      const flag = window.sessionStorage.getItem("kindcipe_oauth_return");
+      const tok = window.localStorage.getItem("kindcipe_auth_token");
+      if (flag && tok) {
+        window.sessionStorage.removeItem("kindcipe_oauth_return");
+        void onLoginSuccess("apple");
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Web: the Apple OAuth flow returns to /login?apple=success|error. The backend
   // sets the httpOnly session cookie AND (because the callback may be on a
   // different site, where browsers drop the third-party cookie) passes the
