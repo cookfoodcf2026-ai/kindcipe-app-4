@@ -4715,7 +4715,7 @@ export default function AIChefScreen() {
                         </Text>
                      </View>
                      <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB }]}>
-                       {isSoupModeRef.current || mealStep === "generating"
+                       {mealStep === "generating"
                           ? t("aiChef.generating3")
                          : t(LOADING_STEPS[loadingStep] as any)}
                      </Text>
