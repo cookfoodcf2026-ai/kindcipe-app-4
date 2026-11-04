@@ -259,6 +259,10 @@ export default function RecipeDetailScreen() {
 
   const recipeQ = trpc.recipes.getById.useQuery({ id: id! }, { enabled: !!id });
   const recipe = recipeQ.data;
+  // DB/API 欄位叫 tips；舊版 client 讀 housewifeTips → 主婦貼士一直空白。
+  // 兩邊都讀，等舊資料同新資料都顯示到。
+  const housewifeTips: string =
+    ((recipe as any)?.tips ?? (recipe as any)?.housewifeTips ?? "") as string;
   const recipeStringId = id ?? "";
 
   // Analytics: record a recipe "view" once per recipe id (dedup across re-renders).
@@ -1041,7 +1045,7 @@ export default function RecipeDetailScreen() {
                   `👨‍🍳 ${t("烹飪步驟：" as any)}`,
                   stepText,
                   "",
-                  (recipe as any).housewifeTips ? `💡 ${t("主婦貼士：" as any)}${(recipe as any).housewifeTips}` : "",
+                  housewifeTips ? `💡 ${t("主婦貼士：" as any)}${housewifeTips}` : "",
                   (() => {
                     const cleanShareTags = (Array.isArray((recipe as any).tags) ? (recipe as any).tags : [])
                       .map((tg: string) => enumT.tag(tg)).filter(Boolean);
@@ -1332,7 +1336,7 @@ export default function RecipeDetailScreen() {
             )}
 
             {/* ── Housewife Tips ── */}
-            {(recipe as any).housewifeTips && (
+            {housewifeTips && (
               <View style={s.tipsCard}>
                 <View style={s.tipsRow}>
                   <Ionicons name="bulb-outline" size={15} color="#F59E0B" />
@@ -1344,12 +1348,12 @@ export default function RecipeDetailScreen() {
                   
                   style={s.tipsTxt}
                 >
-                  {(recipe as any).housewifeTips}
+                  {housewifeTips}
                 </Text>
                 <TouchableOpacity
                   style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginTop: 4 }}
                   onPress={async () => {
-                    await Clipboard.setStringAsync((recipe as any).housewifeTips);
+                    await Clipboard.setStringAsync(housewifeTips);
                     showToast("已複製貼士");
                   }}
                   hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
