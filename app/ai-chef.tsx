@@ -2727,8 +2727,17 @@ export default function AIChefScreen() {
     setLibraryLoading(true);
     setRecommendedRecipes([]);
     try {
+      // 食譜庫路徑要送「短意圖」（3 餸 1 湯＋人數＋限制）。送長模板 prompt
+      // （含「分類如下：1. 肉類主菜…」）會令後端只回 1 張卡。
+      // 但安全資訊（敏感／唔食）一定要保留 —— 唔可以為咗短而漏過敏原。
+      const libraryPrompt = [
+        prefs.people ? `${prefs.people} 人食。` : "",
+        "3 餸 1 湯",
+        prefs.allergens?.trim() ? `；避免：${prefs.allergens}` : "",
+        prefs.dislikes?.trim() ? `；唔要：${prefs.dislikes.trim()}` : "",
+      ].join("");
       const res = await apiClient.aiRecipe.chat.mutate({
-        messages: [{ role: "user", content: buildMealPrompt(prefs) }],
+        messages: [{ role: "user", content: libraryPrompt }],
         mode: "library",
         lang: i18n.language,
         excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
