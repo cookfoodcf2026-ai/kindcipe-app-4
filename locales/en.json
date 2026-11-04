@@ -386,7 +386,7 @@
     "quotaExhausted": "AI quota used up this month",
     "swapNoLibrary": "📚 No new similar recipe in the library",
     "pantryPrompt": "I want to cook with these ingredients: {{items}}. Please suggest recipes that use them.",
-    "qa_highProteinLabel": "High protein",
+    "qa_highProteinLabel": "Protein / fitness",
     "qa_highProteinSub": "Muscle-friendly・2+ protein sources",
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lacto-ovo・no meat or seafood",

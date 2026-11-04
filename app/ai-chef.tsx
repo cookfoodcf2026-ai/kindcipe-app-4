@@ -439,9 +439,9 @@ const QUICK_ACTIONS = [
   { id: "quick", icon: "time-outline", emoji: "⏱️", label: "快手", subtitle: "收工即煮，快手搞定", image: require("../assets/recipes/scene-quick.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "healthy", icon: "heart-outline", emoji: "🥦", label: "清淡", subtitle: "少油少鹽，食得輕盈", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "kids", icon: "happy-outline", emoji: "😄", label: "親子", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
+  { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "高蛋白", subtitle: "增肌飽肚・每餐 ≥2 蛋白來源", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
+  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "蛋白/健身", subtitle: "健身前後都夠蛋白、夠飽", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
   { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", group: "scenario", tint: "#EAF5E6", color: "#183B56" },
 ];
 

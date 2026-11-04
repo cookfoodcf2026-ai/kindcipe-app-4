@@ -386,7 +386,7 @@
     "quotaExhausted": "今個月 AI 額度用完",
     "swapNoLibrary": "📚 食譜庫冇新嘅相近替代",
     "pantryPrompt": "我想用以下食材煮餸：{{items}}。請推薦可以用到呢啲食材嘅食譜。",
-    "qa_highProteinLabel": "高蛋白",
+    "qa_highProteinLabel": "蛋白/健身",
     "qa_highProteinSub": "增肌飽肚・每餐 ≥2 蛋白來源",
     "qa_vegetarianLabel": "素食",
     "qa_vegetarianSub": "蛋奶素・無肉無海鮮",

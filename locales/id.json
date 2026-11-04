@@ -386,7 +386,7 @@
     "quotaExhausted": "Kuota AI bulan ini sudah habis",
     "swapNoLibrary": "📚 Tidak ada resep serupa baru di pustaka",
     "pantryPrompt": "Saya ingin memasak dengan bahan ini: {{items}}. Tolong sarankan resep yang memakainya.",
-    "qa_highProteinLabel": "Tinggi protein",
+    "qa_highProteinLabel": "Protein / kebugaran",
     "qa_highProteinSub": "Bikin kenyang・2+ sumber protein",
     "qa_vegetarianLabel": "Vegetarian",
     "qa_vegetarianSub": "Lakto-ovo・tanpa daging atau seafood",
