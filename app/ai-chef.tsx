@@ -1964,8 +1964,12 @@ export default function AIChefScreen() {
       // AI 生成嘅食譜已帶翻譯，傳埋去後端 skip LLM translate（快好多）
       nameEn: recipe.nameEn, nameFil: recipe.nameFil, nameId: recipe.nameId,
       stepsEn: recipe.stepsEn, stepsFil: recipe.stepsFil, stepsId: recipe.stepsId,
-      tags: recipe.source === "official" || recipe.source === "custom" ? (recipe.tags ?? []) : [...(recipe.tags ?? []), "AI 生成"],
-      isAiGenerated: true,
+      // 後端 library 卡嘅 source 係 "library"（唔係 official/custom），
+      // 所以之前連食譜庫卡都會被加上「AI 生成」標籤，同上面「食譜庫 1 · AI 0」矛盾。
+      tags: recipe.source === "official" || recipe.source === "custom" || recipe.source === "library"
+        ? (recipe.tags ?? [])
+        : [...(recipe.tags ?? []), "AI 生成"],
+      isAiGenerated: recipe.source === "ai" || !recipe.source,
       ingredients: (scaledIngredients ?? recipe.ingredients)
         .map(ing => normalizeIngredient(ing))
         .filter((ing): ing is { name: string; quantity: string; unit: string } => !!ing)
@@ -2336,7 +2340,12 @@ export default function AIChefScreen() {
   // ─── Daily 3-dish-1-soup flow helpers ──────────────────
 
   const addBotMessage = (text: string) => {
-    updateMessages(prev => [...prev, { role: "assistant", content: text }]);
+    updateMessages(prev => {
+      // 同一句回答唔可以連續出兩次（實測「炒雞？」連出 3 條一樣訊息）。
+      const last = prev[prev.length - 1];
+      if (last?.role === "assistant" && String(last.content ?? "").trim() === text.trim()) return prev;
+      return [...prev, { role: "assistant", content: text }];
+    });
     scrollToLatestMessage();
   };
 
