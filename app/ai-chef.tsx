@@ -2272,11 +2272,18 @@ export default function AIChefScreen() {
     // 場景熱鍵（素食／高蛋白／快手…）行 chat 路徑：library 快路徑會因為
     // 「指定菜式」＋7 日去重而回 0 卡（素食熱鍵實測 0 張）。
     const hotkeyUsesChat = Boolean(activeConfig && source === "library");
+    // 重複撳同一個熱鍵要出唔同卡：排除目前畫面顯示緊嘅卡名，否則後端每次都揀返同一張。
+    // 3餸1湯 path（inMealContext）保持原狀，唔加呢批名。
+    const visibleCardNames = inMealContext
+      ? []
+      : [...(recommendedRecipes ?? []), ...(mealResult ?? [])]
+          .map((r) => String(r?.name ?? "").trim())
+          .filter(Boolean);
     mutateChat({
       messages: buildBackendMessages(backendMsgs),
       mode: source === "ai" ? "ai" : hotkeyUsesChat ? "chat" : "library",
       ...(source === "ai" && aiEntry ? { aiEntry } : {}),
-      excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
+      excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames, ...visibleCardNames])],
       lang: i18n.language,
       search: searchParam,
     });
