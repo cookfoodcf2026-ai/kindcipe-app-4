@@ -441,7 +441,7 @@ const QUICK_ACTIONS = [
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "highProtein", icon: "barbell-outline", emoji: "💪", label: "蛋白/健身", subtitle: "健身前後都夠蛋白、夠飽", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
+  { id: "highProtein", icon: "barbell-outline", emoji: "💪", imageUri: "https://kindcipe-backend-production.up.railway.app/r2-storage/recipe-thumbnails/official-3693_6737731f.jpg", label: "蛋白/健身", subtitle: "健身前後都夠蛋白、夠飽", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
   { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", group: "scenario", tint: "#EAF5E6", color: "#183B56" },
 ];
 
@@ -4404,9 +4404,19 @@ export default function AIChefScreen() {
               disabled={chatMutation.isPending}
               style={s.unifiedBtn}
             >
-              <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
-                <Ionicons name={a.icon as any} size={22} color={a.color} />
-              </View>
+              {(a as any).imageUri ? (
+                <ExpoImage
+                  source={{ uri: (a as any).imageUri }}
+                  style={s.unifiedCover}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={120}
+                />
+              ) : (
+                <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
+                  <Ionicons name={a.icon as any} size={22} color={a.color} />
+                </View>
+              )}
               <Text style={s.toolBtnTxt} numberOfLines={2}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
             </PressScale>
           ))}
@@ -5335,6 +5345,7 @@ const s = StyleSheet.create({
   heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: canva.textOnAccent },
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   unifiedGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
+  unifiedCover: { width: "100%", height: 64, borderRadius: 12, marginBottom: 8, backgroundColor: "#F1EDE6" },
   unifiedBtn: {
     flexBasis: "47%",
     flexGrow: 1,
