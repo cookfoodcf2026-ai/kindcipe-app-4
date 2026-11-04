@@ -4741,7 +4741,11 @@ export default function AIChefScreen() {
               {recommendedRecipes.length > 0 && !chatMutation.isPending && (
                 <View style={s.recBar}>
                   <View style={s.recHead}>
-                    <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult ? t("aiChef.sectionTonight") : t("aiChef.swapOther")}</Text>
+                    <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult
+                      ? (recommendedRecipes.some((r) => /湯|羹/.test(String(r.name ?? "")))
+                          ? t("aiChef.sectionTonight")
+                          : `今晚 ${recommendedRecipes.length} 道菜`)
+                      : t("aiChef.swapOther")}</Text>
                     {mealResult && aiChefQuickPlanEnabled && (
                       <TouchableOpacity
                         style={s.selectAllBtn}
