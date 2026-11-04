@@ -4405,25 +4405,27 @@ export default function AIChefScreen() {
               style={s.unifiedBtn}
             >
               {(a as any).image || (a as any).imageUri ? (
-                <ExpoImage
-                  source={(a as any).image ?? { uri: (a as any).imageUri }}
-                  style={s.unifiedCover}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  transition={120}
-                />
+                <View style={s.unifiedCoverWrap}>
+                  <ExpoImage
+                    source={(a as any).image ?? { uri: (a as any).imageUri }}
+                    style={s.unifiedCover}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={120}
+                  />
+                  {a.id === "daily" && (
+                    <View style={s.unifiedCtaOnCover}>
+                      <Text style={s.unifiedCtaTxt}>{t("aiChef.heroCta")}</Text>
+                      <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
               ) : (
                 <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
                   <Ionicons name={a.icon as any} size={22} color={a.color} />
                 </View>
               )}
               <Text style={s.toolBtnTxt} numberOfLines={2}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
-              {a.id === "daily" && (
-                <View style={s.unifiedCta}>
-                  <Text style={s.unifiedCtaTxt}>{t("aiChef.heroCta")}</Text>
-                  <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
-                </View>
-              )}
             </PressScale>
           ))}
         </View>
@@ -5352,6 +5354,19 @@ const s = StyleSheet.create({
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   unifiedGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   unifiedCover: { width: "100%", height: 64, borderRadius: 12, marginBottom: 8, backgroundColor: "#F1EDE6" },
+  unifiedCoverWrap: { width: "100%", position: "relative" },
+  unifiedCtaOnCover: {
+    position: "absolute",
+    left: 8,
+    top: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F37021",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
   unifiedCta: {
     marginTop: 8,
     alignSelf: "flex-start",
