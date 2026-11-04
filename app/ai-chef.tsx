@@ -989,6 +989,23 @@ export default function AIChefScreen() {
   const [libraryAlternatives, setLibraryAlternatives] = useState<AIRecipe[]>([]);
   const [libraryMissScenario, setLibraryMissScenario] = useState<string | null>(null);
 
+  // AI Chef incomplete contract（flag AI_CHEF_INCOMPLETE_CONTRACT）：保留 partial 卡＋retryToken
+  type IncompleteContract = { got: number; requiredCards: number; retryToken: string; payload: any };
+  const [incompleteContract, setIncompleteContract] = useState<IncompleteContract | null>(null);
+  const recordIncompleteContract = (data: any, variables: any, got: number): boolean => {
+    if (data?.status !== "incomplete") {
+      setIncompleteContract(null);
+      return false;
+    }
+    setIncompleteContract({
+      got,
+      requiredCards: Number(data?.requiredCards) || got,
+      retryToken: typeof data?.retryToken === "string" ? data.retryToken : "",
+      payload: variables,
+    });
+    return true;
+  };
+
   // ─── Toast notification ────────────────────────────────
   const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
   const [nextDayPrompt, setNextDayPrompt] = useState<NextDayPromptData | null>(null);
@@ -1407,6 +1424,7 @@ export default function AIChefScreen() {
       setContractQuickReplies(contractReplies);
 
       if (contractStatus === "no_cards" || contractStatus === "clarify") {
+        setIncompleteContract(null);
         const templateText = typeof (data as any)?.replyText === "string" && (data as any).replyText.trim()
           ? (data as any).replyText
           : t(contractStatus === "clarify" ? "aiChef.contractClarify" : "aiChef.contractNoCards");
@@ -1478,6 +1496,7 @@ export default function AIChefScreen() {
       // 多過一張卡（3餸1湯 / 2送一湯 / 打字要求出多卡）都 set mealResult，
       // 令「全部加入排餐」button 顯示（唔再淨係靠 3餸1湯問卷流程嘅 isSoupModeRef）
       setMealResult(mergedRecipes.length >= 2 ? mergedRecipes : null);
+      recordIncompleteContract(data, variables, mergedRecipes.length);
       setChatStarted(true);
       scrollToLatestMessage();
     },
@@ -1513,6 +1532,7 @@ export default function AIChefScreen() {
       updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
       setAiNextSteps([t("aiChef.contactSupport" as any)]);
       setContractQuickReplies([]);
+      setIncompleteContract(null);
       setRecommendedRecipes([]);
       setMealResult(null);
       setChatStarted(true);
@@ -1521,9 +1541,14 @@ export default function AIChefScreen() {
   });
 
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
-  const mutateChat = (payload: any, options?: any) => {
+  const mutateChat = (payload: any, options?: any, retryToken?: string) => {
     chatSessionIdRef.current = activeChatIdRef.current;
-    const requestBody = { avoidIngredients: mealDefaults.allergens, ...payload };
+    setIncompleteContract(null);
+    const requestBody = {
+      avoidIngredients: mealDefaults.allergens,
+      ...payload,
+      ...(retryToken ? { retryToken } : {}),
+    };
     const { fingerprint, clientMessageId, isRetry } = resolveClientMessageId(
       requestBody,
       failedChatRequestRef.current,
@@ -1539,6 +1564,14 @@ export default function AIChefScreen() {
     if (isRetry) failedChatRequestRef.current = null;
     setContractQuickReplies([]);
     chatMutation.mutate({ ...requestBody, clientMessageId }, options);
+  };
+
+  // 「再試一次」：用同一個 retryToken 重發同一 payload
+  const retryIncomplete = () => {
+    if (!incompleteContract || chatMutation.isPending) return;
+    const { payload, retryToken } = incompleteContract;
+    mutateChat(payload, undefined, retryToken);
+    scrollToLatestMessage();
   };
 
   // Loading step animation
@@ -2584,16 +2617,22 @@ export default function AIChefScreen() {
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
     mutateChat({ messages: [{ role: "user", content: prompt }], mode: "ai", aiEntry: "ai_tab" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
-      onSuccess: (data) => {
+      onSuccess: (data, variables) => {
         setMealStep("result");
         setAiNextSteps([]);
         setChatStarted(true);
         if (data.recipes?.length > 0) {
           // 唔再用重複湊 4（避免「（variation）」假卡）；後端已保證結構化 4 卡，AI fallback 就顯示實際有嘅
           const safeRecipes = data.recipes.map(normalizeRecipe);
-          setMealResult(safeRecipes.length >= 2 ? safeRecipes.slice(0, 4) : null);
+          recordIncompleteContract(data, variables, safeRecipes.length);
+          // 車主規則：3 餸 1 湯一定 4 張（或用戶指定嘅 X 餸 Y 湯）。
+          // 之前用 >= 2 收貨，會靜靜交 2–3 張，違反保證。
+          // 呢條 function 只服務 3 餸 1 湯 流程；用戶自訂 X 餸 Y 湯 走 requestInstantRecipes。
+          const requiredCards = 4;
+          setMealResult(safeRecipes.length >= requiredCards ? safeRecipes.slice(0, requiredCards) : null);
           setRecommendedRecipes(safeRecipes.slice(0, 4));
         } else {
+          recordIncompleteContract(data, variables, 0);
           addBotMessage(t("AI 暫時未能提供食譜，請再試一次。" as any));
         }
       },
@@ -2787,16 +2826,35 @@ export default function AIChefScreen() {
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
     mutateChat({ messages: buildBackendMessages(fullMsgs), mode: "ai", aiEntry: "ai_fallback" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients: splitAvoidList(prefs.allergens), lang: i18n.language }, {
-      onSuccess: (data) => {
+      onSuccess: (data, variables) => {
         setMealStep("result");
         setAiNextSteps([]);
         setChatStarted(true);
         if (data.recipes?.length > 0) {
           // 唔再用重複湊 4（避免「（variation）」假卡）
           const safeRecipes = data.recipes.map(normalizeRecipe);
-          setMealResult(safeRecipes.length >= 2 ? safeRecipes.slice(0, 4) : null);
-          setRecommendedRecipes(safeRecipes.slice(0, 4));
+          recordIncompleteContract(data, variables, safeRecipes.length);
+          // 3 餸 1 湯 一定 4 張；少過 4 張就當 incomplete，唔可以靜靜交 2–3 張，
+          // 亦唔可以留白：要明確講清楚，並保留已出嘅卡俾用戶揀。
+          if (safeRecipes.length >= 4) {
+            setMealResult(safeRecipes.slice(0, 4));
+            setRecommendedRecipes(safeRecipes.slice(0, 4));
+          } else {
+            setMealResult(null);
+            setRecommendedRecipes(safeRecipes);
+            setMealStep("idle");
+            if ((data as any)?.status !== "incomplete") {
+              addBotMessage(
+                t("aiChef.mealIncomplete", {
+                  got: safeRecipes.length,
+                  want: 4,
+                  defaultValue: `今次只搵到 ${safeRecipes.length} 道菜（要 4 道）。可以再試一次，或者用「AI 生成食譜」補齊。`,
+                } as any),
+              );
+            }
+          }
         } else {
+          recordIncompleteContract(data, variables, 0);
           addBotMessage(t("AI 暫時未能提供食譜，請再試一次。" as any));
         }
       },
@@ -2831,12 +2889,13 @@ export default function AIChefScreen() {
       avoidIngredients: splitAvoidList(defaultPrefs.allergens),
       lang: i18n.language,
     }, {
-      onSuccess: (data) => {
+      onSuccess: (data, variables) => {
         setLibraryLoading(false);
         setMealStep("result");
         setAiNextSteps([]);
         setChatStarted(true);
         const safe = (data.recipes ?? []).map(normalizeRecipe).filter(isValidRecipe);
+        recordIncompleteContract(data, variables, safe.length);
         if (safe.length > 0) {
           setMealResult(safe.length >= 2 ? safe : null);
           setRecommendedRecipes(safe);
@@ -4803,6 +4862,24 @@ export default function AIChefScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              {incompleteContract && !chatMutation.isPending && (
+                <View style={s.incompleteBar}>
+                  <Text style={s.incompleteTxt}>
+                    {t("aiChef.incompleteBar", {
+                      got: incompleteContract.got,
+                      want: incompleteContract.requiredCards,
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    style={s.incompleteBtn}
+                    onPress={retryIncomplete}
+                    disabled={chatMutation.isPending}
+                    accessibilityRole="button"
+                  >
+                    <Text style={s.incompleteBtnTxt}>{t("再試一次" as any)}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {recommendedRecipes.length > 0 && !chatMutation.isPending && (
                 <View style={s.recBar}>
                   <View style={s.recHead}>
@@ -5449,6 +5526,10 @@ const s = StyleSheet.create({
   restoreSub: { fontSize: 11, color: SUB, marginTop: 2, lineHeight: 15 },
   restoreBtn: { backgroundColor: canva.action, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, minWidth: 90, alignItems: "center" },
   restoreBtnTxt: { fontSize: 12, fontWeight: "900", color: canva.textOnAccent },
+  incompleteBar: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 14, marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 14, backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" },
+  incompleteTxt: { flex: 1, fontSize: 12, fontWeight: "700", color: "#8A4B08", lineHeight: 17 },
+  incompleteBtn: { backgroundColor: "#183B56", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, minWidth: 90, alignItems: "center" },
+  incompleteBtnTxt: { fontSize: 12, fontWeight: "900", color: "#fff" },
   recBar: { borderTopWidth: 1, borderTopColor: BORDER, padding: 12 },
   recHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   recTitle: { fontSize: 12, fontWeight: "700", color: BRAND },

@@ -393,7 +393,8 @@
     "hk_highProteinPrompt": "Mataas sa protina na pagkain na may dalawa o higit pang pinagmumulan ng protina",
     "hk_vegetarianPrompt": "Vegetarian na ulam (lacto-ovo, walang karne o seafood)",
     "aiAsk": "Ano ang gusto mong lutuin? Sabihin ang sangkap o putahe at idedesign ko.",
-    "contactSupport": "May problema? Sabihin sa akin"
+    "contactSupport": "May problema? Sabihin sa akin",
+    "incompleteBar": "Hindi kumpleto: {{got}} sa {{want}} na ulam lang (walang credit na nagamit)"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

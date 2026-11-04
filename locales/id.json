@@ -393,7 +393,8 @@
     "hk_highProteinPrompt": "Makanan tinggi protein dengan dua atau lebih sumber protein",
     "hk_vegetarianPrompt": "Hidangan vegetarian (lakto-ovo, tanpa daging atau seafood)",
     "aiAsk": "Mau masak apa? Sebut bahan atau hidangan, nanti saya rancang.",
-    "contactSupport": "Ada masalah? Beri tahu saya"
+    "contactSupport": "Ada masalah? Beri tahu saya",
+    "incompleteBar": "Belum lengkap: hanya {{got}} dari {{want}} hidangan (tanpa potong kredit)"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

@@ -393,7 +393,8 @@
     "hk_highProteinPrompt": "高蛋白、增肌飽肚嘅一餐，每餐有兩樣或以上蛋白來源",
     "hk_vegetarianPrompt": "素食菜式（蛋奶素，無肉無海鮮）",
     "aiAsk": "想食咩？講個食材、菜名，或者話我知今日想清淡定濃味，我即刻幫你設計。",
-    "contactSupport": "遇到問題？同我講"
+    "contactSupport": "遇到問題？同我講",
+    "incompleteBar": "未完成：只出到 {{got}} / {{want}} 道（今次冇扣額度）"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
