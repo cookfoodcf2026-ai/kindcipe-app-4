@@ -2278,7 +2278,7 @@ export default function AIChefScreen() {
       ...(source === "ai" && aiEntry ? { aiEntry } : {}),
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
       lang: i18n.language,
-      search: hotkeyUsesChat ? undefined : (searchParam as any),
+      search: searchParam,
     });
     scrollToEnd();
   };
