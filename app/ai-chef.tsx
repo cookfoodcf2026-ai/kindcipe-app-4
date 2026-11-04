@@ -441,8 +441,8 @@ const QUICK_ACTIONS = [
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "kids", icon: "happy-outline", emoji: "😄", label: "小朋友啱食", subtitle: "口味溫和，全家都愛", image: require("../assets/recipes/scene-kids.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "guest", icon: "wine-outline", emoji: "🥂", label: "宴客", subtitle: "體面大菜，招呼朋友", image: require("../assets/recipes/scene-guest.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
-  { id: "highProtein", icon: "barbell-outline", emoji: "💪", imageUri: "https://kindcipe-backend-production.up.railway.app/r2-storage/recipe-thumbnails/official-3693_6737731f.jpg", label: "蛋白/健身", subtitle: "健身前後都夠蛋白、夠飽", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
-  { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", label: "素食", subtitle: "蛋奶素・無肉無海鮮", group: "scenario", tint: "#EAF5E6", color: "#183B56" },
+  { id: "highProtein", icon: "barbell-outline", emoji: "💪", image: require("../assets/recipes/scene-protein.jpg"), label: "蛋白/健身", subtitle: "健身前後都夠蛋白、夠飽", group: "scenario", tint: "#FFF1E6", color: "#183B56" },
+  { id: "vegetarian", icon: "leaf-outline", emoji: "🥬", image: require("../assets/recipes/scene-vegetarian.jpg"), label: "素食", subtitle: "蛋奶素・無肉無海鮮", group: "scenario", tint: "#EAF5E6", color: "#183B56" },
 ];
 
 const HOT_KEY_CONFIG: Record<string, {
