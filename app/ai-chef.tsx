@@ -2227,12 +2227,18 @@ export default function AIChefScreen() {
     const isStructuredMealPrompt = !!mealIntent || /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
     const promptPrefs = mealStep === "idle" ? buildMealPrefs() : mealPrefs;
     // 有結構化一餐意圖 → 直接用結構化 prompt（帶 count + 口味），確保出夠卡數同尊重 constraint
+    // 3 餸 1 湯（或用戶指定嘅 X 餸 Y 湯）一定出齊 N 張：
+    // 送「短意圖」而唔係長模板 —— 長模板會被後端當成指定菜單，只回 1 張。
+    const mealCounts = mealIntent ?? { dishes: 3, soups: 1 };
     const userPrompt = isStructuredMealPrompt
-      ? buildMealPrompt(
-          promptPrefs,
-          mealIntent ?? { dishes: 3, soups: 1 },
-          flavor,
-        )
+      ? [
+          promptPrefs.people ? `${promptPrefs.people} 人食。` : "",
+          `${mealCounts.dishes} 餸 ${mealCounts.soups} 湯`,
+          promptPrefs.allergens?.trim() ? `；避免：${promptPrefs.allergens}` : "",
+          promptPrefs.dislikes?.trim() ? `；唔要：${promptPrefs.dislikes.trim()}` : "",
+          flavor?.spicy ? "；要辣" : "",
+          flavor?.light ? "；要清淡" : "",
+        ].join("")
       : lastUserContent.length >= 2
         ? lastUserContent
         : activeConfig
