@@ -2273,6 +2273,9 @@ export default function AIChefScreen() {
           `${mealCounts.dishes} 餸 ${mealCounts.soups} 湯`,
           promptPrefs.allergens?.trim() ? `；避免：${promptPrefs.allergens}` : "",
           promptPrefs.dislikes?.trim() ? `；唔要：${promptPrefs.dislikes.trim()}` : "",
+          promptPrefs.hasKids ? "；有小朋友" : "",
+          promptPrefs.hasElderly ? "；有長者" : "",
+          promptPrefs.time ? `；${promptPrefs.time}` : "",
           flavor?.spicy ? "；要辣" : "",
           flavor?.light ? "；要清淡" : "",
         ].join("")
