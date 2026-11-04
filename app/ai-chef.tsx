@@ -2354,12 +2354,28 @@ export default function AIChefScreen() {
   // 消費後即刻用 setParams 清走 action，避免 param persist 令「之後所有 entry 都當 daily」。
   // 1) 等 `loaded` 先開新 session，避免同 session-load effect 競賽而覆蓋新 session；
   // 2) 追蹤「上次已處理嘅 action」，當 heroAction 變返唔係 daily 就 reset → 下次 daily 再觸發。
-  const heroParams = useLocalSearchParams<{ action?: string; entry?: string; t?: string }>();
+  const heroParams = useLocalSearchParams<{ action?: string; entry?: string; t?: string; fresh?: string }>();
   const heroAction = Array.isArray(heroParams.action) ? heroParams.action[0] : heroParams.action;
   const heroEntry = Array.isArray(heroParams.entry) ? heroParams.entry[0] : heroParams.entry;
   const heroToken = Array.isArray(heroParams.t) ? heroParams.t[0] : heroParams.t;
   const homeMealEntry = heroAction === "daily" || heroEntry === "meal";
   const lastHandledTokenRef = useRef<string | undefined>(undefined);
+  // 右上角 AI 掣 = 去 AI 助手首頁（唔好接住上次對話）
+  const freshParam = Array.isArray(heroParams.fresh) ? heroParams.fresh[0] : heroParams.fresh;
+  useEffect(() => {
+    if (!loaded) return;
+    if (freshParam === "1") {
+      setChatStarted(false);
+      updateMessages(() => []);
+      setRecommendedRecipes([]);
+      setMealResult(null);
+      setMealStep("idle");
+      lastChatModeRef.current = "";
+      router.setParams({ fresh: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, freshParam]);
+
   useEffect(() => {
     if (!loaded || familySettingsLoading) return;
     if (heroAction === "daily" || heroEntry === "meal") {

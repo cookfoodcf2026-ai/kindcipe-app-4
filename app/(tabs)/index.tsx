@@ -1272,7 +1272,7 @@ export default function RecipesTab() {
             <TouchableOpacity
               testID="home-ai-chat"
               style={[s.headerBtn, s.aiHeaderBtn]}
-              onPress={() => router.push("/ai-chef")}
+              onPress={() => router.push({ pathname: "/ai-chef", params: { fresh: "1" } } as any)}
               accessibilityRole="button"
               accessibilityLabel={t("settings.aiChef" as any)}
             >
