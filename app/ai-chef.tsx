@@ -4380,9 +4380,6 @@ export default function AIChefScreen() {
         </View>
       );
     }
-    const hero = QUICK_ACTIONS.find((a) => a.group === "hero");
-    const tools = QUICK_ACTIONS.filter((a) => a.group === "tools");
-    const scenarios = QUICK_ACTIONS.filter((a) => a.group === "scenario");
     return (
       <View style={s.empty}>
         <View style={s.emptyContent}>
@@ -4394,86 +4391,26 @@ export default function AIChefScreen() {
           </View>
         </View>
 
-        {/* Hero card */}
-        {hero && (
-          <PressScale
-            testID={`ai-chef-quick-${hero.id}`}
-            onPress={() => handleQuickAction(hero.id)}
-            disabled={chatMutation.isPending}
-            style={s.heroCard}
-          >
-            <ExpoImage
-              source={require("../assets/herocard-v4.jpeg")}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              contentPosition="right center"
-              cachePolicy="memory-disk"
-              transition={0}
-            />
-            <View style={s.heroCardScrim} pointerEvents="none">
-              <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.25 }]} />
-              <View style={[s.heroCardScrimLayer, { width: "66%", opacity: 0.52 }]} />
-              <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.55 }]} />
-            </View>
-            <View style={s.heroCardContent}>
-              <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t(`aiChef.qa_${hero.id}Label` as any)}</Text>
-              <View style={s.heroCardCta}>
-                <Text style={s.heroCardCtaTxt}>{t("aiChef.heroCta")}</Text>
-                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-              </View>
-            </View>
-          </PressScale>
-        )}
-
-        {/* Tools 2x2 */}
-        <View style={s.toolGrid}>
-          {tools.map((a) => (
+        {/* 所有入口一律同款、同一個隊列（hero／工具／場景唔再分三種外觀） */}
+        <View style={s.unifiedGrid}>
+          {[...QUICK_ACTIONS].sort((a, b) => {
+            const rank = (g: string) => (g === "hero" ? 0 : g === "scenario" ? 1 : 2);
+            return rank(a.group) - rank(b.group);
+          }).map((a) => (
             <PressScale
               key={a.id}
               testID={`ai-chef-quick-${a.id}`}
               onPress={() => handleQuickAction(a.id)}
               disabled={chatMutation.isPending}
-              style={s.toolBtn}
+              style={s.unifiedBtn}
             >
               <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
                 <Ionicons name={a.icon as any} size={22} color={a.color} />
               </View>
-              <Text style={s.toolBtnTxt}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
+              <Text style={s.toolBtnTxt} numberOfLines={2}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
             </PressScale>
           ))}
         </View>
-
-        {/* Scenario cards — horizontal scroll */}
-        <Text style={s.scenarioLabel}>{t("aiChef.scenarioLabel")}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenarioRow}>
-          {scenarios.map((a) => (
-              <PressScale
-                key={a.id}
-                testID={`ai-chef-quick-${a.id}`}
-                onPress={() => handleQuickAction(a.id)}
-                disabled={chatMutation.isPending}
-                style={s.scenarioCard}
-              >
-                {a.image ? (
-                  <ExpoImage
-                    source={a.image}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={0}
-                  />
-                ) : (
-                  <View style={[StyleSheet.absoluteFill, { backgroundColor: (a as any).tint ?? "#FFFFFF" }]} />
-                )}
-                <View style={s.scenarioCardScrim} />
-                <View style={s.scenarioCardContent}>
-                  <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
-                  <Text style={s.scenarioCardTitle} numberOfLines={1}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
-                  <Text style={s.scenarioCardSub} numberOfLines={1}>{t(a.subtitle as any)}</Text>
-                </View>
-              </PressScale>
-          ))}
-        </ScrollView>
         </View>
 
       </View>
@@ -5397,6 +5334,21 @@ const s = StyleSheet.create({
   heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: canva.action, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
   heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: canva.textOnAccent },
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
+  unifiedGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
+  unifiedBtn: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    minHeight: 96,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E6DED4",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 8,
+  },
   toolBtn: { width: "48%", flexGrow: 1, backgroundColor: CARD, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   toolIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   toolBtnTxt: { fontSize: 14, fontWeight: "800", color: TEXT, flex: 1 },
