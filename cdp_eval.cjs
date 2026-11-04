@@ -1,4 +1,5 @@
 const http=require('http');
+if (typeof WebSocket === 'undefined') { global.WebSocket = require('ws'); };
 function get(p,m='GET'){return new Promise((res,rej)=>{const r=http.request({host:'127.0.0.1',port:9222,path:p,method:m},x=>{let d='';x.on('data',c=>d+=c);x.on('end',()=>res(d))});r.on('error',rej);r.end()})}
 const EXPR = process.env.EXPR || '1';
 (async()=>{
