@@ -227,7 +227,7 @@
     "reminderOn": "Evening reminder \"What's for dinner?\"",
     "reminderOff": "No reminder when off",
     "reminderHint": "Type digits (e.g. 1930 = 19:30) · Current: {{time}}",
-    "support": "Help & Support",
+    "support": "Something wrong? Tell me",
     "promoPlaceholder": "Enter code",
     "promoRedeem": "Redeem",
     "promoDone": "7-day free trial enabled (until {{date}})",
@@ -392,7 +392,8 @@
     "qa_vegetarianSub": "Lacto-ovo・no meat or seafood",
     "hk_highProteinPrompt": "High-protein muscle-friendly meal with two or more protein sources",
     "hk_vegetarianPrompt": "Vegetarian dish (lacto-ovo, no meat or seafood)",
-    "aiAsk": "What would you like to cook? Name an ingredient or dish and I'll design it."
+    "aiAsk": "What would you like to cook? Name an ingredient or dish and I'll design it.",
+    "contactSupport": "Something wrong? Tell me"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

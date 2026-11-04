@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
+import { openSupport } from "@/lib/support";
 import { confirmStripeCheckout } from "@/lib/purchase";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
@@ -1191,6 +1192,21 @@ export default function SettingsScreen() {
                 <ChatBubbleIcon size={20} color="#183B56" />
               </View>
               <Text style={styles.settingLabel}>{t("settings.aiChef")}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
+          </TouchableOpacity>
+
+          {/* 遇到問題：用戶唔會報錯，只會走 —— 要有一道門 */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => openSupport("settings")}
+            accessibilityRole="button"
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#FDECEA" }]}>
+                <Ionicons name="help-buoy-outline" size={20} color="#B42318" />
+              </View>
+              <Text style={styles.settingLabel}>{t("settings.support" as any)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
           </TouchableOpacity>

@@ -173,6 +173,8 @@ export const Events = {
   AiPlanAdded: "ai_plan_added",
   AiShoppingAutoAdded: "ai_shopping_auto_added",
   AiChefError: "ai_chef_error",
+  AiChefFailure: "ai_chef_failure",
+  SupportContactOpened: "support_contact_opened",
   AiFreeTextSent: "ai_free_text_sent",
   RecipeImported: "recipe_imported",
   RecipeSaved: "recipe_saved",

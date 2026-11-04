@@ -24,6 +24,7 @@ import { compressImage } from "@/lib/image-utils";
 import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
+import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -1458,6 +1459,22 @@ export default function AIChefScreen() {
         ? mergeAppendedCards(recommendedRecipes, recipes)
         : recipes;
       setRecommendedRecipes(mergedRecipes);
+
+      // 0 卡唔算 crash，但對用戶嚟講就係失敗 —— 要留低可以追嘅證據。
+      if (mergedRecipes.length === 0 && !isAppend) {
+        const lastMsg = (variables as any)?.messages?.slice(-1)?.[0];
+        const rawQuery = typeof lastMsg?.content === "string" ? lastMsg.content : "[media]";
+        reportAiChefFailure("zero_cards", {
+          mode: (variables as any)?.mode ?? "chat",
+          query: String(rawQuery).slice(0, 120),
+          clarifyReason: (data as any)?.clarifyReason ?? null,
+          served,
+          requested,
+          library: (data as any)?.sources?.library ?? 0,
+          ai: (data as any)?.sources?.ai ?? 0,
+          lang: i18n.language,
+        });
+      }
       // 多過一張卡（3餸1湯 / 2送一湯 / 打字要求出多卡）都 set mealResult，
       // 令「全部加入排餐」button 顯示（唔再淨係靠 3餸1湯問卷流程嘅 isSoupModeRef）
       setMealResult(mergedRecipes.length >= 2 ? mergedRecipes : null);
@@ -1484,11 +1501,17 @@ export default function AIChefScreen() {
       const rawMsg = friendlyError(err) || err?.data?.message || "";
       const isTransient = /abort|timeout|cancel|JSON Parse error|Unexpected character|Parse error|非 JSON|LLM 回覆格式異常/i.test(rawMsg);
       track(Events.AiChefError, { code: String(code ?? "unknown"), transient: isTransient });
+      reportAiChefFailure("error", {
+        code: String(code ?? "unknown"),
+        transient: isTransient,
+        mode: (variables as any)?.mode ?? "chat",
+        message: String(rawMsg).slice(0, 120),
+      });
       const msg = isTransient
         ? t("AI 暫時未有回應，請再試一次。" as any)
         : (rawMsg || "AI 暫時未能回應，請再試。");
       updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
-      setAiNextSteps([]);
+      setAiNextSteps([t("aiChef.contactSupport" as any)]);
       setContractQuickReplies([]);
       setRecommendedRecipes([]);
       setMealResult(null);
@@ -3914,6 +3937,10 @@ export default function AIChefScreen() {
 
   const handleNextStep = (text: string) => {
     if (chatMutation.isPending) return;
+    if (/遇到問題|同我講/.test(text)) {
+      openSupport("ai_chef_error");
+      return;
+    }
     if (/3餸1湯|今晚食咩|設計晚餐|設計今晚/.test(text)) {
       resetAiNextSteps();
       startMealFlow();

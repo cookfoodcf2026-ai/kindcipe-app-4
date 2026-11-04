@@ -227,7 +227,7 @@
     "reminderOn": "Pengingat malam",
     "reminderOff": "Tidak ada pengingat saat mati",
     "reminderHint": "Ketik angka (mis. 1930) · Saat ini: {{time}}",
-    "support": "Bantuan & Dukungan",
+    "support": "Ada masalah? Beri tahu saya",
     "promoPlaceholder": "Masukkan kode",
     "promoRedeem": "Tukar",
     "promoDone": "Uji coba gratis 7 hari aktif (hingga {{date}})",
@@ -392,7 +392,8 @@
     "qa_vegetarianSub": "Lakto-ovo・tanpa daging atau seafood",
     "hk_highProteinPrompt": "Makanan tinggi protein dengan dua atau lebih sumber protein",
     "hk_vegetarianPrompt": "Hidangan vegetarian (lakto-ovo, tanpa daging atau seafood)",
-    "aiAsk": "Mau masak apa? Sebut bahan atau hidangan, nanti saya rancang."
+    "aiAsk": "Mau masak apa? Sebut bahan atau hidangan, nanti saya rancang.",
+    "contactSupport": "Ada masalah? Beri tahu saya"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
