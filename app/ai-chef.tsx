@@ -4418,6 +4418,12 @@ export default function AIChefScreen() {
                 </View>
               )}
               <Text style={s.toolBtnTxt} numberOfLines={2}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
+              {a.id === "daily" && (
+                <View style={s.unifiedCta}>
+                  <Text style={s.unifiedCtaTxt}>{t("aiChef.heroCta")}</Text>
+                  <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                </View>
+              )}
             </PressScale>
           ))}
         </View>
@@ -5346,6 +5352,18 @@ const s = StyleSheet.create({
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   unifiedGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
   unifiedCover: { width: "100%", height: 64, borderRadius: 12, marginBottom: 8, backgroundColor: "#F1EDE6" },
+  unifiedCta: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F37021",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  unifiedCtaTxt: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   unifiedBtn: {
     flexBasis: "47%",
     flexGrow: 1,
