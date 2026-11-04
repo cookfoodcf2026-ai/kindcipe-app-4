@@ -5361,6 +5361,7 @@ const s = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: "center",
+    transform: [{ translateY: 6 }],
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
