@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
+import * as Sentry from "@sentry/react-native";
 import { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -95,13 +96,17 @@ export default function LoginScreen() {
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
+  // 個碼一旦驗證成功就唔可以再用：記住狀態，防止用戶重撳同一組碼
+  const [otpConsumed, setOtpConsumed] = useState(false);
 
   const handleSendOtp = async () => {
     const email = otpEmail.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setOtpMsg(t("auth.invalidEmail") as any); return; }
     setOtpMsg(null); setIsLoading(true); setLoadingType("otp");
     try {
-      await requestOtpM.mutateAsync({ email });
+      await requestOtpM.mutateAsync({ email: email.trim() });
+      // 新碼發出：解鎖 Verify 掣，否則上一輪消耗咗就永遠撳唔到
+      setOtpConsumed(false);
       setOtpStep("code");
     } catch (e: any) {
       setOtpMsg(friendlyError(e) || (t("auth.tryLater") as any));
@@ -113,9 +118,42 @@ export default function LoginScreen() {
     if (otpCode.trim().length < 4) { setOtpMsg(t("auth.enterCode") as any); return; }
     setOtpMsg(null); setIsLoading(true); setLoadingType("otp");
     try {
-      const res = await verifyOtpM.mutateAsync({ email, code: otpCode.trim() });
-      await saveAuthTokenFromResponse(res as any);
-      await onLoginSuccess("otp");
+      const res = await verifyOtpM.mutateAsync({ email: email.trim(), code: otpCode.trim() });
+      // ── 由呢一刻開始，個碼已經消耗（DB used_at 已寫），任何失敗都唔可以再叫
+      //    用戶「再試一次」，否則重撳必然得到「驗證碼已使用」。──
+      let stage = "token_save";
+      try {
+        await saveAuthTokenFromResponse(res as any);
+        stage = "post_login";
+        await onLoginSuccess("otp");
+      } catch (postError: any) {
+        // 固定文案（唔用 friendlyError，否則真因被蓋走），detail 只入 analytics。
+        track("login_post_verify_failed", {
+          stage,
+          method: "otp",
+          code: String(postError?.data?.code ?? postError?.code ?? "unknown"),
+          message: String(postError?.message ?? "").slice(0, 120),
+          codeConsumed: true,
+        });
+        console.warn(`[login] post-verify failed at ${stage}:`, postError?.message ?? postError);
+        try {
+          Sentry.captureException(postError, {
+            tags: { area: "login", stage, method: "otp" },
+            extra: { codeConsumed: true },
+          });
+        } catch {
+          /* Sentry disabled */
+        }
+        setOtpConsumed(true);
+        if (stage === "token_save") {
+          // token 未存到：跳去 app 只會被 AuthGuard 踢返嚟，而個碼已經用咗
+          setOtpMsg("驗證成功，但未能儲存登入狀態。請撳下面「Resend code」收新碼再試。" as any);
+        } else {
+          // token 已存好：直接入 app
+          setOtpMsg("已登入，正在載入你嘅資料…" as any);
+          try { router.replace("/" as any); } catch { /* AuthGuard 接手 */ }
+        }
+      }
     } catch (e: any) {
       setOtpMsg(friendlyError(e) || (t("auth.tryLater") as any));
     } finally { setIsLoading(false); setLoadingType(""); }
@@ -561,9 +599,9 @@ export default function LoginScreen() {
                     />
                   </View>
                   <TouchableOpacity
-                    style={[styles.submitBtn, isLoading && styles.submitBtnDisabled]}
+                    style={[styles.submitBtn, (isLoading || otpConsumed) && styles.submitBtnDisabled]}
                     onPress={handleVerifyOtp}
-                    disabled={isLoading}
+                    disabled={isLoading || otpConsumed}
                     activeOpacity={0.85}
                   >
                     {isLoading && loadingType === "otp" ? <ActivityIndicator color="#fff" size="small" /> : null}
