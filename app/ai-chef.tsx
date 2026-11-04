@@ -4742,9 +4742,12 @@ export default function AIChefScreen() {
                 <View style={s.recBar}>
                   <View style={s.recHead}>
                     <Text style={s.recTitle}><Ionicons name="restaurant-outline" size={13} /> {mealResult
-                      ? (recommendedRecipes.some((r) => /湯|羹/.test(String(r.name ?? "")))
-                          ? t("aiChef.sectionTonight")
-                          : `今晚 ${recommendedRecipes.length} 道菜`)
+                      ? (lastChatModeRef.current === "ai"
+                          // 用戶撳「AI 助手設計食譜」→ 唔好當成今晚 3 餸 1 湯
+                          ? `AI 助手設計（${recommendedRecipes.length} 道）`
+                          : recommendedRecipes.some((r) => /湯|羹/.test(String(r.name ?? "")))
+                            ? t("aiChef.sectionTonight")
+                            : `今晚 ${recommendedRecipes.length} 道菜`)
                       : t("aiChef.swapOther")}</Text>
                     {mealResult && aiChefQuickPlanEnabled && (
                       <TouchableOpacity
