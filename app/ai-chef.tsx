@@ -431,11 +431,11 @@ const scaleIngredients = (r: AIRecipe, overrideServings?: number | null): AIReci
 };
 
 const QUICK_ACTIONS = [
-  { id: "daily", icon: "restaurant-outline", emoji: "🍱", image: require("../assets/herocard-v4.jpeg"), label: "AI 助手一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
-  { id: "fridge", icon: "camera-outline", image: require("../assets/recipes/scene-tool-fridge.jpg"), emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#E8F0F4", color: "#183B56" },
-  { id: "random", icon: "shuffle-outline", image: require("../assets/recipes/scene-tool-random.jpg"), emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
-  { id: "ai", icon: "sparkles-outline", image: require("../assets/recipes/scene-tool-ai.jpg"), emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
-  { id: "pantry", icon: "basket-outline", image: require("../assets/recipes/scene-tool-pantry.jpg"), emoji: "🧺", label: "用雪櫃食材", group: "tools", tint: "#E8F0E4", color: "#4F6F4F" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "AI 助手一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
+  { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#E8F0F4", color: "#183B56" },
+  { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
+  { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
+  { id: "pantry", icon: "basket-outline", emoji: "🧺", label: "用雪櫃食材", group: "tools", tint: "#E8F0E4", color: "#4F6F4F" },
   { id: "quick", icon: "time-outline", emoji: "⏱️", label: "快手", subtitle: "收工即煮，快手搞定", image: require("../assets/recipes/scene-quick.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "healthy", icon: "heart-outline", emoji: "🥦", label: "清淡", subtitle: "少油少鹽，食得輕盈", image: require("../assets/recipes/scene-healthy.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
   { id: "ricecooker", icon: "hardware-chip-outline", emoji: "🍲", label: "電飯煲", subtitle: "一鍋搞掂，慳力慳時", image: require("../assets/recipes/scene-ricecooker.png"), group: "scenario", tint: "#FFFFFF", color: "#183B56" },
@@ -4380,6 +4380,9 @@ export default function AIChefScreen() {
         </View>
       );
     }
+    const hero = QUICK_ACTIONS.find((a) => a.group === "hero");
+    const tools = QUICK_ACTIONS.filter((a) => a.group === "tools");
+    const scenarios = QUICK_ACTIONS.filter((a) => a.group === "scenario");
     return (
       <View style={s.empty}>
         <View style={s.emptyContent}>
@@ -4391,44 +4394,86 @@ export default function AIChefScreen() {
           </View>
         </View>
 
-        {/* 所有入口一律同款、同一個隊列（hero／工具／場景唔再分三種外觀） */}
-        <View style={s.unifiedGrid}>
-          {[...QUICK_ACTIONS].sort((a, b) => {
-            const rank = (g: string) => (g === "hero" ? 0 : g === "scenario" ? 1 : 2);
-            return rank(a.group) - rank(b.group);
-          }).map((a) => (
+        {/* Hero card */}
+        {hero && (
+          <PressScale
+            testID={`ai-chef-quick-${hero.id}`}
+            onPress={() => handleQuickAction(hero.id)}
+            disabled={chatMutation.isPending}
+            style={s.heroCard}
+          >
+            <ExpoImage
+              source={require("../assets/herocard-v4.jpeg")}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              contentPosition="right center"
+              cachePolicy="memory-disk"
+              transition={0}
+            />
+            <View style={s.heroCardScrim} pointerEvents="none">
+              <View style={[s.heroCardScrimLayer, { width: "100%", opacity: 0.25 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "66%", opacity: 0.52 }]} />
+              <View style={[s.heroCardScrimLayer, { width: "40%", opacity: 0.55 }]} />
+            </View>
+            <View style={s.heroCardContent}>
+              <Text style={s.heroCardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t(`aiChef.qa_${hero.id}Label` as any)}</Text>
+              <View style={s.heroCardCta}>
+                <Text style={s.heroCardCtaTxt}>{t("aiChef.heroCta")}</Text>
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+              </View>
+            </View>
+          </PressScale>
+        )}
+
+        {/* Tools 2x2 */}
+        <View style={s.toolGrid}>
+          {tools.map((a) => (
             <PressScale
               key={a.id}
               testID={`ai-chef-quick-${a.id}`}
               onPress={() => handleQuickAction(a.id)}
               disabled={chatMutation.isPending}
-              style={s.unifiedBtn}
+              style={s.toolBtn}
             >
-              {(a as any).image || (a as any).imageUri ? (
-                <View style={s.unifiedCoverWrap}>
-                  <ExpoImage
-                    source={(a as any).image ?? { uri: (a as any).imageUri }}
-                    style={s.unifiedCover}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    transition={120}
-                  />
-                  {a.id === "daily" && (
-                    <View style={s.unifiedCtaOnCover}>
-                      <Text style={s.unifiedCtaTxt}>{t("aiChef.heroCta")}</Text>
-                      <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
-                  <Ionicons name={a.icon as any} size={22} color={a.color} />
-                </View>
-              )}
-              <Text style={s.toolBtnTxt} numberOfLines={2}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
+              <View style={[s.toolIcon, { backgroundColor: a.tint }]}>
+                <Ionicons name={a.icon as any} size={22} color={a.color} />
+              </View>
+              <Text style={s.toolBtnTxt}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
             </PressScale>
           ))}
         </View>
+
+        {/* Scenario cards — horizontal scroll */}
+        <Text style={s.scenarioLabel}>{t("aiChef.scenarioLabel")}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scenarioRow}>
+          {scenarios.map((a) => (
+              <PressScale
+                key={a.id}
+                testID={`ai-chef-quick-${a.id}`}
+                onPress={() => handleQuickAction(a.id)}
+                disabled={chatMutation.isPending}
+                style={s.scenarioCard}
+              >
+                {a.image ? (
+                  <ExpoImage
+                    source={a.image}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={0}
+                  />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: (a as any).tint ?? "#FFFFFF" }]} />
+                )}
+                <View style={s.scenarioCardScrim} />
+                <View style={s.scenarioCardContent}>
+                  <Text style={s.scenarioCardEmoji}>{a.emoji}</Text>
+                  <Text style={s.scenarioCardTitle} numberOfLines={1}>{t(`aiChef.qa_${a.id}Label` as any)}</Text>
+                  <Text style={s.scenarioCardSub} numberOfLines={1}>{t(a.subtitle as any)}</Text>
+                </View>
+              </PressScale>
+          ))}
+        </ScrollView>
         </View>
 
       </View>
@@ -5352,50 +5397,6 @@ const s = StyleSheet.create({
   heroCardCta: { zIndex: 2, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: canva.action, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 9, marginTop: 10 },
   heroCardCtaTxt: { fontSize: 14, fontWeight: "800", color: canva.textOnAccent },
   toolGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
-  unifiedGrid: { alignSelf: "stretch", flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 20 },
-  unifiedCover: { width: "100%", height: 64, borderRadius: 12, marginBottom: 8, backgroundColor: "#F1EDE6" },
-  unifiedCoverWrap: { width: "100%", position: "relative" },
-  unifiedCtaOnCover: {
-    position: "absolute",
-    left: 8,
-    top: 0,
-    bottom: 0,
-    justifyContent: "center",
-    transform: [{ translateY: 6 }],
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#F37021",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  unifiedCta: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#F37021",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  unifiedCtaTxt: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-  unifiedBtn: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    minHeight: 96,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E6DED4",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    gap: 8,
-  },
   toolBtn: { width: "48%", flexGrow: 1, backgroundColor: CARD, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   toolIcon: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
   toolBtnTxt: { fontSize: 14, fontWeight: "800", color: TEXT, flex: 1 },
