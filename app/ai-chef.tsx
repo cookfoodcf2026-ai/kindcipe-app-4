@@ -431,7 +431,7 @@ const scaleIngredients = (r: AIRecipe, overrideServings?: number | null): AIReci
 };
 
 const QUICK_ACTIONS = [
-  { id: "daily", icon: "restaurant-outline", emoji: "🍱", label: "AI 助手一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
+  { id: "daily", icon: "restaurant-outline", emoji: "🍱", image: require("../assets/herocard-v4.jpeg"), label: "AI 助手一鍵生成 3 餸一湯", subtitle: "AI 助手幫你諗好今晚食咩", group: "hero", tint: "#F37021", color: "#FFFFFF" },
   { id: "fridge", icon: "camera-outline", emoji: "📷", label: "拍雪櫃幫我諗", group: "tools", tint: "#E8F0F4", color: "#183B56" },
   { id: "random", icon: "shuffle-outline", emoji: "📚", label: "食譜庫隨機抽", group: "tools", tint: "#FDEAD9", color: "#D97706" },
   { id: "ai", icon: "sparkles-outline", emoji: "✨", label: "AI 生成食譜", group: "tools", tint: "#E8F0F4", color: "#183B56" },
