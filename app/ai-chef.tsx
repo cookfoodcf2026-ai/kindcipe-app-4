@@ -4404,9 +4404,9 @@ export default function AIChefScreen() {
               disabled={chatMutation.isPending}
               style={s.unifiedBtn}
             >
-              {(a as any).imageUri ? (
+              {(a as any).image || (a as any).imageUri ? (
                 <ExpoImage
-                  source={{ uri: (a as any).imageUri }}
+                  source={(a as any).image ?? { uri: (a as any).imageUri }}
                   style={s.unifiedCover}
                   contentFit="cover"
                   cachePolicy="memory-disk"
