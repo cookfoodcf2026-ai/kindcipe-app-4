@@ -5358,7 +5358,9 @@ const s = StyleSheet.create({
   unifiedCtaOnCover: {
     position: "absolute",
     left: 8,
-    top: 8,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
