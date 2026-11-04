@@ -1436,6 +1436,16 @@ export default function AIChefScreen() {
           setMealResult(null);
         }
         setChatStarted(true);
+        // 0 卡時一定要有出路：用戶可能唔知可以叫 AI 生成（扣 1 credit）。
+        // 後端未必送 quickReplies（flag OFF 時冇），所以 app 自己補。
+        if (contractStatus === "no_cards") {
+          const alternatives = Array.isArray((data as any)?.alternatives) ? (data as any).alternatives : [];
+          setContractQuickReplies([
+            { actionId: "ai_generate", labelKey: "aiChef.aiGenerate" },
+            ...(alternatives.length > 0 ? [{ actionId: "closest_library", labelKey: "aiChef.closestLibrary" }] : []),
+            { actionId: "import_recipe", labelKey: "aiChef.importRecipe" },
+          ] as any);
+        }
         scrollToLatestMessage();
         return;
       }
@@ -1477,6 +1487,18 @@ export default function AIChefScreen() {
         ? mergeAppendedCards(recommendedRecipes, recipes)
         : recipes;
       setRecommendedRecipes(mergedRecipes);
+
+      // 0 卡時一定要有出路（實測「有冇蔥油餅食譜」後端 status=text, alternatives=3,
+      // quickReplies 係空，用戶見到一段文字但冇掣）。
+      if (mergedRecipes.length === 0 && !isAppend) {
+        const alts = Array.isArray((data as any)?.alternatives) ? (data as any).alternatives : [];
+        setContractQuickReplies([
+          { actionId: "ai_generate", labelKey: "aiChef.aiGenerate" },
+          ...(alts.length > 0 ? [{ actionId: "closest_library", labelKey: "aiChef.closestLibrary" }] : []),
+          { actionId: "import_recipe", labelKey: "aiChef.importRecipe" },
+        ] as any);
+        if (alts.length > 0) setLibraryAlternatives(alts);
+      }
 
       // 0 卡唔算 crash，但對用戶嚟講就係失敗 —— 要留低可以追嘅證據。
       if (mergedRecipes.length === 0 && !isAppend) {
