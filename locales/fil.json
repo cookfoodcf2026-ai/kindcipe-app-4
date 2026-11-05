@@ -385,6 +385,7 @@
     "aiFallbackPrompt": "Walang tumugma sa library — gumawa gamit ang AI?",
     "libraryMissCta": "Wala pang angkop na recipe sa scenario na ito. Gusto mo bang gumawa ako agad gamit ang AI? (1 credit)",
     "closestLibrary": "Tingnan ang pinakamalapit",
+    "importRecipe": "Mag-import ng recipe",
     "closestLibraryResult": "Ito ang pinakamalapit na recipe:",
     "quotaExhausted": "Naubos na ang AI quota ngayong buwan",
     "swapNoLibrary": "📚 Walang bagong katulad na recipe sa library",

@@ -385,6 +385,7 @@
     "aiFallbackPrompt": "食譜庫暫時冇合適食譜 — 要唔要用 AI 生成食譜？",
     "libraryMissCta": "呢個場景暫時未有食譜，要我用 AI 生成食譜嗎？（1 credit）",
     "closestLibrary": "睇最接近",
+    "importRecipe": "匯入食譜",
     "closestLibraryResult": "呢啲係最接近嘅食譜：",
     "quotaExhausted": "今個月 AI 額度用完",
     "swapNoLibrary": "📚 食譜庫冇新嘅相近替代",

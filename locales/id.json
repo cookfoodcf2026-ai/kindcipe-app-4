@@ -385,6 +385,7 @@
     "aiFallbackPrompt": "Tidak ada yang cocok di pustaka — buat dengan AI?",
     "libraryMissCta": "Belum ada resep yang cocok untuk skenario ini. Mau aku buatkan langsung dengan AI? (1 credit)",
     "closestLibrary": "Lihat yang terdekat",
+    "importRecipe": "Impor resep",
     "closestLibraryResult": "Ini resep yang paling mendekati:",
     "quotaExhausted": "Kuota AI bulan ini sudah habis",
     "swapNoLibrary": "📚 Tidak ada resep serupa baru di pustaka",

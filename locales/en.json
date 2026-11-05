@@ -385,6 +385,7 @@
     "aiFallbackPrompt": "No matching library recipe — design one with the AI Assistant?",
     "libraryMissCta": "No suitable recipe in this scenario yet. Want me to design one with AI now? (1 credit)",
     "closestLibrary": "See closest",
+    "importRecipe": "Import recipe",
     "closestLibraryResult": "Here are the closest recipes:",
     "quotaExhausted": "AI quota used up this month",
     "swapNoLibrary": "📚 No new similar recipe in the library",
