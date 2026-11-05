@@ -1061,9 +1061,6 @@ export default function AIChefScreen() {
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   // 記錄已換過嘅食譜名稱，避免重複
   const [swappedRecipeNames, setSwappedRecipeNames] = useState<Set<string>>(new Set());
-  // 每個卡位嘅換卡次數：頭 5 次換食譜庫，第 6 次起問 AI（車主規則）
-  const swapAttemptsRef = useRef<Record<number, number>>({});
-  const resetSwapAttempts = () => { swapAttemptsRef.current = {}; };
   // 記錄本次 chat 已見過嘅食譜名稱，避免同一個 session 反覆輪迴
   const [sessionSeenRecipeNames, setSessionSeenRecipeNames] = useState<string[]>([]);
   // ── Pantry / Ingredient asking flow ───────────────────
@@ -1824,7 +1821,6 @@ export default function AIChefScreen() {
   // ─── Chat actions ──────────────────────────────────────
 
   const handleNewChat = () => {
-    resetSwapAttempts();
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
     setRecommendedRecipes([]);
@@ -1849,7 +1845,6 @@ export default function AIChefScreen() {
   };
 
   const handleSwitchChat = (id: string) => {
-    resetSwapAttempts();
     if (id === activeChatId) { setShowSessions(false); return; }
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
@@ -2244,7 +2239,6 @@ export default function AIChefScreen() {
   type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai" | `tab_${"quick" | "healthy" | "ricecooker" | "kids" | "guest"}`;
 
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
-    resetSwapAttempts();
     // 用戶撳過「AI 助手設計食譜」→ 下一句一定行 LLM 生成，唔好行食譜庫。
     const forcedAi = sourceMode === undefined && aiGeneratePendingRef.current;
     if (forcedAi) aiGeneratePendingRef.current = false;
@@ -2297,7 +2291,6 @@ export default function AIChefScreen() {
       setShowPaywall(true);
       return;
     }
-    resetSwapAttempts();
     // 判斷是否 3餸1湯場景（問卷進行中 或 已出過 4 卡）—— 係就出 4 個，唔係就一般 1 個
     // 只有 3餸1湯（daily）先有問卷；其他 hotkey 已經直接生成（唔經問卷）
     const inMealContext = isSoupModeRef.current || isMealAnswering || (mealResult && mealResult.length > 0) || mealStep === "result";
@@ -2847,7 +2840,6 @@ export default function AIChefScreen() {
   };
 
   const generateMealPlan = async (prefs: MealPlanPreferences, msgs: Message[]) => {
-    resetSwapAttempts();
     // 設置 3 餸 1 湯模式
     isSoupModeRef.current = true;
     // ── Library-first：行結構化 meal path（pickSoupMeal，同食譜庫 button 一致，唔再隨機抽）──
@@ -3046,7 +3038,6 @@ export default function AIChefScreen() {
 
   const handleQuickAction = async (id: string) => {
     if (chatMutation.isPending) return;
-    resetSwapAttempts();
     if (mealStep !== "idle") {
       setMealStep("idle");
       setMealPrefs(EMPTY_PREFS);
@@ -3500,30 +3491,26 @@ export default function AIChefScreen() {
       return;
     }
 
-    // 換卡次數（車主規則）：同一卡位頭 5 次換食譜庫，第 6 次起直接問 AI。
-    const attempt = (swapAttemptsRef.current[index] ?? 0) + 1;
-    swapAttemptsRef.current[index] = attempt;
-
     // 食譜庫卡：先喺後端食譜庫換（指定類別 + 7 日去重）—— 純食譜庫，唔 AI。
-    // 用唔同 keyword 試 1-2 次（先卡名、再類別詞），都搵唔到先轉 AI（明確標示）。
-    if (attempt < 6) {
-      setSwappingIndex(index);
-      let libraryPicked: AIRecipe | null = null;
-      try {
-        libraryPicked = await swapFromLibrary();
-        if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
-      } finally {
-        setSwappingIndex(null);
-      }
-      if (libraryPicked) {
-        replaceRecipeAtIndex(index, libraryPicked);
-        recordSeenRecipes([libraryPicked]);
-        recordSwappedName(libraryPicked.name);
-        showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
-        return;
-      }
+    // 次序：① 後端（卡名）→ ② 後端（類別詞）→ ③ local 庫（唔理 7 日 seen）。
+    // 三邊都冇 → 問要唔要 AI（info toast）。
+    setSwappingIndex(index);
+    let libraryPicked: AIRecipe | null = null;
+    try {
+      libraryPicked = await swapFromLibrary();
+      if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
+      if (!libraryPicked) libraryPicked = pickLibraryFallback();
+    } finally {
+      setSwappingIndex(null);
     }
-    // 第 6 次，或者食譜庫已冇同類卡 → 問要唔要 AI（info toast）
+    if (libraryPicked) {
+      replaceRecipeAtIndex(index, libraryPicked);
+      recordSeenRecipes([libraryPicked]);
+      recordSwappedName(libraryPicked.name);
+      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
+      return;
+    }
+    // 食譜庫已冇同類卡 → 問要唔要 AI（info toast）
     showToast(t("aiChef.swapNoLibrary" as any), {
       label: t("aiChef.aiGenerate" as any),
       onPress: () => { void replaceFromAi(); },
