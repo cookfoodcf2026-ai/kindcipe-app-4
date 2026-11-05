@@ -43,7 +43,10 @@
     "goodMorning": "Selamat pagi",
     "goodAfternoon": "Selamat siang",
     "goodEvening": "Selamat malam",
-    "greetingName": "{{greeting}}, {{name}}"
+    "greetingName": "{{greeting}}, {{name}}",
+    "unfinishedBanner": "Resep belum selesai ({{n}}) · Buka Resep Saya",
+    "fillIngredients": "Tambah bahan",
+    "aiFillSteps": "AI tulis langkah"
   },
   "recipes": {
     "officialTitle": "🍳 Resep Resmi",
@@ -394,7 +397,11 @@
     "hk_vegetarianPrompt": "Hidangan vegetarian (lakto-ovo, tanpa daging atau seafood)",
     "aiAsk": "Mau masak apa? Sebut bahan atau hidangan, nanti saya rancang.",
     "contactSupport": "Ada masalah? Beri tahu saya",
-    "incompleteBar": "Belum lengkap: hanya {{got}} dari {{want}} hidangan (tanpa potong kredit)"
+    "incompleteBar": "Belum lengkap: hanya {{got}} dari {{want}} hidangan (tanpa potong kredit)",
+    "addToShoppingConfirm": "Tambah ke senarai beli-belah?",
+    "onlyAddPlan": "Rancang sahaja",
+    "shoppingConfirmBody": "{{n}} bahan (hidangan {{date}})",
+    "addToShoppingList": "Tambah ke senarai beli-belah"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
@@ -2506,5 +2513,8 @@
   "電飯煲": "Rice cooker",
   "親子": "Keluarga",
   "宴客": "Tamu",
-  "高蛋白": "Tinggi protein"
+  "高蛋白": "Tinggi protein",
+  "呢張草稿冇有效 ID，請自己填": "Draf ini tiada ID sah — sila isi sendiri",
+  "材料仲未齊，請先自己填材料": "Bahan belum lengkap — isi dahulu",
+  "AI 補齊失敗，請再試": "AI gagal melengkapkan — cuba lagi"
 }

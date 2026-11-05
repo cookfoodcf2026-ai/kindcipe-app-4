@@ -43,7 +43,10 @@
     "goodMorning": "Magandang umaga",
     "goodAfternoon": "Magandang hapon",
     "goodEvening": "Magandang gabi",
-    "greetingName": "{{greeting}}, {{name}}"
+    "greetingName": "{{greeting}}, {{name}}",
+    "unfinishedBanner": "Kulang na recipe ({{n}}) · Buksan ang My Recipes",
+    "fillIngredients": "Magdagdag ng sangkap",
+    "aiFillSteps": "AI ang magsusulat ng steps"
   },
   "recipes": {
     "officialTitle": "🍳 Opisyal na Recipe",
@@ -394,7 +397,11 @@
     "hk_vegetarianPrompt": "Vegetarian na ulam (lacto-ovo, walang karne o seafood)",
     "aiAsk": "Ano ang gusto mong lutuin? Sabihin ang sangkap o putahe at idedesign ko.",
     "contactSupport": "May problema? Sabihin sa akin",
-    "incompleteBar": "Hindi kumpleto: {{got}} sa {{want}} na ulam lang (walang credit na nagamit)"
+    "incompleteBar": "Hindi kumpleto: {{got}} sa {{want}} na ulam lang (walang credit na nagamit)",
+    "addToShoppingConfirm": "Idagdag sa shopping list?",
+    "onlyAddPlan": "Plan lang",
+    "shoppingConfirmBody": "{{n}} sangkap (pagkain sa {{date}})",
+    "addToShoppingList": "Idagdag sa shopping list"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
@@ -2506,5 +2513,8 @@
   "電飯煲": "Rice cooker",
   "親子": "Pamilya",
   "宴客": "Bisita",
-  "高蛋白": "Mataas na protein"
+  "高蛋白": "Mataas na protein",
+  "呢張草稿冇有效 ID，請自己填": "Walang valid ID ang draft na ito — pakisulat nang sarili",
+  "材料仲未齊，請先自己填材料": "Kulang ang mga sangkap — idagdag muna",
+  "AI 補齊失敗，請再試": "Hindi nakumpleto ng AI — subukan muli"
 }

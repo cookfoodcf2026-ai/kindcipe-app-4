@@ -2036,12 +2036,12 @@ export default function AIChefScreen() {
         } else {
           const defaultShopDate = getDayBefore(variables.date);
           Alert.alert(
-            t("加入購物清單？" as any),
-            t("{{n}} 樣材料（{{date}} 排餐）" as any, { n: ings.length, date: formatDateLabel(variables.date) }),
+            t("aiChef.addToShoppingConfirm" as any),
+            t("aiChef.shoppingConfirmBody" as any, { n: ings.length, date: formatDateLabel(variables.date) }),
             [
-              { text: t("只加排餐" as any), style: "cancel" },
+              { text: t("aiChef.onlyAddPlan" as any), style: "cancel" },
               {
-                text: t("加入購物清單" as any),
+                text: t("aiChef.addToShoppingList" as any),
                 onPress: () => setShopConfirm({
                   recipe: plannedRecipe,
                   planId: result.newPlanId,

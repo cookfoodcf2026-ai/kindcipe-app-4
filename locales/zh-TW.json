@@ -43,7 +43,10 @@
     "goodMorning": "早晨",
     "goodAfternoon": "午安",
     "goodEvening": "晚安",
-    "greetingName": "{{greeting}}，{{name}}"
+    "greetingName": "{{greeting}}，{{name}}",
+    "unfinishedBanner": "未完成嘅食譜（{{n}}）· 去我的食譜補齊",
+    "fillIngredients": "補材料",
+    "aiFillSteps": "AI 填煮法"
   },
   "recipes": {
     "officialTitle": "🍳 官方食譜",
@@ -394,7 +397,11 @@
     "hk_vegetarianPrompt": "素食菜式（蛋奶素，無肉無海鮮）",
     "aiAsk": "想食咩？講個食材、菜名，或者話我知今日想清淡定濃味，我即刻幫你設計。",
     "contactSupport": "遇到問題？同我講",
-    "incompleteBar": "未完成：只出到 {{got}} / {{want}} 道（今次冇扣額度）"
+    "incompleteBar": "未完成：只出到 {{got}} / {{want}} 道（今次冇扣額度）",
+    "addToShoppingConfirm": "加入購物清單？",
+    "onlyAddPlan": "只加排餐",
+    "shoppingConfirmBody": "{{n}} 樣材料（{{date}} 排餐）",
+    "addToShoppingList": "加入購物清單"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
@@ -2500,5 +2507,8 @@
   "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。": "iOS 唔俾網頁自動讀剪貼板。請長按上面輸入框 → 揀「貼上」，貼到之後我會自動偵測平台。",
   "電飯煲": "電飯煲懶人",
   "親子": "小朋友啱食",
-  "宴客": "宴客/有朋友"
+  "宴客": "宴客/有朋友",
+  "呢張草稿冇有效 ID，請自己填": "呢張草稿冇有效 ID，請自己填",
+  "材料仲未齊，請先自己填材料": "材料仲未齊，請先自己填材料",
+  "AI 補齊失敗，請再試": "AI 補齊失敗，請再試"
 }

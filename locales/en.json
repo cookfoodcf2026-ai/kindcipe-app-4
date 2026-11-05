@@ -43,7 +43,10 @@
     "goodMorning": "Good morning",
     "goodAfternoon": "Good afternoon",
     "goodEvening": "Good evening",
-    "greetingName": "{{greeting}}, {{name}}"
+    "greetingName": "{{greeting}}, {{name}}",
+    "unfinishedBanner": "Unfinished recipes ({{n}}) · Open My Recipes",
+    "fillIngredients": "Add ingredients",
+    "aiFillSteps": "AI fills the steps"
   },
   "recipes": {
     "officialTitle": "🍳 Official Recipes",
@@ -394,7 +397,11 @@
     "hk_vegetarianPrompt": "Vegetarian dish (lacto-ovo, no meat or seafood)",
     "aiAsk": "What would you like to cook? Name an ingredient or dish and I'll design it.",
     "contactSupport": "Something wrong? Tell me",
-    "incompleteBar": "Incomplete: only {{got}} of {{want}} dishes (no credit used)"
+    "incompleteBar": "Incomplete: only {{got}} of {{want}} dishes (no credit used)",
+    "addToShoppingConfirm": "Add to shopping list?",
+    "onlyAddPlan": "Plan only",
+    "shoppingConfirmBody": "{{n}} ingredients (meal on {{date}})",
+    "addToShoppingList": "Add to shopping list"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
@@ -2536,5 +2543,8 @@
   "電飯煲": "Rice cooker",
   "親子": "Family",
   "宴客": "Guests",
-  "高蛋白": "High protein"
+  "高蛋白": "High protein",
+  "呢張草稿冇有效 ID，請自己填": "This draft has no valid ID — please fill it in yourself",
+  "材料仲未齊，請先自己填材料": "Ingredients are incomplete — add them first",
+  "AI 補齊失敗，請再試": "AI could not fill the steps, please try again"
 }

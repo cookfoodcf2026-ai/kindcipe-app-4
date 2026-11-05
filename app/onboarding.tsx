@@ -488,7 +488,8 @@ export default function OnboardingScreen(
               try {
                 setLoading(true);
                 if (meQuery.data?.activeFamilyId) {
-                  setStep("guide");
+                  // 已經有廚房 → 直接入 app，唔好再走 guide
+                  await finishOnboarding();
                   return;
                 }
                 const joined: any = await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
@@ -507,7 +508,9 @@ export default function OnboardingScreen(
                   utils.family.usage.invalidate(),
                   utils.auth.me.invalidate(),
                 ]);
-                setStep("guide");
+                // 加入廚房 = 已經有廚房，唔應該再走「建立廚房」嗰套 guide／quick-plan。
+                // 車主 2026-11-05：第一次登記揀「加入廚房」之後仍然見到舊 onboarding。
+                await finishOnboarding();
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);

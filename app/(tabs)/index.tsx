@@ -991,7 +991,7 @@ export default function RecipesTab() {
               onPress={() => router.push({ pathname: "/recipe-editor", params: { id: draftId } } as any)}
               style={{ marginTop: 6, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: "#8A4B08" }}>{t("補材料" as any)}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#8A4B08" }}>{t("home.fillIngredients" as any)}</Text>
             </Pressable>
           );
         }
@@ -1002,7 +1002,7 @@ export default function RecipesTab() {
               disabled={busy}
               style={{ marginTop: 6, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: busy ? "#C9B79F" : "#183B56" }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{busy ? "…" : `✨ ${t("AI 填煮法" as any)}`}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{busy ? "…" : `✨ ${t("home.aiFillSteps" as any)}`}</Text>
             </Pressable>
           );
         }
@@ -1056,7 +1056,7 @@ export default function RecipesTab() {
     >
       <Ionicons name="alert-circle-outline" size={18} color="#8A4B08" />
       <Text style={{ flex: 1, fontSize: 13, fontWeight: "800", color: "#8A4B08" }}>
-        {t("未完成嘅食譜" as any)}（{drafts.length}）· {t("去我的食譜補齊" as any)}
+        {t("home.unfinishedBanner" as any, { n: drafts.length })}
       </Text>
       <Ionicons name="chevron-forward" size={16} color="#8A4B08" />
     </Pressable>
