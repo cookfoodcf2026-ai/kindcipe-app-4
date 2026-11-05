@@ -1010,7 +1010,7 @@ export default function AIChefScreen() {
   };
 
   // ─── Toast notification ────────────────────────────────
-  const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void } }>({ text: "", visible: false });
+  const [toast, setToast] = useState<{ text: string; visible: boolean; action?: { label: string; onPress: () => void }; tone?: "success" | "info" | "error" }>({ text: "", visible: false });
   const [nextDayPrompt, setNextDayPrompt] = useState<NextDayPromptData | null>(null);
   const [pendingShoppingNav, setPendingShoppingNav] = useState(false);
   const [restoringCards, setRestoringCards] = useState(false);
@@ -1020,8 +1020,8 @@ export default function AIChefScreen() {
   const CARD_HISTORY_KEY = (uid: string | number) => `@kindcipe:ai-card-history:${uid}`;
   const pendingPostShoppingDateRef = useRef<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showToast = (text: string, action?: { label: string; onPress: () => void }, duration = 2000) => {
-    setToast({ text, visible: true, action });
+  const showToast = (text: string, action?: { label: string; onPress: () => void }, duration = 2000, tone: "success" | "info" | "error" = "success") => {
+    setToast({ text, visible: true, action, tone });
     // 清上一個 timer，否則快速連續兩個 toast 會被舊 timer 提早收埋
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(prev => ({ ...prev, visible: false })), duration);
@@ -1061,6 +1061,9 @@ export default function AIChefScreen() {
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   // 記錄已換過嘅食譜名稱，避免重複
   const [swappedRecipeNames, setSwappedRecipeNames] = useState<Set<string>>(new Set());
+  // 每個卡位嘅換卡次數：頭 5 次換食譜庫，第 6 次起問 AI（車主規則）
+  const swapAttemptsRef = useRef<Record<number, number>>({});
+  const resetSwapAttempts = () => { swapAttemptsRef.current = {}; };
   // 記錄本次 chat 已見過嘅食譜名稱，避免同一個 session 反覆輪迴
   const [sessionSeenRecipeNames, setSessionSeenRecipeNames] = useState<string[]>([]);
   // ── Pantry / Ingredient asking flow ───────────────────
@@ -1821,6 +1824,7 @@ export default function AIChefScreen() {
   // ─── Chat actions ──────────────────────────────────────
 
   const handleNewChat = () => {
+    resetSwapAttempts();
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
     setRecommendedRecipes([]);
@@ -1845,6 +1849,7 @@ export default function AIChefScreen() {
   };
 
   const handleSwitchChat = (id: string) => {
+    resetSwapAttempts();
     if (id === activeChatId) { setShowSessions(false); return; }
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
@@ -2239,6 +2244,7 @@ export default function AIChefScreen() {
   type AiEntry = "ai_tab" | "quick_reply" | "toast_fallback" | "ai_fallback" | "swap_ai" | "meal_ai" | `tab_${"quick" | "healthy" | "ricecooker" | "kids" | "guest"}`;
 
   const sendChat = (msgs: BackendMessage[], sourceMode?: "library" | "ai" | "chat" | "question", operation?: "append") => {
+    resetSwapAttempts();
     // 用戶撳過「AI 助手設計食譜」→ 下一句一定行 LLM 生成，唔好行食譜庫。
     const forcedAi = sourceMode === undefined && aiGeneratePendingRef.current;
     if (forcedAi) aiGeneratePendingRef.current = false;
@@ -2291,6 +2297,7 @@ export default function AIChefScreen() {
       setShowPaywall(true);
       return;
     }
+    resetSwapAttempts();
     // 判斷是否 3餸1湯場景（問卷進行中 或 已出過 4 卡）—— 係就出 4 個，唔係就一般 1 個
     // 只有 3餸1湯（daily）先有問卷；其他 hotkey 已經直接生成（唔經問卷）
     const inMealContext = isSoupModeRef.current || isMealAnswering || (mealResult && mealResult.length > 0) || mealStep === "result";
@@ -2390,6 +2397,8 @@ export default function AIChefScreen() {
   };
 
   const handleInstantRecipeAction = (mode: "library" | "ai", aiEntry?: AiEntry) => {
+    // source 掣（食譜庫／AI）= 新搜尋，唔再跟舊 hotkey
+    activeHotKeyRef.current = null;
     requestInstantRecipes(mode, aiEntry);
   };
 
@@ -2838,6 +2847,7 @@ export default function AIChefScreen() {
   };
 
   const generateMealPlan = async (prefs: MealPlanPreferences, msgs: Message[]) => {
+    resetSwapAttempts();
     // 設置 3 餸 1 湯模式
     isSoupModeRef.current = true;
     // ── Library-first：行結構化 meal path（pickSoupMeal，同食譜庫 button 一致，唔再隨機抽）──
@@ -3036,6 +3046,7 @@ export default function AIChefScreen() {
 
   const handleQuickAction = async (id: string) => {
     if (chatMutation.isPending) return;
+    resetSwapAttempts();
     if (mealStep !== "idle") {
       setMealStep("idle");
       setMealPrefs(EMPTY_PREFS);
@@ -3489,27 +3500,34 @@ export default function AIChefScreen() {
       return;
     }
 
+    // 換卡次數（車主規則）：同一卡位頭 5 次換食譜庫，第 6 次起直接問 AI。
+    const attempt = (swapAttemptsRef.current[index] ?? 0) + 1;
+    swapAttemptsRef.current[index] = attempt;
+
     // 食譜庫卡：先喺後端食譜庫換（指定類別 + 7 日去重）—— 純食譜庫，唔 AI。
     // 用唔同 keyword 試 1-2 次（先卡名、再類別詞），都搵唔到先轉 AI（明確標示）。
-    setSwappingIndex(index);
-    let libraryPicked: AIRecipe | null = null;
-    try {
-      libraryPicked = await swapFromLibrary();
-      if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
-    } finally {
-      setSwappingIndex(null);
+    if (attempt < 6) {
+      setSwappingIndex(index);
+      let libraryPicked: AIRecipe | null = null;
+      try {
+        libraryPicked = await swapFromLibrary();
+        if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
+      } finally {
+        setSwappingIndex(null);
+      }
+      if (libraryPicked) {
+        replaceRecipeAtIndex(index, libraryPicked);
+        recordSeenRecipes([libraryPicked]);
+        recordSwappedName(libraryPicked.name);
+        showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
+        return;
+      }
     }
-    if (libraryPicked) {
-      replaceRecipeAtIndex(index, libraryPicked);
-      recordSeenRecipes([libraryPicked]);
-      recordSwappedName(libraryPicked.name);
-      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
-      return;
-    }
+    // 第 6 次，或者食譜庫已冇同類卡 → 問要唔要 AI（info toast）
     showToast(t("aiChef.swapNoLibrary" as any), {
       label: t("aiChef.aiGenerate" as any),
       onPress: () => { void replaceFromAi(); },
-    }, 8000);
+    }, 8000, "info");
   };
 
   // Phase 1: AI 排餐後自動加入「主要食材」（跳過調味料/水），再帶用戶去購物清單。
@@ -5338,7 +5356,11 @@ export default function AIChefScreen() {
         <View style={s.toastContainer}>
           <View style={s.toast}>
             <View style={s.toastRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#4F6F4F" />
+              <Ionicons
+                name={toast.tone === "error" ? "alert-circle" : toast.tone === "info" ? "sparkles" : "checkmark-circle"}
+                size={18}
+                color={toast.tone === "error" ? canva.danger : toast.tone === "info" ? canva.accent : GREEN}
+              />
               <Text style={s.toastTxt}>{t(toast.text as any)}</Text>
             </View>
             {toast.action ? (
@@ -5716,11 +5738,11 @@ const s = StyleSheet.create({
   sendOff: { opacity: 0.4 },
   camBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#E8F0F4", alignItems: "center", justifyContent: "center" },
   toastContainer: { position: "absolute", top: 80, left: 0, right: 0, alignItems: "center", zIndex: 100 },
-  toast: { backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
+  toast: { backgroundColor: BG, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
   toastRow: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
   toastTxt: { fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 },
-  toastAction: { alignSelf: "center", paddingHorizontal: 17, paddingVertical: 9, borderRadius: 10, backgroundColor: "#4F6F4F", minWidth: 96, alignItems: "center" },
-  toastActionTxt: { fontSize: 18, fontWeight: "800", color: "#fff" },
+  toastAction: { alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: canva.accent, minWidth: 96, alignItems: "center" },
+  toastActionTxt: { fontSize: 14, fontWeight: "800", color: canva.textOnAccent },
 
   // Markdown renderer styles
   mdRecipeTitle: { fontSize: 16, fontWeight: "700", color: BRAND, marginTop: 12, marginBottom: 4 },
