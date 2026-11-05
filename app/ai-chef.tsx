@@ -30,6 +30,7 @@ import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
+import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
 import Toast from "@/src/components/Toast";
 import NextDayPrompt from "@/src/components/NextDayPrompt";
 import MealConflictPrompt from "@/src/components/MealConflictPrompt";
@@ -1920,8 +1921,16 @@ export default function AIChefScreen() {
   // ─── Plan modal ────────────────────────────────────────
 
   const [showPlan, setShowPlan] = useState(false);
-  // 排餐後確認購物清單：車主要求每次都問，而且買餸日可以同排餐日唔同日
-  const [shopConfirm, setShopConfirm] = useState<{ recipe: any; planId?: number; planDate: string; shopDate: string } | null>(null);
+  // 排餐後確認購物清單（原設計）：單張同批量都直接開 IngredientPickerModal，
+  // 由用戶揀材料／買餸日，或者跳過。買餸日可以同排餐日唔同日。
+  const [shopConfirm, setShopConfirm] = useState<{
+    recipes: any[];
+    planIds?: (number | undefined)[];
+    planDate: string;
+    shopDate: string;
+  } | null>(null);
+  // 原設計：確認食材後問「去購物清單？」（加完先顯示，唔會靜靜跳走）
+  const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const [mealConflict, setMealConflict] = useState<{ date: string; names: string[]; hint?: string } | null>(null);
   const [mealLimit, setMealLimit] = useState<{ date: string; existingCount: number; newCount: number; canReplace: boolean } | null>(null);
   const conflictProceedRef = useRef<((mode: "replace" | "add") => void) | null>(null);
@@ -2026,32 +2035,14 @@ export default function AIChefScreen() {
       singleAddBusyRef.current = false;
       setShowPlan(false);
       if (plannedRecipe) {
-        // 車主要求：加排餐後一定要問，唔可以靜靜自動加購物清單。
-        const ings = (plannedRecipe.ingredients ?? [])
-          .map((i: any) => normalizeIngredient(i))
-          .filter(Boolean)
-          .filter((i: any) => i && !isWaterIngredient(i.name));
-        if (ings.length === 0) {
-          showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
-        } else {
-          const defaultShopDate = getDayBefore(variables.date);
-          Alert.alert(
-            t("aiChef.addToShoppingConfirm" as any),
-            t("aiChef.shoppingConfirmBody" as any, { n: ings.length, date: formatDateLabel(variables.date) }),
-            [
-              { text: t("aiChef.onlyAddPlan" as any), style: "cancel" },
-              {
-                text: t("aiChef.addToShoppingList" as any),
-                onPress: () => setShopConfirm({
-                  recipe: plannedRecipe,
-                  planId: result.newPlanId,
-                  planDate: variables.date,
-                  shopDate: defaultShopDate,
-                }),
-              },
-            ],
-          );
-        }
+        // 原設計：排餐成功後直接開食材選擇 modal（即使冇食材都俾用戶揀跳過），
+        // 唔再經 Alert，亦唔會靜靜自動加購物清單。
+        setShopConfirm({
+          recipes: [plannedRecipe],
+          planIds: [result.newPlanId],
+          planDate: variables.date,
+          shopDate: getDayBefore(variables.date),
+        });
       } else {
         showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
       }
@@ -4310,12 +4301,16 @@ export default function AIChefScreen() {
           return planIdByRecipeId.get(libId) ?? planIdByRecipeId.get(savedId);
         });
 
-        void autoAddShoppingForPlan(
-          shoppingRecipes,
-          getDayBefore(planDate),
-          planDate,
+        // 原設計：批量排餐成功後同樣直接開食材選擇 modal，唔自動加購物清單。
+        const batchPlanDate = planDate ?? todayISO();
+        setShowPlan(false);
+        setBatchRecipes(null);
+        setShopConfirm({
+          recipes: shoppingRecipes,
           planIds,
-        );
+          planDate: batchPlanDate,
+          shopDate: getDayBefore(batchPlanDate),
+        });
       };
       const executeBatch = async (replaceExistingDinner: boolean, deleteRelatedShopping: boolean) => {
       try {
@@ -5393,20 +5388,20 @@ export default function AIChefScreen() {
 
       <IngredientPickerModal
         visible={!!shopConfirm}
-        recipes={shopConfirm ? [{
-          id: String(shopConfirm.recipe?.id ?? shopConfirm.recipe?.name ?? "ai"),
-          name: shopConfirm.recipe?.name ?? "",
-          nameEn: shopConfirm.recipe?.nameEn,
-          nameFil: shopConfirm.recipe?.nameFil,
-          nameId: shopConfirm.recipe?.nameId,
-          date: shopConfirm.planDate,
+        recipes={(shopConfirm?.recipes ?? []).map((recipe: any, index: number) => ({
+          id: String(recipe?.id ?? recipe?.name ?? `ai_${index}`),
+          name: recipe?.name ?? "",
+          nameEn: recipe?.nameEn,
+          nameFil: recipe?.nameFil,
+          nameId: recipe?.nameId,
+          date: shopConfirm?.planDate,
           mealType: planMeal ?? undefined,
-          fromMealPlanId: shopConfirm.planId,
-          ingredients: (shopConfirm.recipe?.ingredients ?? []).map((ing: any) => {
+          fromMealPlanId: shopConfirm?.planIds?.[index],
+          ingredients: (recipe?.ingredients ?? []).map((ing: any) => {
             const n = normalizeIngredient(ing);
             return n ? { name: n.name, nameEn: n.nameEn, nameFil: n.nameFil, nameId: n.nameId, quantity: n.quantity, unit: n.unit, category: categorizeIngredient(n.name) } : null;
           }).filter(Boolean) as any,
-        }] : []}
+        }))}
         loading={addShoppingM.isPending}
         mealDate={shopConfirm?.planDate}
         defaultBuyDate={shopConfirm?.shopDate}
@@ -5425,14 +5420,23 @@ export default function AIChefScreen() {
               quantity: i.quantity,
               unit: i.unit,
               category: i.category,
-              mealDate: i.mealDate,
+              fromRecipeName: i.recipeName,
+              fromMealPlanId: i.fromMealPlanId,
             })),
-            fromRecipeName: cur.recipe?.name,
-            fromMealPlanId: cur.planId,
+            fromRecipeName: cur.recipes.map((r: any) => r.name).join(", "),
+            fromMealPlanId: items[0]?.fromMealPlanId,
             plannedDate: items[0]?.plannedDate,
-          } as any);
+          } as any, {
+            onSuccess: () => setShoppingConfirmCount(items.length),
+          });
         }}
         onSkip={() => setShopConfirm(null)}
+      />
+      <ShoppingAddConfirm
+        visible={shoppingConfirmCount !== null}
+        count={shoppingConfirmCount ?? 0}
+        onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
+        onClose={() => setShoppingConfirmCount(null)}
       />
       <Modal visible={showPlan} transparent animationType="slide">
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
