@@ -887,8 +887,8 @@ export default function RecipesTab() {
       return true;
     });
 
-    // Hide drafts from the public grid (they resume via 新增食譜 / 編輯草稿, not here)
-    if (draftIdSet.size > 0) {
+    // 草稿只喺「我的食譜」出現，其餘 view 保持乾淨
+    if (draftIdSet.size > 0 && viewMode !== "user") {
       pool = pool.filter((r: any) => {
         const rawId = String(r.id).replace(/^user_/, "");
         return !draftIdSet.has(rawId);
@@ -963,7 +963,9 @@ export default function RecipesTab() {
     const isAIGenerated = tags.includes("AI 生成");
     const cat = categories.find(c => c.key === item.recipeCategory);
 
+    const isDraftCard = Boolean((item as any).isDraft);
     return (
+      <View style={{ width: cardWidth }}>
       <RecipeCard
         item={{ ...item, isKol } as any}
         category={cat}
@@ -977,6 +979,36 @@ export default function RecipesTab() {
         width={cardWidth}
         showQuickPlan={false} // 暫時隱藏快速排餐按鈕（2026-08-09）：簡化食譜卡 UI，用戶仍可透過詳情頁 / 排餐頁 / AI Chef 加入排餐
       />
+      {isDraftCard && (() => {
+        const hasIngredients = Array.isArray((item as any).ingredients) && (item as any).ingredients.length > 0;
+        const hasSteps = Array.isArray((item as any).steps) && (item as any).steps.length > 0;
+        const draftId = String(item.id ?? "").replace(/^user_/, "");
+        const busy = fillingDraftId === draftId;
+        // OC：缺材料就唔可以叫 AI 寫煮法（只會憑空生成），一律先開編輯器補材料。
+        if (!hasIngredients) {
+          return (
+            <Pressable
+              onPress={() => router.push({ pathname: "/recipe-editor", params: { id: draftId } } as any)}
+              style={{ marginTop: 6, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#8A4B08" }}>{t("補材料" as any)}</Text>
+            </Pressable>
+          );
+        }
+        if (!hasSteps) {
+          return (
+            <Pressable
+              onPress={() => void fillDraftSteps(item)}
+              disabled={busy}
+              style={{ marginTop: 6, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: busy ? "#C9B79F" : "#183B56" }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{busy ? "…" : `✨ ${t("AI 填煮法" as any)}`}</Text>
+            </Pressable>
+          );
+        }
+        return null;
+      })()}
+      </View>
     );
   };
 
@@ -1016,39 +1048,18 @@ export default function RecipesTab() {
   }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories, t]);
 
   // 未完成食譜：唔入公開 grid，但用戶一定見到（連原因 + 兩個出口）
+  // 未完成食譜：一行提示，撳入去「我的食譜」自己補（詳情／卡片有 AI 填煮法掣）
   const draftsSection = drafts.length === 0 ? null : (
-    <View style={{ marginHorizontal: 14, marginBottom: 12, padding: 12, borderRadius: 14, backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}>
-      <Text style={{ fontSize: 13, fontWeight: "800", color: "#8A4B08", marginBottom: 8 }}>
-        {t("未完成嘅食譜" as any)}（{drafts.length}）· {t("AI Chef 暫時唔會用佢哋" as any)}
+    <Pressable
+      onPress={() => { setViewMode("user"); listRef.current?.scrollToOffset?.({ offset: 0, animated: true } as any); }}
+      style={{ marginHorizontal: 14, marginBottom: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F", flexDirection: "row", alignItems: "center", gap: 8 }}
+    >
+      <Ionicons name="alert-circle-outline" size={18} color="#8A4B08" />
+      <Text style={{ flex: 1, fontSize: 13, fontWeight: "800", color: "#8A4B08" }}>
+        {t("未完成嘅食譜" as any)}（{drafts.length}）· {t("去我的食譜補齊" as any)}
       </Text>
-      {drafts.slice(0, 5).map((d: any) => {
-        const id = String(d.id ?? "");
-        const reason = !Array.isArray(d.ingredients) || d.ingredients.length === 0
-          ? t("未填材料" as any)
-          : t("未填煮法" as any);
-        const busy = fillingDraftId === id.replace(/^user_/, "");
-        return (
-          <View key={id} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <Text style={{ flex: 1, fontSize: 13, color: "#5A3A12" }} numberOfLines={1}>
-              {String(d.name ?? "—")} · {reason}
-            </Text>
-            <Pressable
-              onPress={() => router.push({ pathname: "/recipe-editor", params: { id: id.replace(/^user_/, "") } })}
-              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6B77E" }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#8A4B08" }}>{t("我自己填" as any)}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void fillDraftSteps(d)}
-              disabled={busy}
-              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: busy ? "#C9B79F" : "#183B56" }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{busy ? "…" : t("AI 幫我補煮法" as any)}</Text>
-            </Pressable>
-          </View>
-        );
-      })}
-    </View>
+      <Ionicons name="chevron-forward" size={16} color="#8A4B08" />
+    </Pressable>
   );
 
   const ListHeader = (
