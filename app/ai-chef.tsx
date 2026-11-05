@@ -925,6 +925,19 @@ export default function AIChefScreen() {
 
   const [input, setInput] = useState("");
   const [recommendedRecipes, setRecommendedRecipes] = useState<AIRecipe[]>([]);
+  const lastChefRequestIdRef = useRef<string | null>(null);
+  const trackCardAction = useCallback((action: string, recipe: AIRecipe, cardIndex?: number) => {
+    const recipeId = recipe._libraryRecipeId
+      || recipe.id
+      || (recipe._savedId ? `user_${recipe._savedId}` : undefined);
+    track(Events.AiCardAction, {
+      action,
+      requestId: lastChefRequestIdRef.current ?? undefined,
+      cardIndex,
+      cardId: recipe.cardId,
+      recipeId,
+    });
+  }, []);
   // 是否已出過卡／開始對話（控制輸入框顯示：初始隱藏，出卡後先顯示）
   const [chatStarted, setChatStarted] = useState(false);
   const flatListRef = useRef<FlatList>(null);
@@ -1408,10 +1421,13 @@ export default function AIChefScreen() {
       setContractAiBlocked(isQuotaBlocked((data as any)?.quota));
       void usageUtils.family.usage.invalidate();
       void (usageUtils.aiRecipe as any).status.invalidate();
-      if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length });
+      const requestId = typeof (data as any)?.requestId === "string" ? (data as any).requestId as string : undefined;
+      lastChefRequestIdRef.current = requestId ?? null;
+      if ((data.recipes?.length ?? 0) > 0) track(Events.AiRecipeGenerated, { count: data.recipes!.length, requestId });
       const served = data.served ?? data.recipes?.length ?? 0;
       const requested = data.requested?.total ?? 0;
       track(Events.AiChefResult, {
+        requestId,
         kind: data.intent?.kind ?? "unknown",
         requested,
         served,
@@ -1506,11 +1522,9 @@ export default function AIChefScreen() {
 
       // 0 卡唔算 crash，但對用戶嚟講就係失敗 —— 要留低可以追嘅證據。
       if (mergedRecipes.length === 0 && !isAppend) {
-        const lastMsg = (variables as any)?.messages?.slice(-1)?.[0];
-        const rawQuery = typeof lastMsg?.content === "string" ? lastMsg.content : "[media]";
         reportAiChefFailure("zero_cards", {
+          requestId,
           mode: (variables as any)?.mode ?? "chat",
-          query: String(rawQuery).slice(0, 120),
           clarifyReason: (data as any)?.clarifyReason ?? null,
           served,
           requested,
@@ -1545,8 +1559,15 @@ export default function AIChefScreen() {
       }
       const rawMsg = friendlyError(err) || err?.data?.message || "";
       const isTransient = /abort|timeout|cancel|JSON Parse error|Unexpected character|Parse error|非 JSON|LLM 回覆格式異常/i.test(rawMsg);
-      track(Events.AiChefError, { code: String(code ?? "unknown"), transient: isTransient });
+      const errorRequestId = typeof (err as any)?.data?.requestId === "string" ? (err as any).data.requestId as string : undefined;
+      track(Events.AiChefError, {
+        code: String(code ?? "unknown"),
+        transient: isTransient,
+        requestId: errorRequestId,
+        clientMessageId: (variables as any)?.clientMessageId,
+      });
       reportAiChefFailure("error", {
+        requestId: errorRequestId,
         code: String(code ?? "unknown"),
         transient: isTransient,
         mode: (variables as any)?.mode ?? "chat",
@@ -2053,7 +2074,12 @@ export default function AIChefScreen() {
         showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
       }
       setShowPlan(false);
-      track(Events.AiPlanAdded, { count: 1, conflict: hasConflict });
+      track(Events.AiPlanAdded, {
+        requestId: lastChefRequestIdRef.current ?? undefined,
+        recipeId: variables.recipeId,
+        count: 1,
+        conflict: hasConflict,
+      });
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
@@ -3270,7 +3296,7 @@ export default function AIChefScreen() {
     }
   };
 
-  const handleFavoriteRecipe = async (recipe: AIRecipe) => {
+  const handleFavoriteRecipe = async (recipe: AIRecipe, cardIndex?: number) => {
     if (!isValidRecipe(recipe)) {
       Alert.alert(t("無法收藏" as any), t("此食譜資料不完整，無法收藏。" as any));
       return;
@@ -3280,6 +3306,7 @@ export default function AIChefScreen() {
     try {
       setFavoritingName(key);
       await ensureSaved(recipe);
+      trackCardAction("save", recipe, cardIndex);
       showToast("✅ 已收藏（食譜庫）");
     } catch (e: any) {
       Alert.alert(t("收藏失敗" as any), friendlyError(e) || t("請稍後再試" as any));
@@ -3302,6 +3329,7 @@ export default function AIChefScreen() {
   const handleSwapRecipe = async (recipe: AIRecipe, index: number) => {
     // 全域鎖：任何一張換卡進行中，唔准再撳其他卡（避免並發交錯覆寫）
     if (swappingIndex !== null) return;
+    trackCardAction("swap", recipe, index);
     const category = recipe.recipeCategory || "其他";
     const otherNames = recommendedRecipes
       .filter((_, i) => i !== index)
@@ -3870,6 +3898,7 @@ export default function AIChefScreen() {
   }, [messages]);
 
   const applyRestoredCards = (resolved: AIRecipe[]) => {
+    lastChefRequestIdRef.current = null;
     setRecommendedRecipes(resolved);
     setMealResult(resolved.length >= 2 ? resolved : null);
     setChatStarted(true);
@@ -4289,7 +4318,11 @@ export default function AIChefScreen() {
             mergedItems.push(it);
           }
         }
-        track(Events.AiPlanAdded, { count: mergedItems.length, batch: true });
+        track(Events.AiPlanAdded, {
+          requestId: lastChefRequestIdRef.current ?? undefined,
+          count: mergedItems.length,
+          batch: true,
+        });
         const addedIds = new Set(mergedItems.map((it: any) => String(it.recipeId)));
         const planIdByRecipeId = new Map<string, number>();
         mergedItems.forEach((it: any) => planIdByRecipeId.set(String(it.recipeId), it.newPlanId));
@@ -5175,6 +5208,7 @@ export default function AIChefScreen() {
                                 style={[s.btnMeal, !isValidRecipe(r) && { opacity: 0.4 }]}
                                 onPress={() => {
                                   if (isValidRecipe(r)) {
+                                    trackCardAction("plan_open", r, i);
                                     setPlanRecipe(r);
                                     setPlanDate(todayISO());
                                     setShowPlan(true);
@@ -5190,7 +5224,7 @@ export default function AIChefScreen() {
                             <TouchableOpacity
                               testID={`ai-chef-recipe-${i}-favorite`}
                               style={[s.btnFavorite, (!isValidRecipe(r) || r.source === "official" || r.source === "custom") && { opacity: 0.4 }]}
-                              onPress={() => handleFavoriteRecipe(r)}
+                              onPress={() => handleFavoriteRecipe(r, i)}
                               disabled={!isValidRecipe(r) || r.source === "official" || r.source === "custom" || favoritingName === (r.name || "").trim()}
                             >
                               {favoritingName === (r.name || "").trim() ? (

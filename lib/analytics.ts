@@ -166,6 +166,7 @@ export const Events = {
   OnboardingCompleted: "onboarding_completed",
   AiRecipeGenerated: "ai_recipe_generated",
   AiChefResult: "ai_chef_result",
+  AiCardAction: "ai_card_action",
   AiEditUsed: "ai_edit_used",
   AiIntentHandled: "ai_intent_handled",
   AiActionFallback: "ai_action_fallback",
