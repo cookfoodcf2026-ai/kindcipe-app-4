@@ -40,7 +40,7 @@ function loadGoogleIdentityServices(): Promise<void> {
     );
     if (existing) {
       existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("GIS load failed")));
+      existing.addEventListener("error", () => reject(new Error("gis_load_failed")));
       return;
     }
     const script = document.createElement("script");
@@ -48,10 +48,51 @@ function loadGoogleIdentityServices(): Promise<void> {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("GIS load failed"));
+    script.onerror = () => reject(new Error("gis_load_failed"));
     document.head.appendChild(script);
   });
   return gisLoadPromise;
+}
+
+/**
+ * Render Google's own button into a DOM node and resolve with an id_token.
+ *
+ * One Tap (`prompt()`) is silently suppressed in Safari / browsers that block
+ * third-party cookies, and because react-native-web's Alert is a no-op the
+ * failure looked like a dead button. The rendered button always opens the
+ * account chooser popup, so it is the reliable path on web.
+ */
+export function renderGoogleSignInButton(
+  host: HTMLElement,
+  onCredential: (idToken: string) => void,
+  onError?: (error: Error) => void,
+): void {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  loadGoogleIdentityServices()
+    .then(() => {
+      const gis = window.google;
+      if (!gis?.accounts?.id) throw new Error("gis_load_failed");
+      host.innerHTML = "";
+      host.setAttribute("data-gis-container", "1");
+      gis.accounts.id.initialize({
+        client_id: GOOGLE_WEB_CLIENT_ID,
+        ux_mode: "popup",
+        callback: (response: { credential?: string }) => {
+          if (response?.credential) onCredential(response.credential);
+          else onError?.(new Error("No Google credential"));
+        },
+      });
+      gis.accounts.id.renderButton(host, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "pill",
+        logo_alignment: "center",
+        width: Math.max(220, Math.round(host.clientWidth || 280)),
+      });
+    })
+    .catch((error: Error) => onError?.(error));
 }
 
 /**

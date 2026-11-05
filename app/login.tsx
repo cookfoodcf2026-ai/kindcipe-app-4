@@ -12,7 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import * as Sentry from "@sentry/react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc, BACKEND_URL } from "@/lib/trpc";
@@ -27,7 +27,7 @@ import * as WebBrowser from "expo-web-browser";
 import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
-import { signInWithGoogleWeb, signInWithAppleWeb, startAppleWebLogin } from "@/lib/socialAuth";
+import { signInWithGoogleWeb, signInWithAppleWeb, startAppleWebLogin, renderGoogleSignInButton } from "@/lib/socialAuth";
 import { setPendingVerificationEmail } from "@/lib/pending-verification";
 const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
 const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
@@ -74,6 +74,8 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingType, setLoadingType] = useState<string>("");
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  // Web：掛 Google 官方按鈕（One Tap 會被 Safari 靜靜 suppress）
+  const googleBtnHost = useRef<any>(null);
   const utils = trpc.useUtils();
 
   // Apple Sign-In availability (async; native module may not register synchronously in the New Architecture).
@@ -317,6 +319,47 @@ export default function LoginScreen() {
   };
 
   // ── Google Sign In ──────────────────────────────────────────────────────────
+  const loginWithGoogleIdToken = async (idToken: string) => {
+    setIsLoading(true);
+    setLoadingType("google");
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ idToken }),
+      });
+      if (!res.ok) throw new Error("Google login failed");
+      const data = await res.json();
+      await saveAuthTokenFromResponse(data);
+      await onLoginSuccess("google");
+    } catch (err: any) {
+      if (__DEV__) console.error("Google web login error:", err);
+      Alert.alert(t("auth.googleFailed"), t("auth.tryLater"));
+    } finally {
+      setIsLoading(false);
+      setLoadingType("");
+    }
+  };
+
+  // Web：用 Google 自己嘅按鈕（renderButton popup），唔靠 One Tap
+  useEffect(() => {
+    if (!isWeb || mode !== "login") return;
+    const host = googleBtnHost.current as unknown as HTMLElement | null;
+    if (!host) return;
+    const timer = setTimeout(() => {
+      renderGoogleSignInButton(
+        host,
+        (idToken) => void loginWithGoogleIdToken(idToken),
+        () => Alert.alert(t("auth.googleFailed"), "Google 登入暫時無法載入，請重新載入頁面。"),
+      );
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      try { host.innerHTML = ""; } catch { /* ignore */ }
+    };
+  }, [mode]);
+
   const handleGoogleSignIn = async () => {
     if (isWeb) {
       setIsLoading(true);
@@ -635,19 +678,23 @@ export default function LoginScreen() {
                   <Text style={styles.appleBtnText}>{t("auth.appleLogin")}</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={[styles.googleBtn, ((!hasGoogleSignin && !isWeb) || isLoading) && styles.socialBtnDisabled]}
-                onPress={handleGoogleSignIn}
-                disabled={isLoading}
-                activeOpacity={0.85}
-              >
-                {isLoading && loadingType === "google" ? (
-                  <ActivityIndicator color="#DB4437" size="small" />
-                ) : (
-                  <Ionicons name="logo-google" size={22} color="#DB4437" />
-                )}
-                <Text style={styles.googleBtnText}>{t("auth.googleLogin")}</Text>
-              </TouchableOpacity>
+              {isWeb ? (
+                <View ref={googleBtnHost} style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }} />
+              ) : (
+                <TouchableOpacity
+                  style={[styles.googleBtn, ((!hasGoogleSignin && !isWeb) || isLoading) && styles.socialBtnDisabled]}
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.85}
+                >
+                  {isLoading && loadingType === "google" ? (
+                    <ActivityIndicator color="#DB4437" size="small" />
+                  ) : (
+                    <Ionicons name="logo-google" size={22} color="#DB4437" />
+                  )}
+                  <Text style={styles.googleBtnText}>{t("auth.googleLogin")}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.googleBtn, isLoading && styles.socialBtnDisabled]}
                 onPress={() => { setMode("otp"); setOtpStep("email"); setOtpMsg(null); setOtpCode(""); }}
