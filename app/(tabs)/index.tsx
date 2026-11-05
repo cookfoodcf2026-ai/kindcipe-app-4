@@ -11,6 +11,7 @@ import { enumT } from "@/lib/i18nEnums";
 import { useAuth } from "@/hooks/useAuth";
 import { aiChefQuickPlanEnabled, approvalUiEnabled } from "@/lib/featureFlags";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
+import { useModalHandoff } from "@/hooks/useModalHandoff";
 import { loadCustomCategories } from "@/lib/category-storage";
 import type { CategoryDef } from "@/lib/category-storage";
 import { getBilingualName, getDisplayName } from "@/lib/bilingual";
@@ -626,6 +627,7 @@ export default function RecipesTab() {
   const [quickPlanDate, setQuickPlanDate] = useState<string | null>(DateUtil.todayISO());
   const [quickPlanMeal, setQuickPlanMeal] = useState("dinner");
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
+  const quickPlanHandoff = useModalHandoff<PickerRecipe>(600);
 
   const todayStr = DateUtil.todayISO();
   const { data: todayMeals = [] } = trpc.mealPlan.listByDateRange.useQuery({ startDate: todayStr, endDate: todayStr }, { staleTime: 30000 });
@@ -754,7 +756,6 @@ export default function RecipesTab() {
 
   const addMealM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
-      setQuickPlanRecipe(null);
       // Check if there's a conflict (eatOut or duplicate recipe)
       if (result.warning && result.hasConflict) {
         const shouldKeep = await new Promise<boolean>((resolve) => {
@@ -774,6 +775,7 @@ export default function RecipesTab() {
           if (result.newPlanId) {
             deleteMealM.mutate({ id: result.newPlanId, keepRelatedItems: false });
           }
+          setQuickPlanRecipe(null);
           return;
         }
       }
@@ -781,16 +783,17 @@ export default function RecipesTab() {
       // Find recipe from search results
       const found = searchRecipes.find((r: any) => r.id === variables.recipeId) as any;
       if (found && Array.isArray(found.ingredients) && found.ingredients.length > 0) {
-        setPlanPickerRecipe({
+        quickPlanHandoff.queue({
           id: variables.recipeId,
           name: variables.recipeName,
           ingredients: found.ingredients,
           date: variables.date,
           fromMealPlanId: result.newPlanId,
-        });
+        }, setPlanPickerRecipe);
       } else {
         showToast(t("已加入排餐" as any), "info");
       }
+      setQuickPlanRecipe(null);
 
       void invalidateMealPlanAndCart();
     },
@@ -1588,7 +1591,7 @@ export default function RecipesTab() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={!!quickPlanRecipe} transparent animationType="slide">
+      <Modal visible={!!quickPlanRecipe} transparent animationType="slide" onDismiss={quickPlanHandoff.onDismiss}>
         <View style={s.planOverlay}>
           <View style={s.planSheet}>
             <View style={s.planHandle} />

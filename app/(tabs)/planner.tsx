@@ -34,6 +34,7 @@ import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
+import { useModalHandoff } from "@/hooks/useModalHandoff";
 import type { CategoryDef } from "@/lib/category-storage";
 import { DEFAULT_CATEGORIES, loadCustomCategories } from "@/lib/category-storage";
 import { DateUtil } from "@/src/lib/DateUtil";
@@ -229,8 +230,7 @@ export default function PlannerTab() {
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const addMealLockRef = useRef(false);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
-  // 幽靈卡死修復：用 Ref 暫存待開啟嘅 Recipe，等 Modal 完全關閉後先開啟
-  const pendingPickerRecipeRef = useRef<any>(null);
+  const addMealHandoff = useModalHandoff<PickerRecipe>(600);
   const [pendingConfirmRecipe, setPendingConfirmRecipe] = useState<PickerRecipe | null>(null);
   
   // FilterModal states（同 index.tsx 一致）
@@ -655,8 +655,7 @@ export default function PlannerTab() {
         console.warn("[SafetyTimeout] Forcing unlock after 8s timeout!");
         addMealLockRef.current = false;
         setIsAddingMeal(false);
-        // 清空 pending Ref
-        pendingPickerRecipeRef.current = null;
+        addMealHandoff.cancel();
         showToast("操作超時，請重新嘗試", "error");
       }, 8000); // 8 秒超時
     }
@@ -666,7 +665,7 @@ export default function PlannerTab() {
         clearTimeout(timeoutId);
       }
     };
-  }, [isAddingMeal, showToast]);
+  }, [isAddingMeal, showToast, addMealHandoff.cancel]);
 
   // 完成排餐加入流程（抽取為獨立函數）
   const completeAddFlow = async (result: any, variables: any) => {
@@ -694,9 +693,9 @@ export default function PlannerTab() {
     }
 
     
-    // 3. 若有食材，開啟 Shopping Picker Modal
+    // 3. 若有食材，等 Add Modal 完全關閉後再開 Shopping Picker Modal
     if (ings && ings.length > 0) {
-      const pickerRecipeData = {
+      const pickerRecipeData: PickerRecipe = {
         id: variables.recipeId,
         name: variables.recipeName,
         ingredients: ings,
@@ -704,31 +703,17 @@ export default function PlannerTab() {
         mealType: variables.mealType,
         fromMealPlanId: result.newPlanId,
       };
-      
-      
-      // 修復：用 Ref 暫存，等 Add Modal onDismiss 後先開啟
-      pendingPickerRecipeRef.current = pickerRecipeData;
-      
-      // Fallback：如果 400ms 後 onDismiss 都無觸發，強制開啟
-      setTimeout(() => {
-        if (pendingPickerRecipeRef.current) {
-          console.warn("[completeAddFlow] onDismiss timeout, forcing open Shopping Modal");
-          const forcedData = pendingPickerRecipeRef.current;
-          pendingPickerRecipeRef.current = null;
-          
-          // 強制解鎖 UI
-          setIsAddingMeal(false);
-          addMealLockRef.current = false;
-          
-          // 強制開啟 Shopping Modal
-          setPickerRecipe(forcedData);
-        }
-      }, 400);
-      
+
+      addMealHandoff.queue(pickerRecipeData, (data) => {
+        setIsAddingMeal(false);
+        addMealLockRef.current = false;
+        setPickerRecipe(data);
+      });
+      setShowAddModal(false);
     } else {
-      // 4. 無食材時，先關閉 Loading 再彈出成功 Alert
       setIsAddingMeal(false);
       addMealLockRef.current = false;
+      setShowAddModal(false);
       Alert.alert(t("✅ 已加入排餐" as any), variables.recipeName, [{ text: t("確定" as any) }]);
     }
 
@@ -968,9 +953,7 @@ export default function PlannerTab() {
       // 啟動 Loading 狀態
       setIsAddingMeal(true);
       
-      // 關閉選單 Modal（必須加返呢個）
-      setShowAddModal(false);
-      
+      // 保持選單 Modal 開啟，避免 onDismiss 喺 pending picker 未準備好時先觸發
       try {
         addMealM.mutate({
           date: dateStr,
@@ -1669,26 +1652,17 @@ export default function PlannerTab() {
         visible={showAddModal} 
         animationType="slide" 
         transparent
-        onDismiss={() => {
-          // 幽靈卡死修復：當 Add Modal 完全關閉後，先開啟 Shopping Modal
-          if (pendingPickerRecipeRef.current) {
-            const pickerData = pendingPickerRecipeRef.current;
-            pendingPickerRecipeRef.current = null;
-            
-            // 強制解鎖 UI
-            setIsAddingMeal(false);
-            addMealLockRef.current = false;
-            
-            // 開啟 Shopping Modal
-            setPickerRecipe(pickerData);
-          }
-        }}
+        onDismiss={addMealHandoff.onDismiss}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t("planner.selectRecipe")}</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowAddModal(false)}
+                disabled={isAddingMeal}
+                style={isAddingMeal ? { opacity: 0.35 } : undefined}
+              >
                 <Ionicons name="close-outline" size={18} color="#999" />
               </TouchableOpacity>
             </View>
@@ -1796,39 +1770,36 @@ export default function PlannerTab() {
                 userCount={userRecipes.length}
               />
           </View>
-        </View>
-      </Modal>
-
-      {/* 獨立 Loading Modal（最外層，100% 可見） */}
-      <Modal 
-        animationType="fade" 
-        transparent 
-        visible={isAddingMeal}
-        onRequestClose={() => {}}
-      >
-        <View style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          alignItems: "center",
-          justifyContent: "center",
-        }}>
-          <View style={{
-            backgroundColor: "#fff",
-            paddingHorizontal: 32,
-            paddingVertical: 24,
-            borderRadius: 16,
-            alignItems: "center",
-            gap: 12,
-          }}>
-            <ActivityIndicator size="large" color="#183B56" />
-            <Text style={{
-              fontSize: 16,
-              fontWeight: "700",
-              color: "#1A1A1A",
+          {isAddingMeal && (
+            <View style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              alignItems: "center",
+              justifyContent: "center",
             }}>
-              {t("正在加入排餐中..." as any)}
-            </Text>
-          </View>
+              <View style={{
+                backgroundColor: "#fff",
+                paddingHorizontal: 32,
+                paddingVertical: 24,
+                borderRadius: 16,
+                alignItems: "center",
+                gap: 12,
+              }}>
+                <ActivityIndicator size="large" color="#183B56" />
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: "#1A1A1A",
+                }}>
+                  {t("正在加入排餐中..." as any)}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       </Modal>
 

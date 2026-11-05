@@ -30,6 +30,7 @@ import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWe
 import { trackRecipeEvent } from "@/lib/analytics";
 import { useAuth } from "@/hooks/useAuth";
 import { useScreenAwake } from "@/hooks/useScreenAwake";
+import { useModalHandoff } from "@/hooks/useModalHandoff";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -182,6 +183,7 @@ export default function RecipeDetailScreen() {
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [, setPlanPickerShoppingDate] = useState<string | null>(null);
+  const planPickerHandoff = useModalHandoff<PickerRecipe>(600);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info"; action?: { label: string; onPress: () => void } }>({ visible: false, message: "", type: "success" });
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const playTimerEndSound = async () => {
@@ -673,22 +675,22 @@ export default function RecipeDetailScreen() {
 
       const continueFlow = () => {
         void rememberPlanDate(planDate);
-        setShowPlan(false);
         if (recipe?.id && recipe?.name) trackRecipeEvent(recipe.id, recipe.name, "plan");
         if (ings.length > 0) {
           const shoppingDateForPlan = getDayBefore(planDate ?? toISODate(new Date()));
-          setPlanPickerRecipe({
+          planPickerHandoff.queue({
             id: recipeStringId,
             name: recipe?.name ?? "",
             ingredients: ings,
             date: planDate ?? undefined,
             mealType: planMeal ?? undefined,
             fromMealPlanId: result.newPlanId,
-          });
+          }, setPlanPickerRecipe);
           setPlanPickerShoppingDate(shoppingDateForPlan);
         } else {
           Alert.alert(t("已加入排餐" as any));
         }
+        setShowPlan(false);
 
         void utils.mealPlan.listByDateRange.invalidate();
       };
@@ -1745,7 +1747,7 @@ export default function RecipeDetailScreen() {
         <CookingTermTooltip visible={!!tooltipTerm} term={tooltipTerm || ""} onClose={() => setTooltipTerm(null)} />
 
         {/* ── Add to plan modal ── */}
-        <Modal visible={showPlan} transparent animationType="slide">
+        <Modal visible={showPlan} transparent animationType="slide" onDismiss={planPickerHandoff.onDismiss}>
           <View style={s.overlay}>
             <View style={s.sheet}>
               <View style={s.sheetHandle} />

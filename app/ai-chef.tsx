@@ -20,6 +20,7 @@ import { getRecipeLocalImage } from "@/lib/recipe-local-images";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiChatCloudSync } from "@/hooks/ai-chef/useAiChatCloudSync";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
+import { useModalHandoff } from "@/hooks/useModalHandoff";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { compressImage } from "@/lib/image-utils";
 import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
@@ -1929,6 +1930,12 @@ export default function AIChefScreen() {
     planDate: string;
     shopDate: string;
   } | null>(null);
+  const shopConfirmHandoff = useModalHandoff<{
+    recipes: any[];
+    planIds?: (number | undefined)[];
+    planDate: string;
+    shopDate: string;
+  }>(600);
   // 原設計：確認食材後問「去購物清單？」（加完先顯示，唔會靜靜跳走）
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const [mealConflict, setMealConflict] = useState<{ date: string; names: string[]; hint?: string } | null>(null);
@@ -2033,19 +2040,19 @@ export default function AIChefScreen() {
       const plannedRecipe = pendingSinglePlanRecipeRef.current ?? planRecipeRef.current ?? planRecipe;
       pendingSinglePlanRecipeRef.current = null;
       singleAddBusyRef.current = false;
-      setShowPlan(false);
       if (plannedRecipe) {
         // 原設計：排餐成功後直接開食材選擇 modal（即使冇食材都俾用戶揀跳過），
         // 唔再經 Alert，亦唔會靜靜自動加購物清單。
-        setShopConfirm({
+        shopConfirmHandoff.queue({
           recipes: [plannedRecipe],
           planIds: [result.newPlanId],
           planDate: variables.date,
           shopDate: getDayBefore(variables.date),
-        });
+        }, setShopConfirm);
       } else {
         showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
       }
+      setShowPlan(false);
       track(Events.AiPlanAdded, { count: 1, conflict: hasConflict });
       void invalidateMealPlanAndCart();
     },
@@ -4272,8 +4279,6 @@ export default function AIChefScreen() {
         };
       });
       const afterAdded = (results: any[]) => {
-        setShowPlan(false);
-        setBatchRecipes(null);
         // 合併多個 result（第一次成功 + force 補加）嘅成功項，確保所有成功加入嘅食譜都開到購物車
         const mergedItems: any[] = [];
         const seenPlan = new Set<number>();
@@ -4296,6 +4301,8 @@ export default function AIChefScreen() {
         });
         if (shoppingRecipes.length === 0) {
           // 全部被跳過（例如全部設定咗外出）—— 唔跳去購物車
+          setShowPlan(false);
+          setBatchRecipes(null);
           void showNextDayPrompt(lastPlannedDateRef.current ?? planDate ?? todayISO(), planMeal);
           return;
         }
@@ -4308,14 +4315,14 @@ export default function AIChefScreen() {
 
         // 原設計：批量排餐成功後同樣直接開食材選擇 modal，唔自動加購物清單。
         const batchPlanDate = planDate ?? todayISO();
-        setShowPlan(false);
-        setBatchRecipes(null);
-        setShopConfirm({
+        shopConfirmHandoff.queue({
           recipes: shoppingRecipes,
           planIds,
           planDate: batchPlanDate,
           shopDate: getDayBefore(batchPlanDate),
-        });
+        }, setShopConfirm);
+        setShowPlan(false);
+        setBatchRecipes(null);
       };
       const executeBatch = async (replaceExistingDinner: boolean, deleteRelatedShopping: boolean) => {
       try {
@@ -5447,7 +5454,7 @@ export default function AIChefScreen() {
         onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
         onClose={() => setShoppingConfirmCount(null)}
       />
-      <Modal visible={showPlan} transparent animationType="slide">
+      <Modal visible={showPlan} transparent animationType="slide" onDismiss={() => { shopConfirmHandoff.onDismiss(); setBatchRecipes(null); }}>
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
           <View style={m.handle} />
           <View style={m.head}>
