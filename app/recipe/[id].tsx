@@ -24,6 +24,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { getLastPlanDate, rememberPlanDate } from "@/lib/recentPlanDate";
 import { trpc, resolveImageUrl } from "@/lib/trpc";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { trackRecipeEvent } from "@/lib/analytics";
@@ -141,6 +142,16 @@ export default function RecipeDetailScreen() {
   // Plan modal
   const [showPlan, setShowPlan] = useState(false);
   const [planDate, setPlanDate] = useState<string | null>(() => toISODate(new Date()));
+  // 用戶上次排餐嘅日期（例如「聽日」）優先於今日；用戶自己改過就唔覆蓋
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const last = await getLastPlanDate();
+      if (!alive || !last) return;
+      setPlanDate((cur) => (cur === toISODate(new Date()) ? last : cur));
+    })();
+    return () => { alive = false; };
+  }, []);
   const [planMeal, setPlanMeal] = useState("dinner");
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
@@ -661,6 +672,7 @@ export default function RecipeDetailScreen() {
         }));
 
       const continueFlow = () => {
+        void rememberPlanDate(planDate);
         setShowPlan(false);
         if (recipe?.id && recipe?.name) trackRecipeEvent(recipe.id, recipe.name, "plan");
         if (ings.length > 0) {

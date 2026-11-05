@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { trpc, apiClient, API_BASE_URL, resolveImageUrl } from "@/lib/trpc";
+import { getLastPlanDate, rememberPlanDate } from "@/lib/recentPlanDate";
 import { getRecipeLocalImage } from "@/lib/recipe-local-images";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiChatCloudSync } from "@/hooks/ai-chef/useAiChatCloudSync";
@@ -28,6 +29,7 @@ import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
+import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import Toast from "@/src/components/Toast";
 import NextDayPrompt from "@/src/components/NextDayPrompt";
 import MealConflictPrompt from "@/src/components/MealConflictPrompt";
@@ -1918,6 +1920,8 @@ export default function AIChefScreen() {
   // ─── Plan modal ────────────────────────────────────────
 
   const [showPlan, setShowPlan] = useState(false);
+  // 排餐後確認購物清單：車主要求每次都問，而且買餸日可以同排餐日唔同日
+  const [shopConfirm, setShopConfirm] = useState<{ recipe: any; planId?: number; planDate: string; shopDate: string } | null>(null);
   const [mealConflict, setMealConflict] = useState<{ date: string; names: string[]; hint?: string } | null>(null);
   const [mealLimit, setMealLimit] = useState<{ date: string; existingCount: number; newCount: number; canReplace: boolean } | null>(null);
   const conflictProceedRef = useRef<((mode: "replace" | "add") => void) | null>(null);
@@ -1937,6 +1941,16 @@ export default function AIChefScreen() {
   const [batchPlanBusy, setBatchPlanBusy] = useState(false);
   const [batchRecipes, setBatchRecipes] = useState<AIRecipe[] | null>(null);
   const [planDate, setPlanDate] = useState<string | null>(todayISO());
+  // 上次排餐日期（用戶排「聽日」之後再排，唔應該又跳返今日）
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const last = await getLastPlanDate();
+      if (!alive || !last) return;
+      setPlanDate((cur) => (cur === todayISO() ? last : cur));
+    })();
+    return () => { alive = false; };
+  }, []);
   const [planMeal, setPlanMeal] = useState("dinner");
   const lastChatModeRef = useRef<"library" | "ai" | "chat" | "question" | "">("");
   const noveltyRetryRef = useRef(false);
@@ -2004,6 +2018,7 @@ export default function AIChefScreen() {
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: async (result, variables) => {
       lastPlannedDateRef.current = variables.date;
+      void rememberPlanDate(variables.date);
       const mealTypeLabel = enumT.meal(variables.mealType === "breakfast" ? "早餐" : variables.mealType === "lunch" ? "午餐" : variables.mealType === "dinner" ? "晚餐" : "小食");
       const hasConflict = !!(result.warning && result.hasConflict);
       const plannedRecipe = pendingSinglePlanRecipeRef.current ?? planRecipeRef.current ?? planRecipe;
@@ -2011,7 +2026,32 @@ export default function AIChefScreen() {
       singleAddBusyRef.current = false;
       setShowPlan(false);
       if (plannedRecipe) {
-        void autoAddShoppingForPlan([plannedRecipe], getDayBefore(variables.date), variables.date, [result.newPlanId]);
+        // 車主要求：加排餐後一定要問，唔可以靜靜自動加購物清單。
+        const ings = (plannedRecipe.ingredients ?? [])
+          .map((i: any) => normalizeIngredient(i))
+          .filter(Boolean)
+          .filter((i: any) => i && !isWaterIngredient(i.name));
+        if (ings.length === 0) {
+          showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
+        } else {
+          const defaultShopDate = getDayBefore(variables.date);
+          Alert.alert(
+            t("加入購物清單？" as any),
+            t("{{n}} 樣材料（{{date}} 排餐）" as any, { n: ings.length, date: formatDateLabel(variables.date) }),
+            [
+              { text: t("只加排餐" as any), style: "cancel" },
+              {
+                text: t("加入購物清單" as any),
+                onPress: () => setShopConfirm({
+                  recipe: plannedRecipe,
+                  planId: result.newPlanId,
+                  planDate: variables.date,
+                  shopDate: defaultShopDate,
+                }),
+              },
+            ],
+          );
+        }
       } else {
         showToast(t("✅ 已加入排餐（{{date}} {{label}}）" as any, { date: formatDateLabel(variables.date), label: mealTypeLabel }));
       }
@@ -5351,6 +5391,49 @@ export default function AIChefScreen() {
         onDecline={declineNextDay}
       />
 
+      <IngredientPickerModal
+        visible={!!shopConfirm}
+        recipes={shopConfirm ? [{
+          id: String(shopConfirm.recipe?.id ?? shopConfirm.recipe?.name ?? "ai"),
+          name: shopConfirm.recipe?.name ?? "",
+          nameEn: shopConfirm.recipe?.nameEn,
+          nameFil: shopConfirm.recipe?.nameFil,
+          nameId: shopConfirm.recipe?.nameId,
+          date: shopConfirm.planDate,
+          mealType: planMeal ?? undefined,
+          fromMealPlanId: shopConfirm.planId,
+          ingredients: (shopConfirm.recipe?.ingredients ?? []).map((ing: any) => {
+            const n = normalizeIngredient(ing);
+            return n ? { name: n.name, nameEn: n.nameEn, nameFil: n.nameFil, nameId: n.nameId, quantity: n.quantity, unit: n.unit, category: categorizeIngredient(n.name) } : null;
+          }).filter(Boolean) as any,
+        }] : []}
+        loading={addShoppingM.isPending}
+        mealDate={shopConfirm?.planDate}
+        defaultBuyDate={shopConfirm?.shopDate}
+        maxDate={shopConfirm?.planDate}
+        onDateChange={(d: string) => setShopConfirm((cur) => (cur ? { ...cur, shopDate: d } : cur))}
+        onConfirm={(items) => {
+          const cur = shopConfirm;
+          setShopConfirm(null);
+          if (!cur || items.length === 0) return;
+          addShoppingM.mutate({
+            items: items.map((i) => ({
+              name: i.name,
+              nameEn: i.nameEn,
+              nameFil: i.nameFil,
+              nameId: i.nameId,
+              quantity: i.quantity,
+              unit: i.unit,
+              category: i.category,
+              mealDate: i.mealDate,
+            })),
+            fromRecipeName: cur.recipe?.name,
+            fromMealPlanId: cur.planId,
+            plannedDate: items[0]?.plannedDate,
+          } as any);
+        }}
+        onSkip={() => setShopConfirm(null)}
+      />
       <Modal visible={showPlan} transparent animationType="slide">
         <View style={m.overlay}><View style={[m.sheet, { paddingTop: Math.max(insets.top, 8) + 16 }]}>
           <View style={m.handle} />
