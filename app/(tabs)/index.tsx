@@ -1,8 +1,5 @@
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert,
-  FlatList, Dimensions, ScrollView, ActivityIndicator,
-  Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView,
-  useWindowDimensions, Animated,
+  View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, Dimensions, ScrollView, ActivityIndicator, Modal, Platform, RefreshControl, TextInput, KeyboardAvoidingView, useWindowDimensions, Animated, Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -701,6 +698,53 @@ export default function RecipesTab() {
 
   const isLoading = searchLoading || loadingUser;
   const { showToast } = useToast();
+
+  // ── 未完成（草稿）食譜：唔入公開 grid，但一定要見到，並且有兩個補齊出口 ──
+  const fillStepsM = trpc.aiRecipe.fillSteps.useMutation();
+  const [fillingDraftId, setFillingDraftId] = useState<string | null>(null);
+  const fillDraftSteps = async (draft: any) => {
+    if (fillingDraftId) return;
+    const id = String(draft.id ?? "").replace(/^user_/, "");
+    if (!/^\d+$/.test(id)) {
+      showToast(t("呢張草稿冇有效 ID，請用「我自己填」" as any));
+      return;
+    }
+    const ingredients = Array.isArray(draft.ingredients)
+      ? draft.ingredients.map((i: any) => (typeof i === "string" ? { name: i } : { name: String(i?.name ?? ""), quantity: i?.quantity, unit: i?.unit })).filter((i: any) => i.name)
+      : [];
+    if (ingredients.length === 0) {
+      showToast(t("材料仲未齊，請先自己填材料" as any));
+      return;
+    }
+    setFillingDraftId(id);
+    try {
+      const res = await fillStepsM.mutateAsync({
+        name: String(draft.name ?? ""),
+        description: draft.description ?? undefined,
+        ingredients,
+        steps: [],
+      } as any);
+      const steps = (res as any)?.recipe?.steps ?? [];
+      if (!Array.isArray(steps) || steps.length === 0) {
+        showToast(t("AI 補齊失敗，請再試" as any));
+        return;
+      }
+      // OC review：唔可以由列表直接覆寫 DB（full payload 會洗走 image/tips 等欄位，
+      // 而且 AI 內容未經用戶確認）。改為帶去編輯器，用戶確認後自己儲存。
+      // OC 殘餘風險：router param 喺 web reload／deep link／長步驟會截斷。
+      // 改為存 AsyncStorage，param 只帶 key，編輯器讀完即刪。
+      await AsyncStorage.setItem(`ai_steps_${id}`, JSON.stringify(steps)).catch(() => {});
+      router.push({
+        pathname: "/recipe-editor",
+        params: { id, aiStepsKey: id },
+      } as any);
+      showToast(t("已補寫煮法，請確認後儲存" as any));
+    } catch (e: any) {
+      showToast(friendlyError(e) || t("AI 補齊失敗，請再試" as any));
+    } finally {
+      setFillingDraftId(null);
+    }
+  };
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const isKolSourceUnsupported = useMemo(() => {
     if (viewMode !== "kol" || !isSearchError) return false;
@@ -970,6 +1014,42 @@ export default function RecipesTab() {
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
   }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories, t]);
+
+  // 未完成食譜：唔入公開 grid，但用戶一定見到（連原因 + 兩個出口）
+  const draftsSection = drafts.length === 0 ? null : (
+    <View style={{ marginHorizontal: 14, marginBottom: 12, padding: 12, borderRadius: 14, backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}>
+      <Text style={{ fontSize: 13, fontWeight: "800", color: "#8A4B08", marginBottom: 8 }}>
+        {t("未完成嘅食譜" as any)}（{drafts.length}）· {t("AI Chef 暫時唔會用佢哋" as any)}
+      </Text>
+      {drafts.slice(0, 5).map((d: any) => {
+        const id = String(d.id ?? "");
+        const reason = !Array.isArray(d.ingredients) || d.ingredients.length === 0
+          ? t("未填材料" as any)
+          : t("未填煮法" as any);
+        const busy = fillingDraftId === id.replace(/^user_/, "");
+        return (
+          <View key={id} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <Text style={{ flex: 1, fontSize: 13, color: "#5A3A12" }} numberOfLines={1}>
+              {String(d.name ?? "—")} · {reason}
+            </Text>
+            <Pressable
+              onPress={() => router.push({ pathname: "/recipe-editor", params: { id: id.replace(/^user_/, "") } })}
+              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: "#fff", borderWidth: 1, borderColor: "#E6B77E" }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#8A4B08" }}>{t("我自己填" as any)}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void fillDraftSteps(d)}
+              disabled={busy}
+              style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: busy ? "#C9B79F" : "#183B56" }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{busy ? "…" : t("AI 幫我補煮法" as any)}</Text>
+            </Pressable>
+          </View>
+        );
+      })}
+    </View>
+  );
 
   const ListHeader = (
     <View style={s.listHeaderOuter}>
@@ -1301,7 +1381,7 @@ export default function RecipesTab() {
           numColumns={2}
           columnWrapperStyle={s.gridRow}
           contentContainerStyle={[s.gridContent, { paddingBottom: Math.max(100, insets.bottom + 80) }]}
-          ListHeaderComponent={ListHeader}
+          ListHeaderComponent={<>{draftsSection}{ListHeader}</>}
           renderItem={renderCard}
           onEndReached={() => fetchNextPage()}
           onEndReachedThreshold={0.3}

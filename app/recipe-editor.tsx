@@ -8,6 +8,7 @@ import {
   StyleSheet, ActivityIndicator, Alert, Image, Modal, BackHandler,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ActionSheetIOS,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from "expo-router";
 import { usePreventRemove } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -77,7 +78,7 @@ export default function RecipeEditorScreen() {
   const headerHeight = useHeaderHeight();
   const scrollRef = useRef<ScrollView>(null);
   const hydratedRef = useRef(false);
-  const params = useLocalSearchParams<{ id?: string; name?: string; sourceUrl?: string }>();
+  const params = useLocalSearchParams<{ id?: string; name?: string; sourceUrl?: string; aiSteps?: string; aiStepsKey?: string }>();
   const editingId = params.id ? parseInt(params.id) : null;
   const isEditing = !!editingId && !isNaN(editingId);
   const utils = trpc.useUtils();
@@ -102,6 +103,37 @@ export default function RecipeEditorScreen() {
   const [steps, setSteps] = useState<Step[]>([
     { id: 1, instruction: "", duration: 0 },
   ]);
+  // 由首頁「AI 幫我補煮法」帶入嘅步驟：只填入表單，等用戶確認後自己儲存（唔會靜默落地）。
+  const aiStepsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (aiStepsAppliedRef.current) return;
+    if (!params.aiSteps && !params.aiStepsKey) return;
+    (async () => {
+      try {
+        let raw: string | null = params.aiSteps ? String(params.aiSteps) : null;
+        if (!raw && params.aiStepsKey) {
+          raw = await AsyncStorage.getItem(`ai_steps_${String(params.aiStepsKey)}`);
+          await AsyncStorage.removeItem(`ai_steps_${String(params.aiStepsKey)}`).catch(() => {});
+        }
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      aiStepsAppliedRef.current = true;
+      setSteps(
+        parsed.map((s: any, i: number) => ({
+          id: i + 1,
+          instruction: typeof s === "string" ? s : String(s?.instruction ?? ""),
+          duration: 0,
+        })),
+      );
+      setTags((prev) => (prev.includes("AI 補寫煮法") ? prev : prev ? `${prev}，AI 補寫煮法` : "AI 補寫煮法"));
+        Alert.alert(t("已用 AI 補寫煮法" as any), t("請檢查同修改，確認無誤後撳儲存。" as any));
+      } catch {
+        /* 參數壞掉就當冇帶，唔影響正常編輯 */
+      }
+    })();
+  }, [params.aiSteps, params.aiStepsKey, t]);
+
   const ingredientInputRefs = useRef<Map<string, TextInput>>(new Map());
   const stepInputRefs = useRef<Map<number, TextInput>>(new Map());
   const [imageUri, setImageUri] = useState<string | null>(null);
