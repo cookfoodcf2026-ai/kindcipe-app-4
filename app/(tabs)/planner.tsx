@@ -665,7 +665,7 @@ export default function PlannerTab() {
         clearTimeout(timeoutId);
       }
     };
-  }, [isAddingMeal, showToast, addMealHandoff.cancel]);
+  }, [isAddingMeal, showToast, addMealHandoff]);
 
   // 完成排餐加入流程（抽取為獨立函數）
   const completeAddFlow = async (result: any, variables: any) => {

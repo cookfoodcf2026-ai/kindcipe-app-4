@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export function useModalHandoff<T>(fallbackMs = 600) {
   const pendingRef = useRef<T | null>(null);
@@ -42,5 +42,5 @@ export function useModalHandoff<T>(fallbackMs = 600) {
 
   useEffect(() => clearTimer, [clearTimer]);
 
-  return { queue, onDismiss: openPending, cancel };
+  return useMemo(() => ({ queue, onDismiss: openPending, cancel }), [queue, openPending, cancel]);
 }
