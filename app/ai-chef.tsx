@@ -2185,6 +2185,9 @@ export default function AIChefScreen() {
 
       // 雪櫃相片係一個獨立任務：開新對話，唔好被上一輪對話（例如「唔要辣」）污染
       handleNewChat();
+      // handleNewChat 會 reset chatStarted=false（返工具頁），要即刻保持對話畫面，
+      // 否則相片上載／分析完，用戶仍然望住工具格，以為「冇反應」。
+      setChatStarted(true);
 
       try {
         const imageCount = messages.filter(
