@@ -27,7 +27,7 @@ import * as WebBrowser from "expo-web-browser";
 import { NativeModules } from "react-native";
 import { friendlyError } from "@/lib/errors";
 import { isWeb } from "@/lib/platform";
-import { signInWithGoogleWeb, signInWithAppleWeb, startAppleWebLogin, renderGoogleSignInButton } from "@/lib/socialAuth";
+import { signInWithGoogleWeb, signInWithAppleWeb, startAppleWebLogin, renderGoogleSignInButton, googleNeedsRedirectFlow, startGoogleRedirectSignIn, consumeGoogleRedirectIdToken } from "@/lib/socialAuth";
 import { setPendingVerificationEmail } from "@/lib/pending-verification";
 const hasGoogleSignin = NativeModules.RNGoogleSignin != null;
 const hasAppleAuth = NativeModules.ExpoAppleAuthentication != null;
@@ -343,8 +343,19 @@ export default function LoginScreen() {
   };
 
   // Web：用 Google 自己嘅按鈕（renderButton popup），唔靠 One Tap
+  // Safari / iOS WebKit 封第三方 cookie → popup 會空白，改用 top-level redirect
+  const googleRedirectMode = isWeb && googleNeedsRedirectFlow();
+
+  // redirect 返嚟之後（/login#id_token=…）即刻完成登入
   useEffect(() => {
-    if (!isWeb || mode !== "login") return;
+    if (!isWeb) return;
+    const idToken = consumeGoogleRedirectIdToken();
+    if (idToken) void loginWithGoogleIdToken(idToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!isWeb || mode !== "login" || googleRedirectMode) return;
     const host = googleBtnHost.current as unknown as HTMLElement | null;
     if (!host) return;
     const timer = setTimeout(() => {
@@ -364,6 +375,10 @@ export default function LoginScreen() {
     if (isWeb) {
       setIsLoading(true);
       setLoadingType("google");
+      if (googleRedirectMode) {
+        startGoogleRedirectSignIn();
+        return;
+      }
       try {
         const idToken = await signInWithGoogleWeb();
         const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
@@ -678,7 +693,7 @@ export default function LoginScreen() {
                   <Text style={styles.appleBtnText}>{t("auth.appleLogin")}</Text>
                 </TouchableOpacity>
               )}
-              {isWeb ? (
+              {isWeb && !googleRedirectMode ? (
                 <View ref={googleBtnHost} style={{ minHeight: 48, alignItems: "center", justifyContent: "center" }} />
               ) : (
                 <TouchableOpacity

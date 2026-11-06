@@ -55,6 +55,51 @@ function loadGoogleIdentityServices(): Promise<void> {
 }
 
 /**
+ * Safari / iOS WebKit blocks the third-party cookies that Google's popup
+ * sign-in needs, so the popup loads a blank accounts.google.com page. In those
+ * browsers we must use a top-level redirect instead (OAuth 2.0 id_token flow).
+ */
+export function googleNeedsRedirectFlow(): boolean {
+  if (Platform.OS !== "web" || typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iosWebKit = /iPhone|iPad|iPod/.test(ua);
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|Edg|OPR|FxiOS|GSA/.test(ua);
+  return iosWebKit || isSafari;
+}
+
+/** Send the browser to Google, which comes back to /login#id_token=… */
+export function startGoogleRedirectSignIn(): void {
+  if (typeof window === "undefined") return;
+  const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try { window.sessionStorage.setItem("kindcipe_g_nonce", nonce); } catch { /* ignore */ }
+  const params = new URLSearchParams({
+    client_id: GOOGLE_WEB_CLIENT_ID,
+    redirect_uri: `${window.location.origin}/login`,
+    response_type: "id_token",
+    scope: "openid email profile",
+    nonce,
+    prompt: "select_account",
+    state: "google",
+  });
+  window.location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+}
+
+/** Read the id_token Google put in the URL fragment after the redirect. */
+export function consumeGoogleRedirectIdToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash || "";
+  if (!hash.includes("id_token")) return null;
+  const params = new URLSearchParams(hash.replace(/^#/, ""));
+  const idToken = params.get("id_token");
+  const error = params.get("error");
+  try {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  } catch { /* ignore */ }
+  if (error) return null;
+  return idToken;
+}
+
+/**
  * Render Google's own button into a DOM node and resolve with an id_token.
  *
  * One Tap (`prompt()`) is silently suppressed in Safari / browsers that block
