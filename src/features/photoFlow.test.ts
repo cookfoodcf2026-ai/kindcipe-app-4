@@ -6,6 +6,7 @@ import {
   isPhotoLimitError,
   parseVisionAnalysis,
   processPhoto,
+  searchVisionLibrary,
   visionItems,
 } from "./photoFlow";
 
@@ -66,4 +67,27 @@ test("processPhoto uploads, analyzes and searches through injected API", async (
 test("recognizes a TOO_MANY_REQUESTS limit error", () => {
   assert.equal(isPhotoLimitError({ data: { code: "TOO_MANY_REQUESTS" } }), true);
   assert.equal(isPhotoLimitError({ data: { code: "INTERNAL_SERVER_ERROR" } }), false);
+});
+
+test("dish search uses ingredient combinations and retries top 3 when thin", async () => {
+  const queries: string[] = [];
+  const api = {
+    recipes: {
+      search: {
+        query: async ({ query }: { query: string }) => {
+          queries.push(query);
+          return { recipes: query === "魚 青瓜 甘筍 南瓜" ? [{ name: "魚" }, { name: "青瓜" }] : [{ name: "甘筍" }, { name: "南瓜" }, { name: "湯" }] };
+        },
+      },
+    },
+  };
+  const result = await searchVisionLibrary(api, {
+    scene: "dish",
+    dishName: "完全唔同菜名",
+    ingredients: ["魚", "青瓜", "甘筍", "南瓜"],
+  });
+  assert.deepEqual(queries, ["魚 青瓜 甘筍 南瓜", "魚 青瓜 甘筍"]);
+  assert.equal(result.query1Count, 2);
+  assert.equal(result.query2Count, 3);
+  assert.equal(result.cards.length, 5);
 });

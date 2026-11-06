@@ -410,7 +410,7 @@
     "visionDishSeen": "I can see this in the photo: {{items}}",
     "visionFridgeSeen": "I can see you have: {{items}}",
     "similarRecipes": "Find similar recipes",
-    "similarAi": "Generate a similar dish (2 credits)",
+    "similarAi": "Generate a similar dish (1 credit)",
     "similarNoMatch": "No close recipe found. You can try AI generation.",
     "similarAiDone": "Generated a similar dish from the photo.",
     "visionDishLibraryHit": "I can see this in the photo: {{items}}. Found {{n}} similar recipes in the library:",

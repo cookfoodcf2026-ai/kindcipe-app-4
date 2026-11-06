@@ -410,7 +410,7 @@
     "visionDishSeen": "呢張相我見到：{{items}}",
     "visionFridgeSeen": "我睇到你有：{{items}}",
     "similarRecipes": "搵相似食譜",
-    "similarAi": "AI 生成類似菜式（2 credits）",
+    "similarAi": "AI 生成類似菜式（1 credit）",
     "similarNoMatch": "搵唔到直接相似嘅食譜，可以試下 AI 生成。",
     "similarAiDone": "已用相片生成一個類似菜式。",
     "visionDishLibraryHit": "呢張相我見到：{{items}}。食譜庫搵到 {{n}} 個相似食譜：",

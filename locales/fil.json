@@ -410,7 +410,7 @@
     "visionDishSeen": "Nakikita ko ito sa larawan: {{items}}",
     "visionFridgeSeen": "Nakikita ko na mayroon ka: {{items}}",
     "similarRecipes": "Maghanap ng katulad na recipe",
-    "similarAi": "Gumawa ng katulad na putahe (2 credits)",
+    "similarAi": "Gumawa ng katulad na putahe (1 credit)",
     "similarNoMatch": "Walang malapit na recipe. Subukan ang AI generation.",
     "similarAiDone": "Nakagawa ng katulad na putahe mula sa larawan.",
     "visionDishLibraryHit": "Nakikita ko ito sa larawan: {{items}}. May {{n}} katulad na recipe sa library:",

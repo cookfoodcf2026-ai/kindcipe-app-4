@@ -410,7 +410,7 @@
     "visionDishSeen": "Saya melihat ini di foto: {{items}}",
     "visionFridgeSeen": "Saya melihat Anda punya: {{items}}",
     "similarRecipes": "Cari resep serupa",
-    "similarAi": "Buat hidangan serupa (2 credits)",
+    "similarAi": "Buat hidangan serupa (1 credit)",
     "similarNoMatch": "Tidak ada resep yang mirip. Coba AI generation.",
     "similarAiDone": "Membuat hidangan serupa dari foto.",
     "visionDishLibraryHit": "Saya melihat ini di foto: {{items}}. Ditemukan {{n}} resep serupa di pustaka:",

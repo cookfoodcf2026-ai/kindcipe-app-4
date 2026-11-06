@@ -125,16 +125,46 @@ export async function analyzePhoto(
   return parsed;
 }
 
-export async function searchVisionLibrary(api: any, vision: VisionAnalysis): Promise<any[]> {
-  const items = visionItems(vision);
-  const query = (vision.scene === "dish" ? (vision.dishName || items.join(" ")) : items.join(" ")).trim();
-  if (!query) return [];
-  try {
-    const result = await api.recipes.search.query({ query, limit: 6 });
-    return Array.isArray(result?.recipes) ? result.recipes : [];
-  } catch {
-    return [];
+export type VisionSearchResult = {
+  cards: any[];
+  query1Count: number;
+  query2Count: number;
+};
+
+function dedupeCards(cards: any[]): any[] {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const card of cards) {
+    const key = String(card?.id ?? card?.recipeId ?? card?.name ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(card);
   }
+  return out;
+}
+
+export async function searchVisionLibrary(api: any, vision: VisionAnalysis): Promise<VisionSearchResult> {
+  const items = visionItems(vision);
+  if (items.length === 0) return { cards: [], query1Count: 0, query2Count: 0 };
+  const runSearch = async (query: string): Promise<any[]> => {
+    try {
+      const result = await api.recipes.search.query({ query, limit: 6 });
+      return Array.isArray(result?.recipes) ? result.recipes : [];
+    } catch {
+      return [];
+    }
+  };
+  const query1 = items.join(" ");
+  const first = await runSearch(query1);
+  let second: any[] = [];
+  if (first.length < 3 && items.length > 3) {
+    second = await runSearch(items.slice(0, 3).join(" "));
+  }
+  return {
+    cards: dedupeCards([...first, ...second]).slice(0, 6),
+    query1Count: first.length,
+    query2Count: second.length,
+  };
 }
 
 export async function processPhoto(
@@ -158,11 +188,11 @@ export async function processPhoto(
   const imageUrl = typeof uploaded?.url === "string" ? uploaded.url : "";
   if (!imageKey || !imageUrl) throw new Error("upload_failed");
   const analysis = await analyzePhoto(api, { storageKey: imageKey, lang: input.lang });
-  const rawCards = await searchVisionLibrary(api, analysis);
-  const cards = input.normalizeCards ? input.normalizeCards(rawCards) : rawCards;
+  const searchResult = await searchVisionLibrary(api, analysis);
+  const cards = input.normalizeCards ? input.normalizeCards(searchResult.cards) : searchResult.cards;
   const outcome = buildVisionOutcome(analysis, cards, imageKey, imageUrl);
   const branch = outcome.kind === "cards" ? "library_hit" : outcome.kind === "ai" ? "library_miss" : "recognize_failed";
-  console.log(`[photoFlow] request=${analysis.requestId ?? "none"} scene=${analysis.scene} items=${visionItems(analysis).length} library=${cards.length} branch=${branch}`);
+  console.log(`[photoFlow] request=${analysis.requestId ?? "none"} scene=${analysis.scene} items=${visionItems(analysis).length} query1=${searchResult.query1Count} query2=${searchResult.query2Count} library=${cards.length} branch=${branch}`);
   return { analysis, outcome, imageKey, imageUrl };
 }
 
