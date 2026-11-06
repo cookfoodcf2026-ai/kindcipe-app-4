@@ -2141,14 +2141,21 @@ export default function AIChefScreen() {
           const input = document.createElement("input");
           input.type = "file";
           input.accept = "image/*";
+          // iOS Safari 只會喺「已插入 DOM」嘅 input 上開檔案選擇
+          input.style.position = "fixed";
+          input.style.left = "-9999px";
+          input.style.opacity = "0";
+          document.body.appendChild(input);
+          const cleanup = () => { try { input.remove(); } catch { /* ignore */ } };
           input.onchange = () => {
             const file = input.files?.[0];
             if (!file) { resolve(null); return; }
             const reader = new FileReader();
-            reader.onload = () => resolve({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] });
-            reader.onerror = () => resolve(null);
+            reader.onload = () => { cleanup(); resolve({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] }); };
+            reader.onerror = () => { cleanup(); resolve(null); };
             reader.readAsDataURL(file);
           };
+          input.oncancel = () => { cleanup(); resolve(null); };
           input.click();
         });
         if (!picked) return;
