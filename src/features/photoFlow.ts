@@ -175,8 +175,10 @@ export async function processPhoto(
     lang?: string;
     compress: (uri: string) => Promise<{ base64: string; mimeType: string }>;
     normalizeCards?: (cards: any[]) => any[];
+    onProgress?: (phase: "uploading" | "analyzing") => void;
   },
 ): Promise<{ analysis: VisionAnalysis; outcome: VisionOutcome; imageKey: string; imageUrl: string }> {
+  input.onProgress?.("uploading");
   const compressed = await input.compress(input.uri);
   if (!compressed.base64) throw new Error("empty_image");
   if (compressed.base64.length > MAX_PHOTO_BASE64_LENGTH) throw new Error("image_too_large");
@@ -187,6 +189,7 @@ export async function processPhoto(
   const imageKey = typeof uploaded?.key === "string" ? uploaded.key : "";
   const imageUrl = typeof uploaded?.url === "string" ? uploaded.url : "";
   if (!imageKey || !imageUrl) throw new Error("upload_failed");
+  input.onProgress?.("analyzing");
   const analysis = await analyzePhoto(api, { storageKey: imageKey, lang: input.lang });
   const searchResult = await searchVisionLibrary(api, analysis);
   const cards = input.normalizeCards ? input.normalizeCards(searchResult.cards) : searchResult.cards;

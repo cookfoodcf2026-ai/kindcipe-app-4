@@ -417,7 +417,11 @@
     "visionDishLibraryMiss": "Nakikita ko ito sa larawan: {{items}}. Walang katulad na recipe sa library — gusto mo bang gumawa ako ng katulad na putahe gamit ang AI?",
     "visionFridgeLibraryHit": "Nakikita ko na mayroon ka: {{items}}. May {{n}} recipe gamit ang mga sangkap sa ref mo:",
     "photoAnalyzeLimit": "Naabot mo na ang limit ng photo analysis ngayong araw. Maaari mong i-type ang mga sangkap.",
-    "useTextIngredients": "I-type ang mga sangkap"
+    "useTextIngredients": "I-type ang mga sangkap",
+    "photoUploading": "Ina-upload ang larawan…",
+    "photoAnalyzing": "Tinitingnan ang mga sangkap sa larawan…",
+    "photoStillAnalyzing": "Sinusuri pa rin — maghintay lang",
+    "photoTimeout": "Nag-timeout ang pagsusuri. Subukan ulit."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

@@ -417,7 +417,11 @@
     "visionDishLibraryMiss": "I can see this in the photo: {{items}}. No similar recipe in the library — want me to generate a similar dish with AI?",
     "visionFridgeLibraryHit": "I can see you have: {{items}}. Found {{n}} recipes using your fridge ingredients:",
     "photoAnalyzeLimit": "You have reached today's photo analysis limit. You can type the ingredients instead.",
-    "useTextIngredients": "Type ingredients instead"
+    "useTextIngredients": "Type ingredients instead",
+    "photoUploading": "Uploading photo…",
+    "photoAnalyzing": "Looking at the ingredients in your photo…",
+    "photoStillAnalyzing": "Still analyzing — please wait",
+    "photoTimeout": "Analysis timed out. Please try again."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

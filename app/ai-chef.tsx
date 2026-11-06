@@ -575,6 +575,10 @@ const ACTIVE_KEY = (uid: string | number) => `kindcipe_ai_active_${uid}`;
 const OLD_CHAT_KEY = (uid: string | number) => `kindcipe_ai_chat_${uid}`;
 
 const MAX_IMAGES_PER_SESSION = 3;
+type PhotoFlowStatus =
+  | { stage: "uploading" | "analyzing"; slow: boolean; retryUri: string; retryMimeType?: string }
+  | { stage: "error"; message: string; retryUri: string; retryMimeType?: string }
+  | null;
 const LOADING_STEPS = [
   "aiChef.thinking",
   "aiChef.loadingStep1",
@@ -946,6 +950,15 @@ export default function AIChefScreen() {
   const [chatStarted, setChatStarted] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const uploadingRef = useRef(false);
+  const [photoFlowStatus, setPhotoFlowStatus] = useState<PhotoFlowStatus>(null);
+  const photoRunRef = useRef(0);
+  const photoSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoTimeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    photoRunRef.current += 1;
+    if (photoSlowTimerRef.current) clearTimeout(photoSlowTimerRef.current);
+    if (photoTimeoutTimerRef.current) clearTimeout(photoTimeoutTimerRef.current);
+  }, []);
   // Hot key / library-first search loading state（顯示「正在搵食譜庫...」）
   const [libraryLoading, setLibraryLoading] = useState(false);
   // 卡片「睇食材」展開（記錄展開邊張卡）
@@ -2145,6 +2158,129 @@ export default function AIChefScreen() {
 
   // ─── Camera / Gallery ──────────────────────────────────
 
+  const clearPhotoTimers = () => {
+    if (photoSlowTimerRef.current) { clearTimeout(photoSlowTimerRef.current); photoSlowTimerRef.current = null; }
+    if (photoTimeoutTimerRef.current) { clearTimeout(photoTimeoutTimerRef.current); photoTimeoutTimerRef.current = null; }
+  };
+
+  const cancelPhotoFlow = () => {
+    photoRunRef.current += 1;
+    clearPhotoTimers();
+    uploadingRef.current = false;
+    setLibraryLoading(false);
+    setPhotoFlowStatus(null);
+  };
+
+  const runPhotoFlow = async (asset: { uri: string; mimeType?: string }) => {
+    const imageCount = messages.filter(
+      (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
+    ).length;
+    if (imageCount >= MAX_IMAGES_PER_SESSION) {
+      showToast(t("本次對話已達 {{n}} 張圖上限，請開始新對話" as any, { n: MAX_IMAGES_PER_SESSION }));
+      return;
+    }
+    if (uploadingRef.current) {
+      showToast(t("圖片處理中，請稍等" as any));
+      return;
+    }
+    const runId = ++photoRunRef.current;
+    clearPhotoTimers();
+    uploadingRef.current = true;
+    setLibraryLoading(true);
+    setRecommendedRecipes([]);
+    setMealResult(null);
+    setContractQuickReplies([]);
+    setPhotoFlowStatus({ stage: "uploading", slow: false, retryUri: asset.uri, retryMimeType: asset.mimeType });
+    photoSlowTimerRef.current = setTimeout(() => {
+      if (runId !== photoRunRef.current) return;
+      setPhotoFlowStatus((prev) => prev && prev.stage !== "error" ? { ...prev, slow: true } : prev);
+    }, 8000);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      photoTimeoutTimerRef.current = setTimeout(() => reject(new Error("photo_timeout")), 30_000);
+    });
+
+    try {
+      const photo = await Promise.race([
+        processPhoto(apiClient, {
+          uri: asset.uri,
+          mimeType: asset.mimeType,
+          lang: i18n.language,
+          compress: Platform.OS === "web" ? compressImageForWeb : compressImage,
+          normalizeCards: (cards) => cards.map(normalizeRecipe).filter(isValidRecipe),
+          onProgress: (phase) => {
+            if (runId !== photoRunRef.current) return;
+            setPhotoFlowStatus((prev) => prev && prev.stage !== "error" ? { ...prev, stage: phase } : prev);
+          },
+        }),
+        timeoutPromise,
+      ]);
+      if (runId !== photoRunRef.current) return;
+      clearPhotoTimers();
+      uploadingRef.current = false;
+      setLibraryLoading(false);
+      setPhotoFlowStatus(null);
+      const imageSessionId = handleNewChat();
+      setChatStarted(true);
+      const imageMsg: Message = {
+        role: "user",
+        content: [
+          { type: "text", text: t("呢張相入面有咩食材？" as any) },
+          { type: "image_url", image_url: { url: photo.imageUrl } },
+        ],
+      };
+
+      const outcome = photo.outcome;
+      if (outcome.kind === "failed") {
+        updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+          role: "assistant",
+          content: t(outcome.messageKey as any),
+        }]);
+        setLibraryLoading(false);
+        scrollToEnd();
+        return;
+      }
+      visionContextRef.current = outcome.kind === "ai"
+        ? { ...outcome.analysis, imageKey: outcome.imageKey }
+        : null;
+      updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+        role: "assistant",
+        content: t(outcome.messageKey as any, outcome.vars as any),
+      }]);
+      if (outcome.kind === "cards") {
+        setRecommendedRecipes(outcome.cards);
+        setMealResult(null);
+        setChatStarted(true);
+        recordSeenRecipes(outcome.cards);
+        setContractQuickReplies([]);
+      } else if (outcome.kind === "ai") {
+        setContractQuickReplies(outcome.quickReplies as any);
+      }
+      scrollToEnd();
+    } catch (e: any) {
+      if (runId !== photoRunRef.current) return;
+      photoRunRef.current += 1;
+      clearPhotoTimers();
+      uploadingRef.current = false;
+      setLibraryLoading(false);
+      if (isPhotoLimitError(e)) {
+        setPhotoFlowStatus(null);
+        const imageSessionId = handleNewChat();
+        setChatStarted(true);
+        updateMessagesFor(imageSessionId, () => [{
+          role: "assistant",
+          content: t("aiChef.photoAnalyzeLimit" as any),
+        }]);
+        setContractQuickReplies([{ actionId: "text_ingredients", labelKey: "aiChef.useTextIngredients" }]);
+        scrollToEnd();
+        return;
+      }
+      const message = String(e?.message ?? "") === "photo_timeout"
+        ? t("aiChef.photoTimeout" as any)
+        : (friendlyError(e) || t("請再試一次" as any));
+      setPhotoFlowStatus({ stage: "error", message, retryUri: asset.uri, retryMimeType: asset.mimeType });
+    }
+  };
+
   const handleCamera = () => {
     const options = Platform.OS === "ios"
       ? ["拍照", "從相簿選擇", "取消"]
@@ -2192,92 +2328,9 @@ export default function AIChefScreen() {
         showToast(t("未選擇圖片" as any));
         return;
       }
-
-      try {
-        const imageCount = messages.filter(
-          (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
-        ).length;
-        if (imageCount >= MAX_IMAGES_PER_SESSION) {
-          showToast(t("本次對話已達 {{n}} 張圖上限，請開始新對話" as any, { n: MAX_IMAGES_PER_SESSION }));
-          return;
-        }
-        if (uploadingRef.current) {
-          showToast(t("圖片處理中，請稍等" as any));
-          return;
-        }
-        uploadingRef.current = true;
-        setLibraryLoading(true);
-        setRecommendedRecipes([]);
-        setMealResult(null);
-        setContractQuickReplies([]);
-
-        const photo = await processPhoto(apiClient, {
-          uri: result.assets[0].uri,
-          mimeType: result.assets[0].mimeType,
-          lang: i18n.language,
-          compress: Platform.OS === "web" ? compressImageForWeb : compressImage,
-          normalizeCards: (cards) => cards.map(normalizeRecipe).filter(isValidRecipe),
-        });
-        const imageSessionId = handleNewChat();
-        setChatStarted(true);
-        const imageMsg: Message = {
-          role: "user",
-          content: [
-            { type: "text", text: t("呢張相入面有咩食材？" as any) },
-            { type: "image_url", image_url: { url: photo.imageUrl } },
-          ],
-        };
-
-        if (photo.outcome.kind === "failed") {
-          updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
-            role: "assistant",
-            content: t(photo.outcome.messageKey as any),
-          }]);
-          setLibraryLoading(false);
-          scrollToEnd();
-          return;
-        }
-
-        const outcome = photo.outcome;
-        visionContextRef.current = outcome.kind === "ai"
-          ? { ...outcome.analysis, imageKey: outcome.imageKey }
-          : null;
-        updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
-          role: "assistant",
-          content: t(outcome.messageKey as any, outcome.vars as any),
-        }]);
-        if (outcome.kind === "cards") {
-          setRecommendedRecipes(outcome.cards);
-          setMealResult(null);
-          setChatStarted(true);
-          recordSeenRecipes(outcome.cards);
-          setContractQuickReplies([]);
-        } else if (outcome.kind === "ai") {
-          setContractQuickReplies(outcome.quickReplies as any);
-        }
-        scrollToEnd();
-      } catch (e: any) {
-        if (isPhotoLimitError(e)) {
-          const imageSessionId = handleNewChat();
-          setChatStarted(true);
-          updateMessagesFor(imageSessionId, () => [{
-            role: "assistant",
-            content: t("aiChef.photoAnalyzeLimit" as any),
-          }]);
-          setContractQuickReplies([{ actionId: "text_ingredients", labelKey: "aiChef.useTextIngredients" }]);
-          setLibraryLoading(false);
-          scrollToEnd();
-          return;
-        }
-        console.error("[AI 助手] photo flow failed:", e);
-        Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
-      } finally {
-        uploadingRef.current = false;
-        setLibraryLoading(false);
-      }
+      await runPhotoFlow({ uri: result.assets[0].uri, mimeType: result.assets[0].mimeType });
     };
 
-    // Web 冇 React Native 相機 API：直接用檔案選擇（iPhone Safari 一樣會問「拍照／相簿」）
     if (Platform.OS === "web") {
       void onSelectImage(1);
       return;
@@ -4672,6 +4725,7 @@ export default function AIChefScreen() {
   // ─── Render: Empty state ───────────────────────────────
 
   const renderEmpty = () => {
+    if (photoFlowStatus) return <View style={{ height: 12 }} />;
     if (isPreparingMeal || homeMealEntry) {
       return (
         <View style={s.preparing}>
@@ -5037,6 +5091,46 @@ export default function AIChefScreen() {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <>
+              {photoFlowStatus && (
+                <View style={s.msgRow}>
+                  <View style={s.avatar}>
+                    <Ionicons
+                      name={photoFlowStatus.stage === "error" ? "alert-circle" : "camera"}
+                      size={16}
+                      color={photoFlowStatus.stage === "error" ? "#C0392B" : BRAND}
+                    />
+                  </View>
+                  <View style={[s.bubbleBot, s.typing]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      {photoFlowStatus.stage === "error" ? null : <ActivityIndicator size="small" color={BRAND} />}
+                      <Text style={[s.bubbleTxt, { color: photoFlowStatus.stage === "error" ? "#C0392B" : BRAND, fontWeight: "600" }]}>
+                        {photoFlowStatus.stage === "error"
+                          ? photoFlowStatus.message
+                          : photoFlowStatus.stage === "analyzing"
+                            ? t("aiChef.photoAnalyzing" as any)
+                            : t("aiChef.photoUploading" as any)}
+                      </Text>
+                    </View>
+                    {photoFlowStatus.stage !== "error" && photoFlowStatus.slow && (
+                      <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB, marginTop: 6 }]}>
+                        {t("aiChef.photoStillAnalyzing" as any)}
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 10 }}>
+                      {photoFlowStatus.stage === "error" && (
+                        <TouchableOpacity
+                          onPress={() => void runPhotoFlow({ uri: photoFlowStatus.retryUri, mimeType: photoFlowStatus.retryMimeType })}
+                        >
+                          <Text style={{ color: BRAND, fontSize: 13, fontWeight: "700" }}>{t("重試" as any)}</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity onPress={cancelPhotoFlow}>
+                        <Text style={{ color: SUB, fontSize: 13, fontWeight: "600" }}>{t("取消" as any)}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
               {chatMutation.isPending && ((chatMutation as any).variables?.mode === "library") ? (
                 <View style={s.msgRow}>
                   <View style={s.avatar}><Ionicons name="search" size={16} color={BRAND} /></View>

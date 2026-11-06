@@ -54,14 +54,17 @@ test("processPhoto uploads, analyzes and searches through injected API", async (
       analyzeImage: { mutate: async () => ({ scene: "dish", dishName: "炒蛋", ingredients: ["蛋"], requestId: "req_1" }) },
     },
   };
+  const phases: string[] = [];
   const out = await processPhoto(api, {
     uri: "data:image/jpeg;base64,AA==",
     lang: "zh-TW",
     compress: async () => ({ base64: "AA==", mimeType: "image/jpeg" }),
+    onProgress: (phase) => phases.push(phase),
   });
   assert.equal(out.analysis.scene, "dish");
   assert.equal(out.outcome.kind, "cards");
   assert.equal(out.imageKey, "recipe-screenshots/f13/a.jpg");
+  assert.deepEqual(phases, ["uploading", "analyzing"]);
 });
 
 test("recognizes a TOO_MANY_REQUESTS limit error", () => {

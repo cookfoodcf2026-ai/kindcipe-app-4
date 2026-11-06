@@ -417,7 +417,11 @@
     "visionDishLibraryMiss": "呢張相我見到：{{items}}。食譜庫暫時冇相似食譜，要我用 AI 生成類似菜式嗎？",
     "visionFridgeLibraryHit": "我睇到你有：{{items}}。用你雪櫃食材搵到 {{n}} 個食譜：",
     "photoAnalyzeLimit": "今日影相分析已達上限，可以打字講食材。",
-    "useTextIngredients": "用文字講食材"
+    "useTextIngredients": "用文字講食材",
+    "photoUploading": "上傳緊相片…",
+    "photoAnalyzing": "睇緊張相有咩食材…",
+    "photoStillAnalyzing": "仲喺分析緊，請等一等",
+    "photoTimeout": "分析超時，請再試"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
