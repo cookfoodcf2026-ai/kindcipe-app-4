@@ -2331,7 +2331,7 @@ export default function RecipeDetailScreen() {
                           items: toAdd,
                           fromRecipeId: recipeStringId,
                           fromRecipeName: recipe.name,
-                          fromMealPlanId: latestMealPlan?.id,
+                          fromMealPlanId: planPickerRecipe?.fromMealPlanId ?? latestMealPlan?.id,
                           plannedDate: shoppingDate,
                         });
                       } else {

@@ -1134,24 +1134,28 @@ export default function PlannerTab() {
   );
 
   const mealShoppingLookup = useMemo(() => {
-    const byMealPlanId = new Set<number>();
-    const byRecipeAndDate = new Set<string>();
-    const byRecipeIdAndDate = new Set<string>();
-    const byRecipeIdWithShopDate = new Set<string>();
+    const byMealPlanId = new Map<number, any[]>();
+    const byRecipeId = new Map<string, any[]>();
+    const byRecipeName = new Map<string, any[]>();
+    const push = (map: Map<any, any[]>, key: any, item: any) => {
+      const rows = map.get(key);
+      if (rows) rows.push(item);
+      else map.set(key, [item]);
+    };
     for (const si of shoppingItems as any[]) {
-      if (si.fromMealPlanId) {
-        byMealPlanId.add(si.fromMealPlanId);
-      }
-      if (si.fromRecipeName && si.plannedDate) {
-        byRecipeAndDate.add(`${si.fromRecipeName}__${si.plannedDate}`);
-      }
-      if (si.fromRecipeId && si.plannedDate) {
-        byRecipeIdAndDate.add(`${si.fromRecipeId}__${si.plannedDate}`);
-        // 兜底：就算無 fromMealPlanId，只要同食譜 id 嘅購物項存在就當已加入
-        byRecipeIdWithShopDate.add(`${si.fromRecipeId}__${si.plannedDate}`);
-      }
+      const mealPlanId = si.fromMealPlanId != null ? Number(si.fromMealPlanId) : NaN;
+      if (!Number.isNaN(mealPlanId)) push(byMealPlanId, mealPlanId, si);
+      if (si.fromRecipeId) push(byRecipeId, String(si.fromRecipeId), si);
+      if (si.fromRecipeName) push(byRecipeName, String(si.fromRecipeName), si);
     }
-    return { byMealPlanId, byRecipeAndDate, byRecipeIdAndDate, byRecipeIdWithShopDate };
+    const getForMeal = (mp: any): any[] => {
+      const exact = byMealPlanId.get(Number(mp.id));
+      if (exact && exact.length > 0) return exact;
+      return byRecipeId.get(String(mp.recipeId))
+        ?? byRecipeName.get(String(mp.recipeName))
+        ?? [];
+    };
+    return { getForMeal };
   }, [shoppingItems]);
 
   // 已加入判定：優先用同一 mealPlanId；冇 mealPlanId 先 fallback 到「同食譜 id + 同購物日期」
@@ -1307,13 +1311,29 @@ export default function PlannerTab() {
     const mConfig = MEAL_TYPE_CONFIG[mp.mealType] || MEAL_TYPE_CONFIG.dinner;
     const isPending = approvalUiEnabled && mp.status === "pending";
     const isTemplate = mp.recipeId && mp.recipeId.startsWith("template_");
-    const hasShoppingItem = Boolean(mp.hasShoppingItem)
-      || mealShoppingLookup.byMealPlanId.has(mp.id)
-      || mealShoppingLookup.byRecipeAndDate.has(`${mp.recipeName}__${mp.date}`)
-      || mealShoppingLookup.byRecipeIdAndDate.has(`${mp.recipeId}__${mp.date}`)
-      // 兜底：AI 生成食譜可能無 fromMealPlanId，改用食譜 id 匹配（購買日通常係排餐日或前一日）
-      || mealShoppingLookup.byRecipeIdWithShopDate.has(`${mp.recipeId}__${mp.date}`)
-      || mealShoppingLookup.byRecipeIdWithShopDate.has(`${mp.recipeId}__${getDayBefore(mp.date)}`);
+    const linkedShoppingItems = mealShoppingLookup.getForMeal(mp);
+    const boughtShoppingCount = linkedShoppingItems.filter((si: any) => si.status === "bought").length;
+    const shoppingState = linkedShoppingItems.length === 0
+      ? "none"
+      : boughtShoppingCount === linkedShoppingItems.length
+        ? "bought"
+        : "added";
+    const buyDates = Array.from(new Set(
+      linkedShoppingItems
+        .map((si: any) => String(si.plannedDate ?? "").trim())
+        .filter(Boolean),
+    )).sort();
+    const buyDateLabel = buyDates.length > 0
+      ? `${formatDateShort(new Date(`${buyDates[0]}T00:00:00`))}${buyDates.length > 1 ? ` +${buyDates.length - 1}` : ""}`
+      : "";
+    const linkedNames = Array.from(new Set(
+      linkedShoppingItems
+        .map((si: any) => getBilingualName(si.name, si.nameEn, si.nameFil, si.nameId).primary)
+        .filter(Boolean),
+    ));
+    const linkedItemsLabel = linkedNames.length > 0
+      ? `${linkedNames.slice(0, 2).join("、")}${linkedNames.length > 2 ? ` +${linkedNames.length - 2}` : ""}`
+      : (linkedShoppingItems.length > 0 ? t("dyn.nItems", { n: linkedShoppingItems.length }) : "");
     const templateIcon = mp.recipeId === "template_hotpot" ? "flame-outline" : mp.recipeId === "template_bbq" ? "restaurant-outline" : "rose-outline";
     const templateColor = mp.recipeId === "template_hotpot" ? "#EF4444" : mp.recipeId === "template_bbq" ? "#FF8C00" : "#F59E0B";
     const templateBg = mp.recipeId === "template_hotpot" ? "#FEE2E2" : mp.recipeId === "template_bbq" ? "#FFF7ED" : "#FEF3C7";
@@ -1388,12 +1408,7 @@ export default function PlannerTab() {
             {/* Show shopping cart status indicator */}
             {!isTemplate && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                {hasShoppingItem ? (
-                  <>
-                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                    <Text style={{ fontSize: 9, color: "#10B981", fontWeight: "600" }}>{t("planner.addedToCart")}</Text>
-                  </>
-                ) : (
+                {shoppingState === "none" ? (
                   <TouchableOpacity
                     onPress={() => handleAddToCartFromMeal(mp)}
                     style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
@@ -1402,6 +1417,22 @@ export default function PlannerTab() {
                     <Ionicons name="alert-circle" size={12} color="#F59E0B" />
                     <Text style={{ fontSize: 10, color: "#F59E0B", fontWeight: "600" }}>{t("planner.notAddedCart")}</Text>
                   </TouchableOpacity>
+                ) : (
+                  <>
+                    <Ionicons
+                      name={shoppingState === "bought" ? "checkmark-done-circle" : "checkmark-circle"}
+                      size={12}
+                      color="#10B981"
+                    />
+                    <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 9, color: "#10B981", fontWeight: "600" }}>
+                      {shoppingState === "bought" ? t("shopping.bought") : t("planner.addedToCart")}
+                      {buyDateLabel ? ` · ${buyDateLabel}` : ""}
+                      {linkedItemsLabel ? ` · ${linkedItemsLabel}` : ""}
+                      {shoppingState === "added" && boughtShoppingCount > 0
+                        ? ` · ${boughtShoppingCount}/${linkedShoppingItems.length} ${t("shopping.bought")}`
+                        : ""}
+                    </Text>
+                  </>
                 )}
               </View>
             )}
