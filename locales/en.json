@@ -404,7 +404,9 @@
     "addToShoppingConfirm": "Add to shopping list?",
     "onlyAddPlan": "Plan only",
     "shoppingConfirmBody": "{{n}} ingredients (meal on {{date}})",
-    "addToShoppingList": "Add to shopping list"
+    "addToShoppingList": "Add to shopping list",
+    "pantrySeenNoLibrary": "I can see you have: {{items}}. The library has no matching recipes yet — want me to generate one with AI?",
+    "pantryRecognizeFailed": "I couldn't read the ingredients in this photo. Try another photo, or tell me the ingredients."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

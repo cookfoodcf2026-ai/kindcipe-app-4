@@ -2289,6 +2289,9 @@ export default function AIChefScreen() {
         setLibraryLoading(true);
         setRecommendedRecipes([]);
         setMealResult(null);
+        setContractQuickReplies([]);
+        let recognizedIngredients: string[] = [];
+        let recognizeRequestId: string | undefined;
         try {
           const recognizeMsg: Message[] = [
             {
@@ -2304,43 +2307,60 @@ export default function AIChefScreen() {
             avoidIngredients: mealDefaults.allergens,
             lang: i18n.language,
           });
+          recognizeRequestId = typeof (recognizeRes as any)?.requestId === "string"
+            ? (recognizeRes as any).requestId
+            : undefined;
           const recognizeText = typeof recognizeRes?.content === "string" ? recognizeRes.content : "";
-          const ingredients = recognizeText
+          recognizedIngredients = recognizeText
             .split(/[,、，\n]/)
             .map(s => s.replace(/^[\s\-•*]+|[\s\-•*]+$/g, "").trim())
             .filter(s => /[\u4e00-\u9fa5A-Za-z]/.test(s) && s.length <= 10);
 
-          if (ingredients.length > 0) {
-            const searchResult = await apiClient.recipes.search.query({
-              query: ingredients.join(" "),
-              limit: 6,
-            });
-            const rawRecipes = Array.isArray(searchResult?.recipes) ? searchResult.recipes : [];
-            const libraryRecipes = rawRecipes
-              .map(normalizeRecipe)
-              .filter(isValidRecipe);
+          if (recognizedIngredients.length > 0) {
+            let libraryRecipes: AIRecipe[] = [];
+            try {
+              const searchResult = await apiClient.recipes.search.query({
+                query: recognizedIngredients.join(" "),
+                limit: 6,
+              });
+              const rawRecipes = Array.isArray(searchResult?.recipes) ? searchResult.recipes : [];
+              libraryRecipes = rawRecipes.map(normalizeRecipe).filter(isValidRecipe);
+            } catch (e) {
+              console.error("[AI 助手] Pantry library search failed:", e);
+            }
             if (libraryRecipes.length > 0) {
               updateMessagesFor(imageSessionId, prev => [...prev, imageMsg]);
               setRecommendedRecipes(libraryRecipes);
               recordSeenRecipes(libraryRecipes);
               updateMessagesFor(imageSessionId, prev => [...prev, {
                 role: "assistant",
-                content: t("aiChef.pantryRecognized", { items: ingredients.join("、"), n: libraryRecipes.length }),
+                content: t("aiChef.pantryRecognized", { items: recognizedIngredients.join("、"), n: libraryRecipes.length }),
               }]);
               setLibraryLoading(false);
               scrollToEnd();
               return;
             }
+
+            updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+              role: "assistant",
+              content: t("aiChef.pantrySeenNoLibrary", { items: recognizedIngredients.join("、") }),
+            }]);
+            setContractQuickReplies([{ actionId: "ai_generate", labelKey: "aiChef.aiGenerate" }]);
+            console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} recognized=${recognizedIngredients.length} library=0 branch=ai_offer`);
+            setLibraryLoading(false);
+            scrollToEnd();
+            return;
           }
         } catch (e) {
-          console.error("[AI 助手] Camera recognize/search failed:", e);
+          console.error("[AI 助手] Camera recognize failed:", e);
         }
-        setLibraryLoading(false);
 
-        // Fallback：原有 AI flow（連相問可以煮咩）
-        resetAiNextSteps();
-        updateMessagesFor(imageSessionId, prev => [...prev, imageMsg]);
-        sendChat(buildBackendMessages([imageMsg]));
+        updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+          role: "assistant",
+          content: t("aiChef.pantryRecognizeFailed" as any),
+        }]);
+        console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} recognized=0 library=0 branch=recognize_failed`);
+        setLibraryLoading(false);
         scrollToEnd();
       } catch (e: any) {
         console.error("[AI 助手] image upload/send failed:", e);

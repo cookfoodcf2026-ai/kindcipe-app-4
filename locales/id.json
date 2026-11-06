@@ -404,7 +404,9 @@
     "addToShoppingConfirm": "Tambah ke senarai beli-belah?",
     "onlyAddPlan": "Rancang sahaja",
     "shoppingConfirmBody": "{{n}} bahan (hidangan {{date}})",
-    "addToShoppingList": "Tambah ke senarai beli-belah"
+    "addToShoppingList": "Tambah ke senarai beli-belah",
+    "pantrySeenNoLibrary": "Saya melihat Anda punya: {{items}}. Belum ada resep yang cocok di pustaka — mau saya buatkan dengan AI?",
+    "pantryRecognizeFailed": "Saya tidak bisa membaca bahan di foto ini. Coba foto lain atau sebutkan bahannya."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

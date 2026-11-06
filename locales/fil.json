@@ -404,7 +404,9 @@
     "addToShoppingConfirm": "Idagdag sa shopping list?",
     "onlyAddPlan": "Plan lang",
     "shoppingConfirmBody": "{{n}} sangkap (pagkain sa {{date}})",
-    "addToShoppingList": "Idagdag sa shopping list"
+    "addToShoppingList": "Idagdag sa shopping list",
+    "pantrySeenNoLibrary": "Nakikita ko na mayroon ka: {{items}}. Wala pang tugmang recipe sa library — gusto mo bang gumawa ako gamit ang AI?",
+    "pantryRecognizeFailed": "Hindi ko mabasa ang mga sangkap sa larawan. Subukan ulit o sabihin ang mga sangkap."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
