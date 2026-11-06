@@ -27,6 +27,7 @@ import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { buyDateForMeal } from "@/lib/shoppingDate";
+import { compressImageForWeb, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
@@ -574,41 +575,6 @@ const ACTIVE_KEY = (uid: string | number) => `kindcipe_ai_active_${uid}`;
 const OLD_CHAT_KEY = (uid: string | number) => `kindcipe_ai_chat_${uid}`;
 
 const MAX_IMAGES_PER_SESSION = 3;
-const MAX_UPLOAD_BASE64_LENGTH = 5_500_000;
-
-type VisionScene = "dish" | "fridge";
-type VisionContext = { scene: VisionScene; dishName: string; ingredients: string[]; imageKey?: string };
-
-
-async function compressImageForWeb(uri: string): Promise<{ base64: string; mimeType: string }> {
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new window.Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("image_decode_failed"));
-    img.src = uri;
-  });
-  const maxSide = 1440;
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
-  const scale = Math.min(1, maxSide / Math.max(width, height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas_unavailable");
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  let quality = 0.85;
-  let dataUrl = canvas.toDataURL("image/jpeg", quality);
-  while (dataUrl.length > MAX_UPLOAD_BASE64_LENGTH && quality > 0.5) {
-    quality -= 0.1;
-    dataUrl = canvas.toDataURL("image/jpeg", quality);
-  }
-  const base64 = dataUrl.split(",")[1] ?? "";
-  if (!base64) throw new Error("image_encode_failed");
-  if (base64.length > MAX_UPLOAD_BASE64_LENGTH) throw new Error("image_too_large");
-  return { base64, mimeType: "image/jpeg" };
-}
-
 const LOADING_STEPS = [
   "aiChef.thinking",
   "aiChef.loadingStep1",
@@ -950,7 +916,7 @@ export default function AIChefScreen() {
   const chatSessionIdRef = useRef<string>("");
   const chatGenerationRef = useRef(0);
   const chatRequestMetaRef = useRef(new Map<string, { sessionId: string; generation: number }>());
-  const visionContextRef = useRef<VisionContext | null>(null);
+  const visionContextRef = useRef<(VisionAnalysis & { imageKey?: string }) | null>(null);
   const updateMessagesFor = useCallback((sessionId: string, fn: (prev: Message[]) => Message[]) => {
     setSessions(prev => {
       const idx = prev.findIndex(s => s.id === sessionId);
@@ -2191,43 +2157,19 @@ export default function AIChefScreen() {
 
     const onSelectImage = async (idx: number) => {
       let result: ImagePicker.ImagePickerResult;
-      // Web：expo-image-picker 唔支援，直接用 <input type=file>
       if (Platform.OS === "web") {
-        const picked = await new Promise<any>((resolve) => {
-          const input = document.createElement("input");
-          input.type = "file";
-          input.accept = "image/*";
-          // iOS Safari 只會喺「已插入 DOM」嘅 input 上開檔案選擇
-          input.style.position = "fixed";
-          input.style.left = "-9999px";
-          input.style.opacity = "0";
-          document.body.appendChild(input);
-          let settled = false;
-          const cleanup = () => { try { input.remove(); } catch { /* ignore */ } };
-          const finish = (value: any) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            cleanup();
-            resolve(value);
-          };
-          const timer = setTimeout(() => finish(null), 15_000);
-          input.onchange = () => {
-            const file = input.files?.[0];
-            if (!file) { finish(null); return; }
-            const reader = new FileReader();
-            reader.onload = () => finish({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] });
-            reader.onerror = () => finish(null);
-            reader.readAsDataURL(file);
-          };
-          input.oncancel = () => finish(null);
-          input.click();
-        });
-        if (!picked) return;
-        result = picked;
+        const picked = await pickWebImageFile();
+        if (!picked) {
+          showToast(t("未選擇圖片" as any));
+          return;
+        }
+        result = { canceled: false, assets: [picked] } as any;
       } else if (idx === 0) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert(t("需要相機權限" as any)); return; }
+        if (!perm.granted) {
+          Alert.alert(t("需要相機權限" as any));
+          return;
+        }
         try {
           result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"], quality: 0.8, base64: false,
@@ -2264,121 +2206,58 @@ export default function AIChefScreen() {
           return;
         }
         uploadingRef.current = true;
-
-        const compressed = Platform.OS === "web"
-          ? await compressImageForWeb(result.assets[0].uri)
-          : await compressImage(result.assets[0].uri);
-        if (!compressed.base64) throw new Error("empty_image");
-        if (compressed.base64.length > MAX_UPLOAD_BASE64_LENGTH) throw new Error("image_too_large");
-
-        showToast(t("正在上傳圖片..." as any));
-        const up = await apiClient.recipes.uploadRecipeImage.mutate({
-          base64: compressed.base64,
-          mimeType: compressed.mimeType,
-        });
-        const imageKey = typeof (up as any)?.key === "string" ? (up as any).key as string : undefined;
-        let imageUrl = up?.url ?? "";
-        if (!imageUrl) throw new Error("upload returned no url");
-        if (imageUrl.startsWith("/")) imageUrl = `${API_BASE_URL}${imageUrl}`;
-
-        const imageSessionId = handleNewChat();
-        setChatStarted(true);
-
-        const imageMsg: Message = {
-          role: "user",
-          content: [
-            { type: "text", text: t("呢張相入面有咩食材？" as any) },
-            { type: "image_url", image_url: { url: imageUrl } },
-          ],
-        };
-
-        // ── Vision：只接受 scene / dishName / ingredients 三個 JSON 欄位 ──
         setLibraryLoading(true);
         setRecommendedRecipes([]);
         setMealResult(null);
         setContractQuickReplies([]);
-        let recognizeRequestId: string | undefined;
-        let vision: VisionContext | null = null;
-        try {
-          if (!imageKey) throw new Error("missing_image_key");
-          const recognizeRes = await apiClient.aiRecipe.analyzeImage.mutate({
-            storageKeys: [imageKey],
-            lang: i18n.language,
-          });
-          recognizeRequestId = typeof recognizeRes?.requestId === "string" ? recognizeRes.requestId : undefined;
-          const scene = recognizeRes?.scene === "dish" ? "dish" : recognizeRes?.scene === "fridge" ? "fridge" : null;
-          const dishName = typeof recognizeRes?.dishName === "string" ? recognizeRes.dishName.trim() : "";
-          const recognized = Array.isArray(recognizeRes?.ingredients)
-            ? recognizeRes.ingredients
-              .filter((item: unknown): item is string => typeof item === "string")
-              .map((item: string) => item.trim())
-              .filter((item: string) => item.length > 0 && item.length <= 20 && !/[。！？\n]/.test(item))
-              .slice(0, 12)
-            : [];
-          vision = scene ? { scene, dishName, ingredients: recognized } : null;
-          const items = vision
-            ? (vision.ingredients.length > 0 ? vision.ingredients : (vision.dishName ? [vision.dishName] : []))
-            : [];
-          if (vision && items.length > 0) {
-            const parsedVision = vision;
-            const query = parsedVision.scene === "dish"
-              ? (parsedVision.dishName || items.join(" "))
-              : items.join(" ");
-            let libraryRecipes: AIRecipe[] = [];
-            try {
-              const searchResult = await apiClient.recipes.search.query({ query, limit: 6 });
-              const rawRecipes = Array.isArray(searchResult?.recipes) ? searchResult.recipes : [];
-              libraryRecipes = rawRecipes.map(normalizeRecipe).filter(isValidRecipe);
-            } catch (e) {
-              console.error("[AI 助手] Vision library search failed:", e);
-            }
-            if (libraryRecipes.length > 0) {
-              visionContextRef.current = null;
-              updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
-                role: "assistant",
-                content: t(parsedVision.scene === "dish" ? "aiChef.visionDishLibraryHit" : "aiChef.visionFridgeLibraryHit", {
-                  n: libraryRecipes.length,
-                  items: items.join("、"),
-                }),
-              }]);
-              setRecommendedRecipes(libraryRecipes);
-              setMealResult(null);
-              setChatStarted(true);
-              recordSeenRecipes(libraryRecipes);
-              setContractQuickReplies([]);
-              console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${parsedVision.scene} recognized=${items.length} library=${libraryRecipes.length} branch=library_hit`);
-              setLibraryLoading(false);
-              scrollToEnd();
-              return;
-            }
-            visionContextRef.current = { ...parsedVision, imageKey };
-            updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
-              role: "assistant",
-              content: parsedVision.scene === "dish"
-                ? t("aiChef.visionDishLibraryMiss", { items: items.join("、") })
-                : t("aiChef.pantrySeenNoLibrary", { items: items.join("、") }),
-            }]);
-            setContractQuickReplies(parsedVision.scene === "dish"
-              ? [{ actionId: "similar_ai", labelKey: "aiChef.similarAi" }]
-              : [{ actionId: "ai_generate", labelKey: "aiChef.aiGenerate" }]);
-            console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${parsedVision.scene} recognized=${items.length} library=0 branch=library_miss`);
-            setLibraryLoading(false);
-            scrollToEnd();
-            return;
-          }
-          console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${vision?.scene ?? "invalid"} recognized=0 branch=recognize_failed`);
-        } catch (e) {
-          console.error("[AI 助手] Camera recognize failed:", e);
+
+        const photo = await processPhoto(apiClient, {
+          uri: result.assets[0].uri,
+          mimeType: result.assets[0].mimeType,
+          lang: i18n.language,
+          compress: Platform.OS === "web" ? compressImageForWeb : compressImage,
+          normalizeCards: (cards) => cards.map(normalizeRecipe).filter(isValidRecipe),
+        });
+        const imageSessionId = handleNewChat();
+        setChatStarted(true);
+        const imageMsg: Message = {
+          role: "user",
+          content: [
+            { type: "text", text: t("呢張相入面有咩食材？" as any) },
+            { type: "image_url", image_url: { url: photo.imageUrl } },
+          ],
+        };
+
+        if (photo.outcome.kind === "failed") {
+          updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+            role: "assistant",
+            content: t(photo.outcome.messageKey as any),
+          }]);
+          setLibraryLoading(false);
+          scrollToEnd();
+          return;
         }
 
+        const outcome = photo.outcome;
+        visionContextRef.current = outcome.kind === "ai"
+          ? { ...outcome.analysis, imageKey: outcome.imageKey }
+          : null;
         updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
           role: "assistant",
-          content: t("aiChef.pantryRecognizeFailed" as any),
+          content: t(outcome.messageKey as any, outcome.vars as any),
         }]);
-        setLibraryLoading(false);
+        if (outcome.kind === "cards") {
+          setRecommendedRecipes(outcome.cards);
+          setMealResult(null);
+          setChatStarted(true);
+          recordSeenRecipes(outcome.cards);
+          setContractQuickReplies([]);
+        } else if (outcome.kind === "ai") {
+          setContractQuickReplies(outcome.quickReplies as any);
+        }
         scrollToEnd();
       } catch (e: any) {
-        console.error("[AI 助手] image upload/send failed:", e);
+        console.error("[AI 助手] photo flow failed:", e);
         Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
       } finally {
         uploadingRef.current = false;
