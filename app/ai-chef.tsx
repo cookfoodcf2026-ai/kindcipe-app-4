@@ -2135,7 +2135,25 @@ export default function AIChefScreen() {
       if (chatMutation.isPending) return;
 
       let result: ImagePicker.ImagePickerResult;
-      if (idx === 0 && Platform.OS !== "web") {
+      // Web：expo-image-picker 唔支援，直接用 <input type=file>
+      if (Platform.OS === "web") {
+        const picked = await new Promise<any>((resolve) => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "image/*";
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) { resolve(null); return; }
+            const reader = new FileReader();
+            reader.onload = () => resolve({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] });
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+          };
+          input.click();
+        });
+        if (!picked) return;
+        result = picked;
+      } else if (idx === 0) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) { Alert.alert(t("需要相機權限" as any)); return; }
         try {
