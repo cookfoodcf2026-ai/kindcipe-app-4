@@ -412,7 +412,10 @@
     "similarRecipes": "搵相似食譜",
     "similarAi": "AI 生成類似菜式（2 credits）",
     "similarNoMatch": "搵唔到直接相似嘅食譜，可以試下 AI 生成。",
-    "similarAiDone": "已用相片生成一個類似菜式。"
+    "similarAiDone": "已用相片生成一個類似菜式。",
+    "visionDishLibraryHit": "呢張相我見到：{{items}}。食譜庫搵到 {{n}} 個相似食譜：",
+    "visionDishLibraryMiss": "呢張相我見到：{{items}}。食譜庫暫時冇相似食譜，要我用 AI 生成類似菜式嗎？",
+    "visionFridgeLibraryHit": "我睇到你有：{{items}}。用你雪櫃食材搵到 {{n}} 個食譜："
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",

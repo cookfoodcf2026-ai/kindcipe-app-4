@@ -412,7 +412,10 @@
     "similarRecipes": "Maghanap ng katulad na recipe",
     "similarAi": "Gumawa ng katulad na putahe (2 credits)",
     "similarNoMatch": "Walang malapit na recipe. Subukan ang AI generation.",
-    "similarAiDone": "Nakagawa ng katulad na putahe mula sa larawan."
+    "similarAiDone": "Nakagawa ng katulad na putahe mula sa larawan.",
+    "visionDishLibraryHit": "Nakikita ko ito sa larawan: {{items}}. May {{n}} katulad na recipe sa library:",
+    "visionDishLibraryMiss": "Nakikita ko ito sa larawan: {{items}}. Walang katulad na recipe sa library — gusto mo bang gumawa ako ng katulad na putahe gamit ang AI?",
+    "visionFridgeLibraryHit": "Nakikita ko na mayroon ka: {{items}}. May {{n}} recipe gamit ang mga sangkap sa ref mo:"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

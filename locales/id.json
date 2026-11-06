@@ -412,7 +412,10 @@
     "similarRecipes": "Cari resep serupa",
     "similarAi": "Buat hidangan serupa (2 credits)",
     "similarNoMatch": "Tidak ada resep yang mirip. Coba AI generation.",
-    "similarAiDone": "Membuat hidangan serupa dari foto."
+    "similarAiDone": "Membuat hidangan serupa dari foto.",
+    "visionDishLibraryHit": "Saya melihat ini di foto: {{items}}. Ditemukan {{n}} resep serupa di pustaka:",
+    "visionDishLibraryMiss": "Saya melihat ini di foto: {{items}}. Tidak ada resep serupa di pustaka — mau saya buatkan hidangan serupa dengan AI?",
+    "visionFridgeLibraryHit": "Saya melihat Anda punya: {{items}}. Ditemukan {{n}} resep memakai bahan di kulkas Anda:"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

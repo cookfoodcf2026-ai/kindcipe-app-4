@@ -2355,18 +2355,47 @@ export default function AIChefScreen() {
             : [];
           if (vision && items.length > 0) {
             const parsedVision = vision;
+            const query = parsedVision.scene === "dish"
+              ? (parsedVision.dishName || items.join(" "))
+              : items.join(" ");
+            let libraryRecipes: AIRecipe[] = [];
+            try {
+              const searchResult = await apiClient.recipes.search.query({ query, limit: 6 });
+              const rawRecipes = Array.isArray(searchResult?.recipes) ? searchResult.recipes : [];
+              libraryRecipes = rawRecipes.map(normalizeRecipe).filter(isValidRecipe);
+            } catch (e) {
+              console.error("[AI 助手] Vision library search failed:", e);
+            }
+            if (libraryRecipes.length > 0) {
+              visionContextRef.current = null;
+              updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
+                role: "assistant",
+                content: t(parsedVision.scene === "dish" ? "aiChef.visionDishLibraryHit" : "aiChef.visionFridgeLibraryHit", {
+                  n: libraryRecipes.length,
+                  items: items.join("、"),
+                }),
+              }]);
+              setRecommendedRecipes(libraryRecipes);
+              setMealResult(null);
+              setChatStarted(true);
+              recordSeenRecipes(libraryRecipes);
+              setContractQuickReplies([]);
+              console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${parsedVision.scene} recognized=${items.length} library=${libraryRecipes.length} branch=library_hit`);
+              setLibraryLoading(false);
+              scrollToEnd();
+              return;
+            }
             visionContextRef.current = { ...parsedVision, imageKey };
             updateMessagesFor(imageSessionId, prev => [...prev, imageMsg, {
               role: "assistant",
-              content: t(parsedVision.scene === "dish" ? "aiChef.visionDishSeen" : "aiChef.visionFridgeSeen", { items: items.join("、") }),
+              content: parsedVision.scene === "dish"
+                ? t("aiChef.visionDishLibraryMiss", { items: items.join("、") })
+                : t("aiChef.pantrySeenNoLibrary", { items: items.join("、") }),
             }]);
             setContractQuickReplies(parsedVision.scene === "dish"
-              ? [
-                  { actionId: "similar_library", labelKey: "aiChef.similarRecipes" },
-                  { actionId: "similar_ai", labelKey: "aiChef.similarAi" },
-                ]
+              ? [{ actionId: "similar_ai", labelKey: "aiChef.similarAi" }]
               : [{ actionId: "ai_generate", labelKey: "aiChef.aiGenerate" }]);
-            console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${parsedVision.scene} recognized=${items.length} branch=${parsedVision.scene === "dish" ? "dish_offer" : "fridge_ai_offer"}`);
+            console.log(`[AI Chef][vision] request=${recognizeRequestId ?? "none"} scene=${parsedVision.scene} recognized=${items.length} library=0 branch=library_miss`);
             setLibraryLoading(false);
             scrollToEnd();
             return;
