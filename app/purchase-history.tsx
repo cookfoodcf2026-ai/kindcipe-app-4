@@ -523,8 +523,13 @@ export default function PurchaseHistoryScreen() {
                                 ) : hasActual ? (
                                   <Text style={{ fontSize: 12, fontWeight: "700", color: "#183B56" }}>HK${item.actualPrice}</Text>
                                 ) : hasBudget ? (
-                                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
-                                ) : null}
+                                  <>
+                                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: "600", color: "#9CA3AF" }}>{t("purchaseHistory.noPriceRecorded")}</Text>
+                                  </>
+                                ) : (
+                                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#9CA3AF" }}>{t("purchaseHistory.noPriceRecorded")}</Text>
+                                )}
                                 <Text style={{ fontSize: 12, color: SUB }}>{formatTimeAgo(item.boughtAt)}</Text>
                               </View>
                             </View>

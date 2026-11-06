@@ -1598,7 +1598,7 @@ export default function ShoppingTab() {
                               setShowSavePrice(false);
                               setSavePriceItem(null);
                               setSavePriceVal("");
-                              toggleBoughtM.mutate({ id: item.id, bought: true, recordPurchase: false });
+                              toggleBoughtM.mutate({ id: item.id, bought: true });
                             }}
                           >
                             <Text style={[styles.submitBtnText, { color: "#183B56" }]}>{t("shopping.markBoughtOnly")}</Text>
