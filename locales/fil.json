@@ -135,7 +135,9 @@
     "listBody": "I-export ang bilingual list para sa katulong!",
     "aiSuggested": "AI suggestion",
     "deleteItem": "Burahin ang item",
-    "confirmDelete": "Burahin ang \\u201c{{name}}\\u201d?"
+    "confirmDelete": "Burahin ang \\u201c{{name}}\\u201d?",
+    "savePriceBtn": "I-save ang presyo",
+    "markBoughtOnly": "Markahan lang bilang nabili"
   },
   "onboarding": {
     "heroTitle": "Wag nang mag-alinlangan: \"Ano'ng ulam mamayang gabi?\"",

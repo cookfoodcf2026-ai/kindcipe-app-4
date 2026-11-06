@@ -135,7 +135,9 @@
     "listBody": "一鍵導出雙語清單 Send 俾姐姐，或者直接勾選已買食材！",
     "aiSuggested": "AI 建議",
     "deleteItem": "刪除項目",
-    "confirmDelete": "確定要刪除「{{name}}」？"
+    "confirmDelete": "確定要刪除「{{name}}」？",
+    "savePriceBtn": "儲存價錢",
+    "markBoughtOnly": "只標記已買"
   },
   "onboarding": {
     "heroTitle": "告別 每日煩惱 「今晚食咩？」",

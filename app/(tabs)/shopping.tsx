@@ -322,6 +322,8 @@ export default function ShoppingTab() {
   const [savePriceMode, setSavePriceMode] = useState<"buy" | "actual">("actual");
   const [editBudgetPrice, setEditBudgetPrice] = useState("");
   const savePriceEditedRef = useRef(false);
+  const savePriceNumber = parseInt(savePriceVal.trim(), 10);
+  const savePriceValid = Number.isFinite(savePriceNumber) && savePriceNumber > 0;
 
   const params = useLocalSearchParams<{
     openAdd?: string;
@@ -481,7 +483,7 @@ export default function ShoppingTab() {
   });
 
   const toggleBoughtM = trpc.shopping.toggleBought.useMutation({
-    onMutate: async (variables: { id: number; bought: boolean }) => {
+    onMutate: async (variables: { id: number; bought: boolean; recordPurchase?: boolean }) => {
       await utils.shopping.list.cancel();
       const current = utils.shopping.list.getData();
       if (current) {
@@ -1554,20 +1556,19 @@ export default function ShoppingTab() {
                         keyboardType="number-pad"
                         autoFocus
                       />
-                      <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                         {lastPricesMap[savePriceItem.name]?.price != null && (
                           <TouchableOpacity
-                            style={[styles.submitBtn, { flex: 1, backgroundColor: "#E8F0F4" }]}
+                            style={[styles.submitBtn, { flex: 1, minWidth: 110, backgroundColor: "#E8F0F4" }]}
                             onPress={() => { savePriceEditedRef.current = true; setSavePriceVal(String(lastPricesMap[savePriceItem.name].price)); }}
                           >
                             <Text style={[styles.submitBtnText, { color: "#183B56" }]}>{t("shopping.useLastPrice")}</Text>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
-                          style={[styles.submitBtn, { flex: 1 }]}
+                          style={[styles.submitBtn, { flex: 1, minWidth: 110, opacity: savePriceValid ? 1 : 0.45 }]}
+                          disabled={!savePriceValid}
                           onPress={() => {
-                            const price = parseInt(savePriceVal.trim(), 10);
-                            if (isNaN(price) || price <= 0) { Alert.alert(t("請輸入有效價格" as any)); return; }
                             setShowSavePrice(false);
                             setSavePriceItem(null);
                             setSavePriceVal("");
@@ -1578,7 +1579,7 @@ export default function ShoppingTab() {
                             savePriceM.mutate({
                               itemId: savePriceItem.id,
                               itemName: savePriceItem.name,
-                              price,
+                              price: savePriceNumber,
                               markBought: savePriceMode === "buy",
                               category: savePriceItem.category,
                               unit: savePriceItem.unit,
@@ -1586,8 +1587,23 @@ export default function ShoppingTab() {
                             });
                           }}
                         >
-                          <Text style={styles.submitBtnText}>{t("shopping.save")}</Text>
+                          <Text style={styles.submitBtnText}>{t("shopping.savePriceBtn")}</Text>
                         </TouchableOpacity>
+                        {savePriceMode === "buy" && (
+                          <TouchableOpacity
+                            style={[styles.submitBtn, { flex: 1, minWidth: 110, backgroundColor: "#E8F0F4" }]}
+                            onPress={() => {
+                              const item = savePriceItem;
+                              if (!item) return;
+                              setShowSavePrice(false);
+                              setSavePriceItem(null);
+                              setSavePriceVal("");
+                              toggleBoughtM.mutate({ id: item.id, bought: true, recordPurchase: false });
+                            }}
+                          >
+                            <Text style={[styles.submitBtnText, { color: "#183B56" }]}>{t("shopping.markBoughtOnly")}</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </>
                   )}

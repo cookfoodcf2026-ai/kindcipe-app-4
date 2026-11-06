@@ -135,7 +135,9 @@
     "listBody": "Export a bilingual list to send to your helper, or check off items bought!",
     "aiSuggested": "AI suggested",
     "deleteItem": "Delete item",
-    "confirmDelete": "Delete \\u201c{{name}}\\u201d?"
+    "confirmDelete": "Delete \\u201c{{name}}\\u201d?",
+    "savePriceBtn": "Save price",
+    "markBoughtOnly": "Mark as bought only"
   },
   "onboarding": {
     "heroTitle": "Never ask again: \"What's for dinner tonight?\"",

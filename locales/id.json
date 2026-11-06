@@ -135,7 +135,9 @@
     "listBody": "Ekspor daftar bilingual untuk asisten!",
     "aiSuggested": "Saran AI",
     "deleteItem": "Hapus item",
-    "confirmDelete": "Hapus \\u201c{{name}}\\u201d?"
+    "confirmDelete": "Hapus \\u201c{{name}}\\u201d?",
+    "savePriceBtn": "Simpan harga",
+    "markBoughtOnly": "Tandai sudah dibeli saja"
   },
   "onboarding": {
     "heroTitle": "Tidak perlu bingung lagi: \"Masak apa malam ini?\"",
