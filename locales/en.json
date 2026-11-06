@@ -415,7 +415,9 @@
     "similarAiDone": "Generated a similar dish from the photo.",
     "visionDishLibraryHit": "I can see this in the photo: {{items}}. Found {{n}} similar recipes in the library:",
     "visionDishLibraryMiss": "I can see this in the photo: {{items}}. No similar recipe in the library — want me to generate a similar dish with AI?",
-    "visionFridgeLibraryHit": "I can see you have: {{items}}. Found {{n}} recipes using your fridge ingredients:"
+    "visionFridgeLibraryHit": "I can see you have: {{items}}. Found {{n}} recipes using your fridge ingredients:",
+    "photoAnalyzeLimit": "You have reached today's photo analysis limit. You can type the ingredients instead.",
+    "useTextIngredients": "Type ingredients instead"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

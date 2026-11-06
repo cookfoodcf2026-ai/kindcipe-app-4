@@ -415,7 +415,9 @@
     "similarAiDone": "Nakagawa ng katulad na putahe mula sa larawan.",
     "visionDishLibraryHit": "Nakikita ko ito sa larawan: {{items}}. May {{n}} katulad na recipe sa library:",
     "visionDishLibraryMiss": "Nakikita ko ito sa larawan: {{items}}. Walang katulad na recipe sa library — gusto mo bang gumawa ako ng katulad na putahe gamit ang AI?",
-    "visionFridgeLibraryHit": "Nakikita ko na mayroon ka: {{items}}. May {{n}} recipe gamit ang mga sangkap sa ref mo:"
+    "visionFridgeLibraryHit": "Nakikita ko na mayroon ka: {{items}}. May {{n}} recipe gamit ang mga sangkap sa ref mo:",
+    "photoAnalyzeLimit": "Naabot mo na ang limit ng photo analysis ngayong araw. Maaari mong i-type ang mga sangkap.",
+    "useTextIngredients": "I-type ang mga sangkap"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",

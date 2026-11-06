@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   analyzePhoto,
   buildVisionOutcome,
+  isPhotoLimitError,
   parseVisionAnalysis,
   processPhoto,
   visionItems,
@@ -60,4 +61,9 @@ test("processPhoto uploads, analyzes and searches through injected API", async (
   assert.equal(out.analysis.scene, "dish");
   assert.equal(out.outcome.kind, "cards");
   assert.equal(out.imageKey, "recipe-screenshots/f13/a.jpg");
+});
+
+test("recognizes a TOO_MANY_REQUESTS limit error", () => {
+  assert.equal(isPhotoLimitError({ data: { code: "TOO_MANY_REQUESTS" } }), true);
+  assert.equal(isPhotoLimitError({ data: { code: "INTERNAL_SERVER_ERROR" } }), false);
 });

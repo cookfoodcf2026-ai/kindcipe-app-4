@@ -415,7 +415,9 @@
     "similarAiDone": "Membuat hidangan serupa dari foto.",
     "visionDishLibraryHit": "Saya melihat ini di foto: {{items}}. Ditemukan {{n}} resep serupa di pustaka:",
     "visionDishLibraryMiss": "Saya melihat ini di foto: {{items}}. Tidak ada resep serupa di pustaka — mau saya buatkan hidangan serupa dengan AI?",
-    "visionFridgeLibraryHit": "Saya melihat Anda punya: {{items}}. Ditemukan {{n}} resep memakai bahan di kulkas Anda:"
+    "visionFridgeLibraryHit": "Saya melihat Anda punya: {{items}}. Ditemukan {{n}} resep memakai bahan di kulkas Anda:",
+    "photoAnalyzeLimit": "Batas analisis foto hari ini sudah tercapai. Anda bisa mengetikkan bahannya.",
+    "useTextIngredients": "Ketik bahan"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

@@ -27,7 +27,7 @@ import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { buyDateForMeal } from "@/lib/shoppingDate";
-import { compressImageForWeb, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
+import { compressImageForWeb, isPhotoLimitError, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
@@ -2257,6 +2257,18 @@ export default function AIChefScreen() {
         }
         scrollToEnd();
       } catch (e: any) {
+        if (isPhotoLimitError(e)) {
+          const imageSessionId = handleNewChat();
+          setChatStarted(true);
+          updateMessagesFor(imageSessionId, () => [{
+            role: "assistant",
+            content: t("aiChef.photoAnalyzeLimit" as any),
+          }]);
+          setContractQuickReplies([{ actionId: "text_ingredients", labelKey: "aiChef.useTextIngredients" }]);
+          setLibraryLoading(false);
+          scrollToEnd();
+          return;
+        }
         console.error("[AI 助手] photo flow failed:", e);
         Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
       } finally {
@@ -4214,6 +4226,13 @@ export default function AIChefScreen() {
           Alert.alert(t("生成失敗" as any), friendlyError(e));
         }
       })();
+      return;
+    }
+    if (actionId === "text_ingredients") {
+      setAskingIngredients(true);
+      setChatStarted(true);
+      setContractQuickReplies([]);
+      addBotMessage(t("aiChef.askFridgeIngredients" as any));
       return;
     }
     if (actionId === "restart") {

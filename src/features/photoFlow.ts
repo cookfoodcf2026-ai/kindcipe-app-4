@@ -38,6 +38,12 @@ export type VisionOutcome =
 
 export const MAX_PHOTO_BASE64_LENGTH = 5_500_000;
 
+export function isPhotoLimitError(error: unknown): boolean {
+  const value = error as any;
+  const code = value?.data?.code ?? value?.shape?.data?.code ?? value?.code;
+  return code === "TOO_MANY_REQUESTS";
+}
+
 function asRecord(input: unknown): Record<string, unknown> | null {
   if (input && typeof input === "object") return input as Record<string, unknown>;
   if (typeof input !== "string") return null;
