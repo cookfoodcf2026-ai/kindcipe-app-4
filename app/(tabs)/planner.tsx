@@ -561,14 +561,18 @@ export default function PlannerTab() {
                   })(),
                 }));
 
-                setPickerRecipe({
-                  id: `day_${item.dayOfWeek}_ai`,
-                  name: `${enumT.weekday(item.dayOfWeek % 7)} 晚餐推薦食材`,
-                  ingredients: mergedIngredients,
-                  // date = 排餐日（meal date）。購物日由 modal 用 defaultBuyDate=排餐日前一日 計算，
-                  // 避免之前 double getDayBefore 導致 off-by-one。
-                  date: itemDateStr,
-                });
+                if (itemDateStr < todayISO()) {
+                  showToast("排餐日已過，唔可以加入購物清單", "info");
+                } else {
+                  setPickerRecipe({
+                    id: `day_${item.dayOfWeek}_ai`,
+                    name: `${enumT.weekday(item.dayOfWeek % 7)} 晚餐推薦食材`,
+                    ingredients: mergedIngredients,
+                    // date = 排餐日（meal date）。購物日由 modal 用 defaultBuyDate=排餐日前一日 計算，
+                    // 避免之前 double getDayBefore 導致 off-by-one。
+                    date: itemDateStr,
+                  });
+                }
               } else {
                 router.push("/(tabs)/shopping");
               }
@@ -695,21 +699,28 @@ export default function PlannerTab() {
     
     // 3. 若有食材，等 Add Modal 完全關閉後再開 Shopping Picker Modal
     if (ings && ings.length > 0) {
-      const pickerRecipeData: PickerRecipe = {
-        id: variables.recipeId,
-        name: variables.recipeName,
-        ingredients: ings,
-        date: variables.date,
-        mealType: variables.mealType,
-        fromMealPlanId: result.newPlanId,
-      };
-
-      addMealHandoff.queue(pickerRecipeData, (data) => {
+      if (String(variables.date) < todayISO()) {
         setIsAddingMeal(false);
         addMealLockRef.current = false;
-        setPickerRecipe(data);
-      });
-      setShowAddModal(false);
+        setShowAddModal(false);
+        showToast("排餐日已過，唔可以加入購物清單", "info");
+      } else {
+        const pickerRecipeData: PickerRecipe = {
+          id: variables.recipeId,
+          name: variables.recipeName,
+          ingredients: ings,
+          date: variables.date,
+          mealType: variables.mealType,
+          fromMealPlanId: result.newPlanId,
+        };
+
+        addMealHandoff.queue(pickerRecipeData, (data) => {
+          setIsAddingMeal(false);
+          addMealLockRef.current = false;
+          setPickerRecipe(data);
+        });
+        setShowAddModal(false);
+      }
     } else {
       setIsAddingMeal(false);
       addMealLockRef.current = false;
@@ -753,7 +764,11 @@ export default function PlannerTab() {
       const conf = pendingConfirmRecipe;
       setPendingConfirmRecipe(null);
       if (conf && Array.isArray(conf.ingredients) && conf.ingredients.length > 0) {
-        setPickerRecipe(conf);
+        if (conf.date && String(conf.date) < todayISO()) {
+          showToast("排餐日已過，唔可以加入購物清單", "info");
+        } else {
+          setPickerRecipe(conf);
+        }
       }
     },
     onError: (e) => Alert.alert(t("確認失敗" as any), friendlyError(e)),
@@ -1174,6 +1189,10 @@ export default function PlannerTab() {
 
   const handleAddToCartFromMeal = useCallback(
     (mp: any) => {
+      if (String(mp.date) < todayISO()) {
+        showToast("排餐日已過，唔可以加入購物清單", "info");
+        return;
+      }
       const found = [...officialRecipes, ...userRecipes].find(
         (r: any) => `official_${r.id}` === mp.recipeId || `user_${r.id}` === mp.recipeId
       ) as any;
