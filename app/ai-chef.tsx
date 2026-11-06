@@ -2128,10 +2128,14 @@ export default function AIChefScreen() {
 
     const onSelect = async (idx: number) => {
       if (idx === 2 || (Platform.OS === "android" && idx >= 2)) return;
+      await onSelectImage(idx);
+    };
+
+    const onSelectImage = async (idx: number) => {
       if (chatMutation.isPending) return;
 
       let result: ImagePicker.ImagePickerResult;
-      if (idx === 0) {
+      if (idx === 0 && Platform.OS !== "web") {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) { Alert.alert(t("需要相機權限" as any)); return; }
         try {
@@ -2154,6 +2158,9 @@ export default function AIChefScreen() {
 
       if (result.canceled || !result.assets?.[0]) return;
 
+      // 雪櫃相片係一個獨立任務：開新對話，唔好被上一輪對話（例如「唔要辣」）污染
+      handleNewChat();
+
       try {
         const imageCount = messages.filter(
           (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
@@ -2163,7 +2170,18 @@ export default function AIChefScreen() {
           return;
         }
 
-        const compressed = await compressImage(result.assets[0].uri);
+        let compressed: { base64: string; mimeType: string };
+        try {
+          compressed = await compressImage(result.assets[0].uri);
+        } catch (e) {
+          // Web：expo-image-manipulator 唔一定支援，直接用原圖做 base64
+          if (Platform.OS !== "web") throw e;
+          const blob = await (await fetch(result.assets[0].uri)).blob();
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let bin = "";
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          compressed = { base64: btoa(bin), mimeType: blob.type || "image/jpeg" };
+        }
 
         if (uploadingRef.current) return;
         uploadingRef.current = true;
@@ -2257,6 +2275,11 @@ export default function AIChefScreen() {
       }
     };
 
+    // Web 冇 React Native 相機 API：直接用檔案選擇（iPhone Safari 一樣會問「拍照／相簿」）
+    if (Platform.OS === "web") {
+      void onSelectImage(1);
+      return;
+    }
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, onSelect);
     } else {
