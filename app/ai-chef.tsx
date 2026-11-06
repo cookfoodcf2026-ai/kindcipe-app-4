@@ -2132,7 +2132,11 @@ export default function AIChefScreen() {
     };
 
     const onSelectImage = async (idx: number) => {
-      if (chatMutation.isPending) return;
+      // 唔可以用 chatMutation.isPending 靜靜 return：影相會開新對話，
+      // 上一輪請求未返都唔應該阻止，否則用戶見到「揀完相冇反應」。
+      if (chatMutation.isPending) {
+        try { chatMutation.reset(); } catch { /* ignore */ }
+      }
 
       let result: ImagePicker.ImagePickerResult;
       // Web：expo-image-picker 唔支援，直接用 <input type=file>
