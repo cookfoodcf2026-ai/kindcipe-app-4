@@ -793,7 +793,8 @@
     "mealCount": "{{n}} meals",
     "menuReadyTitle": "Menu ready?",
     "menuReadyBody": "Tap “Generate shopping list” to auto-collect ingredients and sync with family & helper.",
-    "searchRecipePlaceholder": "Search recipes..."
+    "searchRecipePlaceholder": "Search recipes...",
+    "mealPastNoCart": "This meal date has passed, so ingredients cannot be added to shopping"
   },
   "more": {
     "title": "More",
@@ -859,7 +860,8 @@
     "all": "All",
     "d7": "7d",
     "d30": "30d",
-    "d90": "90d"
+    "d90": "90d",
+    "noPriceRecorded": "No price recorded"
   },
   "picker": {
     "selectMain": "Select main",

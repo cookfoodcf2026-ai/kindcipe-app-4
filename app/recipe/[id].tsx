@@ -31,6 +31,7 @@ import { trackRecipeEvent } from "@/lib/analytics";
 import { useAuth } from "@/hooks/useAuth";
 import { useScreenAwake } from "@/hooks/useScreenAwake";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
+import { buyDateForMeal } from "@/lib/shoppingDate";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -179,7 +180,7 @@ export default function RecipeDetailScreen() {
   const [showIngPicker, setShowIngPicker] = useState(false);
   const [editIngs, setEditIngs] = useState<any[]>([]);
   const [selectedIngs, setSelectedIngs] = useState<Set<number>>(new Set());
-  const [shoppingDate, setShoppingDate] = useState<string | null>(() => toISODate(new Date()));
+  const [shoppingDate, setShoppingDate] = useState<string | null>(null);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
   const [, setPlanPickerShoppingDate] = useState<string | null>(null);
@@ -360,7 +361,15 @@ export default function RecipeDetailScreen() {
     return map;
   }, [shoppingListQ.data]);
 
-  const currentShoppingDate = shoppingDate || (latestMealPlan ? getDayBefore(latestMealPlan.date) : toISODate(new Date()));
+  const resolveMealBuyDate = () => {
+    const today = toISODate(new Date());
+    return latestMealPlan
+      ? buyDateForMeal(latestMealPlan.date, today)
+      : { ok: true as const, date: today, manual: true as const };
+  };
+  const resolvedMealBuyDate = resolveMealBuyDate();
+  const currentShoppingDate = shoppingDate
+    || (resolvedMealBuyDate.ok ? resolvedMealBuyDate.date : toISODate(new Date()));
 
   const addedToCart = useMemo(() => {
     const items = (shoppingListQ.data ?? []) as any[];
@@ -830,7 +839,11 @@ export default function RecipeDetailScreen() {
 
   // 修改購物車項目（同步食譜的購物項目）
   const handleModifyShopping = useCallback(() => {
-    // 先準備食材清單
+    const buyDate = resolveMealBuyDate();
+    if (!buyDate.ok) {
+      Alert.alert(t("planner.mealPastNoCart" as any));
+      return;
+    }
     const ings = adjustedIngredients.map((ing: any, i: number) => ({
       ...ing, _idx: i, _qty: String(ing.adjustedQty ?? ing.quantity ?? ""), _unit: ing.unit ?? "",
     }));
@@ -840,9 +853,9 @@ export default function RecipeDetailScreen() {
       if (!isSeasoning(_.name) && !isWaterIngredient(_.name)) defaultSelected.add(i);
     });
     setSelectedIngs(defaultSelected);
-    // 不重置 lastAddedShoppingDate，讓用戶在彈窗改日期
+    setShoppingDate(buyDate.date);
     setShowIngPicker(true);
-  }, [adjustedIngredients]);
+  }, [adjustedIngredients, latestMealPlan, t]);
 
   // Cooking terms for highlighting
   const cookingTerms = useMemo(() => COOKING_TERM_LIST, []);
@@ -1197,8 +1210,12 @@ export default function RecipeDetailScreen() {
                 setSelectedIngs(defaultSelected);
                 
                 // 智能判斷日期：預設為排餐日前一日（購物日），無排餐則為今日
-                const defaultDate = latestMealPlan ? getDayBefore(latestMealPlan.date) : toISODate(new Date());
-                setShoppingDate(defaultDate);
+                const buyDate = resolveMealBuyDate();
+                if (!buyDate.ok) {
+                  Alert.alert(t("planner.mealPastNoCart" as any));
+                  return;
+                }
+                setShoppingDate(buyDate.date);
                 setShowIngPicker(true);
               }}>
                 <Ionicons name={addedToCart ? "checkmark-circle" : "cart-outline"} size={16} color={addedToCart ? GREEN : BRAND} />
@@ -2129,28 +2146,27 @@ export default function RecipeDetailScreen() {
                 </TouchableOpacity>
               </View>
               
-              {/* 日期選擇器 - 永遠直接顯示可編輯 */}
-              <View style={s.datePickerRow}>
-                <Ionicons name="calendar-outline" size={16} color={SUB} />
-                <Text style={s.datePickerLabel}>{t("recipe.shoppingDate")}</Text>
-                <PlanDatePicker
-                  value={shoppingDate}
-                  onChange={setShoppingDate}
-                  maxDate={latestMealPlan?.date ?? undefined}
-                  minDate={DateUtil.todayISO()}
-                  showShortcuts={true}
-                />
-                <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
-                  ⚠️ 購買日期唔可以遲過排餐日（{latestMealPlan ? formatMealDate(latestMealPlan.date) : ""}）
-                </Text>
-              </View>
-              {shoppingDate && (
-                <TouchableOpacity 
-                  onPress={() => setShoppingDate(null)} 
-                  style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
-                >
-                  <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
-                </TouchableOpacity>
+              {!latestMealPlan && (
+                <>
+                  <View style={s.datePickerRow}>
+                    <Ionicons name="calendar-outline" size={16} color={SUB} />
+                    <Text style={s.datePickerLabel}>{t("recipe.shoppingDate")}</Text>
+                    <PlanDatePicker
+                      value={shoppingDate}
+                      onChange={setShoppingDate}
+                      minDate={DateUtil.todayISO()}
+                      showShortcuts={true}
+                    />
+                  </View>
+                  {shoppingDate && (
+                    <TouchableOpacity
+                      onPress={() => setShoppingDate(null)}
+                      style={{ alignSelf: "flex-end", marginTop: -8, marginRight: 16 }}
+                    >
+                      <Text style={{ fontSize: 13, color: BRAND, fontWeight: "600" }}>{t("recipe.clearDate")}</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
               {latestMealPlan && (
                 <View style={s.dateHintRow}>
@@ -2380,6 +2396,7 @@ export default function RecipeDetailScreen() {
           mealDate={planPickerRecipe?.date}
           defaultBuyDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
           maxDate={planPickerRecipe?.date}
+          showDateSelector={false}
           onDateChange={setPlanPickerShoppingDate}
           alreadyAddedKeys={planPickerAlreadyAdded}
           onConfirm={(items) => {

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { categorizeIngredient, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { buyDateForMeal } from "@/lib/shoppingDate";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
 import { getBilingualName, getDisplayName } from "@/lib/bilingual";
@@ -105,9 +106,8 @@ export default function IngredientPickerModal({
   const effectiveMealDate = mealDate || defaultDate;
   
   // 採買日：排餐日=今日用今日；未來排餐日用前一日；無排餐日先用 caller 提供嘅日期
-  const autoBuyDate = mealDate
-    ? (mealDate <= today ? today : DateUtil.getDayBefore(mealDate))
-    : undefined;
+  const mealBuyDate = buyDateForMeal(mealDate, today);
+  const autoBuyDate = mealDate && mealBuyDate.ok ? mealBuyDate.date : undefined;
   const effectiveBuyDate = autoBuyDate || defaultBuyDate || (mealDate ? DateUtil.getDayBefore(mealDate) : defaultDate);
   
   // 修改：允許選擇過去日期（如果 maxDate 存在，表示係排餐日，可以選前一日）

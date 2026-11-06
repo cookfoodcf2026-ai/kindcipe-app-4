@@ -763,7 +763,8 @@
     "mealCount": "{{n}} 餐",
     "menuReadyTitle": "菜單已排好？",
     "menuReadyBody": "點擊『生成買餸清單』，自動整理所需食材，一鍵同步俾家人同姐姐。",
-    "searchRecipePlaceholder": "搜尋食譜..."
+    "searchRecipePlaceholder": "搜尋食譜...",
+    "mealPastNoCart": "排餐日已過，未能加入購物清單"
   },
   "more": {
     "title": "更多功能",
@@ -829,7 +830,8 @@
     "all": "全部",
     "d7": "7日",
     "d30": "30日",
-    "d90": "90日"
+    "d90": "90日",
+    "noPriceRecorded": "未記價錢"
   },
   "picker": {
     "selectMain": "全選主要食材",

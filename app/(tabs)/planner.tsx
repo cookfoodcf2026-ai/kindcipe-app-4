@@ -32,6 +32,7 @@ import { getBilingualName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
 import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
+import { buyDateForMeal } from "@/lib/shoppingDate";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
@@ -561,8 +562,8 @@ export default function PlannerTab() {
                   })(),
                 }));
 
-                if (itemDateStr < todayISO()) {
-                  showToast("排餐日已過，唔可以加入購物清單", "info");
+                if (!buyDateForMeal(itemDateStr, todayISO()).ok) {
+                  showToast(t("planner.mealPastNoCart" as any), "info");
                 } else {
                   setPickerRecipe({
                     id: `day_${item.dayOfWeek}_ai`,
@@ -699,11 +700,11 @@ export default function PlannerTab() {
     
     // 3. 若有食材，等 Add Modal 完全關閉後再開 Shopping Picker Modal
     if (ings && ings.length > 0) {
-      if (String(variables.date) < todayISO()) {
+      if (!buyDateForMeal(String(variables.date), todayISO()).ok) {
         setIsAddingMeal(false);
         addMealLockRef.current = false;
         setShowAddModal(false);
-        showToast("排餐日已過，唔可以加入購物清單", "info");
+        showToast(t("planner.mealPastNoCart" as any), "info");
       } else {
         const pickerRecipeData: PickerRecipe = {
           id: variables.recipeId,
@@ -764,8 +765,8 @@ export default function PlannerTab() {
       const conf = pendingConfirmRecipe;
       setPendingConfirmRecipe(null);
       if (conf && Array.isArray(conf.ingredients) && conf.ingredients.length > 0) {
-        if (conf.date && String(conf.date) < todayISO()) {
-          showToast("排餐日已過，唔可以加入購物清單", "info");
+        if (conf.date && !buyDateForMeal(String(conf.date), todayISO()).ok) {
+          showToast(t("planner.mealPastNoCart" as any), "info");
         } else {
           setPickerRecipe(conf);
         }
@@ -1193,8 +1194,8 @@ export default function PlannerTab() {
 
   const handleAddToCartFromMeal = useCallback(
     (mp: any) => {
-      if (String(mp.date) < todayISO()) {
-        showToast("排餐日已過，唔可以加入購物清單", "info");
+      if (!buyDateForMeal(String(mp.date), todayISO()).ok) {
+        showToast(t("planner.mealPastNoCart" as any), "info");
         return;
       }
       const found = [...officialRecipes, ...userRecipes].find(
@@ -1859,7 +1860,7 @@ export default function PlannerTab() {
         mealDate={pickerRecipe?.date}
         defaultBuyDate={pickerRecipe?.date ? getDayBefore(pickerRecipe.date) : undefined}
         maxDate={pickerRecipe?.date}
-        showDateSelector={true}
+        showDateSelector={false}
         loading={addShoppingBatchM.isPending}
         alreadyAddedKeys={pickerAlreadyAddedKeys}
         onConfirm={(items) => {

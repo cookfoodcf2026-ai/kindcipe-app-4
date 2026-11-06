@@ -1653,7 +1653,7 @@ export default function RecipesTab() {
         mealDate={planPickerRecipe?.date}
         defaultBuyDate={planPickerRecipe?.date ? DateUtil.getDayBefore(planPickerRecipe.date) : undefined}
         maxDate={planPickerRecipe?.date}
-        showDateSelector={true}
+        showDateSelector={false}
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {

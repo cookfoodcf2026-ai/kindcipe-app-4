@@ -763,7 +763,8 @@
     "mealCount": "{{n}} makan",
     "menuReadyTitle": "Menu siap?",
     "menuReadyBody": "Ketuk “Buat daftar belanja” untuk auto-kumpulkan dan sinkron.",
-    "searchRecipePlaceholder": "Cari resep..."
+    "searchRecipePlaceholder": "Cari resep...",
+    "mealPastNoCart": "Tanggal makan sudah lewat, bahan tidak dapat ditambahkan"
   },
   "more": {
     "title": "Lainnya",
@@ -829,7 +830,8 @@
     "all": "Semua",
     "d7": "7hr",
     "d30": "30hr",
-    "d90": "90hr"
+    "d90": "90hr",
+    "noPriceRecorded": "Harga belum dicatat"
   },
   "picker": {
     "selectMain": "Pilih utama",

@@ -26,6 +26,7 @@ import { compressImage } from "@/lib/image-utils";
 import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
+import { buyDateForMeal } from "@/lib/shoppingDate";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
@@ -3563,9 +3564,15 @@ export default function AIChefScreen() {
   ) => {
     if (shopConfirmLockRef.current) return;
     shopConfirmLockRef.current = true;
-    const requestedDate = plannedDate || todayISO();
-    // 排餐日如果係今日，getDayBefore() 會變咗昨日；購物清單唔應該 focus 過去日期。
-    const purchaseDate = requestedDate < todayISO() ? todayISO() : requestedDate;
+    const resolvedBuyDate = buyDateForMeal(plannedDate ?? null, todayISO());
+    if (!resolvedBuyDate.ok) {
+      shopConfirmLockRef.current = false;
+      setShowPlan(false);
+      setBatchRecipes(null);
+      showToast(t("planner.mealPastNoCart" as any));
+      return;
+    }
+    const purchaseDate = resolvedBuyDate.date;
     setShopPlannedDate(purchaseDate);
     setShowPlan(false);
     setBatchRecipes(null);
@@ -5455,6 +5462,7 @@ export default function AIChefScreen() {
         loading={addShoppingM.isPending}
         mealDate={shopConfirm?.planDate}
         defaultBuyDate={shopConfirm?.shopDate}
+        showDateSelector={false}
         maxDate={shopConfirm?.planDate}
         onDateChange={(d: string) => setShopConfirm((cur) => (cur ? { ...cur, shopDate: d } : cur))}
         onConfirm={(items) => {

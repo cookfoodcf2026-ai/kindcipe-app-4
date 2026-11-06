@@ -763,7 +763,8 @@
     "mealCount": "{{n}} pagkain",
     "menuReadyTitle": "Handa na ang menu?",
     "menuReadyBody": "I-tap ang “Gumawa ng listahan” para auto-collect at mag-sync.",
-    "searchRecipePlaceholder": "Maghanap ng recipe..."
+    "searchRecipePlaceholder": "Maghanap ng recipe...",
+    "mealPastNoCart": "Lampas na ang petsa ng pagkain, hindi na maidaragdag ang mga sangkap"
   },
   "more": {
     "title": "Iba Pa",
@@ -829,7 +830,8 @@
     "all": "Lahat",
     "d7": "7araw",
     "d30": "30araw",
-    "d90": "90araw"
+    "d90": "90araw",
+    "noPriceRecorded": "Walang naitalang presyo"
   },
   "picker": {
     "selectMain": "Piliin ang pangunahin",
