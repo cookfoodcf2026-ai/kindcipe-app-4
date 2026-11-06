@@ -574,6 +574,36 @@ const ACTIVE_KEY = (uid: string | number) => `kindcipe_ai_active_${uid}`;
 const OLD_CHAT_KEY = (uid: string | number) => `kindcipe_ai_chat_${uid}`;
 
 const MAX_IMAGES_PER_SESSION = 3;
+const MAX_UPLOAD_BASE64_LENGTH = 5_500_000;
+
+async function compressImageForWeb(uri: string): Promise<{ base64: string; mimeType: string }> {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("image_decode_failed"));
+    img.src = uri;
+  });
+  const maxSide = 1440;
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas_unavailable");
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  let quality = 0.85;
+  let dataUrl = canvas.toDataURL("image/jpeg", quality);
+  while (dataUrl.length > MAX_UPLOAD_BASE64_LENGTH && quality > 0.5) {
+    quality -= 0.1;
+    dataUrl = canvas.toDataURL("image/jpeg", quality);
+  }
+  const base64 = dataUrl.split(",")[1] ?? "";
+  if (!base64) throw new Error("image_encode_failed");
+  if (base64.length > MAX_UPLOAD_BASE64_LENGTH) throw new Error("image_too_large");
+  return { base64, mimeType: "image/jpeg" };
+}
 
 const LOADING_STEPS = [
   "aiChef.thinking",
@@ -914,6 +944,8 @@ export default function AIChefScreen() {
   const activeChatIdRef = useRef(activeChatId);
   useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   const chatSessionIdRef = useRef<string>("");
+  const chatGenerationRef = useRef(0);
+  const chatRequestMetaRef = useRef(new Map<string, { sessionId: string; generation: number }>());
   const updateMessagesFor = useCallback((sessionId: string, fn: (prev: Message[]) => Message[]) => {
     setSessions(prev => {
       const idx = prev.findIndex(s => s.id === sessionId);
@@ -1415,7 +1447,13 @@ export default function AIChefScreen() {
   const hideUpgradePromo = sub?.status === "active";
   const chatMutation = trpc.aiRecipe.chat.useMutation({
     onSuccess: (data, variables: any) => {
+      const requestMeta = variables?.clientMessageId
+        ? chatRequestMetaRef.current.get(variables.clientMessageId)
+        : undefined;
+      if (variables?.clientMessageId) chatRequestMetaRef.current.delete(variables.clientMessageId);
       delete pendingChatRequestRef.current[chatRequestFingerprint(variables ?? {})];
+      if (requestMeta && requestMeta.generation !== chatGenerationRef.current) return;
+      const targetSessionId = requestMeta?.sessionId ?? chatSessionIdRef.current;
       if (failedChatRequestRef.current?.clientMessageId === variables?.clientMessageId) {
         failedChatRequestRef.current = null;
       }
@@ -1449,7 +1487,7 @@ export default function AIChefScreen() {
         const templateText = typeof (data as any)?.replyText === "string" && (data as any).replyText.trim()
           ? (data as any).replyText
           : t(contractStatus === "clarify" ? "aiChef.contractClarify" : "aiChef.contractNoCards");
-        updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: templateText }]);
+        updateMessagesFor(targetSessionId, prev => [...prev, { role: "assistant", content: templateText }]);
         setAiNextSteps([]);
         const keepExistingCards = (data as any)?.operation === "append" && recommendedRecipes.length > 0;
         if (!keepExistingCards) {
@@ -1500,7 +1538,7 @@ export default function AIChefScreen() {
       // 「記菜名」：將推薦咗嘅菜名一齊寫入 assistant message，令用戶碌返見到 / 打名搵返
       const assistantText = `${finalMainText}${recipeNameList(recipes)}`.trim();
       if (assistantText) {
-        updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: assistantText }]);
+        updateMessagesFor(targetSessionId, prev => [...prev, { role: "assistant", content: assistantText }]);
       }
       setAiNextSteps(nextSteps);
 
@@ -1542,6 +1580,12 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
     },
     onError: (err: any, variables: any) => {
+      const requestMeta = variables?.clientMessageId
+        ? chatRequestMetaRef.current.get(variables.clientMessageId)
+        : undefined;
+      if (variables?.clientMessageId) chatRequestMetaRef.current.delete(variables.clientMessageId);
+      if (requestMeta && requestMeta.generation !== chatGenerationRef.current) return;
+      const targetSessionId = requestMeta?.sessionId ?? chatSessionIdRef.current;
       delete pendingChatRequestRef.current[chatRequestFingerprint(variables ?? {})];
       const failedClientMessageId = typeof variables?.clientMessageId === "string" ? variables.clientMessageId : "";
       if (failedClientMessageId) {
@@ -1577,7 +1621,7 @@ export default function AIChefScreen() {
       const msg = isTransient
         ? t("AI 暫時未有回應，請再試一次。" as any)
         : (rawMsg || "AI 暫時未能回應，請再試。");
-      updateMessagesFor(chatSessionIdRef.current, prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
+      updateMessagesFor(targetSessionId, prev => [...prev, { role: "assistant", content: t("dyn.sorry", { msg }) }]);
       setAiNextSteps([t("aiChef.contactSupport" as any)]);
       setContractQuickReplies([]);
       setIncompleteContract(null);
@@ -1602,6 +1646,10 @@ export default function AIChefScreen() {
       failedChatRequestRef.current,
       pendingChatRequestRef.current,
     );
+    chatRequestMetaRef.current.set(clientMessageId, {
+      sessionId: chatSessionIdRef.current,
+      generation: chatGenerationRef.current,
+    });
     pendingChatRequestRef.current[fingerprint] = clientMessageId;
     const pendingKeys = Object.keys(pendingChatRequestRef.current);
     if (pendingKeys.length > 20) {
@@ -1844,6 +1892,7 @@ export default function AIChefScreen() {
   // ─── Chat actions ──────────────────────────────────────
 
   const handleNewChat = () => {
+    chatGenerationRef.current += 1;
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
     setRecommendedRecipes([]);
@@ -1862,13 +1911,16 @@ export default function AIChefScreen() {
 
     const newId = generateId();
     const newSession: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
+    activeChatIdRef.current = newId;
     setSessions(prev => [newSession, ...prev]);
     setActiveChatId(newId);
     scrollToLatestMessage();
+    return newId;
   };
 
   const handleSwitchChat = (id: string) => {
     if (id === activeChatId) { setShowSessions(false); return; }
+    chatGenerationRef.current += 1;
     pendingAutoStartRef.current = null;
     setIsPreparingMeal(false);
     setRecommendedRecipes([]);
@@ -2132,12 +2184,6 @@ export default function AIChefScreen() {
     };
 
     const onSelectImage = async (idx: number) => {
-      // 唔可以用 chatMutation.isPending 靜靜 return：影相會開新對話，
-      // 上一輪請求未返都唔應該阻止，否則用戶見到「揀完相冇反應」。
-      if (chatMutation.isPending) {
-        try { chatMutation.reset(); } catch { /* ignore */ }
-      }
-
       let result: ImagePicker.ImagePickerResult;
       // Web：expo-image-picker 唔支援，直接用 <input type=file>
       if (Platform.OS === "web") {
@@ -2150,16 +2196,25 @@ export default function AIChefScreen() {
           input.style.left = "-9999px";
           input.style.opacity = "0";
           document.body.appendChild(input);
+          let settled = false;
           const cleanup = () => { try { input.remove(); } catch { /* ignore */ } };
+          const finish = (value: any) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            cleanup();
+            resolve(value);
+          };
+          const timer = setTimeout(() => finish(null), 15_000);
           input.onchange = () => {
             const file = input.files?.[0];
-            if (!file) { resolve(null); return; }
+            if (!file) { finish(null); return; }
             const reader = new FileReader();
-            reader.onload = () => { cleanup(); resolve({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] }); };
-            reader.onerror = () => { cleanup(); resolve(null); };
+            reader.onload = () => finish({ canceled: false, assets: [{ uri: String(reader.result), mimeType: file.type || "image/jpeg" }] });
+            reader.onerror = () => finish(null);
             reader.readAsDataURL(file);
           };
-          input.oncancel = () => { cleanup(); resolve(null); };
+          input.oncancel = () => finish(null);
           input.click();
         });
         if (!picked) return;
@@ -2185,13 +2240,10 @@ export default function AIChefScreen() {
         });
       }
 
-      if (result.canceled || !result.assets?.[0]) return;
-
-      // 雪櫃相片係一個獨立任務：開新對話，唔好被上一輪對話（例如「唔要辣」）污染
-      handleNewChat();
-      // handleNewChat 會 reset chatStarted=false（返工具頁），要即刻保持對話畫面，
-      // 否則相片上載／分析完，用戶仍然望住工具格，以為「冇反應」。
-      setChatStarted(true);
+      if (result.canceled || !result.assets?.[0]) {
+        showToast(t("未選擇圖片" as any));
+        return;
+      }
 
       try {
         const imageCount = messages.filter(
@@ -2201,40 +2253,29 @@ export default function AIChefScreen() {
           showToast(t("本次對話已達 {{n}} 張圖上限，請開始新對話" as any, { n: MAX_IMAGES_PER_SESSION }));
           return;
         }
-
-        let compressed: { base64: string; mimeType: string };
-        try {
-          compressed = await compressImage(result.assets[0].uri);
-        } catch (e) {
-          // Web：expo-image-manipulator 唔一定支援，直接用原圖做 base64
-          if (Platform.OS !== "web") throw e;
-          const blob = await (await fetch(result.assets[0].uri)).blob();
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-          let bin = "";
-          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-          compressed = { base64: btoa(bin), mimeType: blob.type || "image/jpeg" };
-        }
-
-        if (uploadingRef.current) return;
-        uploadingRef.current = true;
-        let imageUrl: string;
-        try {
-          showToast("正在上傳圖片...");
-          const up = await apiClient.recipes.uploadRecipeImage.mutate({
-            base64: compressed.base64,
-            mimeType: compressed.mimeType,
-          });
-          imageUrl = up?.url ?? "";
-          if (!imageUrl) throw new Error("upload returned no url");
-          // 相對路徑（/r2-storage/…）要補返後端 base，否則手機 Image 拎唔到
-          if (imageUrl.startsWith("/")) imageUrl = `${API_BASE_URL}${imageUrl}`;
-        } catch (e: any) {
-          Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
-          uploadingRef.current = false;
+        if (uploadingRef.current) {
+          showToast(t("圖片處理中，請稍等" as any));
           return;
-        } finally {
-          uploadingRef.current = false;
         }
+        uploadingRef.current = true;
+
+        const compressed = Platform.OS === "web"
+          ? await compressImageForWeb(result.assets[0].uri)
+          : await compressImage(result.assets[0].uri);
+        if (!compressed.base64) throw new Error("empty_image");
+        if (compressed.base64.length > MAX_UPLOAD_BASE64_LENGTH) throw new Error("image_too_large");
+
+        showToast(t("正在上傳圖片..." as any));
+        const up = await apiClient.recipes.uploadRecipeImage.mutate({
+          base64: compressed.base64,
+          mimeType: compressed.mimeType,
+        });
+        let imageUrl = up?.url ?? "";
+        if (!imageUrl) throw new Error("upload returned no url");
+        if (imageUrl.startsWith("/")) imageUrl = `${API_BASE_URL}${imageUrl}`;
+
+        const imageSessionId = handleNewChat();
+        setChatStarted(true);
 
         const imageMsg: Message = {
           role: "user",
@@ -2279,10 +2320,13 @@ export default function AIChefScreen() {
               .map(normalizeRecipe)
               .filter(isValidRecipe);
             if (libraryRecipes.length > 0) {
-              updateMessages(prev => [...prev, imageMsg]);
+              updateMessagesFor(imageSessionId, prev => [...prev, imageMsg]);
               setRecommendedRecipes(libraryRecipes);
               recordSeenRecipes(libraryRecipes);
-              addBotMessage(t("aiChef.pantryRecognized", { items: ingredients.join("、"), n: libraryRecipes.length }));
+              updateMessagesFor(imageSessionId, prev => [...prev, {
+                role: "assistant",
+                content: t("aiChef.pantryRecognized", { items: ingredients.join("、"), n: libraryRecipes.length }),
+              }]);
               setLibraryLoading(false);
               scrollToEnd();
               return;
@@ -2295,15 +2339,15 @@ export default function AIChefScreen() {
 
         // Fallback：原有 AI flow（連相問可以煮咩）
         resetAiNextSteps();
-        updateMessages((prev) => {
-          const msgs: Message[] = [...prev, imageMsg];
-          return msgs;
-        });
-        sendChat(buildBackendMessages([...messages, imageMsg]));
+        updateMessagesFor(imageSessionId, prev => [...prev, imageMsg]);
+        sendChat(buildBackendMessages([imageMsg]));
         scrollToEnd();
       } catch (e: any) {
         console.error("[AI 助手] image upload/send failed:", e);
         Alert.alert(t("上傳失敗" as any), friendlyError(e) ?? t("請重試" as any));
+      } finally {
+        uploadingRef.current = false;
+        setLibraryLoading(false);
       }
     };
 
@@ -3069,7 +3113,10 @@ export default function AIChefScreen() {
   };
 
   const handlePantryAction = async () => {
-    if (chatMutation.isPending) return;
+    if (chatMutation.isPending) {
+      showToast(t("AI 回覆中，請稍等" as any));
+      return;
+    }
     if (mealStep !== "idle") {
       setMealStep("idle");
       setMealPrefs(EMPTY_PREFS);
@@ -3126,7 +3173,10 @@ export default function AIChefScreen() {
   };
 
   const handleQuickAction = async (id: string) => {
-    if (chatMutation.isPending) return;
+    if (chatMutation.isPending && id !== "fridge") {
+      showToast(t("AI 回覆中，請稍等" as any));
+      return;
+    }
     if (mealStep !== "idle") {
       setMealStep("idle");
       setMealPrefs(EMPTY_PREFS);
@@ -5422,8 +5472,8 @@ export default function AIChefScreen() {
         <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
         {!hideUpgradePromo && <AdSlot onPressUpgrade={() => setShowPaywall(true)} />}
           <View style={s.inputBar}>
-            <TouchableOpacity style={s.camBtn} onPress={handleCamera} disabled={chatMutation.isPending}>
-              <Ionicons name="camera-outline" size={22} color={chatMutation.isPending ? HINT : BRAND} />
+            <TouchableOpacity style={s.camBtn} onPress={handleCamera}>
+              <Ionicons name="camera-outline" size={22} color={BRAND} />
             </TouchableOpacity>
             <TextInput
               testID="ai-chef-input"
