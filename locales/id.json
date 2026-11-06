@@ -406,7 +406,13 @@
     "shoppingConfirmBody": "{{n}} bahan (hidangan {{date}})",
     "addToShoppingList": "Tambah ke senarai beli-belah",
     "pantrySeenNoLibrary": "Saya melihat Anda punya: {{items}}. Belum ada resep yang cocok di pustaka — mau saya buatkan dengan AI?",
-    "pantryRecognizeFailed": "Saya tidak bisa membaca bahan di foto ini. Coba foto lain atau sebutkan bahannya."
+    "pantryRecognizeFailed": "Saya tidak bisa membaca bahan di foto ini. Coba foto lain atau sebutkan bahannya.",
+    "visionDishSeen": "Saya melihat ini di foto: {{items}}",
+    "visionFridgeSeen": "Saya melihat Anda punya: {{items}}",
+    "similarRecipes": "Cari resep serupa",
+    "similarAi": "Buat hidangan serupa (2 credits)",
+    "similarNoMatch": "Tidak ada resep yang mirip. Coba AI generation.",
+    "similarAiDone": "Membuat hidangan serupa dari foto."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",

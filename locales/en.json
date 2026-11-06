@@ -406,7 +406,13 @@
     "shoppingConfirmBody": "{{n}} ingredients (meal on {{date}})",
     "addToShoppingList": "Add to shopping list",
     "pantrySeenNoLibrary": "I can see you have: {{items}}. The library has no matching recipes yet — want me to generate one with AI?",
-    "pantryRecognizeFailed": "I couldn't read the ingredients in this photo. Try another photo, or tell me the ingredients."
+    "pantryRecognizeFailed": "I couldn't read the ingredients in this photo. Try another photo, or tell me the ingredients.",
+    "visionDishSeen": "I can see this in the photo: {{items}}",
+    "visionFridgeSeen": "I can see you have: {{items}}",
+    "similarRecipes": "Find similar recipes",
+    "similarAi": "Generate a similar dish (2 credits)",
+    "similarNoMatch": "No close recipe found. You can try AI generation.",
+    "similarAiDone": "Generated a similar dish from the photo."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",

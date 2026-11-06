@@ -406,7 +406,13 @@
     "shoppingConfirmBody": "{{n}} sangkap (pagkain sa {{date}})",
     "addToShoppingList": "Idagdag sa shopping list",
     "pantrySeenNoLibrary": "Nakikita ko na mayroon ka: {{items}}. Wala pang tugmang recipe sa library — gusto mo bang gumawa ako gamit ang AI?",
-    "pantryRecognizeFailed": "Hindi ko mabasa ang mga sangkap sa larawan. Subukan ulit o sabihin ang mga sangkap."
+    "pantryRecognizeFailed": "Hindi ko mabasa ang mga sangkap sa larawan. Subukan ulit o sabihin ang mga sangkap.",
+    "visionDishSeen": "Nakikita ko ito sa larawan: {{items}}",
+    "visionFridgeSeen": "Nakikita ko na mayroon ka: {{items}}",
+    "similarRecipes": "Maghanap ng katulad na recipe",
+    "similarAi": "Gumawa ng katulad na putahe (2 credits)",
+    "similarNoMatch": "Walang malapit na recipe. Subukan ang AI generation.",
+    "similarAiDone": "Nakagawa ng katulad na putahe mula sa larawan."
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
