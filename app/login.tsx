@@ -53,7 +53,7 @@ try {
 type Mode = "login" | "register" | "admin" | "otp";
 
 export default function LoginScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ mode?: string; apple?: string; next?: string }>();
 
@@ -106,7 +106,8 @@ export default function LoginScreen() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setOtpMsg(t("auth.invalidEmail") as any); return; }
     setOtpMsg(null); setIsLoading(true); setLoadingType("otp");
     try {
-      await requestOtpM.mutateAsync({ email: email.trim() });
+      // Send our UI language so the verification email arrives in it.
+      await requestOtpM.mutateAsync({ email: email.trim(), lang: i18n?.language });
       // 新碼發出：解鎖 Verify 掣，否則上一輪消耗咗就永遠撳唔到
       setOtpConsumed(false);
       setOtpStep("code");
