@@ -622,7 +622,20 @@ export interface CreateOfficialRecipeInput {
 export interface Recipe {
   id: string;
   name: string;
+  nameEn?: string;
+  nameFil?: string;
+  nameId?: string;
   description?: string;
+  descriptionEn?: string;
+  descriptionFil?: string;
+  descriptionId?: string;
+  tips?: string;
+  tipsEn?: string;
+  tipsFil?: string;
+  tipsId?: string;
+  stepsEn?: unknown[];
+  stepsFil?: unknown[];
+  stepsId?: unknown[];
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
   prepTime?: number;

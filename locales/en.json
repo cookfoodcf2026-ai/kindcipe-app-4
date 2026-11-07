@@ -528,7 +528,8 @@
     "loadFailedBody": "Check your connection and try again.",
     "retry": "Retry",
     "login": "Log in",
-    "privateShareHint": "This recipe is private — copied the recipe text (not a link)"
+    "privateShareHint": "This recipe is private — copied the recipe text (not a link)",
+    "original": "Original"
   },
   "enums": {
     "category": {

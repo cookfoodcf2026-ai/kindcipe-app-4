@@ -528,7 +528,8 @@
     "loadFailedBody": "請檢查網絡後再試。",
     "retry": "重試",
     "login": "登入",
-    "privateShareHint": "此食譜為私密，已複製食譜文字（非連結）"
+    "privateShareHint": "此食譜為私密，已複製食譜文字（非連結）",
+    "original": "原文"
   },
   "enums": {
     "category": {

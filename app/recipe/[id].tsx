@@ -51,6 +51,7 @@ import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { CollectionButton } from "@/src/components/CollectionButton";
 import { isSeasoning, isWaterIngredient, calcAdjustedQty, NON_SCALABLE_CATS } from "@/constants/ingredients";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
+import { getLocalizedTip } from "@/lib/tipLocalization";
 import { friendlyError } from "@/lib/errors";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
@@ -275,8 +276,8 @@ export default function RecipeDetailScreen() {
   const recipe = recipeQ.data;
   // DB/API 欄位叫 tips；舊版 client 讀 housewifeTips → 主婦貼士一直空白。
   // 兩邊都讀，等舊資料同新資料都顯示到。
-  const housewifeTips: string =
-    ((recipe as any)?.tips ?? (recipe as any)?.housewifeTips ?? "") as string;
+  const localizedTip = getLocalizedTip(i18n.language, recipe as any);
+  const housewifeTips = localizedTip.text;
   const recipeStringId = id ?? "";
 
   // Analytics: record a recipe "view" once per recipe id (dedup across re-renders).
@@ -1372,6 +1373,9 @@ export default function RecipeDetailScreen() {
                 <View style={s.tipsRow}>
                   <Ionicons name="bulb-outline" size={15} color="#F59E0B" />
                   <Text style={s.tipsTitle}>{t("recipe.tips")}</Text>
+                  {localizedTip.isOriginal && (
+                    <Text style={s.tipsOriginalBadge}>{t("recipe.original" as any)}</Text>
+                  )}
                 </View>
                 <Text 
                   selectable 
@@ -2569,6 +2573,7 @@ const s = StyleSheet.create({
   tipsCard: { backgroundColor: "#FFFBEB", marginTop: 12, borderRadius: 16, padding: 12, borderLeftWidth: 4, borderLeftColor: "#F59E0B" },
   tipsRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   tipsTitle: { fontSize: 14, fontWeight: "800", color: "#92400E" },
+  tipsOriginalBadge: { fontSize: 10, fontWeight: "800", color: "#B45309", backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
   tipsTxt: { fontSize: 13, color: "#78350F", lineHeight: 20 },
 
   // Cooking Tips Card

@@ -20,7 +20,8 @@
     "test:visual:update": "playwright test e2e/visual --update-snapshots",
     "i18n:ui:audit": "node scripts/i18n-ui-audit.js --check",
     "i18n:ui:baseline": "node scripts/i18n-ui-audit.js --write-baseline",
-    "test:units": "tsx --test lib/unitLocalization.test.ts"
+    "test:units": "tsx --test lib/unitLocalization.test.ts",
+    "test:tips": "tsx --test lib/tipLocalization.test.ts lib/recipeContract.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

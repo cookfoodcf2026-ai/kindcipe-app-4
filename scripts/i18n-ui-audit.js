@@ -175,7 +175,7 @@ function shouldCountString(node, sf) {
 
 function auditFile(file) {
   const rel = path.relative(ROOT, file).split(path.sep).join("/");
-  if (SKIP_FILES.has(rel)) return [];
+  if (SKIP_FILES.has(rel) || /\.test\.(ts|tsx)$/.test(rel)) return [];
   const source = fs.readFileSync(file, "utf8");
   const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, kind);
