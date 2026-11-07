@@ -48,7 +48,14 @@ i18n
   .init({
     resources,
     lng: 'zh-TW',
-    fallbackLng: 'zh-TW',
+    // fil/id must never fall back to Chinese first; English is the safe
+    // fallback, with zh-TW only as a last resort for missing English keys.
+    fallbackLng: {
+      'fil': ['en', 'zh-TW'],
+      'id': ['en', 'zh-TW'],
+      'zh-TW': ['en'],
+      default: ['en'],
+    },
     interpolation: {
       escapeValue: false,
     },
