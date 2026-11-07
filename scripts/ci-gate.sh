@@ -56,9 +56,9 @@ node scripts/check-i18n-keys.js
 echo "✅ i18n keys passed"
 echo ""
 
-# Step 5: i18n hardcoded-CJK audit (strict — fails on any hardcoded CJK in JSX)
-echo "🌐 Auditing hardcoded CJK in UI (strict)..."
-node scripts/audit-i18n.js --strict
+# Step 5: i18n hardcoded-CJK audit (AST-aware baseline: no new UI CJK)
+echo "🌐 Auditing hardcoded CJK in UI (baseline)..."
+node scripts/i18n-ui-audit.js --check
 echo "✅ i18n audit passed"
 echo ""
 

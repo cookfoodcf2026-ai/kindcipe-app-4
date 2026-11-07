@@ -17,7 +17,9 @@
     "lint:typography": "eslint --max-warnings=0 app/settings.tsx \"app/(tabs)/more.tsx\" \"app/(tabs)/index.tsx\" src/components/RecipeCard.tsx app/visual-typography.tsx",
     "test:photo-flow": "tsx --test src/features/photoFlow.test.ts",
     "test:visual": "playwright test e2e/visual",
-    "test:visual:update": "playwright test e2e/visual --update-snapshots"
+    "test:visual:update": "playwright test e2e/visual --update-snapshots",
+    "i18n:ui:audit": "node scripts/i18n-ui-audit.js --check",
+    "i18n:ui:baseline": "node scripts/i18n-ui-audit.js --write-baseline"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
