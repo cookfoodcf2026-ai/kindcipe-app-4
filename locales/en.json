@@ -643,7 +643,11 @@
       "toTaste": "to taste",
       "spoon": "spoon",
       "tael": "tael",
-      "mace": "mace"
+      "mace": "mace",
+      "sheet": "sheet",
+      "largeBunch": "large bunch",
+      "head": "head",
+      "portion": "portion"
     },
     "difficulty": {
       "easy": "Easy",
@@ -753,6 +757,10 @@
       "thai": "Thai",
       "indian": "Indian",
       "cantonese": "Cantonese"
+    },
+    "quantity": {
+      "toTaste": "to taste",
+      "pinch": "a pinch"
     }
   },
   "tabs": {

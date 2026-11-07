@@ -1,6 +1,7 @@
 import i18n from "./i18n";
 import { useTranslation } from "react-i18next";
-import { CATEGORY_KEY_TO_LABEL, UNIT_KEY_TO_LABEL } from "./commonIngredients";
+import { CATEGORY_KEY_TO_LABEL } from "./commonIngredients";
+import { QUANTITY_NUMBER_MAP, QUANTITY_ZH_TO_KEY, UNKNOWN_UNIT_FALLBACK_KEY, UNIT_ZH_TO_KEY, isQuantityLabel } from "./unitLocalization";
 
 // ─── 中文 stored value → stable key ───────────────────────────────────────────
 function reverse(m: Record<string, string>): Record<string, string> {
@@ -9,23 +10,6 @@ function reverse(m: Record<string, string>): Record<string, string> {
   return r;
 }
 const CATEGORY_ZH_TO_KEY = { ...reverse(CATEGORY_KEY_TO_LABEL), "湯水": "soup" };
-
-// 補充單位（唔喺 UNIT_KEY_TO_LABEL 內嘅常用單位）
-const EXTRA_UNITS: Record<string, string> = {
-  "克": "g", "公斤": "kg", "毫升": "ml", "湯匙": "tbsp", "茶匙": "tsp",
-  "碗": "bowl", "碟": "plate", "盤": "plate", "份": "serving", "粒": "grain",
-  "根": "root", "朵": "flower", "隻": "piece", "套": "set", "排": "row",
-  "適量": "toTaste", "少許": "toTaste",
-  // 簡體 / 常見描述型量詞（都應歸入 unit，避免非中文介面漏中文）
-  "适量": "toTaste", "少许": "toTaste", "少量": "toTaste", "酌量": "toTaste",
-  "隨意": "toTaste", "随意": "toTaste", "適量調味": "toTaste", "适量调味": "toTaste",
-  "少許調味": "toTaste", "少许调味": "toTaste", "適量即可": "toTaste",
-  "to taste": "toTaste", "pinch": "toTaste",
-  // 常見漏譯單位
-  "小匙": "tsp", "大匙": "tbsp", "匙": "spoon", "顆": "piece", "公克": "g",
-  "兩": "tael", "錢": "mace",
-};
-const UNIT_ZH_TO_KEY: Record<string, string> = { ...reverse(UNIT_KEY_TO_LABEL), ...EXTRA_UNITS };
 
 // 複合單位（例如「片 (約300-350g)」）→ 譯前綴單位 token，其餘數字/重量原樣保留
 function localizeUnitValue(raw: string, translate: (key: string) => string | undefined): string {
@@ -98,6 +82,23 @@ function guardLeak(out: string): string {
   return CJK_RE.test(out) ? "" : out;
 }
 
+const warnedUnmappedUnits = new Set<string>();
+function fallbackUnit(raw: string, translate: (key: string) => string): string {
+  if (String(i18n.language || "").startsWith("zh")) return raw;
+  if (!warnedUnmappedUnits.has(raw)) {
+    warnedUnmappedUnits.add(raw);
+    console.warn(`[i18n] unmapped unit: ${raw}`);
+  }
+  return translate(UNKNOWN_UNIT_FALLBACK_KEY);
+}
+
+function localizeUnit(raw: string, translate: (key: string) => string | undefined): string {
+  if (isQuantityLabel(raw)) return String(translate(`quantity.${QUANTITY_ZH_TO_KEY[raw]}`) ?? raw);
+  const out = localizeUnitValue(raw, translate);
+  if (out === raw && CJK_RE.test(raw)) return fallbackUnit(raw, (key) => String(translate(key) ?? ""));
+  return guardLeak(out);
+}
+
 /** 非組件用（helper / constants）：用 i18n.t，搵唔到顯示原文 */
 export const enumT = {
   category: (v: string): string => {
@@ -108,28 +109,37 @@ export const enumT = {
     return guardLeak(out === k ? fallback : out);
   },
   unit: (v: string): string => {
-    return guardLeak(localizeUnitValue(v, (key) => {
-      const k = `enums.unit.${key}`;
+    return localizeUnit(v, (key) => {
+      const k = key.startsWith("quantity.") ? `enums.${key}` : `enums.unit.${key}`;
       const out = String(i18n.t(k as any));
       return out === k ? undefined : out;
-    }));
+    });
   },
   // 複數單位：只有英文有 plural 表，其他語言自動 fallback 單數
   unitPlural: (v: string): string => {
-    return guardLeak(localizeUnitValue(v, (key) => {
+    if (isQuantityLabel(v)) return enumT.qty(v);
+    const out = localizeUnitValue(v, (key) => {
       const kp = `enums.unitPlural.${key}`;
       const outP = String(i18n.t(kp as any));
       if (outP !== kp) return outP;
       const k = `enums.unit.${key}`;
       const out = String(i18n.t(k as any));
       return out === k ? undefined : out;
-    }));
+    });
+    if (out === v && CJK_RE.test(v)) return fallbackUnit(v, (key) => String(i18n.t(`enums.unit.${key}` as any)));
+    return guardLeak(out);
   },
   // 數量欄位：若係描述型量詞（適量…）→ 用單位譯名；純數字原樣；未知中文→非中文介面隱藏。
   qty: (v: string): string => {
     const s = String(v ?? "").trim();
     if (!s) return "";
-    if (UNIT_ZH_TO_KEY[s]) return enumT.unit(s);
+    const key = QUANTITY_ZH_TO_KEY[s];
+    if (key) {
+      const k = `enums.quantity.${key}`;
+      const out = String(i18n.t(k as any));
+      return out === k ? s : out;
+    }
+    if (QUANTITY_NUMBER_MAP[s]) return QUANTITY_NUMBER_MAP[s];
     return guardLeak(s);
   },
   difficulty: (v: string): string => {
@@ -166,31 +176,41 @@ export function useEnum() {
     const out = t(k as any);
     return out === k ? fallback : out;
   };
-  const unitL = (v: string): string =>
-    guardLeak(localizeUnitValue(v, (key) => {
-      const k = `enums.unit.${key}`;
-      const out = t(k as any);
-      return out === k ? undefined : out;
-    }));
-  const unitPluralL = (v: string): string =>
-    guardLeak(localizeUnitValue(v, (key) => {
+  const unitL = (v: string): string => localizeUnit(v, (key) => {
+    const k = key.startsWith("quantity.") ? `enums.${key}` : `enums.unit.${key}`;
+    const out = t(k as any);
+    return out === k ? undefined : out;
+  });
+  const unitPluralL = (v: string): string => {
+    if (isQuantityLabel(v)) return qtyL(v);
+    const out = localizeUnitValue(v, (key) => {
       const kp = `enums.unitPlural.${key}`;
       const outP = t(kp as any);
       if (outP !== kp) return outP;
       const k = `enums.unit.${key}`;
       const out = t(k as any);
       return out === k ? undefined : out;
-    }));
+    });
+    if (out === v && CJK_RE.test(v)) return fallbackUnit(v, (key) => String(t(`enums.unit.${key}` as any)));
+    return guardLeak(out);
+  };
+  const qtyL = (v: string): string => {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    const key = QUANTITY_ZH_TO_KEY[s];
+    if (key) {
+      const k = `enums.quantity.${key}`;
+      const out = t(k as any);
+      return out === k ? s : out;
+    }
+    if (QUANTITY_NUMBER_MAP[s]) return QUANTITY_NUMBER_MAP[s];
+    return guardLeak(s);
+  };
   return {
     category: (v: string): string => guardLeak(tr("category", lookup(CATEGORY_ZH_TO_KEY, v), String(v ?? ""))),
     unit: unitL,
     unitPlural: unitPluralL,
-    qty: (v: string): string => {
-      const s = String(v ?? "").trim();
-      if (!s) return "";
-      if (UNIT_ZH_TO_KEY[s]) return unitL(s);
-      return guardLeak(s);
-    },
+    qty: qtyL,
     difficulty: (v: string): string => guardLeak(tr("difficulty", lookup(DIFFICULTY_ANY, v), String(v ?? ""))),
     tag: (v: string): string => guardLeak(tr("tag", lookup(TAG_ZH_TO_KEY, v), String(v ?? ""))),
     meal: (v: string): string => guardLeak(tr("meal", lookup(MEAL_ZH_TO_KEY, v), String(v ?? ""))),

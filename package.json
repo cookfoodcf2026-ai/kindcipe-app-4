@@ -19,7 +19,8 @@
     "test:visual": "playwright test e2e/visual",
     "test:visual:update": "playwright test e2e/visual --update-snapshots",
     "i18n:ui:audit": "node scripts/i18n-ui-audit.js --check",
-    "i18n:ui:baseline": "node scripts/i18n-ui-audit.js --write-baseline"
+    "i18n:ui:baseline": "node scripts/i18n-ui-audit.js --write-baseline",
+    "test:units": "tsx --test lib/unitLocalization.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -86,6 +87,7 @@
     "eslint-config-expo": "~10.0.0",
     "jest": "^29.7.0",
     "patch-package": "8.0.1",
+    "tsx": "4.19.1",
     "typescript": "^5.3.3"
   }
 }

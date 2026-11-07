@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { useTranslation } from "react-i18next";
 import { getBilingualName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { DateUtil } from "@/src/lib/DateUtil";
 import i18n from "@/lib/i18n";
 import { friendlyError } from "@/lib/errors";
@@ -510,7 +511,7 @@ export default function PurchaseHistoryScreen() {
                               </View>
                               <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
                                 {(item.quantity || item.unit) && (
-                                  <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>
+                                  <Text style={{ fontSize: 12, color: SUB }}>{formatIngredientDisplay(item.quantity, item.unit)}</Text>
                                 )}
                                 {hasBudget && hasActual ? (
                                   <>
@@ -630,7 +631,7 @@ export default function PurchaseHistoryScreen() {
                           <Text style={{ fontSize: 14, fontWeight: "700", color: TEXT }} numberOfLines={1}>{biName(cleanItemName(item.name)).primary}</Text>
                           <View style={{ flexDirection: "row", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
                             <Text style={{ fontSize: 12, color: "#DC2626" }}>{t("dyn.planned", { date: item.plannedDate ? formatDate(item.plannedDate) : t("dyn.undecided") })}</Text>
-                            {(item.quantity || item.unit) && <Text style={{ fontSize: 12, color: SUB }}>{item.quantity}{item.unit ? ` ${enumT.unit(item.unit)}` : ""}</Text>}
+                            {(item.quantity || item.unit) && <Text style={{ fontSize: 12, color: SUB }}>{formatIngredientDisplay(item.quantity, item.unit)}</Text>}
                             {item.estimatedPrice != null ? (
                               <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>{t("dyn.budgetHK", { price: item.estimatedPrice })}</Text>
                             ) : (

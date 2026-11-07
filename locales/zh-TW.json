@@ -613,7 +613,11 @@
       "toTaste": "適量",
       "spoon": "匙",
       "tael": "兩",
-      "mace": "錢"
+      "mace": "錢",
+      "sheet": "張",
+      "largeBunch": "大束",
+      "head": "頭",
+      "portion": "份"
     },
     "difficulty": {
       "easy": "簡單",
@@ -723,6 +727,10 @@
       "thai": "泰式",
       "indian": "印度",
       "cantonese": "粵菜"
+    },
+    "quantity": {
+      "toTaste": "適量",
+      "pinch": "少許"
     }
   },
   "tabs": {

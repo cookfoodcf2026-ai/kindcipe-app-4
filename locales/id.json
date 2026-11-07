@@ -613,7 +613,11 @@
       "toTaste": "secukupnya",
       "spoon": "sendok",
       "tael": "tael",
-      "mace": "mace"
+      "mace": "mace",
+      "sheet": "lembar",
+      "largeBunch": "ikat besar",
+      "head": "kepala",
+      "portion": "porsi"
     },
     "difficulty": {
       "easy": "Mudah",
@@ -723,6 +727,10 @@
       "thai": "Thailand",
       "indian": "India",
       "cantonese": "Kanton"
+    },
+    "quantity": {
+      "toTaste": "secukupnya",
+      "pinch": "sejumput"
     }
   },
   "tabs": {

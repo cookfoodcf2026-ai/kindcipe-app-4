@@ -1469,8 +1469,7 @@ export default function RecipeDetailScreen() {
                             if (unit === "適量" || unit === "少許" || qty === "適量" || qty === "少許") {
                               return enumT.unit(unit || qty);
                             }
-                            if (!unit) return /^[\d.\s]+$/.test(qty) ? qty : enumT.unit(qty);
-                            return `${qty} ${enumT.unit(unit)}`.trim();
+                            return formatIngredientDisplay(qty, unit);
                           })()}
                         </Text>
                         {recordedPrice !== null && (

@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import i18n from "@/lib/i18n";
 import { apiClient, resolveImageUrl, trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -341,7 +342,7 @@ export default function AiPlanScreen() {
                     <Text style={s.ingredientName}>{ing.name}</Text>
                     <Text style={s.ingredientCategory}>{ing.category}</Text>
                   </View>
-                  <Text style={s.ingredientQty}>{[ing.quantity, ing.unit].filter(Boolean).join(" ")}</Text>
+                  <Text style={s.ingredientQty}>{formatIngredientDisplay(ing.quantity, ing.unit)}</Text>
                 </View>
               )) : null}
             </ScrollView>

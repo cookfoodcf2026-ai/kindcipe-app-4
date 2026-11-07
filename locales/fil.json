@@ -613,7 +613,11 @@
       "toTaste": "ayon sa lasa",
       "spoon": "kutsara",
       "tael": "tael",
-      "mace": "mace"
+      "mace": "mace",
+      "sheet": "piraso",
+      "largeBunch": "malaking bigkis",
+      "head": "ulo",
+      "portion": "bahagi"
     },
     "difficulty": {
       "easy": "Madali",
@@ -723,6 +727,10 @@
       "thai": "Thai",
       "indian": "Indian",
       "cantonese": "Cantonese"
+    },
+    "quantity": {
+      "toTaste": "ayon sa lasa",
+      "pinch": "isang kurot"
     }
   },
   "tabs": {
