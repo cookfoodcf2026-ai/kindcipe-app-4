@@ -547,14 +547,28 @@ export default function RecipesTab() {
   // 「我的食譜」子篩選：全部 / 自建 / 匯入（取代獨立「匯入」chip）
   const [mineSub, setMineSub] = useState<"all" | "manual" | "imported">("all");
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("popular");
-  // 「我嘅食譜／已匯入」預設按「最新新增」排（新匯入排第一）；
+  const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("newest");
+  // 食譜庫預設「最新優先」；「熱門」檢視仍然預設 popular。
   // 用戶手動揀過排序之後，就唔再自動蓋過佢嘅選擇。
   const sortByUserSet = useRef(false);
+  const sortStorageKey = `kindcipe_recipe_sort:${user?.id ?? "guest"}`;
   useEffect(() => {
     if (sortByUserSet.current) return;
-    setSortBy(viewMode === "user" || viewMode === "imported" ? "newest" : "popular");
+    setSortBy(viewMode === "hot" ? "popular" : "newest");
   }, [viewMode]);
+  useEffect(() => {
+    let active = true;
+    sortByUserSet.current = false;
+    setSortBy("newest");
+    AsyncStorage.getItem(sortStorageKey).then((stored) => {
+      if (!active || sortByUserSet.current) return;
+      if (stored === "newest" || stored === "popular" || stored === "updated" || stored === "cookTime" || stored === "difficulty") {
+        sortByUserSet.current = true;
+        setSortBy(stored);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [sortStorageKey]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
@@ -1581,7 +1595,12 @@ export default function RecipesTab() {
               <TouchableOpacity
                 key={opt.key}
                 style={{ flexDirection: "row", alignItems: "center", paddingVertical: 14 }}
-                onPress={() => { setSortBy(opt.key); sortByUserSet.current = true; setShowSortSheet(false); }}
+                onPress={() => {
+                  setSortBy(opt.key);
+                  sortByUserSet.current = true;
+                  AsyncStorage.setItem(sortStorageKey, opt.key).catch(() => {});
+                  setShowSortSheet(false);
+                }}
               >
                 <Text style={{ flex: 1, fontSize: 15, fontWeight: sortBy === opt.key ? "800" : "500", color: sortBy === opt.key ? BRAND : "#374151" }}>{opt.label}</Text>
                 {sortBy === opt.key && <Ionicons name="checkmark" size={20} color={BRAND} />}
