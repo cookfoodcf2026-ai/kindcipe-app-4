@@ -602,7 +602,7 @@ export default function ImportScreen() {
       "",
       "用 AI 推測（會標示為推測），定係換另一個連結？",
     ].filter(Boolean);
-    Alert.alert("部分內容係 AI 推測", lines.join("\n"), [
+    Alert.alert(t("部分內容係 AI 推測" as any), lines.join("\n"), [
       {
         text: "換其他 link",
         style: "cancel",
@@ -1349,8 +1349,8 @@ export default function ImportScreen() {
       const warning = parsedRecipe?.importWarning;
       if (warning?.requiresAck && !ackWarning) {
         Alert.alert(
-          "部分內容係 AI 推測",
-          "請先揀「用 AI 推測」（會標示）或換另一個連結，才儲存。",
+          t("部分內容係 AI 推測" as any),
+          t("請先揀「用 AI 推測」（會標示）或換另一個連結，才儲存。" as any),
         );
         setIsSaving(false);
         return;

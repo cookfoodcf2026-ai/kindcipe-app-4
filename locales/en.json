@@ -421,7 +421,8 @@
     "photoUploading": "Uploading photo…",
     "photoAnalyzing": "Looking at the ingredients in your photo…",
     "photoStillAnalyzing": "Still analyzing — please wait",
-    "photoTimeout": "Analysis timed out. Please try again."
+    "photoTimeout": "Analysis timed out. Please try again.",
+    "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
@@ -2568,5 +2569,19 @@
   "高蛋白": "High protein",
   "呢張草稿冇有效 ID，請自己填": "This draft has no valid ID — please fill it in yourself",
   "材料仲未齊，請先自己填材料": "Ingredients are incomplete — add them first",
-  "AI 補齊失敗，請再試": "AI could not fill the steps, please try again"
+  "AI 補齊失敗，請再試": "AI could not fill the steps, please try again",
+  "AI 助手一鍵生成 3 餸 1 湯": "AI Chef: one-tap 3 dishes + 1 soup",
+  "呢張草稿冇有效 ID，請用「我自己填」": "This draft has no valid ID. Please use “Fill it in myself”.",
+  "已補寫煮法，請確認後儲存": "Cooking steps added. Please review and save.",
+  "圖片處理中，請稍等": "Processing image, please wait.",
+  "呢張相入面有咩食材？": "What ingredients are in this photo?",
+  "未選擇圖片": "No image selected.",
+  "AI 回覆中，請稍等": "AI is replying, please wait.",
+  "搵食譜失敗": "Could not find recipes.",
+  "搵唔到相片資料，請再影一次": "Photo data not found. Please take another photo.",
+  "部分內容係 AI 推測": "Some content is AI-inferred.",
+  "請先揀「用 AI 推測」（會標示）或換另一個連結，才儲存。": "Please choose “Use AI inference” (it will be labelled) or use another link before saving.",
+  "儲存計劃失敗": "Failed to save the plan.",
+  "已用 AI 補寫煮法": "AI added cooking steps.",
+  "請檢查同修改，確認無誤後撳儲存。": "Please review and edit, then tap Save."
 }

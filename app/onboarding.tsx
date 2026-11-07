@@ -208,7 +208,7 @@ export default function OnboardingScreen(
       await apiClient.quickPlan.accept.mutate({ clientRequestId: `onboarding-${Date.now()}`, items });
       await finishOnboarding();
     } catch (e: any) {
-      Alert.alert("儲存計劃失敗", String(e?.message ?? ""));
+      Alert.alert(t("儲存計劃失敗" as any), String(e?.message ?? ""));
       setPlanLoading(false);
     }
   };
