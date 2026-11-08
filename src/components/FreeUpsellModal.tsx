@@ -1,6 +1,5 @@
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useTranslation } from "react-i18next";
 
 /**
  * 免費帳號升級提示（Life360 式：插圖／一句價值／一個主掣／X）。
@@ -21,8 +20,6 @@ export default function FreeUpsellModal({
   onUpgrade: () => void;
   onHaveCode?: () => void;
 }) {
-  const { t } = useTranslation();
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlay}>
@@ -42,7 +39,7 @@ export default function FreeUpsellModal({
           </Text>
 
           <Text style={s.body}>
-            升級 Pro：一個廚房共用 250 credits（AI 150 + 匯入 100），最多 4 位家人共用同一份餐單同買餸清單。
+            升級 Pro：一個廚房共用 150 AI credits + 100 次匯入，最多 4 位家人共用同一份餐單同買餸清單。
           </Text>
 
           <TouchableOpacity style={s.primary} onPress={onUpgrade} accessibilityRole="button">

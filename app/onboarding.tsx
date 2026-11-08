@@ -153,9 +153,9 @@ export default function OnboardingScreen(
     setSwapCount((c) => c + 1);
   };
 
-  /** 換日重排：清走現有結果，返回未生成狀態，等用戶重新撳「幫我計劃」 */
-  const switchPlanDay = () => {
-    setForceTomorrow(!planIsTomorrow);
+  /** 揀指定日子：清走現有結果，返回未生成狀態，等用戶重新撳「幫我計劃」 */
+  const pickPlanDay = (tomorrow: boolean) => {
+    setForceTomorrow(tomorrow);
     setPlanData(null);
     setSelection(null);
     setPlanError(null);
@@ -163,6 +163,11 @@ export default function OnboardingScreen(
     setAcceptConflict(false);
     setSwapCount(0);
     setSlotPick([0, 0, 0, 0]);
+  };
+
+  /** 換日重排：切換到另一日 */
+  const switchPlanDay = () => {
+    pickPlanDay(!planIsTomorrow);
   };
 
   const dateToggle = (
@@ -562,7 +567,7 @@ export default function OnboardingScreen(
             {planData
               ? (planData.days?.length ?? 1) > 1
                 ? `幫你排好 ${planData.days.length} 日`
-                : "今晚食呢 4 道"
+                : `${planWord}食呢 4 道`
               : `想我幫你計劃${planWord}晚餐？`}
           </Text>
           <Text style={{ fontSize: 14, color: "#5F6F80", marginBottom: 16 }}>
@@ -650,17 +655,23 @@ export default function OnboardingScreen(
           <View style={styles.planFooter}>
             {acceptError ? (
               <View style={styles.acceptErrorCard}>
-                <Text style={styles.acceptErrorTitle}>{t("儲存計劃失敗" as any)}</Text>
                 {acceptConflict ? (
                   <>
-                    <Text style={styles.acceptErrorBody}>
+                    <Text style={styles.acceptErrorTitle}>
                       {t("當日已有{{meal}}" as any, { meal: t("晚餐" as any) })}
                     </Text>
-                    <Text style={styles.acceptErrorHint}>{t("已有計劃，請去 Planner 修改" as any)}</Text>
-                    {dateToggle}
+                    <View style={styles.conflictDateRow}>
+                      <TouchableOpacity onPress={() => pickPlanDay(false)} style={styles.conflictDateBtn}>
+                        <Text style={styles.conflictDateBtnText}>今晚</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => pickPlanDay(true)} style={styles.conflictDateBtn}>
+                        <Text style={styles.conflictDateBtnText}>聽晚</Text>
+                      </TouchableOpacity>
+                    </View>
                   </>
                 ) : (
                   <>
+                    <Text style={styles.acceptErrorTitle}>{t("儲存計劃失敗" as any)}</Text>
                     <Text style={styles.acceptErrorBody}>{acceptError}</Text>
                     <TouchableOpacity onPress={() => setAcceptError(null)} style={styles.acceptErrorBack}>
                       <Text style={styles.acceptErrorBackText}>{t("onboarding.back")}</Text>
@@ -1430,11 +1441,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  acceptErrorHint: {
+  conflictDateRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  conflictDateBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D97706",
+  },
+  conflictDateBtnText: {
     color: "#92400E",
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
+    fontSize: 14,
+    fontWeight: "800",
   },
   acceptErrorBack: {
     alignSelf: "flex-start",
