@@ -71,6 +71,7 @@ export default function OnboardingScreen(
    
   // 加入廚房表單
   const [inviteCode, setInviteCode] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
@@ -496,11 +497,7 @@ export default function OnboardingScreen(
             onPress={async () => {
               try {
                 setLoading(true);
-                if (meQuery.data?.activeFamilyId) {
-                  // 已經有廚房 → 直接入 app，唔好再走 guide
-                  await finishOnboarding();
-                  return;
-                }
+                setJoinError(null);
                 const joined: any = await apiClient.family.join.mutate({ inviteCode: inviteCode.trim() });
                 // 加入後即刻切換到該廚房，否則 Settings 會停留喺「未加入廚房」＋ 睇唔到 quota。
                 // 後端 family.join 回傳 { success, family }（亦有舊格式回傳 id）→ 兩種都支援。
@@ -522,7 +519,7 @@ export default function OnboardingScreen(
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);
-                Alert.alert(t("加入廚房失敗" as any), msg || t("請重試" as any));
+                setJoinError(msg || t("請重試" as any));
               } finally {
                 setLoading(false);
               }
@@ -538,6 +535,8 @@ export default function OnboardingScreen(
               <Text style={styles.primaryBtnText}>{t("kitchen.joinKitchen")}</Text>
             )}
           </TouchableOpacity>
+
+          {joinError ? <Text style={styles.errorText}>{joinError}</Text> : null}
 
           <Text style={styles.formNote}>{t("onboarding.inviteNote")}</Text>
         </View>
