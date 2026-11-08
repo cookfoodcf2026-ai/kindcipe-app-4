@@ -5,8 +5,7 @@
  * 第二屏：你想做什麼？（建立 vs 加入廚房）
  * 第三屏 A：建立廚房（廚房名字 + 你的名字）
  * 第三屏 B：加入廚房（輸入邀請碼）
- * 第四屏：空廚房引導（三步說明）
- * 第五屏：匯入食譜（平台選擇 → URL/文字輸入 → 預覽 + 分類選擇 → 保存）
+ * 第四屏：匯入食譜（平台選擇 → URL/文字輸入 → 預覽 + 分類選擇 → 保存）
  */
 
 import { Ionicons } from "@expo/vector-icons";
@@ -33,34 +32,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc, apiClient } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
-import { isWeb } from "@/lib/platform";
 
-const { width, height } = Dimensions.get("window");
 const getOnboardingKey = (userId: string | number) => `kindcipe_onboarding_done_${userId}`;
 
-type OnboardingStep = "signin" | "choice" | "create" | "join" | "guide" | "plan" | "import";
-
-const GUIDE_SLIDES = [
-  { img: require("../assets/slide1.jpg"), title: "今晚食咩？AI 一鍵搞定", caption: "自動配好三餸一湯，唔使再煩", ui: null as string | null },
-  { img: require("../assets/slide2.jpg"), title: "家庭排餐，一目了然", caption: "僱主與工人姐姐即時同步", ui: "mealplan" as string | null },
-  { img: require("../assets/slide3.jpg"), title: "自動生成雙語買餸單", caption: "一鍵 Send 畀姐姐，買餸零錯漏", ui: "shopping" as string | null },
-  { img: require("../assets/slide4.jpg"), title: "家人溝通零時差", caption: "排餐、清單、買餸，一個 App 搞掂", ui: null as string | null },
-];
+type OnboardingStep = "signin" | "choice" | "create" | "join" | "plan" | "import";
 
 export default function OnboardingScreen(
   ) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { logout, switchFamily, activeFamilyId, familyRole } = useAuth();
+  const { logout, switchFamily } = useAuth();
   const utils = trpc.useUtils();
   const [step, setStep] = useState<OnboardingStep>("signin");
-  const [guidePage, setGuidePage] = useState(0);
-  const guideScrollRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
-  // Onboarding quick-plan（OpenCode 鎖定設計：guide → 自動計劃 2 日 → 開始使用／跳過）
+  // Onboarding quick-plan（OpenCode 鎖定設計：自動計劃 → 開始使用）
   const [planLoading, setPlanLoading] = useState(false);
   const [planData, setPlanData] = useState<any>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [acceptConflict, setAcceptConflict] = useState(false);
   const [swapCount, setSwapCount] = useState(0);
   const [pool, setPool] = useState<any[][] | null>(null);
   const [slotPick, setSlotPick] = useState<number[]>([0, 0, 0, 0]);
@@ -75,13 +65,6 @@ export default function OnboardingScreen(
   const planCta = `幫我計劃${planWord}`;
   const [selection, setSelection] = useState<any[] | null>(null);
 
-  // 桌面瀏覽器冇 touch swipe，靠箭咀／點擊圓點導航（mobile 唔顯示箭咀）
-  const gotoGuidePage = (page: number) => {
-    const clamped = Math.max(0, Math.min(GUIDE_SLIDES.length - 1, page));
-    setGuidePage(clamped);
-    guideScrollRef.current?.scrollTo({ x: clamped * width, animated: true });
-  };
-  
   // 建立廚房表單
   const [kitchenName, setKitchenName] = useState("");
   const [userName, setUserName] = useState("");
@@ -114,22 +97,12 @@ export default function OnboardingScreen(
     }
   };
 
-  /** guide 最後一步 → owner/admin 入「計劃晚餐」選擇；member/helper 直接跳過（OpenCode 鎖定設計） */
-  const startQuickPlan = async () => {
-    const role = (familyRole || "").toLowerCase();
-    if (role !== "owner" && role !== "admin") {
-      await finishOnboarding();
-      return;
-    }
-    setPlanData(null);
-    setPlanError(null);
-    setStep("plan");
-  };
-
   /** 用戶揀完日數才真正配餐（1 = 今晚，2 = 今晚＋聽晚） */
   const runQuickPlan = async (opts?: { swap?: boolean }) => {
     setPlanLoading(true);
     setPlanError(null);
+    setAcceptError(null);
+    setAcceptConflict(false);
     try {
       const base = new Date();
       if (planIsTomorrow) base.setDate(base.getDate() + 1);
@@ -179,9 +152,31 @@ export default function OnboardingScreen(
     setSwapCount((c) => c + 1);
   };
 
+  /** 換日重排：清走現有結果，返回未生成狀態，等用戶重新撳「幫我計劃」 */
+  const switchPlanDay = () => {
+    setForceTomorrow(!planIsTomorrow);
+    setPlanData(null);
+    setSelection(null);
+    setPlanError(null);
+    setAcceptError(null);
+    setAcceptConflict(false);
+    setSwapCount(0);
+    setSlotPick([0, 0, 0, 0]);
+  };
+
+  const dateToggle = (
+    <TouchableOpacity onPress={switchPlanDay} style={{ paddingVertical: 10, alignItems: "center" }}>
+      <Text style={{ color: "#2F5D7C", fontSize: 13, fontWeight: "700" }}>
+        {planIsTomorrow ? "改為今晚 ›" : "改為聽晚 ›"}
+      </Text>
+    </TouchableOpacity>
+  );
+
   const acceptQuickPlan = async () => {
     if (!planData?.days?.length) return;
     setPlanLoading(true);
+    setAcceptError(null);
+    setAcceptConflict(false);
     try {
       const dayRecipes = selection && selection.length ? selection : (planData.days[0]?.recipes ?? []);
       const items = planData.days.flatMap((d: any, di: number) =>
@@ -208,7 +203,9 @@ export default function OnboardingScreen(
       await apiClient.quickPlan.accept.mutate({ clientRequestId: `onboarding-${Date.now()}`, items });
       await finishOnboarding();
     } catch (e: any) {
-      Alert.alert(t("儲存計劃失敗" as any), String(e?.message ?? ""));
+      const code = e?.data?.code ?? e?.code;
+      setAcceptConflict(code === "CONFLICT");
+      setAcceptError(String(e?.message ?? "") || t("儲存計劃失敗" as any));
       setPlanLoading(false);
     }
   };
@@ -247,23 +244,29 @@ export default function OnboardingScreen(
   if (step === "signin") {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <Image
-            source={getAppLogo()}
-            style={styles.logoImageSmall}
-            resizeMode="contain"
-          />
-          <View style={styles.heroImageWrap}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.content, { flex: 0 }]}>
             <Image
-                    source={require("../assets/onbardingcard-v1.jpeg")}
-              style={styles.heroImage}
-              resizeMode="cover"
+              source={getAppLogo()}
+              style={styles.logoImageSmall}
+              resizeMode="contain"
             />
+            <View style={styles.heroImageWrap}>
+              <Image
+                source={require("../assets/onbardingcard-v1.jpeg")}
+                style={styles.heroImage}
+                resizeMode="cover"
+              />
+            </View>
+            <Text style={styles.heroTitle}>{t("onboarding.heroTitle")}</Text>
+            <Text style={styles.heroSubtitle}>{t("onboarding.heroSubtitle")}</Text>
+            <Text style={styles.heroDesc}>{t("onboarding.heroDesc")}</Text>
           </View>
-          <Text style={styles.heroTitle} adjustsFontSizeToFit numberOfLines={1}>{t("onboarding.heroTitle")}</Text>
-          <Text style={styles.heroSubtitle}>{t("onboarding.heroSubtitle")}</Text>
-          <Text style={styles.heroDesc}>{t("onboarding.heroDesc")}</Text>
-        </View>
+        </ScrollView>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity
@@ -293,51 +296,57 @@ export default function OnboardingScreen(
           </TouchableOpacity>
         </View>
 
-        <View style={styles.content}>
-          <Image
-            source={getAppLogo()}
-            style={styles.logoImageSmall}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>{t("onboarding.startTitle")}</Text>
-          <Text style={styles.subtitle}>{t("onboarding.startSubtitle")}</Text>
-        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between", paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.content, { flex: 0, paddingVertical: 24 }]}>
+            <Image
+              source={getAppLogo()}
+              style={styles.logoImageSmall}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>{t("onboarding.startTitle")}</Text>
+            <Text style={styles.subtitle}>{t("onboarding.startSubtitle")}</Text>
+          </View>
 
-        <View style={styles.choiceContainer}>
-          <TouchableOpacity
-            style={[styles.choiceBtn, styles.choiceBtnPrimary]}
-            onPress={() => setStep("create")}
-          >
-            <View style={styles.choiceIconWrapper}>
-              <View style={styles.choiceIconCircle}>
-                <Text style={styles.choiceIconText}>+</Text>
+          <View style={styles.choiceContainer}>
+            <TouchableOpacity
+              style={[styles.choiceBtn, styles.choiceBtnPrimary]}
+              onPress={() => setStep("create")}
+            >
+              <View style={styles.choiceIconWrapper}>
+                <View style={styles.choiceIconCircle}>
+                  <Text style={styles.choiceIconText}>+</Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.choiceTitle}>{t("kitchen.createKitchen")}</Text>
-            <Text style={styles.choiceDesc}>
-              建立你的家庭廚房{"\n"}
-              設定廚房名稱，邀請家人加入{"\n"}
-              {t("一起規劃餐單、同步購物清單" as any)}
-            </Text>
-          </TouchableOpacity>
+              <Text style={styles.choiceTitle}>{t("kitchen.createKitchen")}</Text>
+              <Text style={styles.choiceDesc}>
+                建立你的家庭廚房{"\n"}
+                設定廚房名稱，邀請家人加入{"\n"}
+                {t("一起規劃餐單、同步購物清單" as any)}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.choiceBtn, styles.choiceBtnSecondary]}
-            onPress={() => setStep("join")}
-          >
-            <View style={styles.choiceIconWrapper}>
-              <View style={styles.choiceIconCircleSecondary}>
-                <Text style={styles.choiceIconTextSecondary}>←</Text>
+            <TouchableOpacity
+              style={[styles.choiceBtn, styles.choiceBtnSecondary]}
+              onPress={() => setStep("join")}
+            >
+              <View style={styles.choiceIconWrapper}>
+                <View style={styles.choiceIconCircleSecondary}>
+                  <Text style={styles.choiceIconTextSecondary}>←</Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.choiceTitle}>{t("kitchen.joinKitchen")}</Text>
-            <Text style={styles.choiceDesc}>
-              輸入家人給你的邀請碼{"\n"}
-              加入已有廚房，與家人共享{"\n"}
-              {t("食譜、餐單、購買即時同步" as any)}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text style={styles.choiceTitle}>{t("kitchen.joinKitchen")}</Text>
+              <Text style={styles.choiceDesc}>
+                輸入家人給你的邀請碼{"\n"}
+                加入已有廚房，與家人共享{"\n"}
+                {t("食譜、餐單、購買即時同步" as any)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -387,7 +396,7 @@ export default function OnboardingScreen(
               try {
                 setLoading(true);
                 if (meQuery.data?.activeFamilyId) {
-                  setStep("guide");
+                  setStep("plan");
                   return;
                 }
                 const created: any = await apiClient.family.create.mutate({ name: kitchenName, nickname: userName.trim() || undefined });
@@ -409,7 +418,7 @@ export default function OnboardingScreen(
                   utils.family.usage.invalidate(),
                   utils.auth.me.invalidate(),
                 ]);
-                setStep("guide");
+                setStep("plan");
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("建立廚房失敗:", err);
@@ -508,9 +517,8 @@ export default function OnboardingScreen(
                   utils.family.usage.invalidate(),
                   utils.auth.me.invalidate(),
                 ]);
-                // 加入廚房 = 已經有廚房，唔應該再走「建立廚房」嗰套 guide／quick-plan。
-                // 車主 2026-11-05：第一次登記揀「加入廚房」之後仍然見到舊 onboarding。
-                await finishOnboarding();
+                // 加入廚房後直接入「排餐」一頁，唔再行 guide。
+                setStep("plan");
               } catch (err: any) {
                 const msg = friendlyError(err) || err?.data?.message || "";
                 console.error("加入廚房失敗:", err);
@@ -537,170 +545,20 @@ export default function OnboardingScreen(
     );
   }
 
-  // 第四屏：空廚房引導
-  if (step === "guide") {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.guideWrap}>
-          <View style={styles.guideHeader}>
-            <Image
-              source={getAppLogo()}
-              style={styles.guideLogo}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Full-bleed 混合式 Carousel：AI 背景 + 覆蓋標題 + (app UI) + 浮動 CTA */}
-          <View style={styles.carouselWrap}>
-            <ScrollView
-              ref={guideScrollRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={width}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              onMomentumScrollEnd={(e) => setGuidePage(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))}
-            >
-              {GUIDE_SLIDES.map((slide, i) => (
-                <View key={i} style={styles.slide}>
-                  <Image source={slide.img} style={styles.slideImg} resizeMode="cover" />
-                  <View style={styles.slideScrim} />
-
-                  <View style={styles.slideTop}>
-                    <Text style={styles.slideTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>{t(slide.title as any)}</Text>
-                    <Text style={styles.slideCaption} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{t(slide.caption as any)}</Text>
-                  </View>
-
-                  {slide.ui === "mealplan" && (
-                    <View style={styles.slideUI}>
-                      <View style={styles.uiCardHeader}>
-                        <Ionicons name="calendar-outline" size={16} color="#183B56" />
-                        <Text style={styles.uiCardTitle}>{t("onboarding.uiWeekMenu")}</Text>
-                      </View>
-                      <View style={styles.uiWeekRow}>
-                        {[
-                          { d: t("一" as any), meal: t("湯" as any) },
-                          { d: t("二" as any), meal: t("魚" as any) },
-                          { d: t("三" as any), meal: t("3餸1湯" as any), active: true },
-                          { d: t("四" as any), meal: t("菜" as any) },
-                          { d: t("五" as any), meal: t("肉" as any) },
-                          { d: t("六" as any), meal: t("外出" as any) },
-                          { d: t("日" as any), meal: t("湯" as any) },
-                        ].map((x) => (
-                          <View key={x.d} style={[styles.uiDay, x.active && styles.uiDayActive]}>
-                            <Text style={[styles.uiDayText, x.active && styles.uiDayTextActive]}>{x.d}</Text>
-                            <Text style={[styles.uiDayMeal, x.active && styles.uiDayMealActive]} numberOfLines={1}>{x.meal}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {slide.ui === "shopping" && (
-                    <View style={styles.slideUI}>
-                      <View style={styles.uiCardHeader}>
-                        <Ionicons name="cart-outline" size={16} color="#183B56" />
-                        <Text style={styles.uiCardTitle}>{t("onboarding.uiShoppingList")}</Text>
-                      </View>
-                      <View style={styles.uiList}>
-                        {["番茄", "馬鈴薯", "青蔥"].map((it) => (
-                          <View key={it} style={styles.uiItem}>
-                            <View style={styles.uiCheck}><Ionicons name="checkmark" size={12} color="#fff" /></View>
-                            <Text style={styles.uiItemText}>{it}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {i === GUIDE_SLIDES.length - 1 && (
-                    <View style={styles.slideCTA}>
-                      <TouchableOpacity
-                        style={styles.genPill}
-                        activeOpacity={0.85}
-                        onPress={startQuickPlan}
-                        disabled={loading}
-                      >
-                        <View style={styles.genPillIcon}><Ionicons name="sparkles" size={16} color="#fff" /></View>
-                        <Text style={styles.genPillText}>{t("onboarding.planTwoDays" as any)}</Text>
-                        <Ionicons name="arrow-forward" size={18} color="#fff" />
-                      </TouchableOpacity>
-                      {activeFamilyId ? (
-                        <TouchableOpacity
-                          style={styles.trialCodeLink}
-                          onPress={() => router.replace("/settings")}
-                          accessibilityRole="button"
-                        >
-                          <Text style={styles.trialCodeLinkText}>{t("paywall.trialCodeTitle" as any)}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={styles.dotsRow}>
-              {GUIDE_SLIDES.map((_, i) => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => gotoGuidePage(i)}
-                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`slide ${i + 1}`}
-                >
-                  <View style={[styles.dot, guidePage === i && styles.dotActive]} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* 桌面（web）用箭咀導航：mouse 冇 touch swipe */}
-            {isWeb && (
-              <View style={styles.webNavRow}>
-                <TouchableOpacity
-                  style={[styles.webNavBtn, guidePage === 0 && styles.webNavBtnDisabled]}
-                  onPress={() => gotoGuidePage(guidePage - 1)}
-                  disabled={guidePage === 0}
-                  accessibilityRole="button"
-                  accessibilityLabel="previous slide"
-                >
-                  <Ionicons name="chevron-back" size={22} color={guidePage === 0 ? "#C7C7CC" : "#183B56"} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.webNavBtn, guidePage === GUIDE_SLIDES.length - 1 && styles.webNavBtnDisabled]}
-                  onPress={() => gotoGuidePage(guidePage + 1)}
-                  disabled={guidePage === GUIDE_SLIDES.length - 1}
-                  accessibilityRole="button"
-                  accessibilityLabel="next slide"
-                >
-                  <Ionicons name="chevron-forward" size={22} color={guidePage === GUIDE_SLIDES.length - 1 ? "#C7C7CC" : "#183B56"} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={styles.skipBtn}
-            onPress={finishOnboarding}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#9CA3AF" size="small" />
-            ) : (
-              <Text style={styles.skipBtnText}>{t("onboarding.skip")}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // 第五屏：匯入食譜（跳轉到完整匯入頁面）
+  // 第四屏：匯入食譜（跳轉到完整匯入頁面）
   if (step === "plan") {
     return (
       <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            padding: 20,
+            paddingBottom: 12,
+            justifyContent: !planData && !planLoading ? "center" : "flex-start",
+          }}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={{ fontSize: 24, fontWeight: "800", color: "#183B56", marginBottom: 6 }}>
             {planData
               ? (planData.days?.length ?? 1) > 1
@@ -776,29 +634,44 @@ export default function OnboardingScreen(
                 <Text style={styles.genPillText}>{planCta}</Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setForceTomorrow(!planIsTomorrow)}
-                style={{ paddingVertical: 10, alignItems: "center" }}
-              >
-                <Text style={{ color: "#2F5D7C", fontSize: 13, fontWeight: "700" }}>
-                  {planIsTomorrow ? "改為今晚 ›" : "改為聽晚 ›"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 10, alignItems: "center" }}>
-                <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
-              </TouchableOpacity>
+              {dateToggle}
             </>
           )}
 
           {!planLoading && !!planData && (
-            <>
-              <Text style={{ color: swapCount >= 2 ? "#92400E" : "#5F6F80", fontSize: swapCount >= 2 ? 13 : 12, marginTop: 4, marginBottom: 6, textAlign: "center", lineHeight: swapCount >= 2 ? 20 : 16 }}>
-                {swapCount >= 2
-                  ? "你已經換咗 2 次食譜 —— 不如直接開始，入到 APP 可以睇更多食譜、自己排餐同加自己嘅菜。"
-                  : `每道菜都可以撳「換」，仲可以換 ${2 - swapCount} 次`}
-              </Text>
+            <Text style={{ color: swapCount >= 2 ? "#92400E" : "#5F6F80", fontSize: swapCount >= 2 ? 13 : 12, marginTop: 4, marginBottom: 6, textAlign: "center", lineHeight: swapCount >= 2 ? 20 : 16 }}>
+              {swapCount >= 2
+                ? "你已經換咗 2 次食譜 —— 不如直接開始，入到 APP 可以睇更多食譜、自己排餐同加自己嘅菜。"
+                : `每道菜都可以撳「換」，仲可以換 ${2 - swapCount} 次`}
+            </Text>
+          )}
+        </ScrollView>
+
+        {!planLoading && !!planData && (
+          <View style={styles.planFooter}>
+            {acceptError ? (
+              <View style={styles.acceptErrorCard}>
+                <Text style={styles.acceptErrorTitle}>{t("儲存計劃失敗" as any)}</Text>
+                {acceptConflict ? (
+                  <>
+                    <Text style={styles.acceptErrorBody}>
+                      {t("當日已有{{meal}}" as any, { meal: t("晚餐" as any) })}
+                    </Text>
+                    <Text style={styles.acceptErrorHint}>{t("已有計劃，請去 Planner 修改" as any)}</Text>
+                    {dateToggle}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.acceptErrorBody}>{acceptError}</Text>
+                    <TouchableOpacity onPress={() => setAcceptError(null)} style={styles.acceptErrorBack}>
+                      <Text style={styles.acceptErrorBackText}>{t("onboarding.back")}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            ) : (
               <TouchableOpacity
-                style={[styles.genPill, { marginTop: 10 }]}
+                style={styles.genPill}
                 onPress={acceptQuickPlan}
                 disabled={!planData}
               >
@@ -808,12 +681,9 @@ export default function OnboardingScreen(
                 </Text>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={finishOnboarding} style={{ paddingVertical: 14, alignItems: "center" }}>
-                <Text style={{ color: "#5F6F80", fontSize: 14 }}>跳過，自己揀</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </ScrollView>
+            )}
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -873,6 +743,8 @@ const styles = StyleSheet.create({
   logoImageSmall: {
     width: 126,
     height: 126,
+    minHeight: 126,
+    flexShrink: 0,
     marginBottom: 12,
   },
   heroImageWrap: {
@@ -892,7 +764,10 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   heroTitle: {
-    fontSize: 32,
+    maxWidth: "100%",
+    paddingHorizontal: 4,
+    fontSize: 28,
+    lineHeight: 36,
     fontWeight: "900",
     color: "#183B56",
     textAlign: "center",
@@ -1531,5 +1406,49 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  planFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 4,
+    backgroundColor: "#FFF8EF",
+  },
+  acceptErrorCard: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  acceptErrorTitle: {
+    color: "#92400E",
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  acceptErrorBody: {
+    color: "#92400E",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  acceptErrorHint: {
+    color: "#92400E",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  acceptErrorBack: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D97706",
+  },
+  acceptErrorBackText: {
+    color: "#92400E",
+    fontSize: 12,
+    fontWeight: "800",
   },
 });
