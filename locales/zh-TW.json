@@ -182,10 +182,12 @@
     "purchaseHistory": "購買記錄",
     "aiChef": "AI 助手",
     "privacyPolicy": "私隱政策",
+    "termsOfUse": "使用條款",
     "analyticsToggle": "分享匿名使用數據",
     "logout": "登出",
     "deleting": "刪除中...",
     "deleteAccount": "刪除帳戶",
+    "deleteAccountConflict": "未能取消訂閱，帳戶尚未刪除。請再撳「刪除帳戶」重試。",
     "notLoggedIn": "未登入",
     "loginPrompt": "點擊登入以使用完整功能",
     "kitchen": "廚房",
@@ -2162,6 +2164,9 @@
     "regenerate": "重新生成",
     "disclaimer": "AI 依你指示修改，內容僅供參考，請核對食材及步驟。"
   },
+  "legal": {
+    "foodSafety": "食譜及 AI 生成內容只供參考；請自行確認食材、熟度及致敏原，此並非醫療、營養或過敏建議。"
+  },
   "paywall": {
     "foundingCodeDone": "已套用優惠",
     "monthlyLabel": "家庭版月費",
@@ -2259,9 +2264,23 @@
     "claimBy": "創始價認購期至 {{date}}",
     "startTrialCta": "免費至 {{date}}，之後 {{price}}",
     "webOnlyCta": "在網頁版訂閱",
+    "unavailableNative": "此版本暫未提供訂閱服務",
+    "manageNotAvailableTitle": "管理訂閱",
+    "manageNotAvailableBody": "此訂閱並非經 App Store 管理，請到你當初訂閱的地方管理。",
     "coveredTitle": "你已享有 Pro",
     "coveredBody": "你目前喺「{{name}}」廚房已經有 Pro，唔需要再訂閱。切換去該廚房即可使用。",
-    "coveredSwitch": "切換去「{{name}}」"
+    "coveredSwitch": "切換去「{{name}}」",
+    "legalBlockName": "Kindcipe 家庭專業版",
+    "periodMonthly": "每月",
+    "periodYearly": "每年",
+    "legalBlockLine": "{{name}} · {{period}} — {{price}}",
+    "autoRenew": "訂閱會自動續期；你可隨時在 Apple ID 設定中取消，最遲須於本期結束前 24 小時取消。",
+    "autoRenewStripe": "訂閱會自動續期；你可隨時在帳單設定中管理或取消，最遲須於本期結束前 24 小時取消。",
+    "appleChargeNote": "確認購買時將向你的 Apple ID 帳戶收費。",
+    "termsLink": "使用條款",
+    "privacyLink": "私隱政策",
+    "restore": "恢復購買",
+    "restoreSuccess": "已恢復購買。"
   },
   " · 主人": " · 主人",
   " · 幫手": " · 幫手",

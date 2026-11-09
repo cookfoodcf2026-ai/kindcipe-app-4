@@ -182,10 +182,12 @@
     "purchaseHistory": "Purchase history",
     "aiChef": "AI Chef",
     "privacyPolicy": "Privacy policy",
+    "termsOfUse": "Terms of Use",
     "analyticsToggle": "Share anonymous usage data",
     "logout": "Log out",
     "deleting": "Deleting...",
     "deleteAccount": "Delete account",
+    "deleteAccountConflict": "Your account was not deleted because the subscription could not be cancelled. Tap \"Delete account\" again to retry.",
     "notLoggedIn": "Not signed in",
     "loginPrompt": "Tap to sign in for full features",
     "kitchen": "Kitchen",
@@ -2197,6 +2199,9 @@
     "regenerate": "Regenerate",
     "disclaimer": "AI edits based on your request; please review the ingredients and steps."
   },
+  "legal": {
+    "foodSafety": "Recipes and AI output are for reference only; check ingredients, doneness and allergens yourself — not medical, nutrition or allergy advice."
+  },
   "paywall": {
     "foundingCodeDone": "Discount applied",
     "monthlyLabel": "Family plan · monthly",
@@ -2294,9 +2299,23 @@
     "claimBy": "Founding price available until {{date}}",
     "startTrialCta": "Free until {{date}}, then {{price}}",
     "webOnlyCta": "Subscribe on the web",
+    "unavailableNative": "Subscriptions are not available in this version",
+    "manageNotAvailableTitle": "Manage subscription",
+    "manageNotAvailableBody": "This subscription is not managed by the App Store. Please manage it where you subscribed.",
     "coveredTitle": "You already have Pro",
     "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again.",
-    "coveredSwitch": "Switch to {{name}}"
+    "coveredSwitch": "Switch to {{name}}",
+    "legalBlockName": "Kindcipe Family Pro",
+    "periodMonthly": "monthly",
+    "periodYearly": "yearly",
+    "legalBlockLine": "{{name}} · {{period}} — {{price}}",
+    "autoRenew": "Auto-renewing. Cancel any time in Apple ID settings at least 24 hours before the period ends.",
+    "autoRenewStripe": "Auto-renewing. Manage or cancel any time in your billing settings at least 24 hours before the period ends.",
+    "appleChargeNote": "Payment will be charged to your Apple ID account at confirmation of purchase.",
+    "termsLink": "Terms of Use",
+    "privacyLink": "Privacy Policy",
+    "restore": "Restore Purchases",
+    "restoreSuccess": "Purchases restored."
   },
   " · 主人": " · Owner",
   " · 幫手": " · Helper",

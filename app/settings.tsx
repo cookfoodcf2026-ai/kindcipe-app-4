@@ -21,7 +21,8 @@ import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
-import { openSupport } from "@/lib/support";
+import { openSupport, SUPPORT_URL } from "@/lib/support";
+import { PRIVACY_URL, TERMS_URL, openLegalPage } from "@/lib/legal";
 import { confirmStripeCheckout } from "@/lib/purchase";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
@@ -104,7 +105,15 @@ export default function SettingsScreen() {
       router.replace("/login");
       Alert.alert(t("已刪除" as any), t("帳戶已永久刪除。" as any));
     },
-    onError: (e) => Alert.alert(t("刪除失敗" as any), friendlyError(e)),
+    onError: (e) => {
+      // Backend returns a retryable CONFLICT when Stripe cancellation fails:
+      // the account is kept and the user can simply try deleting again.
+      const code = (e as any)?.data?.code ?? (e as any)?.shape?.data?.code;
+      const message = code === "CONFLICT"
+        ? t("settings.deleteAccountConflict" as any)
+        : friendlyError(e);
+      Alert.alert(t("刪除失敗" as any), message);
+    },
   });
 
   // 修改用戶名稱（BUG#14）
@@ -1306,11 +1315,20 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/privacy/', {
-              toolbarColor: '#183B56',
-              controlsColor: '#ffffff',
-              presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-            })}
+            onPress={() => openLegalPage(TERMS_URL)}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: "#F8F1E7" }]}>
+                <Ionicons name="document-text-outline" size={20} color="#5F6F80" />
+              </View>
+              <Text style={styles.settingLabel}>{t("settings.termsOfUse" as any)}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#8A99A8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => openLegalPage(PRIVACY_URL)}
           >
             <View style={styles.settingLeft}>
               <View style={[styles.settingIcon, { backgroundColor: "#F8F1E7" }]}>
@@ -1323,7 +1341,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => WebBrowser.openBrowserAsync(process.env.EXPO_PUBLIC_SUPPORT_URL || 'https://cookfoodcf2026-ai.github.io/kindcipe-app-4/support/', {
+            onPress={() => WebBrowser.openBrowserAsync(SUPPORT_URL, {
               toolbarColor: '#183B56',
               controlsColor: '#ffffff',
               presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,

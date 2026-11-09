@@ -1165,6 +1165,8 @@ export default function RecipeDetailScreen() {
               </View>
             ) : null}
 
+            <Text style={s.foodSafetyDisclaimer}>{t("legal.foodSafety" as any)}</Text>
+
             {/* ── Serving size scaler ── */}
             {(recipe.servings ?? 0) > 0 && (
               <View style={s.scalerCard}>
@@ -2488,6 +2490,7 @@ const s = StyleSheet.create({
   // Description
   descriptionCard: { backgroundColor: "#FAFAFA", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, marginTop: 12, marginBottom: 14, borderWidth: 1, borderColor: "#E5E7EB" },
   description: { fontSize: 14, color: SUB, lineHeight: 21 },
+  foodSafetyDisclaimer: { fontSize: 11, color: "#8A99A8", lineHeight: 16, marginBottom: 4 },
 
   // Serving scaler
   scalerCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: CARD, borderRadius: 18, padding: 16, marginTop: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },

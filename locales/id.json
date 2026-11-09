@@ -182,10 +182,12 @@
     "purchaseHistory": "Riwayat pembelian",
     "aiChef": "AI Chef",
     "privacyPolicy": "Kebijakan privasi",
+    "termsOfUse": "Syarat Penggunaan",
     "analyticsToggle": "Bagikan data penggunaan anonim",
     "logout": "Keluar",
     "deleting": "Menghapus...",
     "deleteAccount": "Hapus akun",
+    "deleteAccountConflict": "Akun tidak dihapus karena langganan tidak dapat dibatalkan. Ketuk \"Hapus akun\" lagi untuk mencoba ulang.",
     "notLoggedIn": "Belum masuk",
     "loginPrompt": "Ketuk untuk masuk",
     "kitchen": "Dapur",
@@ -2167,6 +2169,9 @@
     "regenerate": "Buat ulang",
     "disclaimer": "AI mengedit sesuai permintaan Anda; mohon periksa bahan dan langkah."
   },
+  "legal": {
+    "foodSafety": "Resep dan keluaran AI hanya untuk referensi; Anda harus memeriksa sendiri bahan, kematangan, dan alergen — ini bukan nasihat medis, gizi, atau alergi."
+  },
   "paywall": {
     "foundingCodeDone": "Diskon diterapkan",
     "monthlyLabel": "Paket keluarga · bulanan",
@@ -2264,9 +2269,23 @@
     "claimBy": "Harga founding berlaku hingga {{date}}",
     "startTrialCta": "Gratis hingga {{date}}, lalu {{price}}",
     "webOnlyCta": "Berlangganan di web",
+    "unavailableNative": "Langganan tidak tersedia di versi ini",
+    "manageNotAvailableTitle": "Kelola langganan",
+    "manageNotAvailableBody": "Langganan ini tidak dikelola oleh App Store. Kelola di tempat Anda berlangganan.",
     "coveredTitle": "Anda sudah memiliki Pro",
     "coveredBody": "Pro sudah aktif di dapur \"{{name}}\" anda. Tukar ke dapur itu untuk menggunakannya.",
-    "coveredSwitch": "Tukar ke {{name}}"
+    "coveredSwitch": "Tukar ke {{name}}",
+    "legalBlockName": "Kindcipe Family Pro",
+    "periodMonthly": "bulanan",
+    "periodYearly": "tahunan",
+    "legalBlockLine": "{{name}} · {{period}} — {{price}}",
+    "autoRenew": "Perpanjangan otomatis. Batalkan kapan saja di pengaturan Apple ID setidaknya 24 jam sebelum periode berakhir.",
+    "autoRenewStripe": "Perpanjangan otomatis. Kelola atau batalkan kapan saja di pengaturan penagihan Anda setidaknya 24 jam sebelum periode berakhir.",
+    "appleChargeNote": "Pembayaran akan ditagihkan ke akun Apple ID Anda saat pembelian dikonfirmasi.",
+    "termsLink": "Syarat Penggunaan",
+    "privacyLink": "Kebijakan Privasi",
+    "restore": "Pulihkan Pembelian",
+    "restoreSuccess": "Pembelian berhasil dipulihkan."
   },
   " · 主人": " · Pemilik",
   " · 幫手": " · Asisten",

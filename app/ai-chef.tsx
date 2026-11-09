@@ -5456,6 +5456,8 @@ export default function AIChefScreen() {
                     ))}
                   </ScrollView>
 
+                  <Text style={s.foodSafetyDisclaimer}>{t("legal.foodSafety" as any)}</Text>
+
                   <View style={{ flexDirection: "row", gap: 10, marginTop: 10, alignItems: "center" }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: SUB }}>{t("aiChef.swapOther")}</Text>
                     <View style={{ flexDirection: "row", gap: 10, flex: 1 }}>
@@ -5902,6 +5904,7 @@ const s = StyleSheet.create({
   incompleteBtn: { backgroundColor: "#183B56", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, minWidth: 90, alignItems: "center" },
   incompleteBtnTxt: { fontSize: 12, fontWeight: "900", color: "#fff" },
   recBar: { borderTopWidth: 1, borderTopColor: BORDER, padding: 12 },
+  foodSafetyDisclaimer: { fontSize: 11, color: HINT, lineHeight: 16, marginTop: 8 },
   recHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   recTitle: { fontSize: 12, fontWeight: "700", color: BRAND },
   recBatch: { flexDirection: "row", gap: 6, alignItems: "center" },

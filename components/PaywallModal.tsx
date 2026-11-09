@@ -23,6 +23,8 @@ import { track, Events } from "@/lib/analytics";
 import { friendlyError } from "@/lib/errors";
 import {
   purchaseSubscription,
+  restorePurchases,
+  getProducts,
   PRODUCT_IDS,
   manageSubscription,
   isStripeSupported,
@@ -30,7 +32,8 @@ import {
   type ProductId,
 } from "../lib/purchase";
 import { PRICING, YEARLY_SAVE_PCT } from "../lib/pricing";
-import { getWebappUrl } from "../lib/platform";
+import { PRIVACY_URL, TERMS_URL, openLegalPage } from "../lib/legal";
+import { getWebappUrl, isIOS, isWeb } from "../lib/platform";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { trpc } from "../lib/trpc";
 import { useAuth } from "../hooks/useAuth";
@@ -95,6 +98,9 @@ export default function PaywallModal({
   const [redeemState, setRedeemState] = useState<"idle" | "redeeming" | "done" | "error">("idle");
   const [redeemMsg, setRedeemMsg] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
+  const [storePrices, setStorePrices] = useState<Partial<Record<ProductId, string>>>({});
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState<string | null>(null);
 
   const subQuery = trpc.family.subscription.useQuery(undefined, {
     enabled: visible,
@@ -103,7 +109,7 @@ export default function PaywallModal({
   });
   const quoteQuery = trpc.billing.previewCheckout.useQuery(
     { plan },
-    { enabled: visible && canPurchaseHere, retry: false, staleTime: 1000 * 30 }
+    { enabled: visible && isStripeSupported, retry: false, staleTime: 1000 * 30 }
   );
 
   const sub = subQuery.data;
@@ -131,6 +137,28 @@ export default function PaywallModal({
   const chargeToday = quote?.chargeToday ?? amount;
   const claimEnd = founding ? quote?.discountExpiresAt ?? promo?.discountExpiresAt ?? null : null;
   const slotsRemaining = promo?.earlybirdSlotsRemaining ?? quote?.slotsRemaining;
+  const selectedProductId = plan === "yearly" ? PRODUCT_IDS.YEARLY : PRODUCT_IDS.MONTHLY;
+  // App Store 3.1.2: use the StoreKit price when IAP is live, otherwise the
+  // single-source-of-truth price text from lib/pricing.ts.
+  const periodPrice = storePrices[selectedProductId] ?? fmtCents(amount);
+  const monthlyPrice =
+    storePrices[PRODUCT_IDS.MONTHLY] ??
+    fmtCents(founding ? PRICING.promoMonthly * 100 : PRICING.monthly * 100);
+  const yearlyPrice =
+    storePrices[PRODUCT_IDS.YEARLY] ??
+    fmtCents(founding ? PRICING.promoYearly * 100 : PRICING.yearly * 100);
+  // App Store 3.1.2: the StoreKit display price is the real charge; the
+  // lib/pricing.ts figures are only a web fallback when IAP is not live.
+  const displayAmount = storePrices[selectedProductId] ?? fmtCents(amount);
+  const displayChargeToday = quote ? fmtCents(chargeToday) : displayAmount;
+  // Never show a buy CTA unless the store actually returned the selected
+  // product (web keeps using the Stripe quote).
+  const hasStoreProduct = isStripeSupported || storePrices[selectedProductId] != null;
+  const purchaseCtaAvailable = canPurchaseHere && hasStoreProduct;
+  // Native must never offer a web purchase path (App Store 3.1.1 / Play policy).
+  const nativeStoreUnavailable = !isWeb && !purchaseCtaAvailable;
+  const periodLabel =
+    plan === "yearly" ? t("paywall.periodYearly" as any) : t("paywall.periodMonthly" as any);
   // 已享有 Pro：用戶所屬另一個廚房已 active → 唔應該再賣
   const coveredBy = (sub as any)?.coveredBy as { familyId: number; name: string } | null | undefined;
 
@@ -163,11 +191,31 @@ export default function PaywallModal({
   }, [visible, feature]);
 
   useEffect(() => {
+    if (!visible) return;
+    let alive = true;
+    void getProducts()
+      .then((products) => {
+        if (!alive) return;
+        const next: Partial<Record<ProductId, string>> = {};
+        for (const product of products) next[product.productId] = product.price;
+        setStorePrices(next);
+      })
+      .catch(() => {
+        /* StoreKit unavailable — keep the lib/pricing.ts fallback */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [visible]);
+
+  useEffect(() => {
     if (!visible) {
       setError(null);
       setRedeemState("idle");
       setRedeemMsg(null);
       setRedeemCode("");
+      setRestoreMsg(null);
+      setIsRestoring(false);
     }
   }, [visible]);
 
@@ -201,6 +249,27 @@ export default function PaywallModal({
       await manageSubscription(billingProvider as any);
     } catch (err) {
       console.error("[Paywall] manageSubscription failed:", err);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsRestoring(true);
+    setRestoreMsg(null);
+    try {
+      const result = await restorePurchases();
+      if (result.success) {
+        setRestoreMsg(t("paywall.restoreSuccess" as any));
+        await Promise.all([
+          utils.family.subscription.invalidate(),
+          utils.auth.me.invalidate(),
+        ]);
+      } else {
+        setRestoreMsg(result.error || friendlyError({ message: "" }, "error.purchaseFailed"));
+      }
+    } catch (err: any) {
+      setRestoreMsg(friendlyError(err, "error.purchaseFailed"));
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -281,7 +350,7 @@ export default function PaywallModal({
       <Text style={styles.summaryTitle}>{t("paywall.summaryTitle" as any)}</Text>
       <View style={styles.summaryRow}>
         <Text style={styles.summaryLabel}>{founding ? t("paywall.foundingLabel" as any) : plan === "yearly" ? t("paywall.yearlyLabel" as any) : t("paywall.monthlyLabel" as any)}</Text>
-        <Text style={styles.summaryValue}>{fmtCents(amount)}</Text>
+        <Text style={styles.summaryValue}>{displayAmount}</Text>
       </View>
       {trialEnd ? (
         <View style={styles.summaryRow}>
@@ -292,11 +361,57 @@ export default function PaywallModal({
       <View style={styles.divider} />
       <View style={styles.summaryRow}>
         <Text style={styles.totalLabel}>{t("paywall.total" as any)}</Text>
-        <Text style={styles.totalValue}>{fmtCents(chargeToday)}</Text>
+        <Text style={styles.totalValue}>{displayChargeToday}</Text>
       </View>
-      {trialEnd ? <Text style={styles.infoText}>{t("paywall.afterTrial", { price: fmtCents(amount) })}</Text> : null}
+      {trialEnd ? <Text style={styles.infoText}>{t("paywall.afterTrial", { price: displayAmount })}</Text> : null}
       {founding && slotsRemaining != null ? <Text style={styles.infoText}>{t("paywall.slotsLeft", { n: slotsRemaining })}</Text> : null}
       {claimEnd ? <Text style={styles.infoText}>{t("paywall.claimBy", { date: fmtDate(claimEnd) })}</Text> : null}
+    </View>
+  );
+
+  const legalBlock = (
+    <View style={styles.legalBlock}>
+      <Text style={styles.legalBlockLine}>
+        {t("paywall.legalBlockLine" as any, {
+          name: t("paywall.legalBlockName" as any),
+          period: periodLabel,
+          price: periodPrice,
+        })}
+      </Text>
+      <Text style={styles.legalBlockNote}>
+        {isStripeSupported
+          ? t("paywall.autoRenewStripe" as any)
+          : t("paywall.autoRenew" as any)}
+      </Text>
+      {isIOS ? (
+        <Text style={styles.legalBlockNote}>{t("paywall.appleChargeNote" as any)}</Text>
+      ) : null}
+      <View style={styles.legalLinksRow}>
+        <TouchableOpacity onPress={() => openLegalPage(TERMS_URL)} accessibilityRole="link">
+          <Text style={styles.legalLink}>{t("paywall.termsLink" as any)}</Text>
+        </TouchableOpacity>
+        <Text style={styles.legalDot}>·</Text>
+        <TouchableOpacity onPress={() => openLegalPage(PRIVACY_URL)} accessibilityRole="link">
+          <Text style={styles.legalLink}>{t("paywall.privacyLink" as any)}</Text>
+        </TouchableOpacity>
+      </View>
+      {isIOS ? (
+        <>
+          <TouchableOpacity
+            style={styles.restoreBtn}
+            onPress={handleRestore}
+            disabled={isRestoring}
+            accessibilityRole="button"
+          >
+            {isRestoring ? (
+              <ActivityIndicator size="small" color={BRAND} />
+            ) : (
+              <Text style={styles.restoreBtnText}>{t("paywall.restore" as any)}</Text>
+            )}
+          </TouchableOpacity>
+          {restoreMsg ? <Text style={styles.restoreMsg}>{restoreMsg}</Text> : null}
+        </>
+      ) : null}
     </View>
   );
 
@@ -330,20 +445,22 @@ export default function PaywallModal({
     ) : (
       <Text style={styles.infoText}>{t("settings.managedByOwner" as any)}</Text>
     )
-  ) : canPurchaseHere ? (
+  ) : purchaseCtaAvailable ? (
     <TouchableOpacity style={[styles.upgradeBtn, isPurchasing && styles.upgradeBtnDisabled]} onPress={handlePurchase} disabled={isPurchasing}>
       {isPurchasing ? <ActivityIndicator color="#FFFFFF" /> : (
         <Text style={styles.upgradeBtnText}>
           {trialEnd
-            ? t("paywall.startTrialCta" as any, { date: fmtDate(trialEnd), price: fmtCents(amount) })
-            : t("paywall.subscribeWithPrice" as any, { price: fmtCents(chargeToday) })}
+            ? t("paywall.startTrialCta" as any, { date: fmtDate(trialEnd), price: displayAmount })
+            : t("paywall.subscribeWithPrice" as any, { price: displayChargeToday })}
         </Text>
       )}
     </TouchableOpacity>
-  ) : (
+  ) : isWeb ? (
     <TouchableOpacity style={styles.upgradeBtn} onPress={openWeb}>
       <Text style={styles.upgradeBtnText}>{t("paywall.webOnlyCta" as any)}</Text>
     </TouchableOpacity>
+  ) : (
+    <Text style={styles.infoText}>{t("paywall.unavailableNative" as any)}</Text>
   );
 
   return (
@@ -373,19 +490,25 @@ export default function PaywallModal({
             </View>
 
             {!managed && !coveredBy ? (
+              nativeStoreUnavailable ? (
+                <View style={styles.promoBox}>
+                  {trialCodeBox}
+                  <Text style={styles.infoText}>{t("paywall.unavailableNative" as any)}</Text>
+                </View>
+              ) : (
               <View style={[isDesktop && styles.twoCol]}>
                 <View style={isDesktop ? styles.colLeft : undefined}>
                   <Text style={styles.sectionTitle}>{t("paywall.choosePlan" as any)}</Text>
                   <View style={styles.planRow}>
                     <PlanCard
                       value="monthly"
-                      price={fmtCents(founding ? PRICING.promoMonthly * 100 : PRICING.monthly * 100)}
+                      price={monthlyPrice}
                       per={t("paywall.perMonth" as any)}
                       label={t("paywall.planMonthly" as any)}
                     />
                     <PlanCard
                       value="yearly"
-                      price={fmtCents(founding ? PRICING.promoYearly * 100 : PRICING.yearly * 100)}
+                      price={yearlyPrice}
                       per={t("paywall.perYear" as any)}
                       label={t("paywall.planYearly" as any)}
                     />
@@ -402,17 +525,19 @@ export default function PaywallModal({
                 </View>
 
                 <View style={isDesktop ? styles.colRight : undefined}>
-                  {canPurchaseHere ? orderSummary : null}
+                  {purchaseCtaAvailable ? orderSummary : null}
                   {quoteQuery.isError ? <Text style={styles.errorText}>{friendlyError(quoteQuery.error, "error.purchaseFailed")}</Text> : null}
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                  {legalBlock}
                   {cta}
-                  {canPurchaseHere ? (
+                  {purchaseCtaAvailable ? (
                     <Text style={styles.legalNote}>
                       {isStripeSupported ? t("paywall.secureStripe" as any) : t("paywall.legalApple" as any)}
                     </Text>
                   ) : null}
                 </View>
               </View>
+              )
             ) : (
               <View style={styles.promoBox}>
                 <Text style={styles.promoTitle}>{t("paywall.manage" as any)}</Text>
@@ -506,6 +631,15 @@ const styles = StyleSheet.create({
   upgradeBtnDisabled: { backgroundColor: "#6B7280" },
   upgradeBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800", textAlign: "center" },
   legalNote: { color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 10, lineHeight: 17 },
+  legalBlock: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 12, marginTop: 14 },
+  legalBlockLine: { fontSize: 13, fontWeight: "700", color: "#111827" },
+  legalBlockNote: { fontSize: 11.5, color: "#6B7280", lineHeight: 17, marginTop: 6 },
+  legalLinksRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  legalLink: { fontSize: 12, color: BRAND, fontWeight: "700", textDecorationLine: "underline" },
+  legalDot: { fontSize: 12, color: "#9CA3AF" },
+  restoreBtn: { alignSelf: "flex-start", marginTop: 10, paddingVertical: 4 },
+  restoreBtnText: { fontSize: 12, color: BRAND, fontWeight: "700", textDecorationLine: "underline" },
+  restoreMsg: { fontSize: 11.5, color: "#6B7280", lineHeight: 16, marginTop: 4 },
   faqBox: { marginTop: 8 },
   faqItem: { borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   faqQ: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12 },

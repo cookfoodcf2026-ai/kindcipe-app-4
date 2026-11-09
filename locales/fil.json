@@ -182,10 +182,12 @@
     "purchaseHistory": "Kasaysayan ng pagbili",
     "aiChef": "AI Chef",
     "privacyPolicy": "Patakaran sa privacy",
+    "termsOfUse": "Mga Tuntunin ng Paggamit",
     "analyticsToggle": "Ibahagi ang anonymous na datos ng paggamit",
     "logout": "Mag-log out",
     "deleting": "Binubura...",
     "deleteAccount": "Burahin ang account",
+    "deleteAccountConflict": "Hindi na-delete ang account dahil hindi nakansela ang subscription. Pindutin muli ang \"Burahin ang account\" para subukan ulit.",
     "notLoggedIn": "Hindi naka-login",
     "loginPrompt": "I-tap para mag-login",
     "kitchen": "Kusina",
@@ -2167,6 +2169,9 @@
     "regenerate": "Muling gawin",
     "disclaimer": "Nag-eedit ang AI base sa iyong request; paki-check ang mga sangkap at steps."
   },
+  "legal": {
+    "foodSafety": "Ang mga recipe at AI output ay para sa sanggunian lamang; ikaw ang dapat mag-check ng mga sangkap, pagkaluto at allergens — hindi ito medikal, nutrisyon o allergy advice."
+  },
   "paywall": {
     "foundingCodeDone": "Na-apply ang diskwento",
     "monthlyLabel": "Family plan · buwanan",
@@ -2264,9 +2269,23 @@
     "claimBy": "Founding price hanggang {{date}}",
     "startTrialCta": "Libre hanggang {{date}}, pagkatapos {{price}}",
     "webOnlyCta": "Mag-subscribe sa web",
+    "unavailableNative": "Hindi available ang subscription sa bersyong ito",
+    "manageNotAvailableTitle": "Pamahalaan ang subscription",
+    "manageNotAvailableBody": "Hindi ito pinamamahalaan ng App Store. Pamahalaan ito sa lugar kung saan ka nag-subscribe.",
     "coveredTitle": "You already have Pro",
     "coveredBody": "Pro is already active in your \"{{name}}\" kitchen. Switch to that kitchen to use it — no need to subscribe again.",
-    "coveredSwitch": "Switch to {{name}}"
+    "coveredSwitch": "Switch to {{name}}",
+    "legalBlockName": "Kindcipe Family Pro",
+    "periodMonthly": "buwanan",
+    "periodYearly": "taunan",
+    "legalBlockLine": "{{name}} · {{period}} — {{price}}",
+    "autoRenew": "Auto-renewing. Kanselahin anumang oras sa Apple ID settings nang hindi bababa sa 24 oras bago matapos ang panahon.",
+    "autoRenewStripe": "Auto-renewing. Pamahalaan o kanselahin anumang oras sa iyong billing settings nang hindi bababa sa 24 oras bago matapos ang panahon.",
+    "appleChargeNote": "Sisingilin ang Apple ID account mo sa pagpapatunay ng pagbili.",
+    "termsLink": "Mga Tuntunin ng Paggamit",
+    "privacyLink": "Patakaran sa Privacy",
+    "restore": "I-restore ang mga Pagbili",
+    "restoreSuccess": "Na-restore ang mga pagbili."
   },
   " · 主人": " · May-ari",
   " · 幫手": " · Katulong",
