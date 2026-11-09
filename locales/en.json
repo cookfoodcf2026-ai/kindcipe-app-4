@@ -62,6 +62,10 @@
     "filterKol": "KOL",
     "filterMine": "Mine",
     "clearAllTxt": "Clear all",
+    "sortLabel": "Sort",
+    "sortDaily": "Default",
+    "sortFastest": "Fastest",
+    "sortNewest": "Newest",
     "back": "Back"
   },
   "mealPlan": {

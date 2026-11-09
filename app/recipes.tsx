@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
-  Dimensions,
   Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -25,9 +24,7 @@ import { enumT } from "@/lib/i18nEnums";
 
 type SourceType = "official" | "kol" | "user" | "all" | "hot" | "imported" | "ai";
 
-const { width: SW } = Dimensions.get("window");
 const CARD_GAP = 10;
-const CARD_WIDTH = (SW - 14 - 14 - CARD_GAP) / 2;
 
 const TOP_TAGS = ["15 分鐘內", "30 分鐘內", "電飯煲料理", "家常", "簡單", "素食", "低卡"];
 
@@ -65,11 +62,17 @@ export default function RecipesPage() {
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"popular" | "cookTime" | "difficulty">("popular");
+  const [officialOrder, setOfficialOrder] = useState<"daily" | "fastest" | "newest">("daily");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList<any>>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [officialOrder]);
 
   useEffect(() => {
     loadCustomCategories().then(setCategories);
@@ -103,17 +106,13 @@ export default function RecipesPage() {
   // Phase 1: Use useRecipeSearch for infinite scrolling (matches index.tsx)
   const {
     recipes: searchRecipes,
-    total: searchTotal,
     officialCount: searchOfficialCount,
-    customCount: searchCustomCount,
     kolCount: searchKolCount,
     isLoading: searchLoading,
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
     refetch: refetchSearch,
-    isError: isSearchError,
-    error: searchError,
   } = useRecipeSearch({
     query: searchQuery || undefined,
     category: activeCategory === "all" ? undefined : activeCategory,
@@ -122,6 +121,7 @@ export default function RecipesPage() {
     popularChips: activePopularChips.length > 0 ? activePopularChips : undefined,
     ingredientCategory: activeIngredientCategory,
     source: source as any,
+    order: source === "official" ? officialOrder : undefined,
     limit: 20,
   });
 
@@ -193,11 +193,7 @@ export default function RecipesPage() {
 
   // Phase 3: Render RecipeCard with 2-column grid
   const renderRecipeCard = ({ item }: { item: any }) => {
-    const recipeType = item.source === "official" ? "official" : "custom";
-    const idStr = String(item.id);
-    const recipeId = idStr.startsWith("official_") || idStr.startsWith("user_")
-      ? idStr.split("_")[1]
-      : idStr;
+    const recipeId = String(item.id);
 
     const cat = categories.find(c => c.key === item.recipeCategory);
     const tags = item.tags ?? [];
@@ -422,6 +418,18 @@ export default function RecipesPage() {
         </View>
       )}
 
+      {/* Official Sort Selector */}
+      {source === "official" && (
+        <View style={s.filterPillsWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterPillsContainer}>
+            <Text style={s.sortLabel}>{t("recipes.sortLabel")}</Text>
+            {renderFilterPill(t("recipes.sortDaily"), officialOrder === "daily", () => setOfficialOrder("daily"))}
+            {renderFilterPill(t("recipes.sortFastest"), officialOrder === "fastest", () => setOfficialOrder("fastest"))}
+            {renderFilterPill(t("recipes.sortNewest"), officialOrder === "newest", () => setOfficialOrder("newest"))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* List */}
       {isLoading ? (
         <View style={s.center}>
@@ -434,6 +442,7 @@ export default function RecipesPage() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={searchRecipes}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderRecipeCard}
@@ -673,6 +682,12 @@ const s = StyleSheet.create({
   filterPillsContainer: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  sortLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+    alignSelf: "center",
   },
   filterPill: {
     paddingHorizontal: 12,

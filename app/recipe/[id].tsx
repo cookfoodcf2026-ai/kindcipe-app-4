@@ -107,10 +107,9 @@ const toISODate = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
-function getDayBefore(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() - 1);
-  return toISODate(d);
+function buyDateOrToday(mealDate: string | null | undefined): string {
+  const result = buyDateForMeal(mealDate, toISODate(new Date()));
+  return result.ok ? result.date : toISODate(new Date());
 }
 
 const WEEKDAYS_SHORT = ["日", "一", "二", "三", "四", "五", "六"];
@@ -279,7 +278,18 @@ export default function RecipeDetailScreen() {
   // 兩邊都讀，等舊資料同新資料都顯示到。
   const localizedTip = getLocalizedTip(i18n.language, recipe as any);
   const housewifeTips = localizedTip.text;
-  const recipeStringId = id ?? "";
+  const recipeStringId = useMemo(() => {
+    if (!recipe) return "";
+    const raw = String((recipe as any).id ?? id ?? "").trim();
+    if (/^(official|user)_\d+$/.test(raw)) return raw;
+    const numeric = parseInt(raw.replace(/^(official|user)_/, ""), 10);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "";
+    const isOfficial =
+      (recipe as any).isOfficial === true ||
+      (recipe as any).source === "official" ||
+      (recipe as any).source === "kol";
+    return `${isOfficial ? "official" : "user"}_${numeric}`;
+  }, [recipe, id]);
 
   // Analytics: record a recipe "view" once per recipe id (dedup across re-renders).
   const viewedRecipeRef = useRef<string | null>(null);
@@ -380,19 +390,16 @@ export default function RecipeDetailScreen() {
       const itemDate = String(item.plannedDate ?? "").trim();
       if (itemDate !== currentShoppingDate) return false;
       const itemRecipeId = String(item.fromRecipeId ?? "").trim();
-      const itemRecipeName = String(item.fromRecipeName ?? "").trim();
-      return itemRecipeId === recipeStringId || (itemRecipeName && recipe?.name && itemRecipeName === recipe.name);
+      return itemRecipeId !== "" && itemRecipeId === recipeStringId;
     });
-  }, [shoppingListQ.data, currentShoppingDate, recipeStringId, recipe?.name]);
+  }, [shoppingListQ.data, currentShoppingDate, recipeStringId]);
 
   // 呢個食譜喺購物清單入面嘅項目（by plannedDate 分組）
   const recipeShopping = useMemo(() => {
     const today = toISODate(new Date());
     const items = (shoppingListQ.data ?? []).filter(
       (i: any) =>
-        (i.fromRecipeId === recipeStringId ||
-          // 兜底：只有冇帶 fromRecipeId 嘅 item 先用食譜名 match（避免新食譜繼承舊食譜嘅項目）
-          (!i.fromRecipeId && recipe?.name && i.fromRecipeName === recipe.name)) &&
+        !!i.fromRecipeId && i.fromRecipeId === recipeStringId &&
         i.status !== "bought" &&
         // 只顯示而家/未來嘅項目，排除過去日期（購物記錄留返 shopping tab）
         (!i.plannedDate || String(i.plannedDate).trim() === "" || String(i.plannedDate) >= today)
@@ -407,7 +414,7 @@ export default function RecipeDetailScreen() {
     map.forEach((arr, d) => groups.push({ date: d, items: arr.sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh")) }));
     groups.sort((a, b) => a.date.localeCompare(b.date));
     return groups;
-  }, [shoppingListQ.data, recipeStringId, recipe?.name]);
+  }, [shoppingListQ.data, recipeStringId]);
 
   // 當前選中排餐對應嘅購物食材（用排餐日計算購物日）
   const activeShoppingGroup = useMemo(() => {
@@ -416,8 +423,8 @@ export default function RecipeDetailScreen() {
     const selectedPlan = allRecipeMealPlans.find(p => p.id === selectedMealPlanId);
     if (!selectedPlan) return recipeShopping[0] || null;
     
-    // 計算對應嘅購物日（排餐日前一日）
-    const expectedShoppingDate = getDayBefore(selectedPlan.date);
+    // 計算對應嘅購物日（今日排餐 → 今日；未來排餐 → 前一日）
+    const expectedShoppingDate = buyDateOrToday(selectedPlan.date);
     
     // 過濾出該購物日嘅食材組
     return recipeShopping.find(g => g.date === expectedShoppingDate) || recipeShopping[0] || null;
@@ -437,9 +444,8 @@ export default function RecipeDetailScreen() {
       const itemMealPlanId = item.fromMealPlanId ? Number(item.fromMealPlanId) : null;
       const itemDate = String(item.plannedDate ?? "").trim();
       const itemRecipeId = String(item.fromRecipeId ?? "").trim();
-      const itemRecipeName = String(item.fromRecipeName ?? "").trim();
       const isSameMealPlan = targetMealPlanId ? itemMealPlanId === targetMealPlanId : false;
-      const isSameRecipeAndDate = itemDate === targetDate && (itemRecipeId === targetRecipeId || (planPickerRecipe.name && itemRecipeName === planPickerRecipe.name));
+      const isSameRecipeAndDate = itemDate === targetDate && itemRecipeId !== "" && itemRecipeId === targetRecipeId;
       if (!itemName || (!isSameMealPlan && !isSameRecipeAndDate)) return;
       (planPickerRecipe.ingredients || []).forEach((ing: any, idx: number) => {
         const nm = String(ing?.name ?? "").trim();
@@ -688,7 +694,7 @@ export default function RecipeDetailScreen() {
         void rememberPlanDate(planDate);
         if (recipe?.id && recipe?.name) trackRecipeEvent(recipe.id, recipe.name, "plan");
         if (ings.length > 0) {
-          const shoppingDateForPlan = getDayBefore(planDate ?? toISODate(new Date()));
+          const shoppingDateForPlan = buyDateOrToday(planDate ?? toISODate(new Date()));
           planPickerHandoff.queue({
             id: recipeStringId,
             name: recipe?.name ?? "",
@@ -1199,14 +1205,20 @@ export default function RecipeDetailScreen() {
 
             {/* ── Action buttons ── */}
             <View style={s.actionRow}>
-              <TouchableOpacity style={s.btnPrimary} onPress={() => {
-                if (!isAuthenticated) { router.push("/login"); return; }
-                setShowPlan(true);
-              }}>
+              <TouchableOpacity
+                style={[s.btnPrimary, !recipeStringId && { opacity: 0.5 }]}
+                disabled={!recipeStringId}
+                onPress={() => {
+                  if (!recipeStringId) return;
+                  if (!isAuthenticated) { router.push("/login"); return; }
+                  setShowPlan(true);
+                }}
+              >
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
                 <Text style={s.btnPriTxt} numberOfLines={1}>{t("recipe.addToPlan")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.btnSecondary, addedToCart && s.btnSecondaryDone]} onPress={() => {
+              <TouchableOpacity style={[s.btnSecondary, addedToCart && s.btnSecondaryDone, !recipeStringId && { opacity: 0.5 }]} disabled={!recipeStringId} onPress={() => {
+                if (!recipeStringId) return;
                 if (!isAuthenticated) { router.push("/login"); return; }
                 const ings = adjustedIngredients.map((ing: any, i: number) => ({
                   ...ing, _idx: i, _qty: String(ing.adjustedQty ?? ing.quantity ?? ""), _unit: ing.unit ?? "",
@@ -1806,8 +1818,9 @@ export default function RecipeDetailScreen() {
                 ))}
               </View>
               <TouchableOpacity
-                style={[s.confirmBtn, addPlanM.isPending && { opacity: 0.6 }]}
+                style={[s.confirmBtn, (addPlanM.isPending || !recipeStringId) && { opacity: 0.6 }]}
                 onPress={() => {
+                  if (!recipeStringId) return;
                   if (!planDate) {
                     Alert.alert(t("日期無效" as any), t("請選擇排餐日期" as any), [{ text: t("確定" as any) }]);
                     return;
@@ -1821,7 +1834,7 @@ export default function RecipeDetailScreen() {
                     autoAddIngredients: false,
                   });
                 }}
-                disabled={addPlanM.isPending}
+                disabled={addPlanM.isPending || !recipeStringId}
               >
                 {addPlanM.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnTxt}>{t("recipe.confirmAdd")}</Text>}
               </TouchableOpacity>
@@ -2283,7 +2296,7 @@ export default function RecipeDetailScreen() {
                     if (latestMealPlan && shoppingDate > latestMealPlan.date) {
                       Alert.alert(
                         t("日期無效" as any),
-                        t("購買日期（{{date}}）不能遲於排餐日期（{{meal}}）\n\n建議選擇 {{suggest}} 或更早的日期" as any, { date: shoppingDate, meal: latestMealPlan.date, suggest: getDayBefore(latestMealPlan.date) }),
+                        t("購買日期（{{date}}）不能遲於排餐日期（{{meal}}）\n\n建議選擇 {{suggest}} 或更早的日期" as any, { date: shoppingDate, meal: latestMealPlan.date, suggest: buyDateOrToday(latestMealPlan.date) }),
                         [{ text: t("確定" as any) }]
                       );
                       return;
@@ -2407,7 +2420,7 @@ export default function RecipeDetailScreen() {
           recipes={planPickerRecipe ? [planPickerRecipe] : []}
           loading={addShoppingM.isPending}
           mealDate={planPickerRecipe?.date}
-          defaultBuyDate={planPickerRecipe?.date ? getDayBefore(planPickerRecipe.date) : undefined}
+          defaultBuyDate={planPickerRecipe?.date ? buyDateOrToday(planPickerRecipe.date) : undefined}
           maxDate={planPickerRecipe?.date}
           showDateSelector={false}
           onDateChange={setPlanPickerShoppingDate}

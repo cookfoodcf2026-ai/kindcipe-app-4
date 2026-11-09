@@ -62,6 +62,10 @@
     "filterKol": "KOL",
     "filterMine": "Saya",
     "clearAllTxt": "Hapus semua",
+    "sortLabel": "Urutkan",
+    "sortDaily": "Default",
+    "sortFastest": "Tercepat",
+    "sortNewest": "Terbaru",
     "back": "Kembali"
   },
   "mealPlan": {

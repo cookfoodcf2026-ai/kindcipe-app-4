@@ -10,6 +10,7 @@ interface UseRecipeSearchOptions {
   ingredientCategory?: string;
   source?: "all" | "official" | "user" | "kol" | "hot" | "ai";
   sort?: "popular" | "newest" | "updated";
+  order?: "daily" | "fastest" | "newest";
   limit?: number;
 }
 
@@ -23,6 +24,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     ingredientCategory,
     source,
     sort,
+    order,
     limit = 20,
   } = options;
 
@@ -36,6 +38,7 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
       ingredientCategory: ingredientCategory || undefined,
       source: source || undefined,
       sort: sort || undefined,
+      order: order || undefined,
       limit,
     },
     {
@@ -68,11 +71,17 @@ export function useRecipeSearch(options: UseRecipeSearchOptions = {}) {
     return result.data?.pages[0]?.aiCount ?? 0;
   }, [result.data]);
 
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage: fetchNextPageRaw,
+  } = result;
+
   const fetchNextPage = useCallback(() => {
-    if (result.hasNextPage && !result.isFetchingNextPage) {
-      result.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPageRaw();
     }
-  }, [result.hasNextPage, result.isFetchingNextPage, result.fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPageRaw]);
 
   return {
     recipes,

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal, StyleSheet,
-  Dimensions, Platform, Alert,
+  Platform, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
@@ -10,7 +10,7 @@ import { DateUtil } from "@/src/lib/DateUtil";
 import { buyDateForMeal } from "@/lib/shoppingDate";
 import { useTranslation } from "react-i18next";
 import { enumT } from "@/lib/i18nEnums";
-import { getBilingualName, getDisplayName } from "@/lib/bilingual";
+import { getDisplayName } from "@/lib/bilingual";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 
 const BRAND = "#183B56";
@@ -108,7 +108,7 @@ export default function IngredientPickerModal({
   // 採買日：排餐日=今日用今日；未來排餐日用前一日；無排餐日先用 caller 提供嘅日期
   const mealBuyDate = buyDateForMeal(mealDate, today);
   const autoBuyDate = mealDate && mealBuyDate.ok ? mealBuyDate.date : undefined;
-  const effectiveBuyDate = autoBuyDate || defaultBuyDate || (mealDate ? DateUtil.getDayBefore(mealDate) : defaultDate);
+  const effectiveBuyDate = autoBuyDate || defaultBuyDate || defaultDate;
   
   // 修改：允許選擇過去日期（如果 maxDate 存在，表示係排餐日，可以選前一日）
   const normalizedDefaultDate = useMemo(() => {
@@ -146,7 +146,7 @@ export default function IngredientPickerModal({
 
   // 將食材按類別分組
   const groupedIngredients = useMemo(() => {
-    const groups: Record<string, Array<{ recipeId: string; recipeName: string; ing: PickerIngredient; idx: number; key: string }>> = {};
+    const groups: Record<string, { recipeId: string; recipeName: string; ing: PickerIngredient; idx: number; key: string }[]> = {};
     recipes.forEach((r) => {
       r.ingredients.forEach((ing, idx) => {
         const cat = ing.category || detectCategory(ing.name);
@@ -156,11 +156,6 @@ export default function IngredientPickerModal({
     });
     return groups;
   }, [recipes, date]);
-
-  const seasoningCount = useMemo(
-    () => Object.entries(groupedIngredients).reduce((sum, [cat, items]) => cat === "調味料" ? sum + items.length : sum, 0),
-    [groupedIngredients]
-  );
 
   const initializedRef = useRef(false);
 
@@ -188,7 +183,7 @@ export default function IngredientPickerModal({
     if (!visible) {
       initializedRef.current = false;
     }
-  }, [visible, initialSelected, normalizedDefaultDate, alreadyAddedKeys]);
+  }, [visible, initialSelected, normalizedDefaultDate, alreadyAddedKeys, recipes]);
 
   const toggle = (key: string) => {
     setSelected((prev) => {
@@ -303,7 +298,7 @@ export default function IngredientPickerModal({
     }
     
     return `📅 ${formatDate(minDate)} ~ ${formatDate(maxDate)}`;
-  }, [recipes]);
+  }, [recipes, t]);
 
   const sortedCategories = useMemo(() => {
     const cats = Object.keys(groupedIngredients);

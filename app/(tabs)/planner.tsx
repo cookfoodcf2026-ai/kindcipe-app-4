@@ -1004,7 +1004,7 @@ export default function PlannerTab() {
             deleteMealM.mutate({ id: mp.id });
             const recipeItems = (shoppingItemsRef.current as any[]).filter(
               (si: any) =>
-                (si.fromMealPlanId === mp.id || (si.fromRecipeName === mp.recipeName && si.plannedDate === mp.date)) &&
+                (si.fromMealPlanId === mp.id || (!!si.fromRecipeId && si.fromRecipeId === mp.recipeId)) &&
                 si.status !== "bought",
             );
             if (recipeItems.length > 0) {
@@ -1129,7 +1129,7 @@ export default function PlannerTab() {
   const relatedShoppingItems = useMemo(
     () => (moveMealPlanTarget ? (shoppingItems as any[]).filter((si: any) =>
       si.fromMealPlanId === moveMealPlanTarget.id ||
-      (si.fromRecipeName === moveMealPlanTarget.recipeName && si.plannedDate === moveMealPlanTarget.date)
+      (!!si.fromRecipeId && si.fromRecipeId === moveMealPlanTarget.recipeId)
     ) : []),
     [shoppingItems, moveMealPlanTarget],
   );

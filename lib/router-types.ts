@@ -84,7 +84,7 @@ export interface AiChatSessionRow {
   title: string;
   createdAt: number;
   updatedAt: number;
-  messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+  messages: { role: "user" | "assistant"; content: unknown }[];
 }
 
 export interface AiChatRouter {
@@ -94,19 +94,19 @@ export interface AiChatRouter {
       id: string;
       title: string;
       createdAt?: number;
-      messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+      messages: { role: "user" | "assistant"; content: unknown }[];
     };
     output: { ok: boolean; updatedAt?: number };
   };
   delete: { input: { id: string }; output: { ok: boolean } };
   bulkImport: {
     input: {
-      sessions: Array<{
+      sessions: {
         id: string;
         title: string;
         createdAt?: number;
-        messages: Array<{ role: "user" | "assistant"; content: unknown }>;
-      }>;
+        messages: { role: "user" | "assistant"; content: unknown }[];
+      }[];
     };
     output: { ok: boolean; imported: number };
   };
@@ -223,7 +223,7 @@ export interface FamilySettings {
 export interface MealPreferencesInput {
   servings?: number;
   time?: "quick" | "normal" | "leisure";
-  timeModes?: Array<"quick" | "normal" | "leisure">;
+  timeModes?: ("quick" | "normal" | "leisure")[];
   hasKids?: boolean;
   hasElderly?: boolean;
   dislikes?: string[];
@@ -513,6 +513,8 @@ export interface GetRecipeByIdInput {
   id: string;
 }
 
+export type OfficialRecipeOrder = 'daily' | 'fastest' | 'newest';
+
 export interface ListRecipesInput {
   limit?: number;
   offset?: number;
@@ -520,6 +522,7 @@ export interface ListRecipesInput {
   cuisine?: string;
   difficulty?: string;
   tags?: string[];
+  order?: OfficialRecipeOrder;
 }
 
 export interface SearchRecipesInput {
@@ -527,6 +530,7 @@ export interface SearchRecipesInput {
   limit?: number;
   tags?: string[];
   cuisine?: string;
+  order?: OfficialRecipeOrder;
 }
 
 export interface ImportRecipeInput {
@@ -858,7 +862,7 @@ export interface QuickPlanSuggestOutput {
 
 export interface QuickPlanAcceptInput {
   clientRequestId: string;
-  items: Array<{
+  items: {
     date: string;
     buyDate: string;
     recipeId: string;
@@ -867,7 +871,7 @@ export interface QuickPlanAcceptInput {
     recipeNameFil?: string | null;
     recipeNameId?: string | null;
     recipeImage?: string | null;
-    ingredients: Array<{
+    ingredients: {
       name: string;
       nameEn?: string;
       nameFil?: string;
@@ -875,8 +879,8 @@ export interface QuickPlanAcceptInput {
       quantity?: string;
       unit?: string;
       category?: string;
-    }>;
-  }>;
+    }[];
+  }[];
 }
 
 export interface QuickPlanAcceptOutput {
@@ -903,14 +907,14 @@ export interface QuickPlanRecipe {
   cookTime: number;
   servings: number;
   difficulty: string;
-  ingredients: Array<{
+  ingredients: {
     name: string;
     nameEn?: string;
     nameFil?: string;
     nameId?: string;
     quantity: string;
     unit: string;
-  }>;
+  }[];
   steps: string[];
   stepsEn?: string[];
   stepsFil?: string[];

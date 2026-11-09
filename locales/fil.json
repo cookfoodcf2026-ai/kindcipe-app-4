@@ -62,6 +62,10 @@
     "filterKol": "KOL",
     "filterMine": "Akin",
     "clearAllTxt": "Burahin lahat",
+    "sortLabel": "Ayusin",
+    "sortDaily": "Default",
+    "sortFastest": "Pinakamabilis",
+    "sortNewest": "Pinakabago",
     "back": "Bumalik"
   },
   "mealPlan": {

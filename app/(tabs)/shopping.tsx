@@ -1,7 +1,7 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, FlatList,
   TextInput, Modal, ScrollView, ActivityIndicator, Platform,
-  KeyboardAvoidingView, RefreshControl, useWindowDimensions,
+  KeyboardAvoidingView, RefreshControl,
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,8 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import { scheduleShoppingNotification, requestNotificationPermission } from "@/lib/notifications";
-import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredient, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
-import { getBilingualName, getDisplayName } from "@/lib/bilingual";
+import { getCommonIngredientSuggestions, OFFLINE_FALLBACK, type CommonIngredientSuggestion } from "@/lib/commonIngredients";
+import { getDisplayName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import i18n from "@/lib/i18n";
@@ -26,12 +26,6 @@ import PriceCompareModal from "@/src/components/PriceCompareModal";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
 import { track, Events } from "@/lib/analytics";
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "待採購", color: "#183B56", bg: "#E8F0F4" },
-  pending: { label: "待確認", color: "#CA8A04", bg: "#FEF9C3" },
-  bought: { label: "已購買", color: "#16A34A", bg: "#DCFCE7" },
-};
 
 const CATEGORY_EMOJI: Record<string, string> = {
   "蔬菜": "🥬",
@@ -152,18 +146,6 @@ const formatDateCard = (dateStr: string) => {
   return { day: safeDay, weekday: `${weekday}${suffix}`, isToday, isTomorrow };
 };
 
-const isTodayDate = (dateStr: string) => {
-  return DateUtil.isToday(dateStr);
-};
-
-const isTomorrowDate = (dateStr: string) => {
-  return DateUtil.isTomorrow(dateStr);
-};
-
-const isThisWeekDate = (dateStr: string) => {
-  return DateUtil.isThisWeek(dateStr);
-};
-
 const formatMonthLabel = (dateStr: string) => {
   return DateUtil.formatMonthLabel(dateStr);
 };
@@ -275,9 +257,7 @@ const CategoryCard = memo(function CategoryCard({ cat, catItems, onAdd, renderIt
 export default function ShoppingTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t, i18n } = useTranslation();
-  const { height: screenHeight } = useWindowDimensions();
-  const modalMaxHeight = screenHeight * 0.65;
+  const { t } = useTranslation();
   const dateCardsScrollRef = useRef<ScrollView>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -655,7 +635,7 @@ export default function ShoppingTab() {
         prefillPrice: undefined,
       });
     }
-  }, [params]);
+  }, [params, router]);
 
   const unboughtCount = items.filter((i) => i.status !== "bought" && (!i.plannedDate || i.plannedDate >= todayISO)).length;
 
@@ -693,7 +673,7 @@ export default function ShoppingTab() {
       list = list.filter((i) => i.plannedDate === selectedDate);
     }
     return list;
-  }, [items, searchQuery, activeTypeFilter, activeDateFilter, selectedDate, todayISO]);
+  }, [items, searchQuery, activeTypeFilter, activeDateFilter, selectedDate]);
 
   const activeItems = useMemo(
     () => filteredItems,
@@ -742,7 +722,7 @@ export default function ShoppingTab() {
     }));
     
     return dateCards;
-  }, [dateWindowStart, activeItems]);
+  }, [dateWindowStart, items]);
 
   const currentMonth = useMemo(() => {
     if (visibleMonth) return visibleMonth;
@@ -832,7 +812,7 @@ export default function ShoppingTab() {
         { text: t("shopping.delete"), style: "destructive", onPress: () => deleteItemM.mutate({ id: item.id }) },
       ]);
     },
-    [deleteItemM],
+    [deleteItemM, biName, t],
   );
 
   const openBudgetEdit = useCallback((item: any) => {
@@ -867,7 +847,7 @@ export default function ShoppingTab() {
       plannedDate: editPlannedDate || undefined,
       estimatedPrice: budgetPrice ? parseInt(budgetPrice, 10) : undefined,
     });
-  }, [editItem, editName, editQty, editUnit, editPlannedDate, editBudgetPrice, updateItemM, getLinkedMealPlanDate]);
+  }, [editItem, editName, editQty, editUnit, editPlannedDate, editBudgetPrice, updateItemM, getLinkedMealPlanDate, t]);
 
   const handleDateCardTap = useCallback((date: string) => {
     if (selectedDate === date) {
@@ -886,19 +866,6 @@ export default function ShoppingTab() {
     });
     return list;
   }, [groupedByCategory]);
-
-  const openPriceAction = useCallback((item: any) => {
-    const isBought = item.status === "bought";
-    if (isBought || item.lastPrice != null) {
-      setSavePriceItem(item);
-      setSavePriceMode("actual");
-      savePriceEditedRef.current = false;
-      setSavePriceVal(String(item.lastPrice ?? item.estimatedPrice ?? ""));
-      setShowSavePrice(true);
-      return;
-    }
-    openBudgetEdit(item);
-  }, [openBudgetEdit]);
 
   const renderItem = (item: any) => {
     const isBought = item.status === "bought";
@@ -942,9 +909,7 @@ export default function ShoppingTab() {
                   <Text style={styles.recipeTagText}>{rn.primary}</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={styles.recipeTagNeutral}>
-                  <Text style={styles.recipeTagTextNeutral} numberOfLines={1}>{rn.primary} · {t("shopping.aiSuggested")}</Text>
-                </View>
+                <Text style={styles.recipeTagTextNeutral} numberOfLines={1}>{rn.primary}</Text>
               );
             })()}
           </View>
@@ -2038,12 +2003,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#183B56",
     fontWeight: "500",
-  },
-  recipeTagNeutral: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
   },
   recipeTagTextNeutral: {
     fontSize: 10,

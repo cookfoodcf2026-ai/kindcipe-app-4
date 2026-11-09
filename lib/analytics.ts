@@ -173,6 +173,7 @@ export const Events = {
   AiCardsRestored: "ai_cards_restored",
   AiPlanAdded: "ai_plan_added",
   AiShoppingAutoAdded: "ai_shopping_auto_added",
+  AiShoppingRefMissing: "ai_shopping_ref_missing",
   AiChefError: "ai_chef_error",
   AiChefFailure: "ai_chef_failure",
   SupportContactOpened: "support_contact_opened",

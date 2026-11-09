@@ -62,6 +62,10 @@
     "filterKol": "網紅",
     "filterMine": "我的",
     "clearAllTxt": "清除全部",
+    "sortLabel": "排序",
+    "sortDaily": "預設",
+    "sortFastest": "最快",
+    "sortNewest": "最新",
     "back": "返回"
   },
   "mealPlan": {
