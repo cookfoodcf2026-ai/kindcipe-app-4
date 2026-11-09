@@ -583,7 +583,7 @@ export default function OnboardingScreen(
                   if (ingCount > 0) parts.push(`${ingCount} 樣食材已合併成一張清單`);
                   return parts.join(" · ");
                 })()
-              : "每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。"}
+              : t("onboarding.planSubtitle")}
           </Text>
 
           {planLoading && (

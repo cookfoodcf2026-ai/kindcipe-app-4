@@ -1,8 +1,8 @@
 {
   "version": 1,
   "generatedAt": "2026-11-07T03:41:31.863Z",
-  "totalHits": 145,
-  "totalLines": 106,
+  "totalHits": 144,
+  "totalLines": 105,
   "counts": {
     "app/(tabs)/index.tsx|string|搜尋失敗": 1,
     "app/(tabs)/index.tsx|string|登入": 1,
@@ -84,7 +84,6 @@
     "app/onboarding.tsx|string|排餐、清單、買餸，一個 App 搞掂": 1,
     "app/onboarding.tsx|string|改為今晚 ›": 1,
     "app/onboarding.tsx|string|改為聽晚 ›": 1,
-    "app/onboarding.tsx|string|每日 3 餸 1 湯；配一次會用 1 次 AI 額度（免費用戶）。": 1,
     "app/onboarding.tsx|string|番茄": 1,
     "app/onboarding.tsx|string|自動生成雙語買餸單": 1,
     "app/onboarding.tsx|string|自動配好三餸一湯，唔使再煩": 1,
