@@ -17,7 +17,8 @@
         "SENTRY_PROJECT": "kindcipe-app",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_CQ7LWFNnTqdfD73DTKoE5R97dwspRvTUcwEjGkWXAAr9",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
-        "EXPO_PUBLIC_ENABLE_APPLE_WEB": "1"
+        "EXPO_PUBLIC_ENABLE_APPLE_WEB": "1",
+    "EXPO_PUBLIC_IAP_ENABLED": "1"
       },
       "android": {
         "buildType": "app-bundle"
