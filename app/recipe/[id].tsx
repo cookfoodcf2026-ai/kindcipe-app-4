@@ -55,6 +55,7 @@ import { getLocalizedTip } from "@/lib/tipLocalization";
 import { friendlyError } from "@/lib/errors";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
+import { shouldOfferAiFillSteps } from "@/lib/aiFillSteps";
 
 export const isValidHttpUrl = (value: unknown): value is string =>
   typeof value === "string" &&
@@ -362,12 +363,12 @@ export default function RecipeDetailScreen() {
     return map;
   }, [shoppingListQ.data]);
 
-  const resolveMealBuyDate = () => {
+  const resolveMealBuyDate = useCallback(() => {
     const today = toISODate(new Date());
     return latestMealPlan
       ? buyDateForMeal(latestMealPlan.date, today)
       : { ok: true as const, date: today, manual: true as const };
-  };
+  }, [latestMealPlan]);
   const resolvedMealBuyDate = resolveMealBuyDate();
   const currentShoppingDate = shoppingDate
     || (resolvedMealBuyDate.ok ? resolvedMealBuyDate.date : toISODate(new Date()));
@@ -766,6 +767,13 @@ export default function RecipeDetailScreen() {
     });
   }, [ingredients, ratio]);
 
+  const canAiFillSteps = shouldOfferAiFillSteps({
+    isUserRecipe,
+    ingredientCount: adjustedIngredients.length,
+    stepCount: steps.length,
+    stepsIncomplete: (recipe as any)?.steps_incomplete === true,
+  });
+
   const aiEditM = trpc.aiRecipe.previewEdit.useMutation({
     onSuccess: (data) => {
       void utils.family.usage.invalidate();
@@ -856,7 +864,7 @@ export default function RecipeDetailScreen() {
     setSelectedIngs(defaultSelected);
     setShoppingDate(buyDate.date);
     setShowIngPicker(true);
-  }, [adjustedIngredients, latestMealPlan, t]);
+  }, [adjustedIngredients, resolveMealBuyDate, t]);
 
   // Cooking terms for highlighting
   const cookingTerms = useMemo(() => COOKING_TERM_LIST, []);
@@ -1234,7 +1242,7 @@ export default function RecipeDetailScreen() {
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
-              {isUserRecipe && adjustedIngredients.length > 0 && steps.length === 0 && (
+              {canAiFillSteps && (
                 <TouchableOpacity style={s.btnAI} disabled={fillStepsM.isPending} onPress={() => {
                   fillStepsM.mutate({
                     name: recipe?.name ?? "",

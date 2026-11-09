@@ -32,7 +32,7 @@
           "id"
         ]
       },
-      "buildNumber": "9"
+      "buildNumber": "10"
     },
     "android": {
       "adaptiveIcon": {
@@ -53,7 +53,13 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      ["@sentry/react-native", { "organization": "kindcipe", "project": "kindcipe-app" }],
+      [
+        "@sentry/react-native",
+        {
+          "organization": "kindcipe",
+          "project": "kindcipe-app"
+        }
+      ],
       "expo-secure-store",
       [
         "expo-image-picker",

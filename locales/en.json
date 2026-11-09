@@ -1165,6 +1165,7 @@
     "mineAll": "All",
     "mineManual": "My own",
     "mineImported": "Imported",
+    "mineDraft": "Unfinished",
     "hideAI": "Hide AI recipes"
   },
   "price": {

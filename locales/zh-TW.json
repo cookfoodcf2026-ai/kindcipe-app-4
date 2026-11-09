@@ -1135,6 +1135,7 @@
     "mineAll": "全部",
     "mineManual": "自建",
     "mineImported": "匯入",
+    "mineDraft": "未完成",
     "hideAI": "隱藏 AI 生成"
   },
   "price": {

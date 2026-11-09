@@ -1219,7 +1219,7 @@ export default function PlannerTab() {
         }
       }
     },
-    [officialRecipes, userRecipes, showToast, shouldLoadRecipes],
+    [officialRecipes, userRecipes, showToast, shouldLoadRecipes, t],
   );
 
   const handleConfirmMeal = useCallback(

@@ -33,6 +33,13 @@ import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
+import {
+  buildDraftIdSet,
+  draftBannerAction,
+  selectRecipesForMineSub,
+  type MineSubFilter,
+} from "@/lib/draftRecipes";
+import { shouldOfferAiFillSteps } from "@/lib/aiFillSteps";
 import { canva } from "@/app/styles/colors";
 import { typography } from "@/app/styles/typography";
 
@@ -544,8 +551,8 @@ export default function RecipesTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showSortSheet, setShowSortSheet] = useState(false);
-  // 「我的食譜」子篩選：全部 / 自建 / 匯入（取代獨立「匯入」chip）
-  const [mineSub, setMineSub] = useState<"all" | "manual" | "imported">("all");
+  // 「我的食譜」子篩選：全部 / 自建 / 匯入 / 未完成（取代獨立「匯入」chip）
+  const [mineSub, setMineSub] = useState<MineSubFilter>("all");
   const [filterCookTimeMax, setFilterCookTimeMax] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"newest" | "popular" | "updated" | "cookTime" | "difficulty">("newest");
   // 食譜庫預設「最新優先」；「熱門」檢視仍然預設 popular。
@@ -706,13 +713,16 @@ export default function RecipesTab() {
     trpc.recipes.listUser.useQuery({ limit: 200 }, { staleTime: 60000 });
 
   const drafts = useMemo(() => (userRecipes as any[]).filter((r: any) => r.isDraft), [userRecipes]);
-  const draftIdSet = useMemo(() => {
-    const set = new Set<string>();
-    drafts.forEach((d: any) => set.add(String(d.id)));
-    return set;
-  }, [drafts]);
+  const draftIdSet = useMemo(() => buildDraftIdSet(drafts), [drafts]);
 
   const isLoading = searchLoading || loadingUser;
+
+  // 草稿清空後唔可以困住用戶喺「未完成」篩選。
+  useEffect(() => {
+    if (!loadingUser && mineSub === "draft" && drafts.length === 0) {
+      setMineSub("all");
+    }
+  }, [loadingUser, mineSub, drafts.length]);
   const { showToast } = useToast();
 
   // ── 未完成（草稿）食譜：唔入公開 grid，但一定要見到，並且有兩個補齊出口 ──
@@ -871,18 +881,24 @@ export default function RecipesTab() {
   }, [userRecipes, searchRecipes]);
 
   // Filter recipes based on viewMode (official/user/kol/all)
+  const isDraftView = viewMode === "user" && mineSub === "draft";
   const filteredRecipes = useMemo(() => {
     let pool = [...searchRecipes];
 
     if (viewMode === "official") {
       pool = pool.filter((r: any) => r.source === "official");
     } else if (viewMode === "user") {
-      // 「我的食譜」：自訂（排除 AI），再按子篩選（全部/自建/匯入）
-      pool = pool.filter((r: any) => r.source === "custom" && !isAIRecipe(r));
-      if (mineSub === "imported") {
-        pool = pool.filter((r: any) => isImportedRecipe(r));
-      } else if (mineSub === "manual") {
-        pool = pool.filter((r: any) => !isImportedRecipe(r));
+      if (mineSub === "draft") {
+        // Banner 計幾多張草稿，呢個檢視就只顯示同一批草稿（唔靠 search 分頁）。
+        pool = selectRecipesForMineSub(mineSub, drafts, pool);
+      } else {
+        // 「我的食譜」：自訂（排除 AI），再按子篩選（全部/自建/匯入）
+        pool = pool.filter((r: any) => r.source === "custom" && !isAIRecipe(r));
+        if (mineSub === "imported") {
+          pool = pool.filter((r: any) => isImportedRecipe(r));
+        } else if (mineSub === "manual") {
+          pool = pool.filter((r: any) => !isImportedRecipe(r));
+        }
       }
     } else if (viewMode === "ai") {
       // 「AI 食譜」：只顯示 AI 生成
@@ -913,7 +929,7 @@ export default function RecipesTab() {
     }
 
     // 隱藏 AI 生成食譜（用戶選擇）— 但「AI 食譜」檢視唔可以隱藏（否則清空）
-    if (hideAI && viewMode !== "ai") {
+    if (hideAI && viewMode !== "ai" && !isDraftView) {
       pool = pool.filter((r: any) => !isAIRecipe(r));
     }
 
@@ -942,7 +958,7 @@ export default function RecipesTab() {
     }
 
     return pool;
-  }, [searchRecipes, viewMode, mineSub, sortBy, draftIdSet, hideAI]);
+  }, [searchRecipes, viewMode, mineSub, sortBy, draftIdSet, hideAI, drafts, isDraftView]);
 
   // P3: 背景預載食譜詳情（getById），令「撳落去」即刻見（避免第一次空白 3 秒）
   useEffect(() => {
@@ -997,12 +1013,18 @@ export default function RecipesTab() {
         showQuickPlan={false} // 暫時隱藏快速排餐按鈕（2026-08-09）：簡化食譜卡 UI，用戶仍可透過詳情頁 / 排餐頁 / AI Chef 加入排餐
       />
       {isDraftCard && (() => {
-        const hasIngredients = Array.isArray((item as any).ingredients) && (item as any).ingredients.length > 0;
-        const hasSteps = Array.isArray((item as any).steps) && (item as any).steps.length > 0;
+        const ingredients = Array.isArray((item as any).ingredients) ? (item as any).ingredients : [];
+        const steps = Array.isArray((item as any).steps) ? (item as any).steps : [];
         const draftId = String(item.id ?? "").replace(/^user_/, "");
         const busy = fillingDraftId === draftId;
+        const needsAiSteps = shouldOfferAiFillSteps({
+          isUserRecipe: true,
+          ingredientCount: ingredients.length,
+          stepCount: steps.length,
+          stepsIncomplete: (item as any).steps_incomplete === true,
+        });
         // OC：缺材料就唔可以叫 AI 寫煮法（只會憑空生成），一律先開編輯器補材料。
-        if (!hasIngredients) {
+        if (ingredients.length === 0) {
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/recipe-editor", params: { id: draftId } } as any)}
@@ -1012,7 +1034,7 @@ export default function RecipesTab() {
             </Pressable>
           );
         }
-        if (!hasSteps) {
+        if (needsAiSteps) {
           return (
             <Pressable
               onPress={() => void fillDraftSteps(item)}
@@ -1033,7 +1055,7 @@ export default function RecipesTab() {
   const hasFilters = viewMode !== "all" || searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
   // 唔含 viewMode —— 用於 empty state 分支，避免 viewMode 狹窄化令「我的食譜」空狀態不可達
   const hasFilterTokens = searchQuery || activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined;
-  const hasActiveTokens = activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined || filterCookTimeMax !== undefined;
+  const hasActiveTokens = activeCategory !== "all" || activeTagFilters.length > 0 || activePopularChips.length > 0 || activeIngredientCategory !== undefined || filterCookTimeMax !== undefined || isDraftView;
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
@@ -1043,6 +1065,7 @@ export default function RecipesTab() {
     else if (viewMode === "hot") parts.push(t("🔥 熱門食譜" as any));
     else if (viewMode === "imported") parts.push(t("📥 匯入食譜" as any));
     else if (viewMode === "ai") parts.push(t("filter.ai" as any));
+    if (isDraftView) parts.push(t("filter.mineDraft" as any));
     if (activeCategory !== "all") {
       const cat = categories.find(c => c.key === activeCategory);
       parts.push(cat?.label ? t(cat.label as any) : activeCategory);
@@ -1062,13 +1085,25 @@ export default function RecipesTab() {
     }
     if (searchQuery.trim()) parts.push(`"${searchQuery}"`);
     return parts.join(" · ");
-  }, [viewMode, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories, t]);
+  }, [viewMode, isDraftView, activeCategory, activePopularChips, activeTagFilters, activeIngredientCategory, searchQuery, categories, t]);
 
   // 未完成食譜：唔入公開 grid，但用戶一定見到（連原因 + 兩個出口）
   // 未完成食譜：一行提示，撳入去「我的食譜」自己補（詳情／卡片有 AI 填煮法掣）
   const draftsSection = drafts.length === 0 ? null : (
     <Pressable
-      onPress={() => { setViewMode("user"); listRef.current?.scrollToOffset?.({ offset: 0, animated: true } as any); }}
+      onPress={() => {
+        if (drafts.length === 0) return;
+        const action = draftBannerAction(drafts.length);
+        setSearchQuery("");
+        setActiveCategory("all");
+        setActiveTagFilters([]);
+        setActivePopularChips([]);
+        setActiveIngredientCategory(undefined);
+        setFilterCookTimeMax(undefined);
+        setViewMode("user");
+        setMineSub(action.mineSub);
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: true } as any);
+      }}
       style={{ marginHorizontal: 14, marginBottom: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F", flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Ionicons name="alert-circle-outline" size={18} color="#8A4B08" />
@@ -1178,6 +1213,7 @@ export default function RecipesTab() {
             { key: "all", label: t("filter.mineAll" as any) },
             { key: "manual", label: t("filter.mineManual" as any) },
             { key: "imported", label: t("filter.mineImported" as any) },
+            { key: "draft", label: t("filter.mineDraft" as any) },
           ] as const).map(sub => (
             <TouchableOpacity
               key={sub.key}
@@ -1238,6 +1274,15 @@ export default function RecipesTab() {
       {hasActiveTokens && (
         <View style={s.smartFilterWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.smartFilterRow}>
+            {/* Draft filter Token（撳 banner 進入，必須一眼睇到點清走） */}
+            {isDraftView && (
+              <View style={s.smartToken}>
+                <Text style={s.smartTokenTxt}>{t("filter.mineDraft" as any)}</Text>
+                <TouchableOpacity onPress={() => setMineSub("all")}>
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
             {/* Category Token */}
             {activeCategory !== "all" && (
               <View style={s.smartToken}>
@@ -1298,6 +1343,7 @@ export default function RecipesTab() {
               setActiveIngredientCategory(undefined);
               setFilterCookTimeMax(undefined);
               setSearchQuery("");
+              setMineSub("all");
             }}>
               <Ionicons name="close-circle" size={18} color="#666" />
             </TouchableOpacity>
@@ -1351,12 +1397,12 @@ export default function RecipesTab() {
                 <Text style={s.resultSummaryTxt}>{t("home.searching")}</Text>
               </View>
             ) : filterSummary ? (
-              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {t("dyn.resultsCount", { n: searchTotal })}</Text>
+              <Text style={s.resultSummaryTxt} numberOfLines={1}>{filterSummary} · {t("dyn.resultsCount", { n: isDraftView ? filteredRecipes.length : searchTotal })}</Text>
             ) : (
-              <Text style={s.resultSummaryTxt}>{t("home.result", { n: searchTotal })}</Text>
+              <Text style={s.resultSummaryTxt}>{t("home.result", { n: isDraftView ? filteredRecipes.length : searchTotal })}</Text>
             )}
           </View>
-          <TouchableOpacity onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); }}>
+          <TouchableOpacity onPress={() => { setViewMode("all"); setActiveCategory("all"); setActiveTagFilters([]); setActivePopularChips([]); setActiveIngredientCategory(undefined); setSearchQuery(""); setMineSub("all"); }}>
             <Text style={s.resultSummaryClear}>{t("home.clearFilters")}</Text>
           </TouchableOpacity>
         </View>
