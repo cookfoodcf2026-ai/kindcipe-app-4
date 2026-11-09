@@ -1,4 +1,12 @@
 import * as Iap from "expo-iap";
+import { apiClient } from "./trpc";
+import {
+  PRODUCT_IDS,
+  getProducts,
+  purchaseSubscription,
+  restorePurchases,
+  type PurchaseResult,
+} from "./purchase";
 
 jest.mock("react-native", () => ({
   Platform: { OS: "ios" },
@@ -30,8 +38,8 @@ jest.mock("./trpc", () => ({
 
 jest.mock("expo-iap", () => {
   const listeners: {
-    updated: Array<(purchase: unknown) => void>;
-    error: Array<(error: unknown) => void>;
+    updated: ((purchase: unknown) => void)[];
+    error: ((error: unknown) => void)[];
   } = { updated: [], error: [] };
   return {
     __esModule: true,
@@ -60,20 +68,11 @@ jest.mock("expo-iap", () => {
   };
 });
 
-import { apiClient } from "./trpc";
-import {
-  PRODUCT_IDS,
-  getProducts,
-  purchaseSubscription,
-  restorePurchases,
-  type PurchaseResult,
-} from "./purchase";
-
 const iap = Iap as unknown as Record<string, jest.Mock>;
 const listeners = (Iap as unknown as {
   __listeners: {
-    updated: Array<(purchase: unknown) => void>;
-    error: Array<(error: unknown) => void>;
+    updated: ((purchase: unknown) => void)[];
+    error: ((error: unknown) => void)[];
   };
 }).__listeners;
 const verifyMutate = apiClient.subscription.verifyIap.mutate as jest.Mock;
@@ -245,14 +244,14 @@ describe("getProducts", () => {
 
   it("maps StoreKit subscriptions with the localized price", async () => {
     iap.fetchProducts.mockResolvedValue([
-      { id: PRODUCT_IDS.MONTHLY, displayPrice: "HK$40.00" },
-      { id: PRODUCT_IDS.YEARLY, displayPrice: "HK$399.00" },
+      { id: PRODUCT_IDS.MONTHLY, displayPrice: "HK$38.00" },
+      { id: PRODUCT_IDS.YEARLY, displayPrice: "HK$388.00" },
       { id: "someone_elses_product", displayPrice: "HK$1.00" },
     ]);
 
     await expect(getProducts()).resolves.toEqual([
-      { productId: PRODUCT_IDS.MONTHLY, price: "HK$40.00" },
-      { productId: PRODUCT_IDS.YEARLY, price: "HK$399.00" },
+      { productId: PRODUCT_IDS.MONTHLY, price: "HK$38.00" },
+      { productId: PRODUCT_IDS.YEARLY, price: "HK$388.00" },
     ]);
   });
 });

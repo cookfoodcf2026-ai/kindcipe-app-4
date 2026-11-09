@@ -9,8 +9,8 @@
  */
 export const PRICING = {
   currency: "HK$",
-  monthly: 40, // regular anchor (in-app displayed)
-  yearly: 399, // regular anchor (in-app displayed)
+  monthly: 38, // regular anchor (in-app displayed)
+  yearly: 388, // regular anchor (in-app displayed)
   promoMonthly: 30, // founding-member price (first 100 held families)
   promoYearly: 288, // founding-member price (first 100 held families)
 } as const;

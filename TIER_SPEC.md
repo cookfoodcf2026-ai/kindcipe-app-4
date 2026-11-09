@@ -24,12 +24,12 @@
 
 | | Monthly | Yearly |
 |---|---|---|
-| Regular | **HK$40** | **HK$399** |
+| Regular | **HK$38** | **HK$388** |
 | Founding member (first 100 held families) | **HK$30** | **HK$288** |
 
 - Founding pricing is a **separate Stripe recurring price**, not a Stripe coupon or client-side promo code.
 - A paid founding member keeps HK$30/HK$288 for as long as the subscription remains continuously active.
-- Cancel or lapse → the slot is not re-used by the same family; rejoining later uses regular HK$40/HK$399.
+- Cancel or lapse → the slot is not re-used by the same family; rejoining later uses regular HK$38/HK$388.
 - A paid founding member who cancels keeps the slot counted as paid forever. A **trial** that cancels before payment releases the slot back to the pool.
 - Capacity is **100 held families**, where held = `reserved + paid` in `earlybird_redemptions`.
 - Display source: `lib/pricing.ts`. Backend is the source of truth for charged amounts via `billing.previewCheckout` and `billing.createCheckoutSession`.
@@ -42,7 +42,7 @@
 - Inside the claim window:
   - ≥48 hours of trial remaining → Stripe Checkout starts a trial to the app trial end; card is collected, **HK$0 today**, founding price after trial.
   - <48 hours or trial already ended → immediate charge at HK$30/HK$288 with an explicit amount disclosure.
-- After the claim window, or once the 100 founding slots are filled → regular HK$40/HK$399.
+- After the claim window, or once the 100 founding slots are filled → regular HK$38/HK$388.
 - Initial batch: **100 C9T codes**. Top up after 7 days based on reserved + paid, capped at 100 held.
 - **Any current family member** can redeem C9T or start checkout. Redeeming marks every current member’s one-time trial as used atomically.
 - Only **owner/admin** can open the Stripe Billing Portal and manage/cancel.

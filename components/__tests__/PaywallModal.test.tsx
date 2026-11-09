@@ -1,4 +1,6 @@
 import { render, waitFor } from "@testing-library/react-native";
+import * as purchase from "../../lib/purchase";
+import PaywallModal from "../PaywallModal";
 
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -76,9 +78,6 @@ jest.mock("../../lib/purchase", () => ({
   canPurchaseHere: true,
 }));
 
-import * as purchase from "../../lib/purchase";
-import PaywallModal from "../PaywallModal";
-
 const mockGetProducts = purchase.getProducts as jest.Mock;
 
 beforeEach(() => {
@@ -112,8 +111,8 @@ describe("PaywallModal StoreKit gating", () => {
     await waitFor(() => expect(queryByText("HK$48.00")).not.toBeNull());
 
     expect(getAllByText("HK$428.00").length).toBeGreaterThan(0);
-    expect(queryByText("HK$40")).toBeNull();
-    expect(queryByText("HK$399")).toBeNull();
+    expect(queryByText("HK$38")).toBeNull();
+    expect(queryByText("HK$388")).toBeNull();
     expect(queryByText("paywall.webOnlyCta")).toBeNull();
     expect(queryByText("paywall.appleChargeNote")).not.toBeNull();
   });
