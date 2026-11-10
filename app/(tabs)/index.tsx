@@ -546,7 +546,6 @@ export default function RecipesTab() {
   });
   // Only hide banner for fully paid active subscribers (trial users should still see it)
   const isPaid = sub?.status === "active";
-  const isPro = Boolean(sub?.isPaid || sub?.status === "active" || sub?.status === "trial");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -1220,10 +1219,6 @@ export default function RecipesTab() {
             <TouchableOpacity
               key={chip.key}
               onPress={() => {
-                if (chip.key === "kol" && !isPro) {
-                  setShowPaywall(true);
-                  return;
-                }
                 setViewMode(chip.key as any);
               }}
               style={[s.sortBtn, { paddingHorizontal: 12, width: "auto", flexDirection: "row", gap: 4 }, active && { backgroundColor: BRAND }]}
