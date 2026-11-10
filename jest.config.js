@@ -10,6 +10,7 @@ module.exports = {
     "<rootDir>/lib/plannerDate.test.ts",
     "<rootDir>/lib/dateRange.test.ts",
     "<rootDir>/lib/hardLogout.test.ts",
+    "<rootDir>/lib/pluralPrice.test.ts",
     "<rootDir>/lib/chatSessionSignature.test.ts",
     "<rootDir>/lib/authStatus.test.ts",
     "<rootDir>/components/__tests__/PaywallModal.test.tsx",

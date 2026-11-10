@@ -32,6 +32,7 @@ import {
   type ProductId,
 } from "../lib/purchase";
 import { PRICING, YEARLY_SAVE_PCT } from "../lib/pricing";
+import { perMonthFromYearly, yearlySavePct } from "../lib/pluralPrice";
 import { PRIVACY_URL, TERMS_URL, openLegalPage } from "../lib/legal";
 import { getWebappUrl, isIOS, isWeb } from "../lib/platform";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -147,6 +148,10 @@ export default function PaywallModal({
   const yearlyPrice =
     storePrices[PRODUCT_IDS.YEARLY] ??
     fmtCents(founding ? PRICING.promoYearly * 100 : PRICING.yearly * 100);
+  // Locale-safe badge figures: derive both from the prices actually shown, so
+  // a non-HK storefront never displays a hardcoded HK$ estimate.
+  const savePerMonth = perMonthFromYearly(yearlyPrice);
+  const savePct = yearlySavePct(monthlyPrice, yearlyPrice) ?? YEARLY_SAVE_PCT;
   // App Store 3.1.2: the StoreKit display price is the real charge; the
   // lib/pricing.ts figures are only a web fallback when IAP is not live.
   const displayAmount = storePrices[selectedProductId] ?? fmtCents(amount);
@@ -300,7 +305,13 @@ export default function PaywallModal({
           <Text style={styles.planPer}>{per}</Text>
         </View>
         {value === "yearly" ? (
-          <View style={styles.saveBadge}><Text style={styles.saveText}>{t("paywall.saveBadge" as any, { pct: YEARLY_SAVE_PCT })}</Text></View>
+          <View style={styles.saveBadge}>
+            <Text style={styles.saveText}>
+              {savePerMonth
+                ? t("paywall.saveBadge" as any, { pct: savePct, price: savePerMonth })
+                : t("paywall.saveBadgePct" as any, { pct: savePct })}
+            </Text>
+          </View>
         ) : null}
       </TouchableOpacity>
     );
