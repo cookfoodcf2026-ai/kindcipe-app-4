@@ -67,7 +67,7 @@ export type ConfirmedItem = {
   quantity: string;
   unit: string;
   category: string;
-  plannedDate?: string;  // 採買日（購物車歸類日期）
+  plannedDate: string;   // 採買日（購物車歸類日期）— 必填，由 modal 用用戶揀嘅日期填入
   mealDate?: string;     // 用餐日（排餐日，標籤顯示）
   fromMealPlanId?: number;
 };

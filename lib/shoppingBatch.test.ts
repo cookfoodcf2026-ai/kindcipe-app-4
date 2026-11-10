@@ -1,4 +1,5 @@
-import { summarizeShoppingBatch } from "./shoppingBatch";
+import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "./shoppingBatch";
+import { buyDateForMeal } from "./shoppingDate";
 
 describe("summarizeShoppingBatch", () => {
   it("counts only ok and not skipped items", () => {
@@ -57,5 +58,29 @@ describe("summarizeShoppingBatch", () => {
     expect(summary.added).toBe(2);
     expect(summary.skipped).toBe(0);
     expect(summary.allSkipped).toBe(false);
+  });
+});
+
+describe("shopping.addBatch plannedDate", () => {
+  it("uses the picked buy date, not the meal date", () => {
+    const payload = {
+      plannedDate: resolveShoppingPlannedDate("2026-11-10", "2026-11-11", "2026-11-09"),
+    };
+    expect(payload.plannedDate).toBe("2026-11-10");
+    expect(payload.plannedDate).not.toBe("2026-11-11");
+  });
+
+  it("falls back to buyDateForMeal when no date is picked and never sends undefined", () => {
+    const fallback = buyDateForMeal("2026-11-11", "2026-11-09");
+    const payload = {
+      plannedDate: resolveShoppingPlannedDate(undefined, "2026-11-11", "2026-11-09"),
+    };
+    expect(payload.plannedDate).toBe(fallback.ok ? fallback.date : "2026-11-09");
+    expect(payload.plannedDate).toBe("2026-11-10");
+    expect(payload.plannedDate).toBeDefined();
+  });
+
+  it("never returns undefined when neither date is available", () => {
+    expect(resolveShoppingPlannedDate(null, null, "2026-11-09")).toBe("2026-11-09");
   });
 });

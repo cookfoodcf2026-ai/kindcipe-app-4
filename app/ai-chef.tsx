@@ -26,7 +26,12 @@ import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { buyDateForMeal } from "@/lib/shoppingDate";
-import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
+import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
+import {
+  applyPlannedDateToCachedItems,
+  buildShoppingBatchPayload,
+  withItemPlannedDate,
+} from "@/lib/shoppingPayload";
 import { compressImageForWeb, isPhotoLimitError, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
@@ -2206,8 +2211,14 @@ export default function AIChefScreen() {
     onError: (e) => Alert.alert(t("批量加入排餐失敗" as any), friendlyError(e)),
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_result: any, variables: any) => {
       setShowPlan(false);
+      const plannedDate = typeof variables?.plannedDate === "string" ? variables.plannedDate : undefined;
+      if (plannedDate) {
+        utils.shopping.list.setData(undefined, (old: any[]) =>
+          applyPlannedDateToCachedItems(old, (variables.items ?? []).map((i: any) => i.name), plannedDate)
+        );
+      }
       void invalidateMealPlanAndCart();
     },
   });
@@ -3827,9 +3838,10 @@ export default function AIChefScreen() {
         return;
       }
 
+      const plannedShoppingDate = resolveShoppingPlannedDate(purchaseDate, plannedDate, todayISO());
       const result: any = await addShoppingM.mutateAsync({
-        items,
-        plannedDate: purchaseDate,
+        items: withItemPlannedDate(items, plannedShoppingDate),
+        plannedDate: plannedShoppingDate,
       });
       const summary = summarizeShoppingBatch(result, items.length);
       track(Events.AiShoppingAutoAdded, { count: summary.added, recipeCount: recipes.length });
@@ -5810,24 +5822,17 @@ export default function AIChefScreen() {
           const cur = shopConfirm;
           setShopConfirm(null);
           if (!cur || items.length === 0) return;
-          addShoppingM.mutate({
-            items: items.map((i) => ({
-              name: i.name,
-              nameEn: i.nameEn,
-              nameFil: i.nameFil,
-              nameId: i.nameId,
-              quantity: i.quantity,
-              unit: i.unit,
-              category: i.category,
-              fromRecipeId: i.recipeId,
-              fromRecipeName: i.recipeName,
-              fromMealPlanId: i.fromMealPlanId,
-            })),
-            fromRecipeId: items[0]?.recipeId,
-            fromRecipeName: cur.recipes.map((r: any) => r.name).join(", "),
-            fromMealPlanId: items[0]?.fromMealPlanId,
-            plannedDate: items[0]?.plannedDate,
-          } as any, {
+          addShoppingM.mutate(
+            buildShoppingBatchPayload({
+              items,
+              pickedDate: cur.shopDate,
+              mealDate: cur.planDate,
+              today: todayISO(),
+              fromRecipeId: items[0]?.recipeId,
+              fromRecipeName: cur.recipes.map((r: any) => r.name).join(", "),
+              fromMealPlanId: items[0]?.fromMealPlanId,
+            }),
+            {
             onSuccess: (result: any) => {
               const summary = summarizeShoppingBatch(result, items.length);
               if (summary.allSkipped) {

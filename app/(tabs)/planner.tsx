@@ -33,7 +33,8 @@ import { enumT } from "@/lib/i18nEnums";
 import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
 import { buyDateForMeal } from "@/lib/shoppingDate";
-import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
+import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
+import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
@@ -1881,8 +1882,9 @@ export default function PlannerTab() {
             // 合成 id（day_X_ai）唔係真 recipe ref，唔好當 fromRecipeId 用
             const firstId = items[0].recipeId || "";
             const realRecipeId = /^(official_|user_)/.test(firstId) ? firstId : undefined;
+            const plannedDate = resolveShoppingPlannedDate(items[0].plannedDate, pickerRecipe?.date, todayISO());
             addShoppingBatchM.mutate({
-              items: items.map((i) => ({
+              items: withItemPlannedDate(items.map((i) => ({
                 name: i.name,
                 nameEn: (i as any).nameEn,
                 nameFil: (i as any).nameFil,
@@ -1891,11 +1893,11 @@ export default function PlannerTab() {
                 unit: i.unit,
                 category: i.category,
                 mealDate: i.mealDate,  // 用餐日（標籤）
-              })),
+              })), plannedDate),
               fromRecipeId: realRecipeId,
               fromRecipeName: items[0].recipeName,
               fromMealPlanId: items[0].fromMealPlanId,
-              plannedDate: items[0].plannedDate,  // 採買日（購物車歸類日期）
+              plannedDate,  // 採買日（購物車歸類日期）
             });
           } else {
             setPickerRecipe(null);
@@ -2319,8 +2321,13 @@ export default function PlannerTab() {
           onAddToShopping={() => {
             const ings = Array.isArray(previewRecipe.ingredients) ? previewRecipe.ingredients : [];
             if (ings.length > 0) {
+              const plannedDate = resolveShoppingPlannedDate(
+                pendingPlanInfo?.date ? getDayBefore(pendingPlanInfo.date) : undefined,
+                pendingPlanInfo?.date,
+                todayISO(),
+              );
               addShoppingBatchM.mutate({
-                items: ings.map((ing: any) => ({
+                items: withItemPlannedDate(ings.map((ing: any) => ({
                   name: ing.name,
                   nameEn: ing.nameEn,
                   nameFil: ing.nameFil,
@@ -2328,10 +2335,10 @@ export default function PlannerTab() {
                   quantity: ing.quantity,
                   unit: ing.unit,
                   category: ing.category || "其他",
-                })),
+                })), plannedDate),
                 fromRecipeId: `official_${previewRecipe.id}`,
                 fromRecipeName: previewRecipe.name,
-                plannedDate: pendingPlanInfo?.date ? getDayBefore(pendingPlanInfo.date) : undefined,
+                plannedDate,
               });
             }
             setPreviewRecipe(null);
@@ -3038,9 +3045,10 @@ function AISuggestModalRN({
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];
             const date = getDateForDow(startDate, swapPreview.day);
+            const plannedDate = resolveShoppingPlannedDate(getDayBefore(date), date, todayISO());
             if (ings.length > 0) {
               addShoppingBatchM.mutate({
-                items: ings.map((ing: any) => ({
+                items: withItemPlannedDate(ings.map((ing: any) => ({
                   name: ing.name,
                   nameEn: ing.nameEn,
                   nameFil: ing.nameFil,
@@ -3048,10 +3056,10 @@ function AISuggestModalRN({
                   quantity: ing.quantity,
                   unit: ing.unit,
                   category: ing.category || "其他",
-                })),
+                })), plannedDate),
                 fromRecipeId: swapPreview.dish.id,
                 fromRecipeName: swapPreview.dish.name,
-                plannedDate: getDayBefore(date),
+                plannedDate,
               });
             }
             setSwapPreview(null);

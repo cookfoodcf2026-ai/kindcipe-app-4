@@ -27,6 +27,7 @@ import type {
 } from "@/lib/shopping-templates";
 import { friendlyError } from "@/lib/errors";
 import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
+import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import { getBilingualName, getLocalizedDescription } from "@/lib/bilingual";
 import { useEnum } from "@/lib/i18nEnums";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -268,10 +269,12 @@ export default function ShoppingTemplatesScreen() {
       unit: i.unit,
       category: i.category === "soup-base" ? "湯底" : i.category === "meat" ? "肉類" : i.category === "seafood" ? "海鮮" : i.category === "vegetable" ? "蔬菜" : i.category === "staple" ? "主食" : i.category === "sauce" ? "調味料" : i.category === "tools" ? "工具" : i.category === "other" ? "其他" : "其他",
     }));
+    const plannedDate = planDate === null ? undefined : planDate;
+    const allItems = [...items, ...formattedCustom];
     return {
-      items: [...items, ...formattedCustom],
+      items: plannedDate ? withItemPlannedDate(allItems, plannedDate) : allItems,
       fromRecipeName: t("party.servings", { name: localizeName(selectedTemplate), n: peopleCount }),
-      plannedDate: planDate === null ? undefined : planDate,
+      plannedDate,
     };
   };
 

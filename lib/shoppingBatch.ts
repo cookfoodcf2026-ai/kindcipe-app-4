@@ -1,3 +1,24 @@
+import { buyDateForMeal } from "./shoppingDate";
+
+/**
+ * Resolve the buy date that goes into shopping.addBatch.plannedDate.
+ *
+ * The caller's picked date always wins (it may differ from the meal date).
+ * When nothing was picked, derive it from the meal date so the payload is
+ * never `undefined` (the old bug sent undefined and the backend fell back to
+ * the meal date).
+ */
+export function resolveShoppingPlannedDate(
+  pickedDate: string | null | undefined,
+  mealDate: string | null | undefined,
+  today: string,
+): string {
+  const picked = (pickedDate ?? "").trim();
+  if (picked) return picked;
+  const fallback = buyDateForMeal(mealDate ?? null, today);
+  return fallback.ok ? fallback.date : today;
+}
+
 export interface ShoppingBatchItemResult {
   index?: number;
   ok: boolean;

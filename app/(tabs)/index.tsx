@@ -33,7 +33,8 @@ import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
-import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
+import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
+import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import {
   buildDraftIdSet,
   draftBannerAction,
@@ -1737,8 +1738,9 @@ export default function RecipesTab() {
         loading={addShoppingBatchM.isPending}
         onConfirm={(items) => {
           if (items.length > 0) {
+            const plannedDate = resolveShoppingPlannedDate(items[0].plannedDate, planPickerRecipe?.date, DateUtil.todayISO());
             addShoppingBatchM.mutate({
-              items: items.map((i) => ({
+              items: withItemPlannedDate(items.map((i) => ({
                 name: i.name,
                 nameEn: (i as any).nameEn,
                 nameFil: (i as any).nameFil,
@@ -1746,11 +1748,11 @@ export default function RecipesTab() {
                 quantity: i.quantity,
                 unit: i.unit,
                 category: i.category,
-              })),
+              })), plannedDate),
               fromRecipeId: items[0]?.recipeId,
               fromRecipeName: items[0]?.recipeName,
               fromMealPlanId: items[0]?.fromMealPlanId,
-              plannedDate: items[0]?.plannedDate,
+              plannedDate,
             });
           } else {
             setPlanPickerRecipe(null);

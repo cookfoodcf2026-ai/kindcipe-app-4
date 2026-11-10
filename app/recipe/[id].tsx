@@ -32,7 +32,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useScreenAwake } from "@/hooks/useScreenAwake";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
 import { buyDateForMeal } from "@/lib/shoppingDate";
-import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
+import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
+import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -185,7 +186,7 @@ export default function RecipeDetailScreen() {
   const [shoppingDate, setShoppingDate] = useState<string | null>(null);
   // Ingredient picker after addPlanM success
   const [planPickerRecipe, setPlanPickerRecipe] = useState<PickerRecipe | null>(null);
-  const [, setPlanPickerShoppingDate] = useState<string | null>(null);
+  const [planPickerShoppingDate, setPlanPickerShoppingDate] = useState<string | null>(null);
   const planPickerHandoff = useModalHandoff<PickerRecipe>(600);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: "success" | "error" | "info"; action?: { label: string; onPress: () => void } }>({ visible: false, message: "", type: "success" });
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
@@ -2385,7 +2386,7 @@ export default function RecipeDetailScreen() {
                       if (toAdd.length > 0) {
                         setLastAddedShoppingDate(shoppingDate);
                         addShoppingM.mutate({
-                          items: toAdd,
+                          items: withItemPlannedDate(toAdd, shoppingDate),
                           fromRecipeId: recipeStringId,
                           fromRecipeName: recipe.name,
                           fromMealPlanId: planPickerRecipe?.fromMealPlanId ?? latestMealPlan?.id,
@@ -2442,9 +2443,10 @@ export default function RecipeDetailScreen() {
           alreadyAddedKeys={planPickerAlreadyAdded}
           onConfirm={(items) => {
             if (items.length > 0) {
-              setLastAddedShoppingDate(items[0].plannedDate || toISODate(new Date()));
+              const plannedDate = resolveShoppingPlannedDate(planPickerShoppingDate, planPickerRecipe?.date, toISODate(new Date()));
+              setLastAddedShoppingDate(plannedDate);
               addShoppingM.mutate({
-                items: items.map((i) => ({
+                items: withItemPlannedDate(items.map((i) => ({
                   name: i.name,
                   nameEn: (i as any).nameEn,
                   nameFil: (i as any).nameFil,
@@ -2453,11 +2455,11 @@ export default function RecipeDetailScreen() {
                   unit: i.unit,
                   category: i.category,
                   mealDate: i.mealDate,  // 用餐日（標籤）
-                })),
+                })), plannedDate),
                 fromRecipeId: items[0]?.recipeId,
                 fromRecipeName: items[0]?.recipeName,
                 fromMealPlanId: items[0]?.fromMealPlanId,
-                plannedDate: items[0]?.plannedDate,  // 採買日（購物車歸類日期）
+                plannedDate,
               });
             } else {
               setPlanPickerRecipe(null);
