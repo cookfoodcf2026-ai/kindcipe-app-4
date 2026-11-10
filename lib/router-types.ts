@@ -416,7 +416,7 @@ export interface PantryItem {
 export interface ShoppingRouter {
   list: { input: void; output: ShoppingListItem[] };
   add: { input: AddShoppingItemInput; output: ShoppingListItem };
-  addBatch: { input: AddShoppingItemBatchInput; output: ShoppingListItem[] };
+  addBatch: { input: AddShoppingItemBatchInput; output: AddShoppingItemBatchOutput };
   approve: { input: ApproveShoppingItemInput; output: ShoppingListItem };
   delete: { input: DeleteShoppingItemInput; output: void };
   reject: { input: RejectShoppingItemInput; output: void };
@@ -434,6 +434,23 @@ export interface AddShoppingItemInput {
 
 export interface AddShoppingItemBatchInput {
   items: AddShoppingItemInput[];
+}
+
+export interface AddShoppingItemBatchItemResult {
+  index: number;
+  ok: boolean;
+  skipped: boolean;
+  reason?: string;
+  action?: string;
+  fromRecipeId?: string | null;
+  fromMealPlanId?: string | null;
+}
+
+export interface AddShoppingItemBatchOutput {
+  success: boolean;
+  count: number;
+  merged: number;
+  items: AddShoppingItemBatchItemResult[];
 }
 
 export interface ApproveShoppingItemInput {

@@ -26,6 +26,7 @@ import type {
   TemplateCategory,
 } from "@/lib/shopping-templates";
 import { friendlyError } from "@/lib/errors";
+import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import { getBilingualName, getLocalizedDescription } from "@/lib/bilingual";
 import { useEnum } from "@/lib/i18nEnums";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -181,10 +182,25 @@ export default function ShoppingTemplatesScreen() {
 
   // TRPC Mutation
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: (_, variables) => {
+    onSuccess: (result: any, variables: any) => {
       utils.shopping.list.invalidate();
-      setShoppingConfirmCount(variables.items.length);
+      const summary = summarizeShoppingBatch(result, variables.items.length);
       const fp = pendingShoppingFingerprintRef.current;
+      if (summary.allSkipped) {
+        setShoppingConfirmCount(null);
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          "error"
+        );
+        return;
+      }
+      if (summary.skipped > 0) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          "info"
+        );
+      }
+      setShoppingConfirmCount(summary.added);
       if (fp) {
         setLastShoppingFingerprint(fp);
         setLastShoppingDecisionFingerprint(fp);

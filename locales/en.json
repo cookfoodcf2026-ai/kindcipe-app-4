@@ -2578,6 +2578,7 @@
   "當日已有{{meal}}": "{{meal}} already planned",
   "取代現有{{meal}}": "Replace existing {{meal}}",
   "已加入 {{n}} 樣主要食材": "Added {{n}} main ingredient(s)",
+  "已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）": "Added {{added}} item(s), {{skipped}} could not be added (invalid ingredient source)",
   "已加入排餐，但冇需要購買嘅主要食材": "Meal planned, but no main ingredients need buying",
   "有部分食譜搵唔返，請重新生成食譜或直接講菜名。": "Some recipes could not be found. Please regenerate or type the dish name.",
   "最近 {{n}} 組食譜卡": "Recent {{n}} recipe card sets",

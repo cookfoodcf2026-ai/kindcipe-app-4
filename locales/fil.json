@@ -2548,6 +2548,7 @@
   "當日已有{{meal}}": "May nakaplanong {{meal}} na",
   "取代現有{{meal}}": "Palitan ang {{meal}}",
   "已加入 {{n}} 樣主要食材": "Naidagdag ang {{n}} pangunahing sangkap",
+  "已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）": "Naidagdag ang {{added}} item, {{skipped}} ang hindi naidagdag (invalid ang pinagmulan ng sangkap)",
   "已加入排餐，但冇需要購買嘅主要食材": "Naidagdag sa plano, walang pangunahing sangkap na kailangang bilhin",
   "有部分食譜搵唔返，請重新生成食譜或直接講菜名。": "May mga recipe na hindi mahanap. Paki-generate muli o i-type ang pangalan ng ulam.",
   "最近 {{n}} 組食譜卡": "Kamakailang {{n}} set ng recipe card",

@@ -2548,6 +2548,7 @@
   "當日已有{{meal}}": "{{meal}} sudah direncanakan",
   "取代現有{{meal}}": "Ganti {{meal}}",
   "已加入 {{n}} 樣主要食材": "{{n}} bahan utama ditambahkan",
+  "已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）": "{{added}} item ditambahkan, {{skipped}} gagal ditambahkan (sumber bahan tidak valid)",
   "已加入排餐，但冇需要購買嘅主要食材": "Rencana ditambahkan, tidak ada bahan utama yang perlu dibeli",
   "有部分食譜搵唔返，請重新生成食譜或直接講菜名。": "Beberapa resep tidak ditemukan. Silakan buat ulang atau ketik nama hidangan.",
   "最近 {{n}} 組食譜卡": "{{n}} set kartu resep terbaru",

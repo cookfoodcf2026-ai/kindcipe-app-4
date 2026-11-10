@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useScreenAwake } from "@/hooks/useScreenAwake";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
 import { buyDateForMeal } from "@/lib/shoppingDate";
+import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import UnitPicker from "@/src/components/UnitPicker";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
@@ -740,15 +741,29 @@ export default function RecipeDetailScreen() {
     },
   });
   const addShoppingM = trpc.shopping.addBatch.useMutation({
-    onSuccess: (_, variables) => {
+    onSuccess: (result: any, variables: any) => {
       setPlanPickerRecipe(null);
       setPlanPickerShoppingDate(null);
-      const count = variables.items.length;
-      setShoppingConfirmCount(count);
+      const summary = summarizeShoppingBatch(result, variables.items.length);
       void Promise.all([
         utils.shopping.list.invalidate(),
         utils.mealPlan.listByDateRange.invalidate(),
       ]);
+      if (summary.allSkipped) {
+        setShoppingConfirmCount(null);
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）", { added: summary.added, skipped: summary.skipped }),
+          "error"
+        );
+        return;
+      }
+      if (summary.skipped > 0) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）", { added: summary.added, skipped: summary.skipped }),
+          "info"
+        );
+      }
+      setShoppingConfirmCount(summary.added);
     },
     onError: (e) => {
       setToast({ visible: true, message: `加入食材失敗：${friendlyError(e)}`, type: "error" });

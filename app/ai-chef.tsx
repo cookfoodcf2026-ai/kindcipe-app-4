@@ -26,6 +26,7 @@ import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { buyDateForMeal } from "@/lib/shoppingDate";
+import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import { compressImageForWeb, isPhotoLimitError, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
@@ -3830,9 +3831,25 @@ export default function AIChefScreen() {
         items,
         plannedDate: purchaseDate,
       });
-      const count = typeof result?.count === "number" ? result.count : items.length;
-      track(Events.AiShoppingAutoAdded, { count, recipeCount: recipes.length });
-      showToast(t("已加入 {{n}} 樣主要食材" as any, { n: count }), undefined, 2400);
+      const summary = summarizeShoppingBatch(result, items.length);
+      track(Events.AiShoppingAutoAdded, { count: summary.added, recipeCount: recipes.length });
+      if (summary.allSkipped) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          undefined,
+          2600,
+          "error"
+        );
+      } else if (summary.skipped > 0) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          undefined,
+          2600,
+          "info"
+        );
+      } else {
+        showToast(t("已加入 {{n}} 樣主要食材" as any, { n: summary.added }), undefined, 2400);
+      }
       if (promptNextDay) {
         pendingPostShoppingDateRef.current = maxDate || purchaseDate;
         await finishShoppingConfirm(true, purchaseDate, planMeal);
@@ -5811,7 +5828,28 @@ export default function AIChefScreen() {
             fromMealPlanId: items[0]?.fromMealPlanId,
             plannedDate: items[0]?.plannedDate,
           } as any, {
-            onSuccess: () => setShoppingConfirmCount(items.length),
+            onSuccess: (result: any) => {
+              const summary = summarizeShoppingBatch(result, items.length);
+              if (summary.allSkipped) {
+                setShoppingConfirmCount(null);
+                showToast(
+                  t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+                  undefined,
+                  2600,
+                  "error"
+                );
+                return;
+              }
+              if (summary.skipped > 0) {
+                showToast(
+                  t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+                  undefined,
+                  2600,
+                  "info"
+                );
+              }
+              setShoppingConfirmCount(summary.added);
+            },
           });
         }}
         onSkip={() => setShopConfirm(null)}

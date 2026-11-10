@@ -33,6 +33,7 @@ import { enumT } from "@/lib/i18nEnums";
 import { mergeIngredients } from "@/constants/ingredients";
 import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
 import { buyDateForMeal } from "@/lib/shoppingDate";
+import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
@@ -588,11 +589,23 @@ export default function PlannerTab() {
   };
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: async (_, variables) => {
-      const count = variables.items.length;
-      track(Events.ShoppingListGenerated, { count });
+    onSuccess: async (result: any, variables: any) => {
+      const summary = summarizeShoppingBatch(result, variables.items.length);
+      track(Events.ShoppingListGenerated, { count: summary.added });
       setPickerRecipe(null);
-      showToast(t("✅ {{n}} 件食材已加入購物清單" as any, { n: count }));
+      if (summary.allSkipped) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          "error"
+        );
+      } else if (summary.skipped > 0) {
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          "info"
+        );
+      } else {
+        showToast(t("✅ {{n}} 件食材已加入購物清單" as any, { n: summary.added }));
+      }
       void invalidateAll();
     },
     onError: (e) => {
@@ -2320,7 +2333,6 @@ export default function PlannerTab() {
                 fromRecipeName: previewRecipe.name,
                 plannedDate: pendingPlanInfo?.date ? getDayBefore(pendingPlanInfo.date) : undefined,
               });
-              showToast("✅ 食材已加入購物車");
             }
             setPreviewRecipe(null);
             setPendingPlanInfo(null);
@@ -3041,7 +3053,6 @@ function AISuggestModalRN({
                 fromRecipeName: swapPreview.dish.name,
                 plannedDate: getDayBefore(date),
               });
-              Alert.alert(t("✅ 食材已加入購物車" as any));
             }
             setSwapPreview(null);
           }}

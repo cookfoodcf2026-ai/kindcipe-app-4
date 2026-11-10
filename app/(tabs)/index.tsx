@@ -33,6 +33,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
+import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import {
   buildDraftIdSet,
   draftBannerAction,
@@ -831,11 +832,25 @@ export default function RecipesTab() {
   });
 
   const addShoppingBatchM = trpc.shopping.addBatch.useMutation({
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result: any, variables: any) => {
       utils.shopping.list.refetch();
-      const count = variables.items.length;
+      const summary = summarizeShoppingBatch(result, variables.items.length);
       setPlanPickerRecipe(null);
-      setShoppingConfirmCount(count);
+      if (summary.allSkipped) {
+        setShoppingConfirmCount(null);
+        showToast(
+          t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+          "error"
+        );
+      } else {
+        if (summary.skipped > 0) {
+          showToast(
+            t("已加入 {{added}} 項，另有 {{skipped}} 項未能加入（食材來源無效）" as any, { added: summary.added, skipped: summary.skipped }),
+            "info"
+          );
+        }
+        setShoppingConfirmCount(summary.added);
+      }
       void invalidateMealPlanAndCart();
     },
     onError: (e) => {
