@@ -292,6 +292,11 @@
     "newChat": "新對話",
     "searchChat": "搜尋對話",
     "chatHistory": "對話記錄",
+    "clearAllChats": "清除所有對話",
+    "clearAllChatsTitle": "清除所有對話？",
+    "clearAllChatsBody": "所有對話記錄會永久刪除，無法復原。",
+    "aiGenerateCredit": "用 AI 生成（1 credit）",
+    "relaxRole": "放寬至其他類別",
     "noChats": "未有對話記錄",
     "noMatchingChats": "沒有符合的對話",
     "searchingLibrary": "🔍 正在食譜庫中搜尋...",
@@ -1085,7 +1090,11 @@
     "home": "返回首頁"
   },
   "switcher": {
-    "title": "切換廚房"
+    "title": "切換廚房",
+    "addKitchen": "＋ 加入廚房",
+    "roleOwner": "擁有",
+    "roleMember": "成員",
+    "switched": "已切換到 {{kitchen}}"
   },
   "unit": {
     "title": "選擇單位",

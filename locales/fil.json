@@ -292,6 +292,11 @@
     "newChat": "Bagong chat",
     "searchChat": "Maghanap ng chat",
     "chatHistory": "Kasaysayan ng chat",
+    "clearAllChats": "Burahin lahat ng chat",
+    "clearAllChatsTitle": "Burahin lahat ng chat?",
+    "clearAllChatsBody": "Permanenteng mabubura ang lahat ng kasaysayan ng chat. Hindi na ito maibabalik.",
+    "aiGenerateCredit": "Gumawa gamit ang AI (1 credit)",
+    "relaxRole": "Palawakin sa ibang kategorya",
     "noChats": "Wala pang chat",
     "noMatchingChats": "Walang tugmang chat",
     "searchingLibrary": "🔍 Naghahanap sa library...",
@@ -1085,7 +1090,11 @@
     "home": "Bumalik sa home"
   },
   "switcher": {
-    "title": "Palitan ang kusina"
+    "title": "Palitan ang kusina",
+    "addKitchen": "+ Sumali sa kusina",
+    "roleOwner": "May-ari",
+    "roleMember": "Miyembro",
+    "switched": "Inilipat sa {{kitchen}}"
   },
   "unit": {
     "title": "Pumili ng yunit",

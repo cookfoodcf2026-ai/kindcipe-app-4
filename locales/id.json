@@ -292,6 +292,11 @@
     "newChat": "Obrolan baru",
     "searchChat": "Cari obrolan",
     "chatHistory": "Riwayat obrolan",
+    "clearAllChats": "Hapus semua obrolan",
+    "clearAllChatsTitle": "Hapus semua obrolan?",
+    "clearAllChatsBody": "Seluruh riwayat obrolan akan dihapus permanen dan tidak bisa dikembalikan.",
+    "aiGenerateCredit": "Buat dengan AI (1 kredit)",
+    "relaxRole": "Perluas ke kategori lain",
     "noChats": "Belum ada obrolan",
     "noMatchingChats": "Tidak ada obrolan yang cocok",
     "searchingLibrary": "🔍 Mencari di perpustakaan...",
@@ -1085,7 +1090,11 @@
     "home": "Ke beranda"
   },
   "switcher": {
-    "title": "Ganti dapur"
+    "title": "Ganti dapur",
+    "addKitchen": "+ Gabung dapur",
+    "roleOwner": "Pemilik",
+    "roleMember": "Anggota",
+    "switched": "Beralih ke {{kitchen}}"
   },
   "unit": {
     "title": "Pilih satuan",

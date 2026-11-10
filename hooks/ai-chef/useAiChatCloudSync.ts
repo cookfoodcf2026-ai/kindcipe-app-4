@@ -39,10 +39,16 @@ export function useAiChatCloudSync(userId: string | number | null | undefined) {
   });
   const utils = trpc.useUtils();
   const upsertM = trpc.aiChat.upsert.useMutation();
-  const deleteM = trpc.aiChat.delete.useMutation();
+  const deleteM = trpc.aiChat.deleteSession.useMutation();
+  const clearHistoryM = trpc.aiChat.clearHistory.useMutation();
   const bulkImportM = trpc.aiChat.bulkImport.useMutation();
 
   const migratedRef = useRef(false);
+
+  // A different account must get its own one-shot migration.
+  useEffect(() => {
+    migratedRef.current = false;
+  }, [userId]);
 
   const cloudSessions: CloudChatSession[] | undefined = listQuery.data as
     | CloudChatSession[]
@@ -104,6 +110,13 @@ export function useAiChatCloudSync(userId: string | number | null | undefined) {
     [userId, deleteM, utils]
   );
 
+  /** Privacy: delete every cloud session for this account (caller-scoped on the server). */
+  const clearAllSessions = useCallback(async () => {
+    if (!userId) return;
+    await clearHistoryM.mutateAsync();
+    await utils.aiChat.list.invalidate();
+  }, [userId, clearHistoryM, utils]);
+
   // Refetch cloud sessions when the app regains focus (e.g. switching App↔Web).
   useFocusRefetch(listQuery.refetch);
 
@@ -112,6 +125,7 @@ export function useAiChatCloudSync(userId: string | number | null | undefined) {
     cloudLoading: listQuery.isLoading,
     syncSession,
     removeSession,
+    clearAllSessions,
     migrateLocalIfNeeded,
     refetch: listQuery.refetch,
   };

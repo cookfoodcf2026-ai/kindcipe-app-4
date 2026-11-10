@@ -883,6 +883,7 @@ export default function AIChefScreen() {
     cloudSessions,
     syncSession: syncSessionToCloud,
     removeSession: removeSessionFromCloud,
+    clearAllSessions: clearAllSessionsFromCloud,
     migrateLocalIfNeeded,
   } = useAiChatCloudSync(user?.id);
   const displaySessions = useMemo(() => {
@@ -1088,6 +1089,8 @@ export default function AIChefScreen() {
   // 收藏中狀態（顯示嗰張卡個 spinner）
   const [favoritingName, setFavoritingName] = useState<string>("");
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+  // 換卡時食譜庫（放寬後）仍然 0 張 → 喺張卡位置長期顯示兩個選擇，唔再用 8 秒 toast。
+  const [swapNoCards, setSwapNoCards] = useState<{ index: number; recipeName: string } | null>(null);
   // 記錄已換過嘅食譜名稱，避免重複
   const [swappedRecipeNames, setSwappedRecipeNames] = useState<Set<string>>(new Set());
   // 記錄本次 chat 已見過嘅食譜名稱，避免同一個 session 反覆輪迴
@@ -1527,6 +1530,7 @@ export default function AIChefScreen() {
       const mergedRecipes = isAppend
         ? mergeAppendedCards(recommendedRecipes, recipes)
         : recipes;
+      setSwapNoCards(null);
       setRecommendedRecipes(mergedRecipes);
 
       // 0 卡時一定要有出路（實測「有冇蔥油餅食譜」後端 status=text, alternatives=3,
@@ -1723,6 +1727,17 @@ export default function AIChefScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // If the cloud query was still loading during the local load above, retry the
+  // one-shot migration once it resolves. The hook's migrateLocalIfNeeded is
+  // idempotent, so a cached cloud response + this effect can't double-import.
+  const migrationUserRef = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (!loaded || !user?.id || cloudSessions === undefined) return;
+    if (migrationUserRef.current === user.id) return;
+    migrationUserRef.current = user.id;
+    void migrateLocalIfNeeded(sessions);
+  }, [loaded, user?.id, cloudSessions, sessions, migrateLocalIfNeeded]);
+
   // 持久化 session：現在 images 用 storage URL（僅 ~200 字元），因此保留 url 即可。
   // 僅為防舊資料或極端大 URL，超過 5000 字元時才清空。
   const MAX_PERSISTED_URL_LEN = 5000;
@@ -1807,9 +1822,21 @@ export default function AIChefScreen() {
   // merge them in. Cloud is authoritative for sessions it knows about; local-only
   // sessions are preserved (and uploaded by migrateLocalIfNeeded).
   const cloudHydratedRef = useRef(false);
+  // State twin of the ref: the debounced sync effect must run again when the
+  // cloud load RESOLVES (even to []), otherwise a fresh account never uploads
+  // its first locally-written message.
+  const [cloudSyncReady, setCloudSyncReady] = useState(false);
   useEffect(() => {
-    if (!loaded || !user?.id || !cloudSessions) return;
-    if (cloudSessions.length === 0) return;
+    cloudHydratedRef.current = false;
+    setCloudSyncReady(false);
+  }, [user?.id]);
+  useEffect(() => {
+    if (!loaded || !user?.id || cloudSessions === undefined) return;
+    if (cloudSessions.length === 0) {
+      cloudHydratedRef.current = true;
+      setCloudSyncReady(true);
+      return;
+    }
     // Skip the very first hydration if local already had sessions with content,
     // to avoid clobbering active in-flight edits. Afterwards always refresh.
     setSessions(prev => {
@@ -1832,12 +1859,13 @@ export default function AIChefScreen() {
       return merged;
     });
     cloudHydratedRef.current = true;
+    setCloudSyncReady(true);
   }, [cloudSessions, loaded, user?.id]);
 
   // Push a session to the cloud whenever its messages change (debounced).
   const cloudSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!loaded || !user?.id || !cloudHydratedRef.current) return;
+    if (!loaded || !user?.id || !cloudHydratedRef.current || !cloudSyncReady) return;
     const session = sessions.find(s => s.id === activeChatId);
     // Only sync sessions that actually have content.
     if (!session || session.messages.length === 0) return;
@@ -1853,7 +1881,7 @@ export default function AIChefScreen() {
     return () => {
       if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
     };
-  }, [sessions, activeChatId, loaded, user?.id, syncSessionToCloud]);
+  }, [sessions, activeChatId, loaded, user?.id, syncSessionToCloud, cloudSyncReady]);
 
   // Auto-title: when first user message is sent, update the title
   useEffect(() => {
@@ -1883,6 +1911,7 @@ export default function AIChefScreen() {
     setChatStarted(false);
     setSessionSeenRecipeNames([]);
     setSwappedRecipeNames(new Set());
+    setSwapNoCards(null);
     isSoupModeRef.current = false;
     setMealResult(null);
     setMealStep("idle");
@@ -1910,6 +1939,7 @@ export default function AIChefScreen() {
     setChatStarted(false);
     setSessionSeenRecipeNames([]);
     setSwappedRecipeNames(new Set());
+    setSwapNoCards(null);
     isSoupModeRef.current = false;
     setMealResult(null);
     setMealStep("idle");
@@ -1948,6 +1978,7 @@ export default function AIChefScreen() {
             setChatStarted(false);
             setSessionSeenRecipeNames([]);
             setSwappedRecipeNames(new Set());
+            setSwapNoCards(null);
             setMealResult(null);
             setMealStep("idle");
             setMealPrefs(EMPTY_PREFS);
@@ -1959,6 +1990,43 @@ export default function AIChefScreen() {
         },
       },
     ]);
+  };
+
+  const handleClearAllChats = () => {
+    Alert.alert(
+      t("aiChef.clearAllChatsTitle" as any),
+      t("aiChef.clearAllChatsBody" as any),
+      [
+        { text: t("取消" as any), style: "cancel" },
+        {
+          text: t("清除" as any),
+          style: "destructive",
+          onPress: () => {
+            // 雲端同本機一齊清；伺服器只會刪 caller 自己嘅 rows。
+            void clearAllSessionsFromCloud().catch(() => {});
+            const newId = generateId();
+            const fresh: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
+            setSessions([fresh]);
+            setActiveChatId(newId);
+            activeChatIdRef.current = newId;
+            setSessionSearch("");
+            setRecommendedRecipes([]);
+            setChatStarted(false);
+            setSessionSeenRecipeNames([]);
+            setSwappedRecipeNames(new Set());
+            setSwapNoCards(null);
+            setMealResult(null);
+            setMealStep("idle");
+            setMealPrefs(EMPTY_PREFS);
+            setAiNextSteps([]);
+            setAskingIngredients(false);
+            setExpandedCard(null);
+            setContractQuickReplies([]);
+            isSoupModeRef.current = false;
+          },
+        },
+      ],
+    );
   };
 
   // 記住當前是否處於 3 餸 1 湯模式
@@ -2245,6 +2313,7 @@ export default function AIChefScreen() {
         content: t(outcome.messageKey as any, outcome.vars as any),
       }]);
       if (outcome.kind === "cards") {
+        setSwapNoCards(null);
         setRecommendedRecipes(outcome.cards);
         setMealResult(null);
         setChatStarted(true);
@@ -2404,6 +2473,7 @@ export default function AIChefScreen() {
     }
     resetAiNextSteps();
     setSwappedRecipeNames(new Set());
+    setSwapNoCards(null);
     setRecommendedRecipes([]);
     const activeConfig = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current] : null;
     // 自由對答：用「用戶最後一句」做 prompt，等後端按最新要求決定出幾多張（唔再硬code 4 卡）。
@@ -2847,6 +2917,7 @@ export default function AIChefScreen() {
           // 後端已做 7 日去重 + fresh 優先（+ rank：快手揀最短時間）
           const picked = libraryRecipes.slice(0, 1);
           addUserMessage(t(config.aiPrompt as any));
+          setSwapNoCards(null);
           setRecommendedRecipes(picked);
           setChatStarted(true);
           recordSeenRecipes(picked);
@@ -3398,9 +3469,14 @@ export default function AIChefScreen() {
   };
 
   // 「換」掣：只替換單張卡。AI mode 就直接出 1 個替代食譜；library mode 先搵庫內替代
-  const handleSwapRecipe = async (recipe: AIRecipe, index: number) => {
+  const handleSwapRecipe = async (
+    recipe: AIRecipe,
+    index: number,
+    opts?: { aiFallback?: boolean; relaxRole?: boolean },
+  ) => {
     // 全域鎖：任何一張換卡進行中，唔准再撳其他卡（避免並發交錯覆寫）
     if (swappingIndex !== null) return;
+    setSwapNoCards(null);
     trackCardAction("swap", recipe, index);
     const category = recipe.recipeCategory || "其他";
     const otherNames = recommendedRecipes
@@ -3441,7 +3517,10 @@ export default function AIChefScreen() {
     // 換嘅結果跟「張卡本身嘅來源」：AI 卡 → AI 換；食譜庫卡 → 食譜庫換（來源一致）
     const useAi = recipe.source === "ai";
     const recipeDishType = getDishType(recipe);
-    const swapFromLibrary = async (kwOverride?: string): Promise<AIRecipe | null> => {
+    const swapFromLibrary = async (
+      kwOverride?: string,
+      relaxRole = false,
+    ): Promise<{ picked: AIRecipe | null; response: any }> => {
       // 換要換返「相關」：張卡嘅 dishType（湯→湯、肉→肉…）＋ 原請求 context（hotkey query / 用戶 keyword）
       const cardDishType = getDishType(recipe);
       const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
@@ -3450,14 +3529,19 @@ export default function AIChefScreen() {
       // 唔好俾 ctxQuery（用戶對話/問卷答案）污染 keyword —— 嗰啲唔係菜名/類別詞，搜唔到會 fallback AI。
       const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
       const catKw = dishTypeKeyword(cardDishType);
-      const kw = kwOverride || catKw || cardNameKw || "家常菜";
+      const kw = kwOverride || (relaxRole ? "家常" : catKw) || cardNameKw || "家常菜";
+      // relax_role：放寬到其他類別 → 唔好再送「同類別：xxx」marker，等後端唔再按原 role 篩。
+      const message = relaxRole
+        ? `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}。`
+        : `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}`;
       try {
         const res = await apiClient.aiRecipe.chat.mutate({
-          messages: [{ role: "user", content: `請從食譜庫提供 1 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}` }],
+          messages: [{ role: "user", content: message }],
           mode: "library",
           // 換卡要保留 hotkey 嘅搜尋條件（例如 scenario: highProtein），
           // 否則只靠 keyword + dishType，換兩次之後候選變 0 → 誤彈「AI 建議」。
-          search: hotkeyCtx ? { ...hotkeyCtx, count: 1 } : undefined,
+          // relax_role 要跨類別，唔可以再帶原 role 嘅 scenario 約束。
+          search: !relaxRole && hotkeyCtx ? { ...hotkeyCtx, count: 1 } : undefined,
           avoidIngredients: mealDefaults.allergens,
           lang: i18n.language,
           // 瘦身：7 日去重由後端 cache 負責；前端只排除「其他卡 + 現卡 + 已換過」（sessionAvoidNames 太肥會爆池錯誤 fallback AI）
@@ -3466,17 +3550,20 @@ export default function AIChefScreen() {
         const candidates = collectCandidates(res);
         // 來源一致優先：搵「同類別 + 唔撞其他卡／現卡／已換過」；冇就接受同類別；跨類唔收。
         // 注意：唔好用 sessionAvoidNames（30 日 + 全部對話歷史）→ 池被過度收窄 → 誤 fallback AI。
-        return (
-          candidates.find((cand) =>
-            getDishType(cand) === cardDishType &&
-            !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || ""]) &&
-            !swappedRecipeNames.has(cand.name)
-          ) ??
-          null
-        );
+        const picked = relaxRole
+          ? candidates.find((cand) =>
+              !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || ""]) &&
+              !swappedRecipeNames.has(cand.name)
+            ) ?? null
+          : candidates.find((cand) =>
+              getDishType(cand) === cardDishType &&
+              !isDuplicateRecipeName(cand.name, [...otherNames, recipe.name || ""]) &&
+              !swappedRecipeNames.has(cand.name)
+            ) ?? null;
+        return { picked, response: res };
       } catch (err: any) {
         console.error("[handleSwapRecipe] library swap failed:", friendlyError(err) || err);
-        return null;
+        return { picked: null, response: null };
       }
     };
     const recordSwappedName = (name: string) => {
@@ -3595,14 +3682,27 @@ export default function AIChefScreen() {
       return;
     }
 
+    // 用戶喺 no_cards 面板揀「用 AI 生成」→ 直接幫呢張卡換（唔重開一個新搜尋）。
+    if (opts?.aiFallback) {
+      await replaceFromAi();
+      return;
+    }
+
     // 食譜庫卡：先喺後端食譜庫換（指定類別 + 7 日去重）—— 純食譜庫，唔 AI。
     // 次序：① 後端（卡名）→ ② 後端（類別詞）→ ③ local 庫（唔理 7 日 seen）。
-    // 三邊都冇 → 問要唔要 AI（info toast）。
+    // 後端回 status=no_cards（已放寬過一次）→ 喺卡位置長期顯示兩個出路，唔再靠 8 秒 toast。
     setSwappingIndex(index);
     let libraryPicked: AIRecipe | null = null;
+    let lastResponse: any = null;
     try {
-      libraryPicked = await swapFromLibrary();
-      if (!libraryPicked) libraryPicked = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
+      const first = await swapFromLibrary(opts?.relaxRole ? "家常" : undefined, !!opts?.relaxRole);
+      libraryPicked = first.picked;
+      lastResponse = first.response;
+      if (!libraryPicked && !opts?.relaxRole && lastResponse?.status !== "no_cards") {
+        const second = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
+        libraryPicked = second.picked;
+        lastResponse = second.response ?? lastResponse;
+      }
       if (!libraryPicked) libraryPicked = pickLibraryFallback();
     } finally {
       setSwappingIndex(null);
@@ -3614,11 +3714,37 @@ export default function AIChefScreen() {
       showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
       return;
     }
-    // 食譜庫已冇同類卡 → 問要唔要 AI（info toast）
+
+    if (lastResponse?.status === "no_cards" || opts?.relaxRole) {
+      setContractAiBlocked(isQuotaBlocked(lastResponse?.quota));
+      setSwapNoCards({ index, recipeName: recipe.name });
+      if (opts?.relaxRole) addBotMessage(t("aiChef.swapNoLibrary" as any));
+      return;
+    }
+
+    // 舊後端（冇 status）先用返 toast；新後端唔會行到呢度。
     showToast(t("aiChef.swapNoLibrary" as any), {
       label: t("aiChef.aiGenerate" as any),
       onPress: () => { void replaceFromAi(); },
     }, 8000, "info");
+  };
+
+  // no_cards 面板嘅兩個出路：AI 生成（1 credit）／放寬到其他類別。
+  const handleSwapNoCardsAction = (actionId: "ai_generate" | "relax_role") => {
+    const ctx = swapNoCards;
+    if (!ctx) return;
+    const recipe = recommendedRecipes[ctx.index];
+    if (!recipe) { setSwapNoCards(null); return; }
+    if (actionId === "ai_generate") {
+      // 額度用完：只顯示 quota 訊息，唔彈 paywall（避免用戶以為一定要付款）。
+      if (!aiCanGenerate || aiReplyBlocked) {
+        showToast(t("aiChef.quotaExhausted" as any));
+        return;
+      }
+      void handleSwapRecipe(recipe, ctx.index, { aiFallback: true });
+      return;
+    }
+    void handleSwapRecipe(recipe, ctx.index, { relaxRole: true });
   };
 
   // Phase 1: AI 排餐後自動加入「主要食材」（跳過調味料/水），再帶用戶去購物清單。
@@ -4204,6 +4330,7 @@ export default function AIChefScreen() {
           const res = await apiClient.recipes.search.query({ query, limit: 6 });
           const recipes = (Array.isArray(res?.recipes) ? res.recipes : []).map(normalizeRecipe).filter(isValidRecipe);
           if (recipes.length > 0) {
+            setSwapNoCards(null);
             setRecommendedRecipes(recipes);
             setMealResult(null);
             setChatStarted(true);
@@ -4271,6 +4398,7 @@ export default function AIChefScreen() {
     if (actionId === "closest_library") {
       if (libraryAlternatives.length === 0) return;
       const picked = libraryAlternatives;
+      setSwapNoCards(null);
       setRecommendedRecipes(picked);
       setMealResult(picked.length >= 2 ? picked : null);
       setChatStarted(true);
@@ -4868,7 +4996,20 @@ export default function AIChefScreen() {
               )}
             </View>
 
-            <Text style={d.sectionTitle}>{t("aiChef.chatHistory")}</Text>
+            <View style={d.sectionHeadRow}>
+              <Text style={[d.sectionTitle, { marginBottom: 0 }]}>{t("aiChef.chatHistory")}</Text>
+              {sessions.some(s => s.messages.length > 0) && (
+                <TouchableOpacity
+                  testID="ai-chef-clear-all-chats"
+                  onPress={handleClearAllChats}
+                  style={d.clearAllBtn}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="trash-outline" size={13} color="#DC2626" />
+                  <Text style={d.clearAllTxt}>{t("aiChef.clearAllChats" as any)}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {sessions.length === 0 ? (
               <View style={d.emptyRow}><Text style={d.emptyTxt}>{t("aiChef.noChats")}</Text></View>
@@ -5410,6 +5551,29 @@ export default function AIChefScreen() {
                               )}
                             </TouchableOpacity>
                           </View>
+                          {swapNoCards?.index === i && (
+                            <View style={s.swapNoCardsBox} testID={`ai-chef-recipe-${i}-swap-no-cards`}>
+                              <Text style={s.swapNoCardsTxt}>{t("aiChef.swapNoLibrary" as any)}</Text>
+                              <TouchableOpacity
+                                testID={`ai-chef-recipe-${i}-swap-ai`}
+                                style={[s.swapNoCardsPrimary, (!aiCanGenerate || aiReplyBlocked) && { opacity: 0.5 }]}
+                                onPress={() => handleSwapNoCardsAction("ai_generate")}
+                                disabled={chatMutation.isPending || swappingIndex !== null || !aiCanGenerate || aiReplyBlocked}
+                              >
+                                <Text style={s.swapNoCardsPrimaryTxt}>
+                                  {(!aiCanGenerate || aiReplyBlocked) ? t("aiChef.quotaExhausted" as any) : t("aiChef.aiGenerateCredit" as any)}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                testID={`ai-chef-recipe-${i}-swap-relax`}
+                                style={s.swapNoCardsSecondary}
+                                onPress={() => handleSwapNoCardsAction("relax_role")}
+                                disabled={chatMutation.isPending || swappingIndex !== null}
+                              >
+                                <Text style={s.swapNoCardsSecondaryTxt}>{t("aiChef.relaxRole" as any)}</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
                       </View>
                     ))}
@@ -5622,7 +5786,7 @@ export default function AIChefScreen() {
         loading={addShoppingM.isPending}
         mealDate={shopConfirm?.planDate}
         defaultBuyDate={shopConfirm?.shopDate}
-        showDateSelector={false}
+        showDateSelector={true}
         maxDate={shopConfirm?.planDate}
         onDateChange={(d: string) => setShopConfirm((cur) => (cur ? { ...cur, shopDate: d } : cur))}
         onConfirm={(items) => {
@@ -5928,6 +6092,12 @@ const s = StyleSheet.create({
   btnFavorite: { flex: 1, backgroundColor: CARD, borderWidth: 1.5, borderColor: BRAND, paddingVertical: 6, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   btnSwap: { flex: 1, backgroundColor: "#E8F0F4", paddingVertical: 7, borderRadius: 8, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   btnSwapTxt: { fontSize: 11, fontWeight: "700", color: BRAND },
+  swapNoCardsBox: { marginTop: 8, padding: 8, borderRadius: 10, backgroundColor: "#FFF7ED", borderWidth: 1, borderColor: "#FED7AA", gap: 6 },
+  swapNoCardsTxt: { fontSize: 11, fontWeight: "700", color: "#92400E" },
+  swapNoCardsPrimary: { backgroundColor: "#F59E0B", paddingVertical: 9, borderRadius: 9, alignItems: "center" },
+  swapNoCardsPrimaryTxt: { fontSize: 11, fontWeight: "800", color: "#fff" },
+  swapNoCardsSecondary: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: BRAND, paddingVertical: 8, borderRadius: 9, alignItems: "center" },
+  swapNoCardsSecondaryTxt: { fontSize: 11, fontWeight: "800", color: BRAND },
   headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   bottomDock: { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 8, backgroundColor: CARD },
@@ -6014,6 +6184,9 @@ const d = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingVertical: 0 },
   sectionTitle: { fontSize: 12, fontWeight: "700", color: SUB, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  sectionHeadRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 8 },
+  clearAllBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "#FEF2F2" },
+  clearAllTxt: { fontSize: 11, fontWeight: "700", color: "#DC2626" },
   emptyRow: { alignItems: "center", paddingVertical: 40 },
   emptyTxt: { fontSize: 15, color: SUB },
   sessionRow: {

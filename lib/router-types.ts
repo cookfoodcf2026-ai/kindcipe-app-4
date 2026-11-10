@@ -99,6 +99,8 @@ export interface AiChatRouter {
     output: { ok: boolean; updatedAt?: number };
   };
   delete: { input: { id: string }; output: { ok: boolean } };
+  deleteSession: { input: { id: string }; output: { success: boolean; deleted: number } };
+  clearHistory: { input: void; output: { success: boolean; deleted: number } };
   bulkImport: {
     input: {
       sessions: {

@@ -113,9 +113,9 @@ export default function IngredientPickerModal({
   // 修改：允許選擇過去日期（如果 maxDate 存在，表示係排餐日，可以選前一日）
   const normalizedDefaultDate = useMemo(() => {
     if (!effectiveBuyDate) return today;
-    // 如果有 maxDate（排餐日），優先使用 effectiveBuyDate（即使係過去）
+    // 如果有 maxDate（排餐日），優先使用 effectiveBuyDate；但唔可以早過今日
     if (maxDate && effectiveBuyDate <= maxDate) {
-      return effectiveBuyDate;
+      return effectiveBuyDate < today ? today : effectiveBuyDate;
     }
     // 如果 effectiveBuyDate 係未來，就用 effectiveBuyDate
     if (effectiveBuyDate >= today) {
@@ -350,7 +350,7 @@ export default function IngredientPickerModal({
             </TouchableOpacity>
           </View>
 
-          {showDateSelector && !mealDate && (
+          {showDateSelector && (
             <>
               <TouchableOpacity
                 style={s.dateCompactRow}

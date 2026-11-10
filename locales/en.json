@@ -292,6 +292,11 @@
     "newChat": "New chat",
     "searchChat": "Search chats",
     "chatHistory": "Chat history",
+    "clearAllChats": "Clear all chats",
+    "clearAllChatsTitle": "Clear all chats?",
+    "clearAllChatsBody": "All chat history will be permanently deleted. This cannot be undone.",
+    "aiGenerateCredit": "Generate with AI (1 credit)",
+    "relaxRole": "Relax to other categories",
     "noChats": "No chat history yet",
     "noMatchingChats": "No matching chats",
     "searchingLibrary": "🔍 Searching recipe library...",
@@ -1115,7 +1120,11 @@
     "home": "Go home"
   },
   "switcher": {
-    "title": "Switch kitchen"
+    "title": "Switch kitchen",
+    "addKitchen": "+ Join kitchen",
+    "roleOwner": "Owner",
+    "roleMember": "Member",
+    "switched": "Switched to {{kitchen}}"
   },
   "unit": {
     "title": "Select unit",

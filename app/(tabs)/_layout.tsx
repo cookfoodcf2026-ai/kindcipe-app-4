@@ -6,6 +6,7 @@ import { usePendingCounts } from "@/hooks/usePendingCounts";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { useTranslation } from "react-i18next";
 import { canva } from "@/app/styles/colors";
+import KitchenSwitcher, { KITCHEN_BAR_HEIGHT } from "@/app/components/KitchenSwitcher";
 
 const badgeLabel = (n: number) => (n > 99 ? "99+" : n > 0 ? String(n) : undefined);
 
@@ -41,6 +42,7 @@ function DesktopSidebar() {
   return (
     <View style={s.sidebar}>
       <Text style={s.brand}>Kindcipe</Text>
+      <KitchenSwitcher variant="sidebar" />
       {items.map((item) => {
         const active =
           item.href === "/" ? pathname === "/" || pathname === "" : pathname.startsWith(item.href);
@@ -78,8 +80,8 @@ export default function TabLayout() {
 
   return (
     <View style={s.shell}>
-      {isDesktop ? <DesktopSidebar /> : null}
-      <View style={s.content}>
+      {isDesktop ? <DesktopSidebar /> : <KitchenSwitcher variant="bar" />}
+      <View style={[s.content, !isDesktop && { paddingTop: KITCHEN_BAR_HEIGHT }]}>
         <Tabs
           screenOptions={{
             headerShown: false,
