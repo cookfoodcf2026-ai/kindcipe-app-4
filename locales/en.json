@@ -2218,6 +2218,13 @@
   "legal": {
     "foodSafety": "Recipes and AI output are for reference only; check ingredients, doneness and allergens yourself — not medical, nutrition or allergy advice."
   },
+  "limitErrors": {
+    "monthlyLimit": "Monthly limit {{used}}/{{limit}}",
+    "limitReachedTitle": "Monthly limit reached",
+    "upgrade": "Upgrade",
+    "batchAddedNeedPro": "{{added}} added, {{needPro}} need Pro",
+    "proRequiredKol": "Adding KOL recipes to your meal plan requires Pro"
+  },
   "paywall": {
     "foundingCodeDone": "Discount applied",
     "monthlyLabel": "Family plan · monthly",
@@ -2302,6 +2309,10 @@
       "generic": {
         "title": "Upgrade to use this feature",
         "desc": "Upgrade to the Family plan to unlock everything"
+      },
+      "kol_plan": {
+        "title": "Adding KOL recipes to your meal plan requires Pro",
+        "desc": "Upgrade to Pro to add KOL recipes to your meal plan."
       }
     },
     "trialCodeTitle": "Have a 7-day trial code?",

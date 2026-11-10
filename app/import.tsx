@@ -26,11 +26,9 @@ import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { mergeImportedIngredients } from "@/lib/importIngredientMerge";
 import i18n from "@/lib/i18n";
 import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
-
-const normLang = (l: string): string =>
-  l.startsWith("zh") ? "zh-TW" : l.startsWith("fil") ? "fil" : l.startsWith("id") ? "id" : "en";
 import { enumT } from "@/lib/i18nEnums";
 import { friendlyError } from "@/lib/errors";
+import { formatLimitUsage, limitPaywallFeature, parsePlanError } from "@/lib/limitErrors";
 import { DISH_TYPE_KEYS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { SCENARIO_KEYS, SCENARIO_LABEL_KEYS, normalizeScenarios, deriveScenarioSuggestions, type ScenarioKey } from "@/lib/scenarioTags";
 import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS, alignTagsToSuggested } from "@/lib/taxonomy";
@@ -38,8 +36,12 @@ import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import { track, Events } from "@/lib/analytics";
 import PaywallModal from "@/components/PaywallModal";
 
+const normLang = (l: string): string =>
+  l.startsWith("zh") ? "zh-TW" : l.startsWith("fil") ? "fil" : l.startsWith("id") ? "id" : "en";
+
 /** Quota errors come back as FORBIDDEN; surface the paywall instead of a dead end. */
 function isQuotaError(err: any): boolean {
+  if (parsePlanError(err).kind === "limit_reached") return true;
   const code = err?.data?.code ?? err?.shape?.data?.code;
   if (code === "FORBIDDEN") {
     const msg = String(err?.message ?? "");
@@ -99,7 +101,9 @@ export default function ImportScreen() {
 
   const [step, setStep] = useState<ImportStep>("input");
   const [showQuotaPaywall, setShowQuotaPaywall] = useState(false);
-  const [paywallFeature, setPaywallFeature] = useState<"import_limit" | "screenshot">("import_limit");
+  const [paywallFeature, setPaywallFeature] = useState<
+    "import_limit" | "screenshot" | "recipe_limit" | "generic"
+  >("import_limit");
   const [universalInput, setUniversalInput] = useState("");
   const [clipboardContent, setClipboardContent] = useState<string | null>(null);
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
@@ -119,6 +123,29 @@ export default function ImportScreen() {
   const [editDishType, setEditDishType] = useState<DishTypeKey | "">("");
   const [editScenarios, setEditScenarios] = useState<ScenarioKey[]>([]);
   const [scenariosTouched, setScenariosTouched] = useState(false);
+
+  const handleTypedLimitError = (err: unknown): boolean => {
+    const parsed = parsePlanError(err);
+    if (parsed.kind !== "limit_reached") return false;
+    const usage = formatLimitUsage(parsed);
+    Alert.alert(
+      t("limitErrors.limitReachedTitle" as any),
+      usage
+        ? t("limitErrors.monthlyLimit" as any, { used: parsed.used ?? 0, limit: parsed.limit ?? 0 })
+        : t("error.quota" as any),
+      [
+        { text: t("取消" as any), style: "cancel" },
+        {
+          text: t("limitErrors.upgrade" as any),
+          onPress: () => {
+            setPaywallFeature(limitPaywallFeature(parsed));
+            setShowQuotaPaywall(true);
+          },
+        },
+      ],
+    );
+    return true;
+  };
   const isImportingRef = useRef(false);
   const isParsingRef = useRef(false);
   // true → parseImage 結果以「合併」方式加入現有編輯內容（預覽頁截圖補充），而非取代
@@ -502,6 +529,7 @@ export default function ImportScreen() {
         setUniversalInput(caption);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ★ 主路徑：context pending 一變即處理（即時，唔理時機）
@@ -573,7 +601,7 @@ export default function ImportScreen() {
         // 非 URL 的文字內容也儲存（用於貼上按鈕）
         setClipboardContent(text);
       }
-    } catch (e) {
+    } catch {
       // 剪貼板讀取失敗，忽略
     }
   };
@@ -584,6 +612,7 @@ export default function ImportScreen() {
       if (state === "active") void checkClipboard();
     });
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // C3：匯入警告 — 原文對唔上嘅食材／步驟係 AI 推測，要用戶明確同意
@@ -650,6 +679,10 @@ export default function ImportScreen() {
       isParsingRef.current = false;
       stopParseProgress();
       console.error("[parseUrlMutation.onError]", err);
+      if (handleTypedLimitError(err)) {
+        setStep("input");
+        return;
+      }
       if (isQuotaError(err)) {
         setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
@@ -685,6 +718,10 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
+      if (handleTypedLimitError(err)) {
+        setStep("input");
+        return;
+      }
       if (isQuotaError(err)) {
         setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
@@ -747,6 +784,10 @@ export default function ImportScreen() {
       if (!isParsingRef.current) return;
       isParsingRef.current = false;
       stopParseProgress();
+      if (handleTypedLimitError(err)) {
+        setStep("input");
+        return;
+      }
       if (isQuotaError(err)) {
         setPaywallFeature("import_limit");
         setShowQuotaPaywall(true);
@@ -789,6 +830,7 @@ export default function ImportScreen() {
     },
     onError: (err) => {
       isImportingRef.current = false;
+      if (handleTypedLimitError(err)) return;
       if ((err as any).data?.code === "CONFLICT") {
         Alert.alert(
           t("重複食譜" as any),
@@ -978,7 +1020,7 @@ export default function ImportScreen() {
             return imageUrl;
           }
         }
-      } catch (mediaErr) {
+      } catch {
         // Continue to fallback
       }
       
@@ -1007,7 +1049,7 @@ export default function ImportScreen() {
       }
       
       return undefined;
-    } catch (e: any) {
+    } catch {
       return undefined;
     }
   }
@@ -1109,6 +1151,7 @@ export default function ImportScreen() {
       setClipboardContent(text);
       setPasteBlocked(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [universalInput]);
 
   // 選擇截圖（顯示 Modal 問用戶拍照定相簿）
@@ -1394,7 +1437,7 @@ export default function ImportScreen() {
       setIsSaving(false);
       if (saveStepTimer.current) { clearInterval(saveStepTimer.current); saveStepTimer.current = null; }
     }
-  }, [importMutation.isPending]);
+  }, [importMutation.isPending, isSaving]);
 
   // ── 離開確認（保留 swipe 手勢，screen 唔會先被移除）──
   const hasUnsavedImport = useMemo(() => {

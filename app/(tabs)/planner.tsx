@@ -43,6 +43,8 @@ import { DEFAULT_CATEGORIES, loadCustomCategories } from "@/lib/category-storage
 import { DateUtil } from "@/src/lib/DateUtil";
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { friendlyError } from "@/lib/errors";
+import { parsePlanError, summarizeMealPlanBatch } from "@/lib/limitErrors";
+import PaywallModal from "@/components/PaywallModal";
 import { track, Events } from "@/lib/analytics";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -230,6 +232,10 @@ export default function PlannerTab() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerSourceFilter, setPickerSourceFilter] = useState<"all" | "official" | "user" | "kol" | "template">("all");
   const [pickerRecipe, setPickerRecipe] = useState<PickerRecipe | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<
+    "kol_plan" | "recipe_limit" | "import_limit" | "generic"
+  >("generic");
   const pendingIngredientsRef = useRef<any[] | null>(null);
   const addMealLockRef = useRef(false);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
@@ -456,7 +462,18 @@ export default function PlannerTab() {
     onSuccess: async (result, variables) => {
       // Only invalidate affected queries
       await invalidateAll();
-      
+
+      const pro = summarizeMealPlanBatch(result, variables.items.length);
+      if (pro.proRequired > 0) {
+        setPaywallFeature("kol_plan");
+        setShowPaywall(true);
+        showToast(
+          t("limitErrors.batchAddedNeedPro" as any, { added: pro.added, needPro: pro.proRequired }),
+          "error",
+        );
+        return;
+      }
+
       const days = new Set(variables.items.map(i => i.date));
       
       let message = `✅ 已排入 ${result?.count ?? days.size} 天晚餐（${result?.count ?? variables.items.length} 個餐次）`;
@@ -467,6 +484,12 @@ export default function PlannerTab() {
       showToast(message);
     },
     onError: (e) => {
+      if (parsePlanError(e).kind === "pro_required") {
+        setPaywallFeature("kol_plan");
+        setShowPaywall(true);
+        showToast(t("limitErrors.proRequiredKol" as any), "error");
+        return;
+      }
       showToast(t("批量排餐失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
@@ -658,6 +681,11 @@ export default function PlannerTab() {
       pendingIngredientsRef.current = null;
       addMealLockRef.current = false;
       setIsAddingMeal(false); // 確保錯誤時都關閉 Loading
+      if (parsePlanError(e).kind === "pro_required") {
+        setPaywallFeature("kol_plan");
+        setShowPaywall(true);
+        return;
+      }
       showToast(t("新增失敗：{{msg}}" as any, { msg: friendlyError(e) }), "error");
     },
   });
@@ -2345,6 +2373,12 @@ export default function PlannerTab() {
           isAdding={setDayM.isPending || addShoppingBatchM.isPending}
         />
       )}
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature={paywallFeature}
+      />
     </View>
   );
 }

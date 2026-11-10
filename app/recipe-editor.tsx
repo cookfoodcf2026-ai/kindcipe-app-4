@@ -16,22 +16,23 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { trpc } from "@/lib/trpc";
-import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { DISH_TYPE_KEYS, DISH_TYPE_ICONS, normalizeDishType, inferDishTypeKeyFromName, guardDishTypeByName, type DishTypeKey } from "@/lib/dishType";
 import { SCENARIO_KEYS, SCENARIO_LABEL_KEYS, normalizeScenarios, deriveScenarioSuggestions, type ScenarioKey } from "@/lib/scenarioTags";
-import { CUISINE_OPTIONS, normalizeCuisine, isKnownCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
+import { CUISINE_OPTIONS, normalizeCuisine, SUGGESTED_TAGS } from "@/lib/taxonomy";
 import { validateRecipeForm } from "@/lib/validation/recipeSchema";
 import UnitPicker from "@/src/components/UnitPicker";
 import { compressImage } from "@/lib/image-utils";
 import { enumT } from "@/lib/i18nEnums";
 import i18n from "@/lib/i18n";
 import { pickName, pickDescription, pickSteps } from "@/lib/bilingualCore";
+import { friendlyError } from "@/lib/errors";
+import { formatLimitUsage, limitPaywallFeature, parsePlanError } from "@/lib/limitErrors";
+import PaywallModal from "@/components/PaywallModal";
+import { track, Events } from "@/lib/analytics";
 
 const normLang = (l: string): string =>
   l.startsWith("zh") ? "zh-TW" : l.startsWith("fil") ? "fil" : l.startsWith("id") ? "id" : "en";
-import { friendlyError } from "@/lib/errors";
-import { track, Events } from "@/lib/analytics";
 
 const BRAND = "#183B56";
 const BG = "#F5F8FC";
@@ -140,6 +141,10 @@ export default function RecipeEditorScreen() {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<
+    "kol_plan" | "recipe_limit" | "import_limit" | "generic"
+  >("generic");
   const [isDraft, setIsDraft] = useState(false);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [saveStep, setSaveStep] = useState(0);
@@ -252,7 +257,7 @@ const scrollToFocused = useCallback((e: any) => {
         })));
       }
     }
-  }, [recipeQ.data]);
+  }, [recipeQ.data, isEditing]);
 
   // 新增食譜模式：自動續寫最近一份草稿（Instagram 式 Drafts）
   const draftQ = trpc.recipes.getDraft.useQuery(undefined, { enabled: !isEditing });
@@ -323,7 +328,31 @@ const scrollToFocused = useCallback((e: any) => {
       track(Events.RecipeSaved, { mode: "create" });
       goToRecipeDetail(data?.id);
     },
-    onError: (e) => { setIsSaving(false); Alert.alert(t("儲存失敗" as any), friendlyError(e)); },
+    onError: (e) => {
+      setIsSaving(false);
+      const parsed = parsePlanError(e);
+      if (parsed.kind === "limit_reached") {
+        const usage = formatLimitUsage(parsed);
+        Alert.alert(
+          t("limitErrors.limitReachedTitle" as any),
+          usage
+            ? t("limitErrors.monthlyLimit" as any, { used: parsed.used ?? 0, limit: parsed.limit ?? 0 })
+            : t("error.quota" as any),
+          [
+            { text: t("取消" as any), style: "cancel" },
+            {
+              text: t("limitErrors.upgrade" as any),
+              onPress: () => {
+                setPaywallFeature(limitPaywallFeature(parsed));
+                setShowPaywall(true);
+              },
+            },
+          ],
+        );
+        return;
+      }
+      Alert.alert(t("儲存失敗" as any), friendlyError(e));
+    },
   });
   const updateM = trpc.recipes.updateUser.useMutation({
     onSuccess: async () => {
@@ -678,7 +707,7 @@ const scrollToFocused = useCallback((e: any) => {
     }
     setIsSaving(false);
     leave(opts);
-  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, dishType, scenarios, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave]);
+  }, [isSaving, imageUri, imageBase64, steps, tags, name, description, sourceUrl, servings, prepTime, cookTime, difficulty, category, dishType, scenarios, ingredients, isDraft, editingId, draftId, uploadImageM, updateDraftM, createDraftM, utils, leave, t]);
 
   // 統一退出入口：header ✕ / iOS 滑動返回 / Android back / usePreventRemove
   const onExitRequested = useCallback((opts: { action?: any } = {}) => {
@@ -702,7 +731,7 @@ const scrollToFocused = useCallback((e: any) => {
         { text: t("儲存草稿" as any), onPress: () => saveDraftAndLeave(opts) },
       ],
     );
-  }, [isSaving, hasUnsaved, isComplete, isEditing, isDraft, saveDraftAndLeave, leave]);
+  }, [isSaving, hasUnsaved, isComplete, isEditing, isDraft, saveDraftAndLeave, leave, t]);
 
   const handleDiscard = useCallback(() => onExitRequested(), [onExitRequested]);
 
@@ -724,7 +753,7 @@ const scrollToFocused = useCallback((e: any) => {
       { text: t("取消" as any), style: "cancel" },
       { text: t("刪除" as any), style: "destructive", onPress: () => deleteDraftM.mutate({ id }) },
     ]);
-  }, [draftId, isDraft, editingId, deleteDraftM]);
+  }, [draftId, isDraft, editingId, deleteDraftM, t]);
 
   // iOS 滑動返回 / header 返回 / 程式導航：統一攔截（保留 swipe 手勢）
   usePreventRemove(
@@ -1076,6 +1105,12 @@ const scrollToFocused = useCallback((e: any) => {
           </View>
         </Modal>
       </KeyboardAvoidingView>
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature={paywallFeature}
+      />
     </>
   );
 }

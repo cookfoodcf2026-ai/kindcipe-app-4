@@ -49,6 +49,12 @@ import FreeUpsellModal from "@/src/components/FreeUpsellModal";
 import { categorizeIngredient, calcAdjustedQty, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore, getDayAfter } from "@/src/lib/date";
 import { friendlyError } from "@/lib/errors";
+import {
+  formatLimitUsage,
+  limitPaywallFeature,
+  parsePlanError,
+  summarizeMealPlanBatch,
+} from "@/lib/limitErrors";
 import { normalizeDishType, inferDishTypeKeyFromName, dishTypeLabel, type DishTypeKey } from "@/lib/dishType";
 import { normalizeMealPreferences, type MealPreferenceTime } from "@/lib/mealPreferences";
 import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled } from "@/lib/featureFlags";
@@ -1075,6 +1081,37 @@ export default function AIChefScreen() {
   };
   useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
 
+  // Typed backend errors: a real paywall beats a generic “failed” alert.
+  const showLimitError = (e: unknown): boolean => {
+    const parsed = parsePlanError(e);
+    if (parsed.kind === "limit_reached") {
+      const usage = formatLimitUsage(parsed);
+      Alert.alert(
+        t("limitErrors.limitReachedTitle" as any),
+        usage
+          ? t("limitErrors.monthlyLimit" as any, { used: parsed.used ?? 0, limit: parsed.limit ?? 0 })
+          : t("error.quota" as any),
+        [
+          { text: t("取消" as any), style: "cancel" },
+          {
+            text: t("limitErrors.upgrade" as any),
+            onPress: () => {
+              setPaywallFeature(limitPaywallFeature(parsed));
+              setShowPaywall(true);
+            },
+          },
+        ],
+      );
+      return true;
+    }
+    if (parsed.kind === "pro_required") {
+      setPaywallFeature("kol_plan");
+      setShowPaywall(true);
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     if (!user?.id) return;
     AsyncStorage.getItem(CARD_HISTORY_KEY(user.id))
@@ -1402,6 +1439,9 @@ export default function AIChefScreen() {
 
   const usageUtils = trpc.useUtils();
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<
+    "kol_plan" | "recipe_limit" | "import_limit" | "generic"
+  >("generic");
   const { data: sub } = trpc.family.subscription.useQuery(undefined, {
     enabled: !!user,
     retry: false,
@@ -2298,6 +2338,7 @@ export default function AIChefScreen() {
     onError: (e) => {
       pendingSinglePlanRecipeRef.current = null;
       singleAddBusyRef.current = false;
+      if (showLimitError(e)) return;
       Alert.alert(t("加入排餐失敗" as any), friendlyError(e));
     },
   });
@@ -2562,7 +2603,8 @@ export default function AIChefScreen() {
         return null;
       }
       return `user_${numeric}`;
-    } catch {
+    } catch (e) {
+      showLimitError(e);
       track(Events.AiShoppingRefMissing, { recipeName: r.name, reason: "ensure_saved_failed" });
       return null;
     }
@@ -3461,6 +3503,7 @@ export default function AIChefScreen() {
       setPlanDate(targetDate);
       setShowPlan(true);
     } catch (e: any) {
+      if (showLimitError(e)) return;
       Alert.alert(t("儲存食譜失敗" as any), friendlyError(e) || t("請稍後再試" as any));
     } finally {
       setBatchPlanBusy(false);
@@ -3567,6 +3610,7 @@ export default function AIChefScreen() {
       trackCardAction("save", recipe, cardIndex);
       showToast("✅ 已收藏（食譜庫）");
     } catch (e: any) {
+      if (showLimitError(e)) return;
       Alert.alert(t("收藏失敗" as any), friendlyError(e) || t("請稍後再試" as any));
     } finally {
       setFavoritingName("");
@@ -4644,6 +4688,7 @@ export default function AIChefScreen() {
         } catch (e: any) {
           pendingSinglePlanRecipeRef.current = null;
           singleAddBusyRef.current = false;
+          if (showLimitError(e)) return;
           Alert.alert(t("加入排餐失敗" as any), friendlyError(e) || t("請稍後再試" as any));
         }
       })();
@@ -4742,6 +4787,21 @@ export default function AIChefScreen() {
           replaceExistingDinner,
           deleteRelatedShopping,
         });
+        const pro = summarizeMealPlanBatch(result, buildItems(false).length);
+        if (pro.proRequired > 0) {
+          setPaywallFeature("kol_plan");
+          setShowPaywall(true);
+          showToast(
+            t("limitErrors.batchAddedNeedPro" as any, {
+              added: pro.added,
+              needPro: pro.proRequired,
+            }),
+            undefined,
+            4000,
+            "error",
+          );
+          return;
+        }
         const skipped = result?.skippedCount ?? (result?.skippedDays?.length ?? 0);
         if (skipped > 0) {
           const days = result?.skippedDays?.length ? result.skippedDays.join("、") : "";
@@ -4786,6 +4846,7 @@ export default function AIChefScreen() {
         }
         afterAdded([result]);
       } catch (e: any) {
+        if (showLimitError(e)) return;
         Alert.alert(t("加入排餐失敗" as any), friendlyError(e) || t("請稍後再試" as any));
       }
       };
@@ -6109,7 +6170,7 @@ export default function AIChefScreen() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        feature="generic"
+        feature={paywallFeature}
       />
     </>
   );

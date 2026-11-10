@@ -51,6 +51,7 @@ type PaywallFeature =
   | "screenshot"
   | "ingredient_search"
   | "multilang"
+  | "kol_plan"
   | "generic";
 
 interface PaywallModalProps {
@@ -68,6 +69,7 @@ const FEATURE_MESSAGES: Record<PaywallFeature, { emoji: string; key: PaywallFeat
   screenshot: { emoji: "📸", key: "screenshot" },
   ingredient_search: { emoji: "🔍", key: "ingredient_search" },
   multilang: { emoji: "🌏", key: "multilang" },
+  kol_plan: { emoji: "⭐", key: "kol_plan" },
   generic: { emoji: "⭐", key: "generic" },
 };
 

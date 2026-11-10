@@ -2183,6 +2183,13 @@
   "legal": {
     "foodSafety": "食譜及 AI 生成內容只供參考；請自行確認食材、熟度及致敏原，此並非醫療、營養或過敏建議。"
   },
+  "limitErrors": {
+    "monthlyLimit": "本月上限 {{used}}/{{limit}}",
+    "limitReachedTitle": "已達本月上限",
+    "upgrade": "升級",
+    "batchAddedNeedPro": "已加入 {{added}} 項，另有 {{needPro}} 項需要 Pro",
+    "proRequiredKol": "網紅食譜加入排餐需要 Pro"
+  },
   "paywall": {
     "foundingCodeDone": "已套用優惠",
     "monthlyLabel": "家庭版月費",
@@ -2267,6 +2274,10 @@
       "generic": {
         "title": "升級以使用此功能",
         "desc": "升級至家庭版，解鎖所有功能"
+      },
+      "kol_plan": {
+        "title": "網紅食譜加入排餐需要 Pro",
+        "desc": "升級 Pro 後即可將網紅食譜加入排餐。"
       }
     },
     "trialCodeTitle": "有 7 日試用 code？",

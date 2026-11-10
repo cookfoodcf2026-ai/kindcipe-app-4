@@ -2188,6 +2188,13 @@
   "legal": {
     "foodSafety": "Ang mga recipe at AI output ay para sa sanggunian lamang; ikaw ang dapat mag-check ng mga sangkap, pagkaluto at allergens — hindi ito medikal, nutrisyon o allergy advice."
   },
+  "limitErrors": {
+    "monthlyLimit": "Limitasyon ngayong buwan {{used}}/{{limit}}",
+    "limitReachedTitle": "Naabot ang limitasyon ngayong buwan",
+    "upgrade": "Mag-upgrade",
+    "batchAddedNeedPro": "{{added}} ang naidagdag, {{needPro}} ang kailangan ng Pro",
+    "proRequiredKol": "Kailangan ng Pro para idagdag ang KOL recipe sa meal plan"
+  },
   "paywall": {
     "foundingCodeDone": "Na-apply ang diskwento",
     "monthlyLabel": "Family plan · buwanan",
@@ -2272,6 +2279,10 @@
       "generic": {
         "title": "Mag-upgrade para gamitin ito",
         "desc": "Mag-upgrade sa Family plan para ma-unlock lahat"
+      },
+      "kol_plan": {
+        "title": "Kailangan ng Pro para idagdag ang KOL recipe sa meal plan",
+        "desc": "Mag-upgrade sa Pro para maidagdag ang KOL recipe sa meal plan."
       }
     },
     "trialCodeTitle": "May 7-day trial code?",

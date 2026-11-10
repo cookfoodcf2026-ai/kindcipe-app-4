@@ -55,6 +55,8 @@ import { isSeasoning, isWaterIngredient, calcAdjustedQty, NON_SCALABLE_CATS } fr
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { getLocalizedTip } from "@/lib/tipLocalization";
 import { friendlyError } from "@/lib/errors";
+import { parsePlanError } from "@/lib/limitErrors";
+import PaywallModal from "@/components/PaywallModal";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
 import { shouldOfferAiFillSteps } from "@/lib/aiFillSteps";
@@ -158,6 +160,10 @@ export default function RecipeDetailScreen() {
     return () => { alive = false; };
   }, []);
   const [planMeal, setPlanMeal] = useState("dinner");
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<
+    "kol_plan" | "recipe_limit" | "import_limit" | "generic"
+  >("generic");
   // Price modal
   const [showPrice, setShowPrice] = useState(false);
   const [priceKw, setPriceKw] = useState("");
@@ -738,6 +744,11 @@ export default function RecipeDetailScreen() {
       }
     },
     onError: (e) => {
+      if (parsePlanError(e).kind === "pro_required") {
+        setPaywallFeature("kol_plan");
+        setShowPaywall(true);
+        return;
+      }
       Alert.alert(t("排餐失敗" as any), friendlyError(e), [{ text: t("確定" as any) }]);
     },
   });
@@ -2487,6 +2498,12 @@ export default function RecipeDetailScreen() {
           count={shoppingConfirmCount ?? 0}
           onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
           onClose={() => setShoppingConfirmCount(null)}
+        />
+
+        <PaywallModal
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          feature={paywallFeature}
         />
       </View>
     </>

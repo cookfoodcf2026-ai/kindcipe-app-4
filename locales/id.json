@@ -2188,6 +2188,13 @@
   "legal": {
     "foodSafety": "Resep dan keluaran AI hanya untuk referensi; Anda harus memeriksa sendiri bahan, kematangan, dan alergen — ini bukan nasihat medis, gizi, atau alergi."
   },
+  "limitErrors": {
+    "monthlyLimit": "Batas bulanan {{used}}/{{limit}}",
+    "limitReachedTitle": "Batas bulanan tercapai",
+    "upgrade": "Upgrade",
+    "batchAddedNeedPro": "{{added}} ditambahkan, {{needPro}} butuh Pro",
+    "proRequiredKol": "Menambahkan resep KOL ke rencana makan memerlukan Pro"
+  },
   "paywall": {
     "foundingCodeDone": "Diskon diterapkan",
     "monthlyLabel": "Paket keluarga · bulanan",
@@ -2272,6 +2279,10 @@
       "generic": {
         "title": "Upgrade untuk memakai fitur ini",
         "desc": "Upgrade ke paket Keluarga untuk membuka semua"
+      },
+      "kol_plan": {
+        "title": "Menambahkan resep KOL ke rencana makan memerlukan Pro",
+        "desc": "Upgrade ke Pro untuk menambahkan resep KOL ke rencana makan."
       }
     },
     "trialCodeTitle": "Punya kode trial 7 hari?",

@@ -33,6 +33,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
+import { parsePlanError } from "@/lib/limitErrors";
 import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
 import { resolvePlannerBuyDate } from "@/lib/shoppingDate";
 import { withItemPlannedDate } from "@/lib/shoppingPayload";
@@ -535,6 +536,9 @@ export default function RecipesTab() {
   const [fabVisible, setFabVisible] = useState(false);
 
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallFeature, setPaywallFeature] = useState<
+    "kol_plan" | "recipe_limit" | "import_limit" | "generic"
+  >("generic");
 
   const { data: sub, refetch: refetchSubscription } = trpc.family.subscription.useQuery(undefined, {
     retry: false,
@@ -824,7 +828,14 @@ export default function RecipesTab() {
 
       void invalidateMealPlanAndCart();
     },
-    onError: (e) => showToast(t("dyn.addFailed" as any, { msg: friendlyError(e) }), "error"),
+    onError: (e) => {
+      if (parsePlanError(e).kind === "pro_required") {
+        setPaywallFeature("kol_plan");
+        setShowPaywall(true);
+        return;
+      }
+      showToast(t("dyn.addFailed" as any, { msg: friendlyError(e) }), "error");
+    },
   });
 
   const deleteMealM = trpc.mealPlan.delete.useMutation({
@@ -1769,7 +1780,7 @@ export default function RecipesTab() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        feature="generic"
+        feature={paywallFeature}
         trialDaysLeft={sub?.trialEndsAt ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86400000)) : undefined}
         isPaid={isPaid}
       />
