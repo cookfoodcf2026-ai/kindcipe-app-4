@@ -103,9 +103,10 @@ export function useAiChatCloudSync(userId: string | number | null | undefined) {
   );
 
   const removeSession = useCallback(
-    (sessionId: string) => {
+    async (sessionId: string) => {
       if (!userId) return;
-      deleteM.mutate({ id: sessionId }, { onSuccess: () => void utils.aiChat.list.invalidate() });
+      await deleteM.mutateAsync({ id: sessionId });
+      await utils.aiChat.list.invalidate();
     },
     [userId, deleteM, utils]
   );

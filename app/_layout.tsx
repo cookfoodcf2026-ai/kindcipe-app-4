@@ -636,6 +636,13 @@ function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="recipes"
+                    options={{
+                      headerShown: false,
+                      title: '',
+                    }}
+                  />
+                  <Stack.Screen
                     name="recipe/[id]"
                     options={{
                       headerShown: false,

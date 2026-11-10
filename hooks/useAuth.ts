@@ -10,10 +10,10 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import { clearAuthToken, getAuthTokenState, FAMILY_ID_KEY } from "@/lib/auth";
+import { getAuthTokenState, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
-import { queryClient } from "@/lib/queryClient";
+import { resetAuthState } from "@/lib/hardLogout";
 import {
   authMeRetryDelay,
   deriveAuthStatus,
@@ -28,6 +28,8 @@ type AuthValue = {
   isAuthenticated: boolean;
   logout: () => void;
   logoutAsync: () => Promise<void>;
+  /** Wipe local auth state (token + family + query cache) and go to /login. */
+  hardLogout: () => Promise<void>;
   logoutPending: boolean;
   logoutError: unknown;
   resetLogout: () => void;
@@ -144,34 +146,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (user as any)?.activeFamilyRole ?? null;
   })();
 
-  // 登出：先清本地（即時、可靠），再通知後端清 session cookie（best-effort）
-  const localLogout = useCallback(async () => {
-    try {
-      await clearAuthToken();
-      await AsyncStorage.removeItem(FAMILY_ID_KEY);
-    } catch { /* ignore */ }
+  // 登出／改密碼／重設密碼共用：清 token + family + 全部 cache，再返登入頁。
+  // 只清 token 唔夠：殘留 auth.me cache + hasToken=true 會令 AuthGuard 彈返 app。
+  const hardLogout = useCallback(async () => {
+    await resetAuthState();
     setActiveFamilyId(null);
     setHasToken(false);
-    // 清「所有」cache（唔止 auth.me）：殘留 cache + AuthGuard 會令用戶被彈返 app（「登出唔到」）
-    queryClient.clear();
+    setTokenChecked(true);
     router.replace("/login");
   }, [router]);
 
   const logoutMutation = trpc.auth.logout.useMutation();
 
   const logout = useCallback(() => {
-    void localLogout();
+    void hardLogout();
     logoutMutation.mutate(); // 後端清 cookie，唔等佢
-  }, [localLogout, logoutMutation]);
+  }, [hardLogout, logoutMutation]);
 
   // logoutAsync：同一路徑，但返回 Promise（供 UI 顯示 pending／錯誤）。永不 reject（logout 一定要成功）。
   const logoutAsync = useCallback(async () => {
     try {
-      await localLogout();
+      await hardLogout();
     } finally {
       try { await logoutMutation.mutateAsync(); } catch { /* best-effort */ }
     }
-  }, [localLogout, logoutMutation]);
+  }, [hardLogout, logoutMutation]);
 
   const refreshAuth = useCallback(async () => {
     await readTokenState();
@@ -185,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated,
     logout,
     logoutAsync,
+    hardLogout,
     logoutPending: logoutMutation.isPending,
     logoutError: logoutMutation.error,
     resetLogout: logoutMutation.reset,
@@ -195,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     families,
     switchFamily,
   }), [
-    user, isLoading, authStatus, isAuthenticated, logout, logoutAsync, logoutMutation.isPending,
+    user, isLoading, authStatus, isAuthenticated, logout, logoutAsync, hardLogout, logoutMutation.isPending,
     logoutMutation.error, logoutMutation.reset, refreshAuth, activeFamily, activeFamilyId,
     familyRole, families, switchFamily,
   ]);

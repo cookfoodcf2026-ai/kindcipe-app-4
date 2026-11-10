@@ -17,3 +17,16 @@ export function buyDateForMeal(mealDate: string | null | undefined, today: strin
   if (mealDate === today) return { ok: true, date: today, manual: false };
   return { ok: true, date: shiftISODate(mealDate, -1), manual: false };
 }
+
+/**
+ * Resolve the concrete buy date the planner writes to shopping items.
+ * Today's meal buys today (not yesterday); a future meal buys the day before;
+ * a past meal falls back to today instead of drifting one day further back.
+ */
+export function resolvePlannerBuyDate(
+  mealDate: string | null | undefined,
+  today: string,
+): string {
+  const resolved = buyDateForMeal(mealDate, today);
+  return resolved.ok ? resolved.date : today;
+}

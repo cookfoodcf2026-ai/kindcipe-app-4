@@ -19,6 +19,7 @@ import i18n from "@/lib/i18n";
 import { apiClient, resolveImageUrl, trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { resolvePlannerBuyDate } from "@/lib/shoppingDate";
 import { aiPlanEnabled } from "@/lib/featureFlags";
 import { calcAdjustedQty } from "@/constants/ingredients";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
@@ -152,10 +153,10 @@ export default function AiPlanScreen() {
           unit: ing.unit,
           category: ing.category,
         }));
-        const buyDate = DateUtil.getDayBefore(date);
+        const buyDate = resolvePlannerBuyDate(date, today);
         return {
           date,
-          buyDate: buyDate < today ? today : buyDate,
+          buyDate,
           recipeId: recipe.recipeId,
           recipeName: recipe.name,
           recipeNameEn: recipe.nameEn ?? null,

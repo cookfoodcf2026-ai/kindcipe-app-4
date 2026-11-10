@@ -6,8 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
-import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#183B56";
@@ -15,7 +13,7 @@ const BRAND = "#183B56";
 export default function ChangePasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hardLogout } = useAuth();
   const changePasswordM = trpc.auth.changePassword.useMutation();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -45,9 +43,8 @@ export default function ChangePasswordScreen() {
         newPassword,
         confirmPassword,
       });
-      await clearAuthToken();
-      await AsyncStorage.removeItem(FAMILY_ID_KEY);
-      Alert.alert(t("auth.updated"), t("auth.changeSuccess"), [{ text: t("auth.gotIt"), onPress: () => router.replace("/login") }]);
+      await hardLogout();
+      Alert.alert(t("auth.updated"), t("auth.changeSuccess"), [{ text: t("auth.gotIt") }]);
     } catch (err: any) {
       Alert.alert(t("auth.changeFailed"), friendlyError(err) || t("auth.tryLater"));
     }

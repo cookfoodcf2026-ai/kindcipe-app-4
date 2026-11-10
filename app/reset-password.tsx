@@ -5,8 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
-import { clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/hooks/useAuth";
 import { friendlyError } from "@/lib/errors";
 
 const BRAND = "#183B56";
@@ -14,6 +13,7 @@ const BRAND = "#183B56";
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { hardLogout } = useAuth();
   const params = useLocalSearchParams<{ token?: string }>();
   const resetPasswordM = trpc.auth.resetPassword.useMutation();
 
@@ -27,7 +27,7 @@ export default function ResetPasswordScreen() {
     if (!token) {
       Alert.alert(t("auth.invalidLink"), t("auth.missingToken"), [{ text: t("auth.backToLogin"), onPress: () => router.replace("/login") }]);
     }
-  }, [token, router]);
+  }, [token, router, t]);
 
   const handleSubmit = async () => {
     if (!token) return;
@@ -46,10 +46,9 @@ export default function ResetPasswordScreen() {
 
     try {
       await resetPasswordM.mutateAsync({ token, newPassword, confirmPassword });
-      await clearAuthToken();
-      await AsyncStorage.removeItem(FAMILY_ID_KEY);
+      await hardLogout();
       Alert.alert(t("auth.updated"), t("auth.resetSuccess"), [
-        { text: t("返回登入" as any), onPress: () => router.replace("/login") },
+        { text: t("返回登入" as any) },
       ]);
     } catch (err: any) {
       Alert.alert(t("auth.resetFailed"), friendlyError(err) || t("auth.tryLater"));

@@ -54,6 +54,8 @@ import { normalizeMealPreferences, type MealPreferenceTime } from "@/lib/mealPre
 import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled } from "@/lib/featureFlags";
 import { canva } from "@/app/styles/colors";
 import { mergeAppendedCards } from "@/lib/appendCards";
+import { ingredientsSignature } from "@/lib/recipeSignature";
+import { chatSessionSignature } from "@/lib/chatSessionSignature";
 import { detectMealIntent, detectFlavorConstraint } from "@/lib/mealIntent";
 
 type MsgContent = string | (
@@ -319,6 +321,14 @@ const inferSoupWaterIngredient = (
   return ingredients;
 };
 
+const normalizeLibraryRecipeId = (raw?: string | null): string => {
+  const id = String(raw ?? "").trim();
+  if (!id) return "";
+  if (/^(official|user)_/.test(id)) return id;
+  if (/^\d+$/.test(id)) return `official_${id}`;
+  return "";
+};
+
 // 將任何來源嘅食譜 steps/ingredients 統一 normalize 成 string[] / 標準 ingredient[]
 // 防呆：如果 AI 返回空嘅 ingredients/steps，嘗試修復
 const normalizeRecipe = (r: any): AIRecipe => {
@@ -346,8 +356,9 @@ const normalizeRecipe = (r: any): AIRecipe => {
     tags: Array.isArray(r?.tags) ? r.tags.map((t: any) => String(t ?? "").trim()).filter(Boolean) : [],
     source: source as AIRecipe["source"],
   };
-  if (normalized.source === "library" && !normalized._libraryRecipeId && typeof r?.id === "string" && r.id.trim()) {
-    normalized._libraryRecipeId = r.id.trim();
+  if (normalized.source === "library" && !normalized._libraryRecipeId && typeof r?.id === "string") {
+    const libId = normalizeLibraryRecipeId(r.id);
+    if (libId) normalized._libraryRecipeId = libId;
   }
   
   // Fallback: if ingredients/steps are empty but we have description, try to extract
@@ -1139,11 +1150,12 @@ export default function AIChefScreen() {
     if (r.id && (r.id.startsWith("official_") || r.id.startsWith("user_"))) {
       return { recipeId: r.id, isLibraryRef: true };
     }
-    if (r._libraryRecipeId) return { recipeId: r._libraryRecipeId, isLibraryRef: true };
+    const libraryId = normalizeLibraryRecipeId(r._libraryRecipeId)
+      || (r.source === "library" ? normalizeLibraryRecipeId(r.id) : "");
+    if (libraryId) return { recipeId: libraryId, isLibraryRef: true };
     if (r._savedId) return { recipeId: `user_${r._savedId}`, isLibraryRef: true };
     if (r.source === "official" && r.officialId) return { recipeId: `official_${r.officialId}`, isLibraryRef: true };
     if (r.source === "custom" && r.customId) return { recipeId: `user_${r.customId}`, isLibraryRef: true };
-    if (r.source === "library" && r.id) return { recipeId: r.id, isLibraryRef: true };
     return { recipeId: "", isLibraryRef: false };
   };
 
@@ -1832,9 +1844,20 @@ export default function AIChefScreen() {
   // cloud load RESOLVES (even to []), otherwise a fresh account never uploads
   // its first locally-written message.
   const [cloudSyncReady, setCloudSyncReady] = useState(false);
+  const cloudSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCloudSyncRef = useRef<{
+    id: string;
+    title: string;
+    createdAt: number;
+    messages: Message[];
+  } | null>(null);
   useEffect(() => {
     cloudHydratedRef.current = false;
     setCloudSyncReady(false);
+    // Never carry one account's unsent session into another account.
+    if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+    cloudSyncTimer.current = null;
+    pendingCloudSyncRef.current = null;
   }, [user?.id]);
   useEffect(() => {
     if (!loaded || !user?.id || cloudSessions === undefined) return;
@@ -1869,25 +1892,75 @@ export default function AIChefScreen() {
   }, [cloudSessions, loaded, user?.id]);
 
   // Push a session to the cloud whenever its messages change (debounced).
-  const cloudSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushPendingCloudSync = useCallback(() => {
+    if (cloudSyncTimer.current) {
+      clearTimeout(cloudSyncTimer.current);
+      cloudSyncTimer.current = null;
+    }
+    const pending = pendingCloudSyncRef.current;
+    pendingCloudSyncRef.current = null;
+    if (pending) syncSessionToCloud(pending);
+  }, [syncSessionToCloud]);
+
+  // Keep the latest flusher without re-running the unmount cleanup when the
+  // mutation object identity changes.
+  const flushCloudSyncRef = useRef(flushPendingCloudSync);
+  useEffect(() => {
+    flushCloudSyncRef.current = flushPendingCloudSync;
+  }, [flushPendingCloudSync]);
+  useEffect(() => () => { flushCloudSyncRef.current(); }, []);
+
   useEffect(() => {
     if (!loaded || !user?.id || !cloudHydratedRef.current || !cloudSyncReady) return;
     const session = sessions.find(s => s.id === activeChatId);
+    const pending = pendingCloudSyncRef.current;
+
+    // Switching conversation before the 800ms debounce must not drop the last
+    // message: flush the previous session immediately.
+    if (pending && pending.id !== session?.id) flushPendingCloudSync();
+
     // Only sync sessions that actually have content.
-    if (!session || session.messages.length === 0) return;
+    if (!session || session.messages.length === 0) {
+      if (cloudSyncTimer.current) {
+        clearTimeout(cloudSyncTimer.current);
+        cloudSyncTimer.current = null;
+      }
+      if (pendingCloudSyncRef.current?.id === session?.id) pendingCloudSyncRef.current = null;
+      return;
+    }
+
+    // Loop guard: every upsert invalidates the cloud list, which replaces
+    // `sessions`/`cloudSessions` with new identities. If the cloud already has
+    // exactly this content there is nothing to push, otherwise we'd sync forever.
+    const cloud = (cloudSessions ?? []).find(c => c.id === session.id);
+    // Compare against exactly what hydration would write locally (legacy prompts
+    // are compacted), otherwise an old session would look different forever.
+    const cloudSignature = cloud
+      ? chatSessionSignature({ ...cloud, messages: cloud.messages.map(compactLegacyMealPrompt) })
+      : null;
+    if (cloud && cloudSignature === chatSessionSignature(session)) {
+      if (pendingCloudSyncRef.current?.id === session.id) {
+        if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+        cloudSyncTimer.current = null;
+        pendingCloudSyncRef.current = null;
+      }
+      return;
+    }
+
     if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
-    cloudSyncTimer.current = setTimeout(() => {
-      syncSessionToCloud({
-        id: session.id,
-        title: session.title,
-        createdAt: session.createdAt,
-        messages: session.messages,
-      });
-    }, 800);
-    return () => {
-      if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+    const payload = {
+      id: session.id,
+      title: session.title,
+      createdAt: session.createdAt,
+      messages: session.messages,
     };
-  }, [sessions, activeChatId, loaded, user?.id, syncSessionToCloud, cloudSyncReady]);
+    pendingCloudSyncRef.current = payload;
+    cloudSyncTimer.current = setTimeout(() => {
+      cloudSyncTimer.current = null;
+      pendingCloudSyncRef.current = null;
+      syncSessionToCloud(payload);
+    }, 800);
+  }, [sessions, activeChatId, cloudSessions, loaded, user?.id, syncSessionToCloud, cloudSyncReady, flushPendingCloudSync]);
 
   // Auto-title: when first user message is sent, update the title
   useEffect(() => {
@@ -1963,10 +2036,21 @@ export default function AIChefScreen() {
       { text: t("取消" as any), style: "cancel" },
       {
         text: t("刪除" as any), style: "destructive",
-        onPress: () => {
+        onPress: async () => {
+          // Delete in the cloud first: if it fails, keep the row (no optimistic delete).
+          try {
+            await removeSessionFromCloud(id);
+          } catch {
+            showToast(t("error.generic" as any), undefined, 3000, "error");
+            return;
+          }
+          // Drop any pending debounced upsert for the now-deleted session.
+          if (pendingCloudSyncRef.current?.id === id) {
+            if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+            cloudSyncTimer.current = null;
+            pendingCloudSyncRef.current = null;
+          }
           const deletingActive = id === activeChatId;
-          // Cross-device: remove from the cloud too so it disappears on web.
-          removeSessionFromCloud(id);
           setSessions(prev => {
             const next = prev.filter(s => s.id !== id);
             if (next.length === 0) {
@@ -2007,9 +2091,18 @@ export default function AIChefScreen() {
         {
           text: t("清除" as any),
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             // 雲端同本機一齊清；伺服器只會刪 caller 自己嘅 rows。
-            void clearAllSessionsFromCloud().catch(() => {});
+            // 清雲端失敗 → 保留本機紀錄並提示，唔好扮成功。
+            try {
+              await clearAllSessionsFromCloud();
+            } catch {
+              showToast(t("error.generic" as any), undefined, 3000, "error");
+              return;
+            }
+            if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
+            cloudSyncTimer.current = null;
+            pendingCloudSyncRef.current = null;
             const newId = generateId();
             const fresh: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
             setSessions([fresh]);
@@ -2117,7 +2210,7 @@ export default function AIChefScreen() {
       ]);
     },
   });
-  // A3: 去重 —— 同 session 記住已 save 過嘅 id；跨 session 靠「同名 custom」歸一
+  // A3: 去重 —— 同 session 記住已 save 過嘅 id；跨 session 要同名 + 同食材簽名先歸一
   const savedRecipeIdsRef = useRef<Map<string, number>>(new Map());
   const ensureSaved = async (
     recipe: AIRecipe,
@@ -2130,7 +2223,17 @@ export default function AIChefScreen() {
       if (cached) return cached;
       try {
         // 用已 cache 嘅食譜庫資料去重，唔使每次重新 fetch（快好多）
-        const hit = (userRecipes ?? []).find((c: any) => c.name && c.name.trim() === key);
+        // 同名但食材唔同 = 另一道菜，唔可以重用舊 id
+        const signature = ingredientsSignature(
+          (scaledIngredients ?? recipe.ingredients ?? []).map((ing) => String(ing?.name ?? ""))
+        );
+        const hit = (userRecipes ?? []).find((c: any) => {
+          if (!c.name || c.name.trim() !== key) return false;
+          const hitSignature = ingredientsSignature(
+            (Array.isArray(c.ingredients) ? c.ingredients : []).map((ing: any) => String(ing?.name ?? ""))
+          );
+          return hitSignature === signature;
+        });
         if (hit && hit.id) {
           savedRecipeIdsRef.current.set(key, hit.id);
           return hit.id;

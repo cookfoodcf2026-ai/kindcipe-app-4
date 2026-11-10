@@ -26,7 +26,7 @@ import { PRIVACY_URL, TERMS_URL, openLegalPage } from "@/lib/legal";
 import { confirmStripeCheckout } from "@/lib/purchase";
 import { useAuth } from "@/hooks/useAuth";
 import i18n from "@/lib/i18n";
-import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled, clearAuthToken, FAMILY_ID_KEY } from "@/lib/auth";
+import { isBiometricAvailable, isBiometricEnabled, setBiometricEnabled } from "@/lib/auth";
 import { getMealReminderSetting, saveMealReminderSetting, applyMealReminder, type MealReminderSetting } from "@/lib/notifications";
 import PaywallModal from "@/components/PaywallModal";
 import { ChatBubbleIcon } from "@/src/components/icons";
@@ -65,7 +65,7 @@ export default function SettingsScreen() {
   }>();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
-  const { user, isAuthenticated, logout, familyRole, activeFamily, activeFamilyId, families } = useAuth();
+  const { user, isAuthenticated, logout, hardLogout, familyRole, activeFamily, activeFamilyId, families } = useAuth();
   const canManageBilling = familyRole === "owner" || familyRole === "admin";
   const [selectedLang, setSelectedLang] = useState(i18n.language || "zh-TW");
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -98,11 +98,7 @@ export default function SettingsScreen() {
   // 刪除帳戶（Apple 5.1.1(v) / Google Play 要求 app 內提供）
   const deleteAccountM = trpc.auth.deleteAccount.useMutation({
     onSuccess: async () => {
-      await clearAuthToken();
-      await AsyncStorage.removeItem(FAMILY_ID_KEY);
-      await utils.invalidate();
-      await utils.auth.me.invalidate();
-      router.replace("/login");
+      await hardLogout();
       Alert.alert(t("已刪除" as any), t("帳戶已永久刪除。" as any));
     },
     onError: (e) => {

@@ -286,10 +286,10 @@ export default function RecipeDetailScreen() {
     if (/^(official|user)_\d+$/.test(raw)) return raw;
     const numeric = parseInt(raw.replace(/^(official|user)_/, ""), 10);
     if (!Number.isFinite(numeric) || numeric <= 0) return "";
+    const isKol = (recipe as any).source === "kol";
     const isOfficial =
-      (recipe as any).isOfficial === true ||
-      (recipe as any).source === "official" ||
-      (recipe as any).source === "kol";
+      !isKol &&
+      ((recipe as any).isOfficial === true || (recipe as any).source === "official");
     return `${isOfficial ? "official" : "user"}_${numeric}`;
   }, [recipe, id]);
 

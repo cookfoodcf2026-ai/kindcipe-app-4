@@ -34,6 +34,7 @@ import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
 import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
+import { resolvePlannerBuyDate } from "@/lib/shoppingDate";
 import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import {
   buildDraftIdSet,
@@ -1732,7 +1733,7 @@ export default function RecipesTab() {
         visible={!!planPickerRecipe}
         recipes={planPickerRecipe ? [planPickerRecipe] : []}
         mealDate={planPickerRecipe?.date}
-        defaultBuyDate={planPickerRecipe?.date ? DateUtil.getDayBefore(planPickerRecipe.date) : undefined}
+        defaultBuyDate={planPickerRecipe?.date ? resolvePlannerBuyDate(planPickerRecipe.date, DateUtil.todayISO()) : undefined}
         maxDate={planPickerRecipe?.date}
         showDateSelector={false}
         loading={addShoppingBatchM.isPending}

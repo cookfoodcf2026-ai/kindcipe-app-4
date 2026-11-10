@@ -31,8 +31,8 @@ import i18n from "@/lib/i18n";
 import { getBilingualName } from "@/lib/bilingual";
 import { enumT } from "@/lib/i18nEnums";
 import { mergeIngredients } from "@/constants/ingredients";
-import { toISODate, getDayBefore, todayISO } from "@/src/lib/date";
-import { buyDateForMeal } from "@/lib/shoppingDate";
+import { toISODate, todayISO } from "@/src/lib/date";
+import { buyDateForMeal, resolvePlannerBuyDate } from "@/lib/shoppingDate";
 import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
 import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -519,7 +519,7 @@ export default function PlannerTab() {
             id: dishId,
             name: dishName,
             ingredients: official.ingredients,
-            date: getDayBefore(itemDateStr),
+            date: itemDateStr,
             mealType: "dinner",
           });
         }
@@ -558,9 +558,7 @@ export default function PlannerTab() {
                   // 購物日期 = 排餐日前一日，但如果係過去就用今日
                   plannedDate: (() => {
                     if (ing.date) return ing.date;
-                    const dayBefore = getDayBefore(itemDateStr);
-                    const today = todayISO();
-                    return dayBefore < today ? today : dayBefore;
+                    return resolvePlannerBuyDate(itemDateStr, todayISO());
                   })(),
                 }));
 
@@ -977,7 +975,7 @@ export default function PlannerTab() {
       if (!dateStr) return;
       
       addMealLockRef.current = true;
-      const prefix = recipe._source === "user" ? "user_" : recipe._source === "template" ? "" : "official_";
+      const prefix = recipe._source === "user" || recipe._source === "kol" ? "user_" : recipe._source === "template" ? "" : "official_";
       pendingIngredientsRef.current = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
       
       // 啟動 Loading 狀態
@@ -1052,8 +1050,9 @@ export default function PlannerTab() {
     setMoveMealPlanTarget(mp);
     setMoveMealPlanDate(mp.date);
     setSyncShoppingItems(false);
-    setSyncShoppingDateMode(getDayBefore(mp.date) < toISODate(new Date()) ? "same" : "previous");
-    setSyncShoppingDate(getDayBefore(mp.date));
+    const buyDate = resolvePlannerBuyDate(mp.date, todayISO());
+    setSyncShoppingDateMode(buyDate < mp.date ? "previous" : "same");
+    setSyncShoppingDate(buyDate);
     setShowSyncDateModal(false);
     setPendingMoveDateSave(null);
     setShowMoveDateModal(true);
@@ -1109,20 +1108,20 @@ export default function PlannerTab() {
     setSyncShoppingDateMode(draftSyncShoppingDateMode);
     setSyncShoppingDate(
       draftSyncShoppingDateMode === "custom"
-        ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
+        ? (clampShoppingDate(draftSyncShoppingDate || resolvePlannerBuyDate(moveMealPlanDate, todayISO())) || todayISO())
         : draftSyncShoppingDateMode === "same"
-          ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
-          : getDayBefore(moveMealPlanDate || toISODate(new Date())),
+          ? (moveMealPlanDate || todayISO())
+          : resolvePlannerBuyDate(moveMealPlanDate, todayISO()),
     );
     setSyncShoppingItems(true);
     setShowSyncDateModal(false);
     if (pendingMoveDateSave) {
       const nextShoppingDate =
         draftSyncShoppingDateMode === "custom"
-          ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
+          ? (clampShoppingDate(draftSyncShoppingDate || resolvePlannerBuyDate(moveMealPlanDate, todayISO())) || todayISO())
           : draftSyncShoppingDateMode === "same"
-            ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
-            : getDayBefore(moveMealPlanDate || toISODate(new Date()));
+            ? (moveMealPlanDate || todayISO())
+            : resolvePlannerBuyDate(moveMealPlanDate, todayISO());
       updateMealDateM.mutate({
         id: pendingMoveDateSave.id,
         newDate: pendingMoveDateSave.newDate,
@@ -1179,7 +1178,7 @@ export default function PlannerTab() {
     if (!pickerRecipe?.ingredients?.length || !shoppingItems.length) return added;
     const targetRecipeId = pickerRecipe.id;
     const targetMealPlanId = (pickerRecipe as any).fromMealPlanId ? Number((pickerRecipe as any).fromMealPlanId) : null;
-    const targetShoppingDate = pickerRecipe.date ? getDayBefore(pickerRecipe.date) : toISODate(new Date());
+    const targetShoppingDate = resolvePlannerBuyDate(pickerRecipe.date, todayISO());
     const activeItems = (shoppingItems as any[]).filter((item: any) => item.status !== "bought");
     pickerRecipe.ingredients.forEach((ing, idx) => {
       const key = `${pickerRecipe.id}::${idx}::${targetShoppingDate}`;
@@ -1201,10 +1200,10 @@ export default function PlannerTab() {
 
   const selectedMoveShoppingDate =
     syncShoppingDateMode === "same"
-      ? moveMealPlanDate || getDayBefore(toISODate(new Date()))
+      ? moveMealPlanDate || todayISO()
       : syncShoppingDateMode === "custom"
-        ? clampShoppingDate(syncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date())
-        : clampShoppingDate(getDayBefore(moveMealPlanDate || DateUtil.todayISO())) || toISODate(new Date());
+        ? clampShoppingDate(syncShoppingDate || resolvePlannerBuyDate(moveMealPlanDate, todayISO())) || todayISO()
+        : clampShoppingDate(resolvePlannerBuyDate(moveMealPlanDate || DateUtil.todayISO(), todayISO())) || todayISO();
 
   const handleAddToCartFromMeal = useCallback(
     (mp: any) => {
@@ -1872,7 +1871,7 @@ export default function PlannerTab() {
         visible={!!pickerRecipe}
         recipes={pickerRecipe ? [pickerRecipe] : []}
         mealDate={pickerRecipe?.date}
-        defaultBuyDate={pickerRecipe?.date ? getDayBefore(pickerRecipe.date) : undefined}
+        defaultBuyDate={pickerRecipe?.date ? resolvePlannerBuyDate(pickerRecipe.date, todayISO()) : undefined}
         maxDate={pickerRecipe?.date}
         showDateSelector={false}
         loading={addShoppingBatchM.isPending}
@@ -2009,8 +2008,7 @@ export default function PlannerTab() {
                     const key = opt.key as "previous" | "same" | "custom";
                     setDraftSyncShoppingDateMode(key);
                     if (key === "custom") {
-                      const prev = getDayBefore(moveMealPlanDate || toISODate(new Date()));
-                      setDraftSyncShoppingDate(prev < toISODate(new Date()) ? toISODate(new Date()) : prev);
+                      setDraftSyncShoppingDate(resolvePlannerBuyDate(moveMealPlanDate, todayISO()));
                     }
                   }}
                   style={{
@@ -2035,7 +2033,7 @@ export default function PlannerTab() {
                   {t("自訂購物日期（唔可以遲過排餐日）" as any)}
                 </Text>
                 <PlanDatePicker
-                  value={clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) ?? toISODate(new Date())}
+                  value={clampShoppingDate(draftSyncShoppingDate || resolvePlannerBuyDate(moveMealPlanDate, todayISO())) ?? todayISO()}
                   onChange={setDraftSyncShoppingDate}
                   maxDate={moveMealPlanDate || undefined}
                   minDate={toISODate(new Date())}
@@ -2046,10 +2044,10 @@ export default function PlannerTab() {
 
             <Text style={{ fontSize: 11, color: "#6B7280", marginTop: 10 }}>
               目前：{draftSyncShoppingDateMode === "same"
-                ? (moveMealPlanDate || getDayBefore(toISODate(new Date())))
+                ? (moveMealPlanDate || todayISO())
                 : draftSyncShoppingDateMode === "custom"
-                  ? (clampShoppingDate(draftSyncShoppingDate || getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))
-                  : (clampShoppingDate(getDayBefore(moveMealPlanDate || toISODate(new Date()))) || toISODate(new Date()))}
+                  ? (clampShoppingDate(draftSyncShoppingDate || resolvePlannerBuyDate(moveMealPlanDate, todayISO())) || todayISO())
+                  : (clampShoppingDate(resolvePlannerBuyDate(moveMealPlanDate, todayISO())) || todayISO())}
             </Text>
 
             <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
@@ -2322,7 +2320,7 @@ export default function PlannerTab() {
             const ings = Array.isArray(previewRecipe.ingredients) ? previewRecipe.ingredients : [];
             if (ings.length > 0) {
               const plannedDate = resolveShoppingPlannedDate(
-                pendingPlanInfo?.date ? getDayBefore(pendingPlanInfo.date) : undefined,
+                pendingPlanInfo?.date ? resolvePlannerBuyDate(pendingPlanInfo.date, todayISO()) : undefined,
                 pendingPlanInfo?.date,
                 todayISO(),
               );
@@ -3045,7 +3043,8 @@ function AISuggestModalRN({
           onAddToShopping={() => {
             const ings = Array.isArray(swapPreview.dish.ingredients) ? swapPreview.dish.ingredients : [];
             const date = getDateForDow(startDate, swapPreview.day);
-            const plannedDate = resolveShoppingPlannedDate(getDayBefore(date), date, todayISO());
+            const buyDate = buyDateForMeal(date, todayISO());
+            const plannedDate = buyDate.ok ? buyDate.date : resolvePlannerBuyDate(date, todayISO());
             if (ings.length > 0) {
               addShoppingBatchM.mutate({
                 items: withItemPlannedDate(ings.map((ing: any) => ({
