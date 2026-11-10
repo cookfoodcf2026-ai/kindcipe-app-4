@@ -5,25 +5,22 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { DateUtil } from "@/src/lib/DateUtil";
+import { buildDateRange, clampDateToRange } from "@/lib/dateRange";
 import { useTranslation } from "react-i18next";
 
 const BRAND = "#183B56";
 const TEXT = "#1A1A1A";
 const SUB = "#9CA3AF";
+const CARD_WIDTH = 82;
 
 const formatDateCard = (dateStr: string) => {
   const isToday = DateUtil.isToday(dateStr);
-  const isTomorrow = DateUtil.isTomorrow(dateStr);
   const day = new Date(dateStr + 'T00:00:00').getDate();
   const weekday = DateUtil.getWeekday(dateStr, true);
-  let suffix = "";
-  if (isToday) suffix = "·今";
-  else if (isTomorrow) suffix = "·明";
   return { day: String(day), weekday, isToday };
 };
 
@@ -51,33 +48,31 @@ export default function PlanDatePicker({
   const { t } = useTranslation();
   const today = DateUtil.todayISO();
   const min = minDate || today;
-  const normalizedValue = value && value < min ? min : value;
+  const normalizedValue = value
+    ? clampDateToRange(value, min, maxDate)
+    : value;
   const days = monthsAhead * 30;
 
-  const [dateWindowStart, setDateWindowStart] = useState(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  });
+  const [dateWindowStart, setDateWindowStart] = useState(
+    () => new Date(`${min}T00:00:00`),
+  );
   const [visibleMonth, setVisibleMonth] = useState("");
   const [scrollStarted, setScrollStarted] = useState(false);
-  const [currentScrollX, setCurrentScrollX] = useState(0);
-  const currentScrollXRef = useRef(0);
+  const [scrollViewportWidth, setScrollViewportWidth] = useState(0);
   const touchStartTimeRef = useRef<number>(0);
   const isTouchingRef = useRef(false);
 
   const dateCardsData = useMemo(() => {
-    const dates: string[] = [];
-    for (let i = 0; i < days; i++) {
-      const d = new Date(dateWindowStart);
-      d.setDate(dateWindowStart.getDate() + i);
-      dates.push(DateUtil.toISODate(d));
+    let windowStart = DateUtil.toISODate(dateWindowStart);
+    if (windowStart < min) windowStart = min;
+    if (maxDate && maxDate >= min && windowStart > maxDate) {
+      windowStart = maxDate;
     }
-    return dates.map((date) => ({
+    return buildDateRange(windowStart, maxDate, days).map((date) => ({
       date,
       ...formatDateCard(date),
     }));
-  }, [dateWindowStart, days]);
+  }, [dateWindowStart, days, maxDate, min]);
 
   const currentMonth = useMemo(() => {
     if (normalizedValue) return formatMonthLabel(normalizedValue);
@@ -87,19 +82,29 @@ export default function PlanDatePicker({
   }, [normalizedValue, dateCardsData, visibleMonth]);
 
   useEffect(() => {
-    if (value && value < min) {
-      onChange(min);
+    if (value && normalizedValue && value !== normalizedValue) {
+      onChange(normalizedValue);
     }
-  }, [value, min, onChange]);
+  }, [value, normalizedValue, onChange]);
+
+  useEffect(() => {
+    setDateWindowStart((prev) => {
+      const minStart = new Date(`${min}T00:00:00`);
+      let next = prev;
+      if (next < minStart) next = minStart;
+      if (maxDate && maxDate >= min) {
+        const maxStart = new Date(`${maxDate}T00:00:00`);
+        if (next > maxStart) next = maxStart;
+      }
+      return next;
+    });
+  }, [min, maxDate]);
 
   const handleScroll = useCallback(
     (event: any) => {
       const offsetX = event.nativeEvent.contentOffset.x;
-      setCurrentScrollX(offsetX);
-      currentScrollXRef.current = offsetX;
-      const cardWidth = 82;
       const index = Math.min(
-        Math.max(Math.floor(offsetX / cardWidth), 0),
+        Math.max(Math.floor(offsetX / CARD_WIDTH), 0),
         dateCardsData.length - 1,
       );
       if (index >= 0 && index < dateCardsData.length) {
@@ -146,13 +151,16 @@ export default function PlanDatePicker({
     setDateWindowStart((prev) => {
       const next = new Date(prev);
       next.setDate(prev.getDate() + shiftDays);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (next < today) return today;
+      const minStart = new Date(`${min}T00:00:00`);
+      if (next < minStart) return minStart;
+      if (maxDate && maxDate >= min) {
+        const maxStart = new Date(`${maxDate}T00:00:00`);
+        if (next > maxStart) return maxStart;
+      }
       return next;
     });
     setVisibleMonth("");
-  }, []);
+  }, [min, maxDate]);
 
   const shortcuts = useMemo(() => {
     const items: { label: string; iso: string }[] = [];
@@ -161,48 +169,62 @@ export default function PlanDatePicker({
     const tomorrowVal = DateUtil.tomorrowISO();
 
     const add = (label: string, iso: string) => {
-      if (iso >= min && !seen.has(iso)) {
-        seen.add(iso);
-        items.push({ label, iso });
-      }
+      if (iso < min) return;
+      if (maxDate && iso > maxDate) return;
+      if (seen.has(iso)) return;
+      seen.add(iso);
+      items.push({ label, iso });
     };
 
     add(t("shopping.today"), todayVal);
     add(t("shopping.tomorrow"), tomorrowVal);
 
     return items;
-  }, [min]);
+  }, [min, maxDate, t]);
 
   const scrollRef = useRef<ScrollView>(null);
   const lastTargetRef = useRef<string | null>(null);
   const pendingScrollTargetRef = useRef<string | null>(null);
 
-  // Ensure the generated window includes value/maxDate, then scroll it into view.
+  const scrollToCardIndex = useCallback(
+    (index: number) => {
+      if (!scrollRef.current || index < 0) return;
+      const viewport = scrollViewportWidth || CARD_WIDTH * 5;
+      const x = Math.max(
+        0,
+        index * CARD_WIDTH + CARD_WIDTH / 2 - viewport / 2,
+      );
+      scrollRef.current.scrollTo({ x, animated: true });
+    },
+    [scrollViewportWidth],
+  );
+
+  // Ensure the generated window includes value, then scroll it into view.
+  // Never falls back to maxDate: with a value the strip must show that date.
   // Only reacts when the target actually changes — NOT on manual scroll / arrow taps,
   // otherwise the picker keeps snapping back to the selected date while the user scrolls.
   useEffect(() => {
-    const target = normalizedValue || maxDate;
+    const target = normalizedValue;
     if (!target) return;
-    if (lastTargetRef.current === target) return;
-    lastTargetRef.current = target;
+    const targetKey = `${target}|${min}|${maxDate ?? ""}`;
+    if (lastTargetRef.current === targetKey) return;
+    lastTargetRef.current = targetKey;
     if (!scrollRef.current || isTouchingRef.current) return;
     const firstDate = dateCardsData[0]?.date;
     const lastDate = dateCardsData[dateCardsData.length - 1]?.date;
-    if (!firstDate || !lastDate) return;
+    if (!firstDate) return;
     if (target < firstDate) {
-      const msDiff = new Date(firstDate).getTime() - new Date(target).getTime();
-      const daysDiff = Math.ceil(msDiff / 86400000);
-      const next = new Date(dateWindowStart);
+      const daysDiff = DateUtil.daysBetween(target, firstDate);
+      const next = new Date(`${firstDate}T00:00:00`);
       next.setDate(next.getDate() - daysDiff);
       setDateWindowStart(next);
       setVisibleMonth("");
       pendingScrollTargetRef.current = target;
       return;
     }
-    if (target > lastDate) {
-      const msDiff = new Date(target).getTime() - new Date(lastDate).getTime();
-      const daysDiff = Math.ceil(msDiff / 86400000);
-      const next = new Date(dateWindowStart);
+    if (lastDate && target > lastDate) {
+      const daysDiff = DateUtil.daysBetween(lastDate, target);
+      const next = new Date(`${lastDate}T00:00:00`);
       next.setDate(next.getDate() + daysDiff);
       setDateWindowStart(next);
       setVisibleMonth("");
@@ -210,16 +232,8 @@ export default function PlanDatePicker({
       return;
     }
     const idx = dateCardsData.findIndex((dc) => dc.date === target);
-    if (idx >= 0) {
-      // Only scroll if date is not already in visible range (roughly)
-      const visibleStart = Math.floor(currentScrollXRef.current / 82);
-      const visibleEnd = visibleStart + 5; // ~5 cards visible
-      if (idx < visibleStart || idx > visibleEnd) {
-        const x = Math.max(0, idx * 82 - 60);
-        scrollRef.current.scrollTo({ x, animated: true });
-      }
-    }
-  }, [normalizedValue, maxDate, dateCardsData, dateWindowStart]);
+    if (idx >= 0) scrollToCardIndex(idx);
+  }, [normalizedValue, min, maxDate, dateCardsData, scrollToCardIndex]);
 
   // After the window was extended to include an out-of-range target, scroll to it once the new cards render.
   useEffect(() => {
@@ -228,10 +242,8 @@ export default function PlanDatePicker({
     pendingScrollTargetRef.current = null;
     if (!scrollRef.current) return;
     const idx = dateCardsData.findIndex((dc) => dc.date === target);
-    if (idx >= 0) {
-      scrollRef.current.scrollTo({ x: Math.max(0, idx * 82 - 60), animated: true });
-    }
-  }, [dateCardsData]);
+    if (idx >= 0) scrollToCardIndex(idx);
+  }, [dateCardsData, scrollToCardIndex]);
 
   return (
     <View style={s.container}>
@@ -293,13 +305,16 @@ export default function PlanDatePicker({
             horizontal
             showsHorizontalScrollIndicator={false}
             style={s.dateCardsScroll}
+            onLayout={(e) =>
+              setScrollViewportWidth(e.nativeEvent.layout.width)
+            }
             onScrollBeginDrag={handleScrollBeginDrag}
             onScrollEndDrag={handleScrollEndDrag}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
             {dateCardsData.map((dc, index) => {
-              const isSelected = value === dc.date;
+              const isSelected = normalizedValue === dc.date;
               const isPast = dc.date < min;
               return (
                 <TouchableOpacity
@@ -308,26 +323,14 @@ export default function PlanDatePicker({
                     s.dateCard,
                     isSelected && s.dateCardSelected,
                     isPast && s.dateCardDisabled,
-                    maxDate && dc.date > maxDate && s.dateCardDisabled,
                   ]}
-                  onPress={() => {
-                    if (maxDate && dc.date > maxDate) {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                      Alert.alert(
-                        t("picker.dateOutOfRange"),
-                        `選擇的日期（${dc.date}）超出允許範圍\n\n最遲可選擇：${maxDate}`,
-                        [{ text: t("planner.ok") }]
-                      );
-                      return;
-                    }
-                    handleDatePress(dc.date, isPast);
-                  }}
+                  onPress={() => handleDatePress(dc.date, isPast)}
                   onPressIn={handlePressIn}
                   onPressOut={handlePressOut}
                   delayPressIn={50}
                   delayLongPress={250}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  disabled={isPast || !!(maxDate && dc.date > maxDate)}
+                  disabled={isPast}
                   activeOpacity={0.6}
                 >
                   <Text
@@ -335,7 +338,6 @@ export default function PlanDatePicker({
                       s.dateCardDay,
                       isSelected && s.dateCardDaySelected,
                       isPast && s.dateCardDayDisabled,
-                      maxDate && dc.date > maxDate && s.dateCardDayDisabled,
                     ]}
                   >
                     {dc.day}
@@ -345,7 +347,6 @@ export default function PlanDatePicker({
                       s.dateCardWeekday,
                       isSelected && s.dateCardWeekdaySelected,
                       isPast && s.dateCardWeekdayDisabled,
-                      maxDate && dc.date > maxDate && s.dateCardWeekdayDisabled,
                     ]}
                   >
                     {dc.weekday}
