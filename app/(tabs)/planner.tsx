@@ -1873,7 +1873,7 @@ export default function PlannerTab() {
         mealDate={pickerRecipe?.date}
         defaultBuyDate={pickerRecipe?.date ? resolvePlannerBuyDate(pickerRecipe.date, todayISO()) : undefined}
         maxDate={pickerRecipe?.date}
-        showDateSelector={false}
+        showDateSelector={true}
         loading={addShoppingBatchM.isPending}
         alreadyAddedKeys={pickerAlreadyAddedKeys}
         onConfirm={(items) => {

@@ -2438,7 +2438,7 @@ export default function RecipeDetailScreen() {
           mealDate={planPickerRecipe?.date}
           defaultBuyDate={planPickerRecipe?.date ? buyDateOrToday(planPickerRecipe.date) : undefined}
           maxDate={planPickerRecipe?.date}
-          showDateSelector={false}
+          showDateSelector={true}
           onDateChange={setPlanPickerShoppingDate}
           alreadyAddedKeys={planPickerAlreadyAdded}
           onConfirm={(items) => {
