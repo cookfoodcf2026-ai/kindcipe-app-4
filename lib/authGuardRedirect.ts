@@ -6,8 +6,13 @@
  *
  * Returns a path string to redirect to, or undefined if no redirect is needed.
  */
+import type { AuthStatus } from "./authStatus";
+
 export interface AuthGuardRedirectInput {
-  isLoggedIn: boolean;
+  /** Preferred tri-state source of truth. "unknown" never redirects. */
+  authStatus?: AuthStatus;
+  /** Legacy boolean; only used when authStatus is omitted. */
+  isLoggedIn?: boolean;
   onboardingDone: boolean;
   activeFamilyId: string | null | undefined;
   inLoginPage: boolean;
@@ -20,8 +25,18 @@ export interface AuthGuardRedirectInput {
 }
 
 export function authGuardRedirect(input: AuthGuardRedirectInput): string | undefined {
+  // A transient/auth-check failure leaves the user "unknown": keep them where
+  // they are instead of bouncing them to /login.
+  if (input.authStatus === "unknown") return undefined;
+
+  const isLoggedIn =
+    input.authStatus === "authenticated"
+      ? true
+      : input.authStatus === "unauthenticated"
+        ? false
+        : (input.isLoggedIn ?? false);
+
   const {
-    isLoggedIn,
     onboardingDone,
     activeFamilyId,
     inLoginPage,

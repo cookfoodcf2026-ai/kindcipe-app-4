@@ -1008,7 +1008,9 @@
   },
   "lock": {
     "unlock": "I-unlock ang Kindcipe",
-    "unlockHint": "Gamitin ang Face ID o fingerprint"
+    "unlockHint": "Gamitin ang Face ID o fingerprint",
+    "unlockFailed": "Hindi ka namin na-verify. Nananatili ang iyong session — subukan muli.",
+    "retry": "Subukan muli"
   },
   "auth": {
     "enterEmail": "Ilagay ang email",

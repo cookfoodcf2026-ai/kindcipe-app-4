@@ -1038,7 +1038,9 @@
   },
   "lock": {
     "unlock": "Unlock Kindcipe",
-    "unlockHint": "Use Face ID or fingerprint to sign in"
+    "unlockHint": "Use Face ID or fingerprint to sign in",
+    "unlockFailed": "We couldn't verify it was you. Your session is still safe — try again.",
+    "retry": "Try again"
   },
   "auth": {
     "enterEmail": "Please enter your email",

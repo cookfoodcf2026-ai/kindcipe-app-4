@@ -10,28 +10,24 @@
  * - 確保不同帳戶都會看到 onboarding
  * - 同一帳戶完成後不再重複顯示
  */
-import "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 // web OAuth 回程 token 必須喺 router mount 前擷取
 import "../lib/webAuthCapture";
 import "@/lib/webAlertShim";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Stack, useRouter, useSegments, useRootNavigationState, usePathname } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { PendingShareProvider, usePendingShare } from "@/lib/pendingShare";
-import { AuthProvider } from "@/hooks/useAuth";
-import { trpc, createTrpcClient } from "@/lib/trpc";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { trpc, createTrpcClient, onOfflineChange } from "@/lib/trpc";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, TouchableOpacity, Text, Alert, AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import i18n from "@/lib/i18n";
-import { useTranslation } from "react-i18next";
-import { I18nextProvider } from "react-i18next";
-import { initLanguage } from "@/lib/i18n";
-import KitchenSwitcher from "@/app/components/KitchenSwitcher";
-import { authenticateBiometric, isBiometricAvailable, isBiometricEnabled, clearAuthToken } from "@/lib/auth";
+import i18n, { initLanguage } from "@/lib/i18n";
+import { useTranslation, I18nextProvider } from "react-i18next";
+import { authenticateBiometric, isBiometricAvailable, isBiometricEnabled } from "@/lib/auth";
 import { authGuardRedirect } from "@/lib/authGuardRedirect";
 import { getLoginNext } from "@/lib/loginNext";
 import { Ionicons } from "@expo/vector-icons";
@@ -42,7 +38,6 @@ import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 import { CrashScreen } from "@/src/components/CrashScreen";
 import { initGlobalErrorHandler } from "@/lib/global-error-handler";
 import { initIAP } from "@/lib/purchase";
-import { onOfflineChange } from "@/lib/trpc";
 import NetInfo from "@react-native-community/netinfo";
 import { maybeRequestReview } from "@/lib/review";
 import { initAnalytics, identifyUser, resetAnalytics, track, Events, loadAnalyticsOptOut, analyticsEnabled } from "@/lib/analytics";
@@ -206,6 +201,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const rootNavigationState = useRootNavigationState();
   const navigationReady = !!rootNavigationState?.key;
   const { pending: pendingShare } = usePendingShare();
+  const { user, authStatus, isLoading: authLoading, refreshAuth } = useAuth();
   // segments 最新值（供非同步 callback 讀取，避免 stale closure）
   const segmentsRef = useRef<string[]>([]);
   segmentsRef.current = segments as unknown as string[];
@@ -213,7 +209,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [showDevReset, setShowDevReset] = useState(true); // Always show for testing
   const [biometricPrompt, setBiometricPrompt] = useState(false);
-  const [biometricFailed, setBiometricFailed] = useState(false);
+  // Unlock failed, but the session is NOT invalid: keep the token and let the user retry.
+  const [biometricLocked, setBiometricLocked] = useState(false);
   const [biometricChecked, setBiometricChecked] = useState(false);
   const hasCheckedClipboard = useRef(false);
 
@@ -227,56 +224,53 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     await AsyncStorage.clear();
     Alert.alert(t("已清除" as any), t("App 資料已重置，請重新啟動 App" as any));
     setShowDevReset(false);
-  }, []);
+  }, [t]);
 
-  // 檢查 Biometric 並提示解鎖（在 trpc 查詢之前）
+  // 檢查 Biometric 並提示解鎖。失敗時**唔可以**清 token：biometric 失敗 ≠ session 失效，
+  // 一律當 "unknown" 並讓用戶重試。
+  const unlockWithBiometric = useCallback(async () => {
+    setBiometricPrompt(true);
+    try {
+      const ok = await authenticateBiometric();
+      if (ok) {
+        setBiometricLocked(false);
+        await refreshAuth();
+      } else {
+        setBiometricLocked(true);
+      }
+    } catch {
+      setBiometricLocked(true);
+    } finally {
+      setBiometricPrompt(false);
+      setBiometricChecked(true);
+    }
+  }, [refreshAuth]);
+
   useEffect(() => {
     (async () => {
       try {
         const available = await isBiometricAvailable();
         const enabled = await isBiometricEnabled();
         if (available && enabled) {
-          setBiometricPrompt(true);
-          const ok = await authenticateBiometric();
-          if (ok) {
-            setBiometricPrompt(false);
-            setBiometricChecked(true);
-          } else {
-            await clearAuthToken();
-            setBiometricFailed(true);
-            setBiometricPrompt(false);
-            setBiometricChecked(true);
-          }
-        } else {
-          setBiometricChecked(true);
+          await unlockWithBiometric();
         }
       } finally {
         // 確保 bootstrap 不會永久卡在 loading（即使 biometric 檢查中途 throw）
         setBiometricChecked(true);
       }
     })();
-  }, []);
+  }, [unlockWithBiometric]);
 
   useEffect(() => {
     void initIAP();
   }, []);
 
-  // 用 auth.me 確認登入狀態
-  const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
-    // 唔可以用 staleTime 保留舊 user：登出後 queryClient.clear() 會清 cache，
-    // 呢度 mount 時一律 refetch，確保唔會用殘留 cache 判定「仲登入」而彈返入 app。
-    staleTime: 0,
-    refetchOnMount: "always",
-    enabled: biometricChecked && !biometricFailed,
-  });
-
   // Identify the signed-in user (or reset on logout) for analytics.
   // Traits are deliberately non-PII (no email/name) to keep analytics clean.
-  const analyticsUserId = meQuery.data?.id ? String(meQuery.data.id) : null;
-  const analyticsRole = (meQuery.data as any)?.role as string | undefined;
-  const analyticsCreatedAt = (meQuery.data as any)?.createdAt as string | Date | undefined;
-  const analyticsFamilyRole = (meQuery.data as any)?.activeFamilyRole as string | undefined;
+  const analyticsUserId = user?.id ? String(user.id) : null;
+  const analyticsRole = (user as any)?.role as string | undefined;
+  const analyticsCreatedAt = (user as any)?.createdAt as string | Date | undefined;
+  const analyticsFamilyRole = (user as any)?.activeFamilyRole as string | undefined;
   useEffect(() => {
     if (analyticsUserId) {
       identifyUser(analyticsUserId, {
@@ -303,41 +297,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyticsUserId]);
 
-  // 在導航 useEffect 中重新檢查 AsyncStorage，確保 finishOnboarding 寫入後能立即反映
-  const ensureOnboardingCheck = useCallback(async () => {
-    try {
-      const userId = meQuery.data?.id;
-      if (!userId) {
-        router.replace("/onboarding");
-        return;
-      }
-      const key = getOnboardingKey(userId);
-      const val = await AsyncStorage.getItem(key);
-      if (val === "true") {
-        setOnboardingDone(true);
-        return;
-      }
-      // 若用戶已擁有 kitchen（activeFamilyId 已設定），視為已完成 onboarding。
-      // 避免舊戶口／flag 遺失時被強制去「建立廚房」而看似「失去紀錄」。
-      // ⚠️ 但用戶啱啱喺 /onboarding 建立廚房時，要繼續行 guide + quick-plan，唔可以即刻踢走。
-      const onOnboardingRoute = (pathname ?? "").startsWith("/onboarding");
-      if (meQuery.data?.activeFamilyId && !onOnboardingRoute) {
-        await AsyncStorage.setItem(key, "true");
-        setOnboardingDone(true);
-        router.replace("/(tabs)");
-        return;
-      }
-      router.replace("/onboarding");
-    } catch {
-      router.replace("/onboarding");
-    }
-  }, [meQuery.data?.id, meQuery.data?.activeFamilyId, router, pathname]);
-
   // 檢查是否已完成 Onboarding（以用戶 ID 為 key）
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const userId = meQuery.data?.id;
+        const userId = user?.id;
         if (!userId) {
           // 未登入，不需要檢查
           setOnboardingChecked(true);
@@ -354,10 +318,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     };
     checkOnboarding();
-  }, [meQuery.data?.id]);
+  }, [user?.id]);
   
   // Global clipboard detection：開 app 時 + 由背景返前台（例如去完 IG 複製連結返嚟）都偵測
-  const isLoggedIn = !!meQuery.data;
+  const isLoggedIn = authStatus === "authenticated";
   const isTabsGroup = segments[0] === "(tabs)";
   const lastClipboardCheck = useRef(0);
 
@@ -402,18 +366,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         ]
       );
-    } catch (e) {
+    } catch {
       // Clipboard read failed, ignore
     }
-  }, [router]);
+  }, [router, t]);
 
   useEffect(() => {
-    if (meQuery.isLoading || !isLoggedIn) return;
+    if (authLoading || !isLoggedIn) return;
     if (!isTabsGroup) return; // Only show clipboard alert on main tabs, not during login/onboarding
     if (hasCheckedClipboard.current) return;
     hasCheckedClipboard.current = true;
     void promptClipboardImport();
-  }, [meQuery.isLoading, isLoggedIn, isTabsGroup, promptClipboardImport]);
+  }, [authLoading, isLoggedIn, isTabsGroup, promptClipboardImport]);
 
   // 由背景返前台 → 再偵測剪貼板（節流 3 秒）
   useEffect(() => {
@@ -459,11 +423,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      if (biometricFailed) {
-        if (segments[0] !== "login") router.replace("/login");
-        return;
-      }
-      if (meQuery.isLoading || !onboardingChecked) return;
+      // Unlock failed → "unknown". Do not navigate to /login and do not clear the token.
+      if (biometricLocked) return;
+      if (authLoading || !onboardingChecked) return;
+      // Transient auth failure → keep the user where they are.
+      if (authStatus === "unknown") return;
 
       const inTabsGroup = segments[0] === "(tabs)";
       const inLoginPage = segments[0] === "login";
@@ -471,10 +435,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       const inResetPassword = segments[0] === "reset-password";
       const inVerifyEmail = segments[0] === "verify-email";
       const inOnboarding = segments[0] === "onboarding";
-      const inImport = segments[0] === "import";
-      const inVisualTest = segments[0] === "visual-typography" && process.env.EXPO_PUBLIC_VISUAL_TEST === "1";
       const seg0 = segments[0] as string;
-      const isLoggedIn = !!meQuery.data;
+      const inVisualTest = seg0 === "visual-typography" && process.env.EXPO_PUBLIC_VISUAL_TEST === "1";
+      const isLoggedIn = authStatus === "authenticated";
 
       // Admin redirect (preserved — not part of authGuardRedirect)
       if (isLoggedIn) {
@@ -490,8 +453,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // ⚠️ 唔可以喺 /onboarding 期間設定：用戶一建立廚房就會有 activeFamilyId，
       // 若即刻標記完成，AuthGuard 會踢去 tabs，guide + quick-plan 永遠唔會出現。
       const inOnboardingRoute = seg0 === "onboarding";
-      if (isLoggedIn && !onboardingDone && meQuery.data?.activeFamilyId && !inOnboardingRoute) {
-        const key = getOnboardingKey(meQuery.data.id);
+      if (isLoggedIn && !onboardingDone && user?.activeFamilyId && !inOnboardingRoute) {
+        const key = getOnboardingKey(user.id);
         await AsyncStorage.setItem(key, "true");
         setOnboardingDone(true);
       }
@@ -510,9 +473,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       const redirectTarget = authGuardRedirect({
+        authStatus,
         isLoggedIn,
         onboardingDone,
-        activeFamilyId: meQuery.data?.activeFamilyId,
+        activeFamilyId: user?.activeFamilyId,
         inLoginPage,
         inOnboarding,
         inForgotPassword,
@@ -545,9 +509,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
     })();
-  }, [meQuery.isLoading, meQuery.data, segments, onboardingChecked, onboardingDone]);
+  }, [authLoading, authStatus, user, segments, onboardingChecked, onboardingDone, biometricLocked, pathname, router]);
 
-  const showLoading = !biometricFailed && (biometricPrompt || meQuery.isLoading || !onboardingChecked);
+  const showLoading = !biometricLocked && (biometricPrompt || !biometricChecked || authLoading || !onboardingChecked);
 
   useEffect(() => {
     if (!showLoading) {
@@ -562,9 +526,23 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       <OfflineBanner />
       <AppleRelayLinkPrompt enabled={isLoggedIn && onboardingDone && isTabsGroup} />
       <AnalyticsConsentCard enabled={analyticsEnabled && isLoggedIn && onboardingDone && isTabsGroup} />
-      {showLoading && (
+      {(showLoading || biometricLocked) && (
         <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" }}>
-          {biometricPrompt ? (
+          {biometricLocked ? (
+            <View style={{ alignItems: "center", gap: 16 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="lock-closed-outline" size={40} color="#183B56" />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A" }}>{t("lock.unlock")}</Text>
+              <Text style={{ fontSize: 14, color: "#9CA3AF", textAlign: "center", paddingHorizontal: 32 }}>{t("lock.unlockFailed")}</Text>
+              <TouchableOpacity
+                onPress={() => void unlockWithBiometric()}
+                style={{ marginTop: 8, paddingVertical: 12, paddingHorizontal: 28, borderRadius: 12, backgroundColor: "#183B56" }}
+              >
+                <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>{t("lock.retry")}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : biometricPrompt ? (
             <View style={{ alignItems: "center", gap: 16 }}>
               <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#EEF4FB", alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="scan-outline" size={40} color="#183B56" />
@@ -576,7 +554,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           ) : (
             <ActivityIndicator color="#183B56" size="large" />
           )}
-          {showDevReset && (
+          {showDevReset && !biometricLocked && (
             <TouchableOpacity onPress={handleDevReset} style={{ marginTop: 40, paddingVertical: 10, paddingHorizontal: 20 }}>
               <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, textDecorationLine: "underline" }}>
                 重置 App 資料（開發用）
@@ -618,7 +596,7 @@ function RootLayout() {
       }
     })();
     return () => { sub?.remove(); };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     void maybeRequestReview();

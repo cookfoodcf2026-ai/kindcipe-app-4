@@ -6,6 +6,7 @@ module.exports = {
     "<rootDir>/lib/aiFillSteps.test.ts",
     "<rootDir>/lib/shoppingBatch.test.ts",
     "<rootDir>/lib/shoppingPayload.test.ts",
+    "<rootDir>/lib/authStatus.test.ts",
     "<rootDir>/components/__tests__/PaywallModal.test.tsx",
     "<rootDir>/components/__tests__/settings.deleteAccount.test.tsx",
   ],

@@ -36,16 +36,24 @@ export async function saveAuthToken(token: string): Promise<void> {
   }
 }
 
-export async function getAuthToken(): Promise<string | null> {
+/**
+ * Read the token *and* distinguish "no token" from "storage failed".
+ * A SecureStore/biometric read failure must not be confused with a logout.
+ */
+export async function getAuthTokenState(): Promise<{ token: string | null; error: unknown }> {
   try {
-    if (useSecureStore) {
-      return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-    } else {
-      return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-    }
-  } catch {
-    return null;
+    const token = useSecureStore
+      ? await SecureStore.getItemAsync(AUTH_TOKEN_KEY)
+      : await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    return { token, error: null };
+  } catch (error) {
+    return { token: null, error };
   }
+}
+
+export async function getAuthToken(): Promise<string | null> {
+  const { token } = await getAuthTokenState();
+  return token;
 }
 
 export async function clearAuthToken(): Promise<void> {
@@ -67,6 +75,7 @@ export async function saveAuthTokenFromResponse(data: unknown): Promise<void> {
 export async function isBiometricAvailable(): Promise<boolean> {
   if (isWeb) return false; // browsers have no device biometrics API for this
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const LocalAuthentication = require("expo-local-authentication");
     const compatible = await LocalAuthentication.hasHardwareAsync();
     if (!compatible) return false;
@@ -109,6 +118,7 @@ export async function setBiometricEnabled(enabled: boolean): Promise<void> {
 export async function authenticateBiometric(): Promise<boolean> {
   if (isWeb) return false;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const LocalAuthentication = require("expo-local-authentication");
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: i18n.t("auth.unlock" as any),

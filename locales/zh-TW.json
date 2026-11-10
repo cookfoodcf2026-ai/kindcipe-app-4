@@ -1008,7 +1008,9 @@
   },
   "lock": {
     "unlock": "解鎖 Kindcipe",
-    "unlockHint": "使用 Face ID 或指紋快速登入"
+    "unlockHint": "使用 Face ID 或指紋快速登入",
+    "unlockFailed": "未能驗證身份，你仍然保持登入。請再試一次。",
+    "retry": "再試一次"
   },
   "auth": {
     "enterEmail": "請輸入電郵地址",

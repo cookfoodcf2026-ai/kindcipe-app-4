@@ -1008,7 +1008,9 @@
   },
   "lock": {
     "unlock": "Buka Kindcipe",
-    "unlockHint": "Gunakan Face ID atau sidik jari"
+    "unlockHint": "Gunakan Face ID atau sidik jari",
+    "unlockFailed": "Kami tidak dapat memverifikasi Anda. Sesi Anda tetap aman — coba lagi.",
+    "retry": "Coba lagi"
   },
   "auth": {
     "enterEmail": "Masukkan email",
