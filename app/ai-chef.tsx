@@ -22,7 +22,7 @@ import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCa
 import { useModalHandoff } from "@/hooks/useModalHandoff";
 import { useInvalidateRecipesAndWeekly } from "@/hooks/useInvalidateRecipesAndWeekly";
 import { compressImage } from "@/lib/image-utils";
-import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
+import { getBilingualName, getDisplayName, getLocalizedSteps } from "@/lib/bilingual";
 import { useTranslation } from "react-i18next";
 import { track, Events } from "@/lib/analytics";
 import { buyDateForMeal } from "@/lib/shoppingDate";
@@ -3799,7 +3799,7 @@ export default function AIChefScreen() {
 
         if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && passesSwapGuard(candidate)) {
           replaceRecipeAtIndex(index, candidate);
-          showToast(t("✅ 已換成「{{name}}」" as any, { name: candidate.name }));
+          showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" }));
           recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
           setSwappedRecipeNames(prev => {
             const newSet = new Set(prev);
@@ -3809,9 +3809,9 @@ export default function AIChefScreen() {
         } else {
           const fallback = pickLibraryFallback();
           if (fallback && getDishType(fallback) === cardDishType && passesSwapGuard(fallback)) {
-            showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: fallback.name }));
+            showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             replaceRecipeAtIndex(index, fallback);
-            showToast(t("✅ 已換成「{{name}}」" as any, { name: fallback.name }));
+            showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             recordSeenRecipes([fallback]);
             setSwappedRecipeNames(prev => {
               const newSet = new Set(prev);
@@ -3869,7 +3869,7 @@ export default function AIChefScreen() {
       replaceRecipeAtIndex(index, libraryPicked);
       recordSeenRecipes([libraryPicked]);
       recordSwappedName(libraryPicked.name);
-      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: libraryPicked.name }));
+      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: getDisplayName(libraryPicked.name, libraryPicked.nameEn, libraryPicked.nameFil, libraryPicked.nameId).primary || "…" }));
       return;
     }
 
@@ -5896,29 +5896,31 @@ export default function AIChefScreen() {
       ) : null}
       </KeyboardAvoidingView>
 
-      {toast.visible && (
-        <View style={s.toastContainer}>
-          <View style={s.toast}>
-            <View style={s.toastRow}>
-              <Ionicons
-                name={toast.tone === "error" ? "alert-circle" : toast.tone === "info" ? "sparkles" : "checkmark-circle"}
-                size={18}
-                color={toast.tone === "error" ? canva.danger : toast.tone === "info" ? canva.accent : GREEN}
-              />
-              <Text style={s.toastTxt}>{t(toast.text as any)}</Text>
+      <View style={s.toastOverlay} pointerEvents="box-none">
+        {toast.visible && (
+          <View style={s.toastContainer}>
+            <View style={s.toast}>
+              <View style={s.toastRow}>
+                <Ionicons
+                  name={toast.tone === "error" ? "alert-circle" : toast.tone === "info" ? "sparkles" : "checkmark-circle"}
+                  size={18}
+                  color={toast.tone === "error" ? canva.danger : toast.tone === "info" ? canva.accent : GREEN}
+                />
+                <Text style={s.toastTxt}>{t(toast.text as any)}</Text>
+              </View>
+              {toast.action ? (
+                <TouchableOpacity
+                  onPress={() => { toast.action?.onPress(); setToast(prev => ({ ...prev, visible: false })); }}
+                  style={s.toastAction}
+                  hitSlop={8}
+                >
+                  <Text style={s.toastActionTxt}>{t(toast.action.label as any)}</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
-            {toast.action ? (
-              <TouchableOpacity
-                onPress={() => { toast.action?.onPress(); setToast(prev => ({ ...prev, visible: false })); }}
-                style={s.toastAction}
-                hitSlop={8}
-              >
-                <Text style={s.toastActionTxt}>{t(toast.action.label as any)}</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
-        </View>
-      )}
+        )}
+      </View>
 
       <MealConflictPrompt
         visible={!!mealConflict}
@@ -6312,7 +6314,8 @@ const s = StyleSheet.create({
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: BRAND, alignItems: "center", justifyContent: "center" },
   sendOff: { opacity: 0.4 },
   camBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#E8F0F4", alignItems: "center", justifyContent: "center" },
-  toastContainer: { position: "absolute", top: 80, left: 0, right: 0, alignItems: "center", zIndex: 100 },
+  toastOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 9999 },
+  toastContainer: { position: "absolute", top: 12, left: 0, right: 0, alignItems: "center", zIndex: 100 },
   toast: { backgroundColor: BG, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderWidth: 1, borderColor: BORDER, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 6 },
   toastRow: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "stretch" },
   toastTxt: { fontSize: 14, fontWeight: "700", color: TEXT, flex: 1 },
