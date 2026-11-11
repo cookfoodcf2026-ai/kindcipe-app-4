@@ -1514,16 +1514,7 @@ export default function RecipeDetailScreen() {
                           )}
                         </View>
                         <Text style={[s.ingQty, isScaled && { color: COPPER, fontWeight: "700" }]}>
-                          {(() => {
-                            const raw = String(ing.unit ?? "").trim();
-                            const unit = (raw === "/" || raw === "-" || raw === "null" || raw === "undefined") ? "" : raw;
-                            const qty = String(ing.adjustedQty ?? "").trim();
-                            // 「適量/少許」可能放喺 unit 或 quantity，亦可能係複合單位（片 (約300-350g)）
-                            if (unit === "適量" || unit === "少許" || qty === "適量" || qty === "少許") {
-                              return enumT.unit(unit || qty);
-                            }
-                            return formatIngredientDisplay(qty, unit);
-                          })()}
+                          {formatIngredientDisplay(ing.adjustedQty ?? ing.quantity, ing.unit, (ing as any).quantityStatus)}
                         </Text>
                         {recordedPrice !== null && (
                           <View style={s.ingPriceBadge}>

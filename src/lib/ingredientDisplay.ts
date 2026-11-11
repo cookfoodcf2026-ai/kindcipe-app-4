@@ -1,9 +1,17 @@
 import { enumT } from "@/lib/i18nEnums";
 
+const EMPTY_MARKERS = new Set(["/", "-", "null", "undefined", "n/a"]);
+
+const EM_DASH = "—";
+
+function cleanValue(value?: string | number): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return EMPTY_MARKERS.has(raw.toLowerCase()) ? "" : raw;
+}
+
 export function normalizeDisplayUnit(unit?: string): string {
-  const u = String(unit ?? "").trim();
-  if (!u) return "";
-  return u;
+  return cleanValue(unit);
 }
 
 export function formatIngredientDisplay(
@@ -13,13 +21,12 @@ export function formatIngredientDisplay(
 ): string {
   const approx = String(quantityStatus ?? "") === "estimated";
   const body = formatIngredientBody(quantity, unit);
-  if (!body) return "";
-  return approx ? `≈ ${body}` : body;
+  return approx && body !== EM_DASH ? `≈ ${body}` : body;
 }
 
 function formatIngredientBody(quantity?: string | number, unit?: string): string {
-  const qtyRaw = String(quantity ?? "").trim();
-  const unitRaw = String(unit ?? "").trim();
+  const qtyRaw = cleanValue(quantity);
+  const unitRaw = cleanValue(unit);
   // 描述型量詞（適量/少許/适量…）落喺 quantity 或 unit → 一律本地化為單位字
   const DESC_RE = /^(適量|适量|少許|少许|少量|酌量|隨意|随意|適量調味|适量调味|少許調味|少许调味|適量即可|to taste|pinch)$/;
   if (qtyRaw && DESC_RE.test(qtyRaw) && !unitRaw) return enumT.qty(qtyRaw);
@@ -32,7 +39,7 @@ function formatIngredientBody(quantity?: string | number, unit?: string): string
     return Number(m[0]) > 1;
   })();
   const unitOut = unitRaw ? (isPlural ? enumT.unitPlural(unitRaw) : enumT.unit(unitRaw)) : "";
-  if (!qty && !unitOut) return "";
+  if (!qty && !unitOut) return EM_DASH;
   if (!qty) return unitOut;
   if (!unitOut) return qty;
   return `${qty} ${unitOut}`.trim();

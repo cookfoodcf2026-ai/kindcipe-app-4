@@ -29,6 +29,7 @@ import { friendlyError } from "@/lib/errors";
 import { summarizeShoppingBatch } from "@/lib/shoppingBatch";
 import { withItemPlannedDate } from "@/lib/shoppingPayload";
 import { getBilingualName, getLocalizedDescription } from "@/lib/bilingual";
+import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { useEnum } from "@/lib/i18nEnums";
 import { useSubscription } from "@/hooks/useSubscription";
 import PaywallModal from "@/components/PaywallModal";
@@ -1336,7 +1337,7 @@ export default function ShoppingTemplatesScreen() {
                             <View style={{ flex: 1 }}>
                               <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{localizeName(item)}</Text>
                               <Text style={s.itemQty}>
-                                {item.quantity} {enumUnit(item.unit)}
+                                {formatIngredientDisplay(item.quantity, item.unit)}
                                 {item.price ? ` · ${item.price}` : ''}
                               </Text>
                             </View>
@@ -1463,7 +1464,7 @@ export default function ShoppingTemplatesScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={[s.itemName, isSelected && { fontWeight: "700" }]}>{localizeName(item)}</Text>
                           <Text style={s.itemQty}>
-                            {item.quantity} {enumUnit(item.unit)}
+                            {formatIngredientDisplay(item.quantity, item.unit)}
                             {item.price ? ` · $${item.price}` : ''}
                           </Text>
                         </View>
