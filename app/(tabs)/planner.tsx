@@ -1005,6 +1005,8 @@ export default function PlannerTab() {
       
       addMealLockRef.current = true;
       const prefix = recipe._source === "user" || recipe._source === "kol" ? "user_" : recipe._source === "template" ? "" : "official_";
+      const rawId = String(recipe.id);
+      const recipeRef = prefix && rawId.startsWith(prefix) ? rawId : `${prefix}${rawId}`;
       pendingIngredientsRef.current = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
       
       // 啟動 Loading 狀態
@@ -1015,7 +1017,7 @@ export default function PlannerTab() {
         addMealM.mutate({
           date: dateStr,
           mealType: addMealType as "breakfast" | "lunch" | "dinner" | "snack",
-          recipeId: `${prefix}${recipe.id}`,
+          recipeId: recipeRef,
           recipeName: recipe.name,
           recipeNameEn: recipe.nameEn,
           recipeNameFil: recipe.nameFil,
