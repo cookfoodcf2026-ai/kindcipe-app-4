@@ -1001,7 +1001,7 @@ export default function ShoppingTab() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ flex: 1 }}
-          contentContainerStyle={{ alignItems: "center", gap: 8 }}
+          contentContainerStyle={{ alignItems: "center", gap: 8, paddingRight: 12 }}
           keyboardShouldPersistTaps="handled"
         >
           {[
@@ -1116,7 +1116,7 @@ export default function ShoppingTab() {
           horizontal
           showsHorizontalScrollIndicator={false}
           style={{ flex: 1 }}
-          contentContainerStyle={{ alignItems: "center", gap: 6 }}
+          contentContainerStyle={{ alignItems: "center", gap: 6, paddingRight: 12 }}
           keyboardShouldPersistTaps="handled"
         >
           {dateCardsData.map((dc) => {
@@ -1664,31 +1664,34 @@ const styles = StyleSheet.create({
   dateChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    height: 44,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(24,59,86,0.25)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
   },
   dateChipActive: {
     backgroundColor: "#183B56",
+    borderColor: "#183B56",
   },
   dateChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#6B7280",
+    color: "#183B56",
   },
   dateChipTextActive: {
     color: "#fff",
   },
   dateChipBadge: {
-    backgroundColor: "#fff",
+    backgroundColor: "#183B56",
     borderRadius: 8,
     minWidth: 18,
     height: 18,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
-    marginLeft: 4,
+    marginLeft: 6,
   },
   dateChipBadgeActive: {
     backgroundColor: "rgba(255,255,255,0.3)",
@@ -1696,7 +1699,7 @@ const styles = StyleSheet.create({
   dateChipBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#183B56",
+    color: "#fff",
   },
   dateChipBadgeTextActive: {
     color: "#fff",
