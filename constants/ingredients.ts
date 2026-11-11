@@ -56,7 +56,9 @@ export function isWaterIngredient(name: string): boolean {
 
 // ─── 食材分類 ──────────────────────────────────────────
 
-const CATEGORY_RULES: { cat: string; keywords: string[] }[] = [
+type CategoryRule = { cat: string; keywords: string[]; english: string[] };
+
+const CATEGORY_RULES: CategoryRule[] = [
   {
     cat: "蔬菜",
     keywords: [
@@ -64,6 +66,14 @@ const CATEGORY_RULES: { cat: string; keywords: string[] }[] = [
       "蘿蔔", "紅蘿蔔", "白蘿蔔", "番茄", "蕃茄", "薯仔", "青瓜", "黃瓜",
       "茄子", "南瓜", "冬瓜", "絲瓜", "勝瓜", "洋蔥", "洋蔥", "芹菜", "韭菜",
       "豆", "芽", "菇", "木耳", "筍", "菜",
+    ],
+    english: [
+      "garlic", "onion", "spring onion", "scallion", "tomato", "potato",
+      "carrot", "broccoli", "bok choy", "cabbage", "spinach", "lettuce",
+      "cucumber", "pumpkin", "zucchini", "eggplant", "mushroom",
+      "oyster mushroom", "chicken of the woods", "bell pepper", "capsicum",
+      "celery", "leek", "chive", "bean sprout", "water chestnut",
+      "water spinach", "watercress", "vegetable",
     ],
   },
   {
@@ -73,21 +83,67 @@ const CATEGORY_RULES: { cat: string; keywords: string[] }[] = [
       "火腿", "臘肉", "腸", "丸", "扒", "腩", "柳",
       "雞", "豬", "牛", "羊", "鴨", "鵝",
     ],
+    english: [
+      "chicken", "chicken thigh", "chicken breast", "chicken wing",
+      "pork", "pork belly", "pork ribs", "beef", "lamb", "mutton",
+      "duck", "goose", "ham", "sausage", "bacon", "steak", "meat",
+    ],
   },
   {
     cat: "海鮮",
     keywords: [
       "魚", "蝦", "蟹", "貝", "魷魚", "章魚", "帶子", "蠔", "蜆", "蛤", "鮑魚", "海參", "螺",
     ],
+    english: [
+      "fish", "salmon", "prawn", "shrimp", "crab", "scallop", "oyster",
+      "squid", "octopus", "clam", "mussel", "abalone", "tuna", "cod", "mackerel",
+    ],
   },
-  { cat: "蛋奶", keywords: ["雞蛋", "蛋", "牛奶", "芝士", "牛油", "奶油", "奶"] },
+  {
+    cat: "蛋奶",
+    keywords: ["雞蛋", "蛋", "牛奶", "芝士", "牛油", "奶油", "奶"],
+    english: ["egg", "milk", "cheese", "butter", "cream", "yogurt", "dairy"],
+  },
   {
     cat: "主食",
     keywords: ["飯", "米", "麵", "粉絲", "米粉", "河粉", "烏冬", "意粉", "通粉", "麵包", "餃子", "雲吞"],
+    english: [
+      "rice", "noodle", "vermicelli", "bread", "pasta", "spaghetti",
+      "udon", "flour", "dumpling", "wonton", "bun", "quinoa",
+    ],
   },
-  { cat: "調味料", keywords: [...(SEASONING_KEYWORDS as readonly string[])] },
-  { cat: "乾貨", keywords: ["冬菇", "木耳", "金針", "蝦米", "瑤柱", "蓮子", "百合", "紅棗", "枸杞", "臘腸", "鹹蛋", "皮蛋", "腐乳", "乾"] },
+  {
+    cat: "調味料",
+    keywords: [...(SEASONING_KEYWORDS as readonly string[])],
+    english: [
+      "fish sauce", "oyster sauce", "soy sauce", "sesame oil", "salt",
+      "sugar", "sauce", "oil", "vinegar", "pepper", "soy", "seasoning",
+      "honey", "ketchup", "mayonnaise",
+    ],
+  },
+  {
+    cat: "乾貨",
+    keywords: ["冬菇", "木耳", "金針", "蝦米", "瑤柱", "蓮子", "百合", "紅棗", "枸杞", "臘腸", "鹹蛋", "皮蛋", "腐乳", "乾"],
+    english: ["dried", "shiitake", "goji berry", "red date"],
+  },
 ];
+
+const ENGLISH_NEGATIONS = ["fish sauce", "oyster sauce", "coconut milk"];
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesEnglishPhrase(name: string, phrase: string): boolean {
+  return new RegExp(`(?:^|[^a-z0-9])${escapeRegExp(phrase)}s?(?:[^a-z0-9]|$)`).test(name);
+}
+
+function isBlockedEnglishAlias(name: string, alias: string): boolean {
+  return ENGLISH_NEGATIONS.some(
+    (negation) =>
+      alias !== negation && negation.includes(alias) && matchesEnglishPhrase(name, negation)
+  );
+}
 
 /**
  * 以關鍵字將食材分類（中文）
@@ -99,6 +155,9 @@ export function categorizeIngredient(name: string): string {
     for (const kw of rule.keywords) {
       if (n.includes(kw)) return rule.cat;
     }
+    for (const alias of rule.english) {
+      if (matchesEnglishPhrase(n, alias) && !isBlockedEnglishAlias(n, alias)) return rule.cat;
+    }
   }
   return "其他";
 }
@@ -106,7 +165,6 @@ export function categorizeIngredient(name: string): string {
 // ─── 份量縮放 ─────────────────────────────────────────
 
 const SPOON_UNITS = new Set(["湯匙", "茶匙", "tbsp", "tsp", "匙"]);
-const COUNTABLE_UNITS = new Set(["個", "隻", "條", "塊", "片", "支", "根", "包", "罐", "盤", "顆", "粒", "瓣", "棵", "碗", "碟", "杯"]);
 
 /**
  * 按比例縮放食材份量

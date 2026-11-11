@@ -13,6 +13,7 @@ module.exports = {
     "<rootDir>/lib/pluralPrice.test.ts",
     "<rootDir>/lib/chatSessionSignature.test.ts",
     "<rootDir>/lib/authStatus.test.ts",
+    "<rootDir>/lib/ingredients.test.ts",
     "<rootDir>/lib/limitErrors.test.ts",
     "<rootDir>/components/__tests__/PaywallModal.test.tsx",
     "<rootDir>/components/__tests__/settings.deleteAccount.test.tsx",
