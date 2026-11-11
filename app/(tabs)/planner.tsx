@@ -1838,6 +1838,16 @@ export default function PlannerTab() {
                 renderItem={({ item }: { item: any }) => {
                   const tags: string[] = item.tags ?? [];
                   const cat = categories.find(c => c.key === item.recipeCategory);
+                  const openPickerItem = () => {
+                    if (item._source === "template") {
+                      handleAddMeal(item);
+                      return;
+                    }
+                    const prefix = item._source === "user" || item._source === "kol" ? "user_" : "official_";
+                    const rawId = String(item.id);
+                    const recipeRef = rawId.startsWith(prefix) ? rawId : `${prefix}${rawId}`;
+                    router.push({ pathname: "/recipe/[id]", params: { id: recipeRef } });
+                  };
                   return (
                     <RecipeCard
                       item={item}
@@ -1848,8 +1858,8 @@ export default function PlannerTab() {
                       activeTagFilters={activeTagFilters}
                       setActiveTagFilters={setActiveTagFilters}
                       setQuickPlanRecipe={() => {}}
-                      navigateToRecipe={() => handleAddMeal(item)}
-                      onPress={() => handleAddMeal(item)}
+                      navigateToRecipe={openPickerItem}
+                      onPress={openPickerItem}
                       showQuickPlan={false}
                     />
                   );
