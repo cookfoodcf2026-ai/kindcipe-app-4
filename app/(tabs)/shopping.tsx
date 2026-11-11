@@ -272,6 +272,7 @@ export default function ShoppingTab() {
   });
   const [visibleMonth, setVisibleMonth] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showDates, setShowDates] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -730,6 +731,29 @@ export default function ShoppingTab() {
     return firstDatedCard ? formatMonthLabel(firstDatedCard.date) : "";
   }, [dateCardsData, visibleMonth]);
 
+  const dateStripLabel = useMemo(() => {
+    const countForDate = (date: string) =>
+      items.filter((i) => i.status !== "bought" && i.plannedDate === date).length;
+    let label = "📅 All dates";
+    if (activeDateFilter === "today") {
+      label = `📅 ${t("shopping.today")} · ${countForDate(DateUtil.todayISO())}`;
+    } else if (activeDateFilter === "tomorrow") {
+      label = `📅 ${t("shopping.tomorrow")} · ${countForDate(DateUtil.tomorrowISO())}`;
+    } else if (activeDateFilter === "week") {
+      const monday = DateUtil.getThisMondayISO();
+      const sunday = DateUtil.getThisSundayISO();
+      const count = items.filter(
+        (i) => i.status !== "bought" && i.plannedDate && i.plannedDate >= monday && i.plannedDate <= sunday,
+      ).length;
+      label = `📅 ${t("shopping.thisWeek")} · ${count}`;
+    } else if (activeDateFilter === "custom" && selectedDate) {
+      const [, mm, dd] = selectedDate.split("-");
+      label = `📅 ${Number(dd)} ${enumT.month(Number(mm))} · ${countForDate(selectedDate)}`;
+    }
+    if (searchQuery.trim()) label += ` · 「${searchQuery.trim()}」`;
+    return label;
+  }, [activeDateFilter, selectedDate, items, searchQuery, t]);
+
   const handleDateCardsScroll = useCallback((event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const cardWidth = 110;
@@ -1034,85 +1058,134 @@ export default function ShoppingTab() {
       </View>
 
       <View style={styles.typeFilterRow}>
-        {[
-          { key: "all" as const, label: t("shopping.all"), icon: "cart-outline" as const },
-          { key: "food" as const, label: t("shopping.food"), icon: "restaurant-outline" as const },
-          { key: "household" as const, label: t("shopping.household"), icon: "cube-outline" as const },
-        ].map((tab) => {
-          let count = 0;
-          if (tab.key === "all") count = unboughtCount;
-          else if (tab.key === "food") count = items.filter(i => i.status !== "bought" && !isHousehold(i.category || "其他") && (!i.plannedDate || i.plannedDate >= todayISO)).length;
-          else if (tab.key === "household") count = items.filter(i => i.status !== "bought" && isHousehold(i.category || "其他") && (!i.plannedDate || i.plannedDate >= todayISO)).length;
-          return (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ alignItems: "center", gap: 8 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {[
+            { key: "all" as const, label: t("shopping.all"), icon: "cart-outline" as const },
+            { key: "food" as const, label: t("shopping.food"), icon: "restaurant-outline" as const },
+            { key: "household" as const, label: t("shopping.household"), icon: "cube-outline" as const },
+          ].map((tab) => {
+            let count = 0;
+            if (tab.key === "all") count = unboughtCount;
+            else if (tab.key === "food") count = items.filter(i => i.status !== "bought" && !isHousehold(i.category || "其他") && (!i.plannedDate || i.plannedDate >= todayISO)).length;
+            else if (tab.key === "household") count = items.filter(i => i.status !== "bought" && isHousehold(i.category || "其他") && (!i.plannedDate || i.plannedDate >= todayISO)).length;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.typeFilterTab, activeTypeFilter === tab.key && styles.typeFilterTabActive]}
+                onPress={() => setActiveTypeFilter(tab.key)}
+              >
+                <Ionicons name={tab.icon} size={14} color={activeTypeFilter === tab.key ? "#fff" : "#6B7280"} style={{ marginRight: 4 }} />
+                <Text style={[styles.typeFilterTabText, activeTypeFilter === tab.key && styles.typeFilterTabTextActive]}>{t(tab.label as any)}</Text>
+                <View style={[styles.typeFilterBadge, activeTypeFilter === tab.key && { backgroundColor: "rgba(255,255,255,0.3)" }]}>
+                  <Text style={[styles.typeFilterBadgeText, activeTypeFilter === tab.key && { color: "#fff" }]}>{count}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+
+          {[
+            { key: "today" as const, label: t("shopping.today") },
+            { key: "tomorrow" as const, label: t("shopping.tomorrow") },
+            { key: "week" as const, label: t("shopping.thisWeek") },
+          ].map((chip) => (
             <TouchableOpacity
-              key={tab.key}
-              style={[styles.typeFilterTab, activeTypeFilter === tab.key && styles.typeFilterTabActive]}
-              onPress={() => setActiveTypeFilter(tab.key)}
+              key={chip.key}
+              style={[styles.dateFilterChip, activeDateFilter === chip.key && styles.dateFilterChipActive]}
+              onPress={() => {
+                if (chip.key === "today") {
+                  const today = DateUtil.todayISO();
+                  const todayDate = DateUtil.parseDate(today);
+                  setDateWindowStart(todayDate);
+                  setSelectedDate(today);
+                  setActiveDateFilter("today");
+                  // 滾動到第 1 張卡（今日）
+                  setTimeout(() => {
+                    dateCardsScrollRef.current?.scrollTo({ x: 0, animated: true });
+                  }, 100);
+                } else if (chip.key === "tomorrow") {
+                  const tomorrow = DateUtil.tomorrowISO();
+                  // 唔使 setDateWindowStart，因為會改變起始點導致 offset 計算錯誤
+                  setSelectedDate(tomorrow);
+                  setActiveDateFilter("tomorrow");
+                  // 滾動到第 2 張卡（聽日），110px
+                  setTimeout(() => {
+                    dateCardsScrollRef.current?.scrollTo({ x: 110, animated: true });
+                  }, 100);
+                } else if (chip.key === "week") {
+                  const today = new Date();
+                  const startOfWeek = new Date(today);
+                  
+                  // 計算本週一：如果今日係週日 (0)，減 6 日；否則減 (day - 1) 日
+                  const day = today.getDay();
+                  const daysToSubtract = day === 0 ? 6 : day - 1;
+                  startOfWeek.setDate(today.getDate() - daysToSubtract);
+                  
+                  startOfWeek.setHours(0, 0, 0, 0);
+                  setDateWindowStart(startOfWeek);
+                  setSelectedDate(null);
+                  setActiveDateFilter("week");
+                } else {
+                  setSelectedDate(null);
+                  setActiveDateFilter("all");
+                }
+              }}
             >
-              <Ionicons name={tab.icon} size={14} color={activeTypeFilter === tab.key ? "#fff" : "#6B7280"} style={{ marginRight: 4 }} />
-              <Text style={[styles.typeFilterTabText, activeTypeFilter === tab.key && styles.typeFilterTabTextActive]}>{t(tab.label as any)}</Text>
-              <View style={[styles.typeFilterBadge, activeTypeFilter === tab.key && { backgroundColor: "rgba(255,255,255,0.3)" }]}>
-                <Text style={[styles.typeFilterBadgeText, activeTypeFilter === tab.key && { color: "#fff" }]}>{count}</Text>
-              </View>
+              <Text style={[styles.dateFilterChipText, activeDateFilter === chip.key && styles.dateFilterChipTextActive]}>{t(chip.label as any)}</Text>
             </TouchableOpacity>
-          );
-        })}
+          ))}
+        </ScrollView>
       </View>
 
-      <View style={styles.dateFilterRow}>
-        {[
-          { key: "today" as const, label: t("shopping.today") },
-          { key: "tomorrow" as const, label: t("shopping.tomorrow") },
-          { key: "week" as const, label: t("shopping.thisWeek") },
-        ].map((chip) => (
-          <TouchableOpacity
-            key={chip.key}
-            style={[styles.dateFilterChip, activeDateFilter === chip.key && styles.dateFilterChipActive]}
-            onPress={() => {
-              if (chip.key === "today") {
-                const today = DateUtil.todayISO();
-                const todayDate = DateUtil.parseDate(today);
-                setDateWindowStart(todayDate);
-                setSelectedDate(today);
-                setActiveDateFilter("today");
-                // 滾動到第 1 張卡（今日）
-                setTimeout(() => {
-                  dateCardsScrollRef.current?.scrollTo({ x: 0, animated: true });
-                }, 100);
-              } else if (chip.key === "tomorrow") {
-                const tomorrow = DateUtil.tomorrowISO();
-                // 唔使 setDateWindowStart，因為會改變起始點導致 offset 計算錯誤
-                setSelectedDate(tomorrow);
-                setActiveDateFilter("tomorrow");
-                // 滾動到第 2 張卡（聽日），110px
-                setTimeout(() => {
-                  dateCardsScrollRef.current?.scrollTo({ x: 110, animated: true });
-                }, 100);
-              } else if (chip.key === "week") {
-                const today = new Date();
-                const startOfWeek = new Date(today);
-                
-                // 計算本週一：如果今日係週日 (0)，減 6 日；否則減 (day - 1) 日
-                const day = today.getDay();
-                const daysToSubtract = day === 0 ? 6 : day - 1;
-                startOfWeek.setDate(today.getDate() - daysToSubtract);
-                
-                startOfWeek.setHours(0, 0, 0, 0);
-                setDateWindowStart(startOfWeek);
-                setSelectedDate(null);
-                setActiveDateFilter("week");
-              } else {
-                setSelectedDate(null);
-                setActiveDateFilter("all");
-              }
-            }}
-          >
-            <Text style={[styles.dateFilterChipText, activeDateFilter === chip.key && styles.dateFilterChipTextActive]}>{t(chip.label as any)}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.searchBar}>
+        <Ionicons name="search-outline" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={t("shopping.searchPlaceholder")}
+          placeholderTextColor="#9CA3AF"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
       </View>
 
-      {dateCardsData.length > 0 && (
+      {approvalUiEnabled && isAdmin && pendingCount > 0 && (
+        <View style={styles.pendingBatchSection}>
+          <View style={styles.pendingBatchHeader}>
+            <Ionicons name="time-outline" size={18} color="#CA8A04" />
+            <Text style={styles.pendingBatchTitle}>{t("dyn.pendingItems", { n: pendingCount })}</Text>
+          </View>
+          <View style={styles.pendingBatchButtons}>
+            <TouchableOpacity
+              style={styles.pendingBatchApproveBtn}
+              onPress={() => approveAllM.mutate()}
+              disabled={approveAllM.isPending}
+            >
+              <Ionicons name="checkmark-circle" size={16} color="#183B56" />
+              <Text style={styles.pendingBatchApproveBtnText}>{t("shopping.approveAll")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.pendingBatchRejectBtn}
+              onPress={() => rejectAllM.mutate()}
+              disabled={rejectAllM.isPending}
+            >
+              <Ionicons name="close-circle" size={16} color="#EF4444" />
+              <Text style={styles.pendingBatchRejectBtnText}>{t("shopping.rejectAll")}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <TouchableOpacity style={styles.dateStrip} onPress={() => setShowDates((v) => !v)} activeOpacity={0.7}>
+        <Text style={styles.dateStripText} numberOfLines={1}>{dateStripLabel}</Text>
+        <Text style={styles.dateStripChevron}>{showDates ? "▴" : "▾"}</Text>
+      </TouchableOpacity>
+
+      {showDates && dateCardsData.length > 0 && (
         <View style={styles.dateCardsSection}>
           <View style={styles.dateCardsHeader}>
             <Text style={styles.dateCardsTitle}>{t("shopping.byDate")}</Text>
@@ -1156,44 +1229,6 @@ export default function ShoppingTab() {
               <TouchableOpacity style={styles.dateArrowBtn} onPress={() => shiftDateWindow(1)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="chevron-forward" size={18} color="#183B56" />
               </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t("shopping.searchPlaceholder")}
-          placeholderTextColor="#9CA3AF"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {approvalUiEnabled && isAdmin && pendingCount > 0 && (
-        <View style={styles.pendingBatchSection}>
-          <View style={styles.pendingBatchHeader}>
-            <Ionicons name="time-outline" size={18} color="#CA8A04" />
-            <Text style={styles.pendingBatchTitle}>{t("dyn.pendingItems", { n: pendingCount })}</Text>
-          </View>
-          <View style={styles.pendingBatchButtons}>
-            <TouchableOpacity
-              style={styles.pendingBatchApproveBtn}
-              onPress={() => approveAllM.mutate()}
-              disabled={approveAllM.isPending}
-            >
-              <Ionicons name="checkmark-circle" size={16} color="#183B56" />
-              <Text style={styles.pendingBatchApproveBtnText}>{t("shopping.approveAll")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.pendingBatchRejectBtn}
-              onPress={() => rejectAllM.mutate()}
-              disabled={rejectAllM.isPending}
-            >
-              <Ionicons name="close-circle" size={16} color="#EF4444" />
-              <Text style={styles.pendingBatchRejectBtnText}>{t("shopping.rejectAll")}</Text>
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -1663,7 +1698,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    flex: 1,
     justifyContent: "center",
   },
   typeFilterTabActive: {
@@ -1717,6 +1751,28 @@ const styles = StyleSheet.create({
   },
   dateFilterChipTextActive: {
     color: "#fff",
+  },
+  dateStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 44,
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+  },
+  dateStripText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#183B56",
+  },
+  dateStripChevron: {
+    fontSize: 14,
+    color: "#183B56",
+    marginLeft: 8,
   },
   dateCardsSection: {
     paddingHorizontal: 16,
