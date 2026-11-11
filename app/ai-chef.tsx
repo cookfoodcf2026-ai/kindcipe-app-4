@@ -3645,6 +3645,13 @@ export default function AIChefScreen() {
       .slice(0, 12);
     const sessionAvoidNames = [...usedRecipeNames, ...sessionSeenRecipeNames];
 
+    // 換卡唯一守門：新卡名唔可以撞其他卡／session 已見／本輪已換過。
+    const passesSwapGuard = (r: AIRecipe | null | undefined) =>
+      !!r &&
+      !isDuplicateRecipeName(r.name, otherNames) &&
+      !isDuplicateRecipeName(r.name, sessionAvoidNames) &&
+      !swappedRecipeNames.has(r.name);
+
     const pickLibraryFallback = () => {
       const cardDishType = getDishType(recipe);
       const alternatives = [...(userRecipes ?? [])]
@@ -3654,15 +3661,7 @@ export default function AIChefScreen() {
         })
         .map(normalizeRecipe)
         .filter((r): r is AIRecipe => !!r && isValidRecipe(r));
-      return (
-        alternatives.find((r) =>
-          !isDuplicateRecipeName(r.name, otherNames) &&
-          !isDuplicateRecipeName(r.name, sessionAvoidNames) &&
-          !swappedRecipeNames.has(r.name)
-        ) ??
-        alternatives.find((r) => !isDuplicateRecipeName(r.name, sessionAvoidNames)) ??
-        null
-      );
+      return alternatives.find(passesSwapGuard) ?? null;
     };
 
     const collectCandidates = (res: any) => {
@@ -3788,7 +3787,7 @@ export default function AIChefScreen() {
 
         // 次序：library 同類 → repeat 1-2 次（再生成）→ AI 換 prompt → 提示
         let candidate: AIRecipe | null = pickLibraryFallback();
-        if (!candidate || swappedRecipeNames.has(candidate.name) || isDuplicateRecipeName(candidate.name, sessionAvoidNames)) {
+        if (!passesSwapGuard(candidate)) {
           for (let attempt = 0; attempt < 2; attempt++) {
             candidate = await tryGenerate(attempt === 1 ? `\n請再生成一個全新、唔重複、可直接煮嘅「${cardDishType}」食譜，唔好重複上次。類別一定要一致。` : "");
             if (candidate) break;
@@ -3798,7 +3797,7 @@ export default function AIChefScreen() {
           candidate = await tryGenerate("\n請直接生成一個全新、唔重複、可直接煮嘅食譜。唔需要參考舊食譜。");
         }
 
-        if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && !isDuplicateRecipeName(candidate.name, [...otherNames, ...sessionAvoidNames]) && !swappedRecipeNames.has(candidate.name)) {
+        if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && passesSwapGuard(candidate)) {
           replaceRecipeAtIndex(index, candidate);
           showToast(t("✅ 已換成「{{name}}」" as any, { name: candidate.name }));
           recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
@@ -3809,7 +3808,7 @@ export default function AIChefScreen() {
           });
         } else {
           const fallback = pickLibraryFallback();
-          if (fallback && getDishType(fallback) === cardDishType && !swappedRecipeNames.has(fallback.name) && !isDuplicateRecipeName(fallback.name, sessionAvoidNames)) {
+          if (fallback && getDishType(fallback) === cardDishType && passesSwapGuard(fallback)) {
             showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: fallback.name }));
             replaceRecipeAtIndex(index, fallback);
             showToast(t("✅ 已換成「{{name}}」" as any, { name: fallback.name }));
@@ -3866,7 +3865,7 @@ export default function AIChefScreen() {
     } finally {
       setSwappingIndex(null);
     }
-    if (libraryPicked) {
+    if (libraryPicked && passesSwapGuard(libraryPicked)) {
       replaceRecipeAtIndex(index, libraryPicked);
       recordSeenRecipes([libraryPicked]);
       recordSwappedName(libraryPicked.name);
