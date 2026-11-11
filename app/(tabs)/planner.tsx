@@ -1846,6 +1846,7 @@ export default function PlannerTab() {
                     const prefix = item._source === "user" || item._source === "kol" ? "user_" : "official_";
                     const rawId = String(item.id);
                     const recipeRef = rawId.startsWith(prefix) ? rawId : `${prefix}${rawId}`;
+                    setShowAddModal(false);
                     router.push({ pathname: "/recipe/[id]", params: { id: recipeRef } });
                   };
                   return (
