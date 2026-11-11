@@ -1617,8 +1617,14 @@ export default function PlannerTab() {
                 {isSettingEatOut === day.dateStr ? (
                   <ActivityIndicator size="small" color="#D97706" />
                 ) : (
-                  <Ionicons name="restaurant-outline" size={12} color={isEatOut ? "#D97706" : "#9CA3AF"} />
+                  <Ionicons name="restaurant-outline" size={13} color={isEatOut ? "#D97706" : "#9CA3AF"} />
                 )}
+                <Text
+                  numberOfLines={1}
+                  style={[styles.eatOutToggleLabel, isEatOut && styles.eatOutToggleLabelActive]}
+                >
+                  {isEatOut ? t("planner.eatOutShort") : t("planner.eatOut")}
+                </Text>
               </TouchableOpacity>
             </View>
             {dayMeals.length === 0 && (
@@ -3377,20 +3383,26 @@ const styles = StyleSheet.create({
   },
   eatOutToggleRow: {
     alignSelf: "flex-start",
+    maxWidth: "100%",
     marginBottom: 8,
   },
   eatOutToggle: {
-    width: 22,
-    height: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minHeight: 28,
+    maxWidth: "100%",
+    paddingHorizontal: 8,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#F9FAFB",
-    alignItems: "center",
-    justifyContent: "center",
   },
   eatOutToggleActive: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
   eatOutToggleWeb: { minWidth: 28, minHeight: 28 },
+  eatOutToggleLabel: { flexShrink: 1, fontSize: 11, color: "#9CA3AF" },
+  eatOutToggleLabelActive: { color: "#D97706" },
   eatOutBadge: { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
   eatOutBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#D97706" },
   expandArrow: {
