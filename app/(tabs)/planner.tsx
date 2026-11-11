@@ -46,6 +46,7 @@ import { friendlyError } from "@/lib/errors";
 import { parsePlanError, summarizeMealPlanBatch } from "@/lib/limitErrors";
 import PaywallModal from "@/components/PaywallModal";
 import { track, Events } from "@/lib/analytics";
+import { isWeb } from "@/lib/platform";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -1545,6 +1546,7 @@ export default function PlannerTab() {
   const renderDayCard = (day: (typeof weekDays)[0], idx: number) => {
     const dayMeals = mealsByDate[day.dateStr] || [];
     const isExpanded = expandedDay === idx;
+    const isEatOut = eatOutDateSet.has(day.dateStr);
     const today = isToday(day.date);
     const past = isPast(day.date);
     const allConfirmed = dayMeals.length > 0 && dayMeals.every((m) => m.status === "confirmed");
@@ -1571,37 +1573,19 @@ export default function PlannerTab() {
             {today && <View style={styles.todayBadge}><Text style={styles.todayText}>{i18n.t("common.today")}</Text></View>}
           </View>
           <View style={styles.dayHeaderRight}>
-            <TouchableOpacity
-              style={[styles.eatOutBtn, eatOutDateSet.has(day.dateStr) && styles.eatOutBtnActive]}
-              onPress={(e) => {
-                e.stopPropagation?.();
-                const currentEatOut = eatOutDateSet.has(day.dateStr);
-                handleToggleEatOut(day.dateStr, currentEatOut);
-              }}
-              disabled={isSettingEatOut === day.dateStr}
-            >
-              {isSettingEatOut === day.dateStr ? (
-                <ActivityIndicator size="small" color="#D97706" />
-              ) : (
-                <>
-                  <Ionicons name="restaurant-outline" size={11} color={eatOutDateSet.has(day.dateStr) ? "#D97706" : "#9CA3AF"} />
-                  <Text style={[styles.eatOutTxt, eatOutDateSet.has(day.dateStr) && styles.eatOutTxtActive]}>
-                    {t("planner.eatOutShort")}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-            {dayMeals.length > 0 ? (
+            {dayMeals.length > 0 && (
               <View style={[styles.countBadge, { backgroundColor: allConfirmed ? "#DCFCE7" : "#E8F0F4" }]}>
                 <Text style={[styles.countText, { color: allConfirmed ? "#16A34A" : "#183B56" }]}>
                   {t("planner.mealCount", { n: dayMeals.length })}
                 </Text>
               </View>
-            ) : eatOutDateSet.has(day.dateStr) ? (
+            )}
+            {isEatOut && (
               <View style={styles.eatOutBadge}>
                 <Text style={styles.eatOutBadgeTxt}>{t("planner.eatOut")}</Text>
               </View>
-            ) : (
+            )}
+            {dayMeals.length === 0 && !isEatOut && (
               <View style={styles.emptyMealContainer}>
                 <Ionicons name="restaurant-outline" size={12} color="#D1D5DB" />
                 <Text style={styles.emptyMealText}>{t("planner.notPlanned")}</Text>
@@ -1613,6 +1597,30 @@ export default function PlannerTab() {
 
         {isExpanded && (
           <View style={styles.dayBody}>
+            <View style={styles.eatOutToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.eatOutToggle,
+                  isEatOut && styles.eatOutToggleActive,
+                  isWeb && styles.eatOutToggleWeb,
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleToggleEatOut(day.dateStr, isEatOut);
+                }}
+                disabled={isSettingEatOut === day.dateStr}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: isEatOut }}
+                accessibilityLabel={t("planner.eatOut")}
+              >
+                {isSettingEatOut === day.dateStr ? (
+                  <ActivityIndicator size="small" color="#D97706" />
+                ) : (
+                  <Ionicons name="restaurant-outline" size={12} color={isEatOut ? "#D97706" : "#9CA3AF"} />
+                )}
+              </TouchableOpacity>
+            </View>
             {dayMeals.length === 0 && (
               <View style={styles.dayBodyEmpty}>
                 <Ionicons name="restaurant-outline" size={28} color="#E5E7EB" />
@@ -3367,15 +3375,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#bbb",
   },
-  eatOutBtn: {
-    flexDirection: "row", alignItems: "center", gap: 2,
-    paddingHorizontal: 6, paddingVertical: 3,
-    borderRadius: 6, borderWidth: 1, borderColor: "#E5E7EB",
-    backgroundColor: "#F9FAFB",
+  eatOutToggleRow: {
+    alignSelf: "flex-start",
+    marginBottom: 8,
   },
-  eatOutBtnActive: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
-  eatOutTxt: { fontSize: 9, fontWeight: "600", color: "#9CA3AF" },
-  eatOutTxtActive: { color: "#D97706" },
+  eatOutToggle: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eatOutToggleActive: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
+  eatOutToggleWeb: { minWidth: 28, minHeight: 28 },
   eatOutBadge: { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
   eatOutBadgeTxt: { fontSize: 10, fontWeight: "700", color: "#D97706" },
   expandArrow: {
