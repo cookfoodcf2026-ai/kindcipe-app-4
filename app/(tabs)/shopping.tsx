@@ -146,10 +146,6 @@ const formatDateCard = (dateStr: string) => {
   return { day: safeDay, weekday: `${weekday}${suffix}`, isToday, isTomorrow };
 };
 
-const formatMonthLabel = (dateStr: string) => {
-  return DateUtil.formatMonthLabel(dateStr);
-};
-
 type SwipeDeleteWrapperProps = {
   onDelete: () => void;
   disabled?: boolean;
@@ -258,7 +254,6 @@ export default function ShoppingTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useTranslation();
-  const dateCardsScrollRef = useRef<ScrollView>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addModalCategory, setAddModalCategory] = useState("其他");
@@ -270,9 +265,7 @@ export default function ShoppingTab() {
     today.setHours(0, 0, 0, 0);
     return today;
   });
-  const [visibleMonth, setVisibleMonth] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showDates, setShowDates] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -725,60 +718,6 @@ export default function ShoppingTab() {
     return dateCards;
   }, [dateWindowStart, items]);
 
-  const currentMonth = useMemo(() => {
-    if (visibleMonth) return visibleMonth;
-    const firstDatedCard = dateCardsData[0];
-    return firstDatedCard ? formatMonthLabel(firstDatedCard.date) : "";
-  }, [dateCardsData, visibleMonth]);
-
-  const dateStripLabel = useMemo(() => {
-    const countForDate = (date: string) =>
-      items.filter((i) => i.status !== "bought" && i.plannedDate === date).length;
-    let label = "📅 All dates";
-    if (activeDateFilter === "today") {
-      label = `📅 ${t("shopping.today")} · ${countForDate(DateUtil.todayISO())}`;
-    } else if (activeDateFilter === "tomorrow") {
-      label = `📅 ${t("shopping.tomorrow")} · ${countForDate(DateUtil.tomorrowISO())}`;
-    } else if (activeDateFilter === "week") {
-      const monday = DateUtil.getThisMondayISO();
-      const sunday = DateUtil.getThisSundayISO();
-      const count = items.filter(
-        (i) => i.status !== "bought" && i.plannedDate && i.plannedDate >= monday && i.plannedDate <= sunday,
-      ).length;
-      label = `📅 ${t("shopping.thisWeek")} · ${count}`;
-    } else if (activeDateFilter === "custom" && selectedDate) {
-      const [, mm, dd] = selectedDate.split("-");
-      label = `📅 ${Number(dd)} ${enumT.month(Number(mm))} · ${countForDate(selectedDate)}`;
-    }
-    if (searchQuery.trim()) label += ` · 「${searchQuery.trim()}」`;
-    return label;
-  }, [activeDateFilter, selectedDate, items, searchQuery, t]);
-
-  const handleDateCardsScroll = useCallback((event: any) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const cardWidth = 110;
-    const index = Math.min(
-      Math.max(Math.floor(offsetX / cardWidth), 0),
-      dateCardsData.length - 1,
-    );
-    if (index >= 0 && index < dateCardsData.length) {
-      const card = dateCardsData[index];
-      setVisibleMonth(formatMonthLabel(card.date));
-    }
-  }, [dateCardsData]);
-
-  const shiftDateWindow = useCallback((days: number) => {
-    setDateWindowStart((prev) => {
-      const next = new Date(prev);
-      next.setDate(prev.getDate() + days);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (next < today) return today;
-      return next;
-    });
-    setVisibleMonth("");
-  }, []);
-
   const handleAdd = useCallback(() => {
     const name = newName.trim();
     if (!name) return;
@@ -1104,19 +1043,11 @@ export default function ShoppingTab() {
                   setDateWindowStart(todayDate);
                   setSelectedDate(today);
                   setActiveDateFilter("today");
-                  // 滾動到第 1 張卡（今日）
-                  setTimeout(() => {
-                    dateCardsScrollRef.current?.scrollTo({ x: 0, animated: true });
-                  }, 100);
                 } else if (chip.key === "tomorrow") {
                   const tomorrow = DateUtil.tomorrowISO();
                   // 唔使 setDateWindowStart，因為會改變起始點導致 offset 計算錯誤
                   setSelectedDate(tomorrow);
                   setActiveDateFilter("tomorrow");
-                  // 滾動到第 2 張卡（聽日），110px
-                  setTimeout(() => {
-                    dateCardsScrollRef.current?.scrollTo({ x: 110, animated: true });
-                  }, 100);
                 } else if (chip.key === "week") {
                   const today = new Date();
                   const startOfWeek = new Date(today);
@@ -1180,58 +1111,36 @@ export default function ShoppingTab() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.dateStrip} onPress={() => setShowDates((v) => !v)} activeOpacity={0.7}>
-        <Text style={styles.dateStripText} numberOfLines={1}>{dateStripLabel}</Text>
-        <Text style={styles.dateStripChevron}>{showDates ? "▴" : "▾"}</Text>
-      </TouchableOpacity>
-
-      {showDates && dateCardsData.length > 0 && (
-        <View style={styles.dateCardsSection}>
-          <View style={styles.dateCardsHeader}>
-            <Text style={styles.dateCardsTitle}>{t("shopping.byDate")}</Text>
-          </View>
-          <Text style={styles.dateCardsMonth}>{currentMonth}</Text>
-          <View style={styles.dateCardsRow}>
-              <TouchableOpacity style={styles.dateArrowBtn} onPress={() => shiftDateWindow(-1)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="chevron-back" size={18} color="#183B56" />
+      <View style={styles.dateFilterRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ alignItems: "center", gap: 6 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {dateCardsData.map((dc) => {
+            const isSelected = selectedDate === dc.date;
+            return (
+              <TouchableOpacity
+                key={dc.date}
+                style={[styles.dateChip, isSelected && styles.dateChipActive]}
+                onPress={() => handleDateCardTap(dc.date)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.dateChipText, isSelected && styles.dateChipTextActive]}>
+                  {dc.day} {dc.weekday}
+                </Text>
+                {dc.count > 0 && (
+                  <View style={[styles.dateChipBadge, isSelected && styles.dateChipBadgeActive]}>
+                    <Text style={[styles.dateChipBadgeText, isSelected && styles.dateChipBadgeTextActive]}>{dc.count}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-            <ScrollView
-              ref={dateCardsScrollRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.dateCardsScroll}
-              contentContainerStyle={{ paddingRight: 6 }}
-              onScroll={handleDateCardsScroll}
-              scrollEventThrottle={16}
-              keyboardShouldPersistTaps="handled"
-            >
-              {dateCardsData.map((dc, index) => (
-                <TouchableOpacity
-                  key={`${dc.date}-${index}`}
-                  style={[styles.dateCard, selectedDate === dc.date && styles.dateCardSelected]}
-                  onPress={() => handleDateCardTap(dc.date)}
-                  activeOpacity={0.7}
-                >
-                  <>
-                    <View style={{ flexDirection: "column", alignItems: "center" }}>
-                      <Text style={[styles.dateCardDay, selectedDate === dc.date && styles.dateCardDaySelected]}>{dc.day}</Text>
-                      <Text style={[styles.dateCardWeekday, selectedDate === dc.date && styles.dateCardWeekdaySelected]}>{dc.weekday}</Text>
-                    </View>
-                    {dc.count > 0 && (
-                      <View style={[styles.dateCardBadge, { backgroundColor: "#E8F0FA" }]}>
-                        <Text style={[styles.dateCardBadgeText]}>{dc.count}</Text>
-                      </View>
-                    )}
-                  </>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-              <TouchableOpacity style={styles.dateArrowBtn} onPress={() => shiftDateWindow(1)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="chevron-forward" size={18} color="#183B56" />
-              </TouchableOpacity>
-          </View>
-        </View>
-      )}
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -1752,113 +1661,45 @@ const styles = StyleSheet.create({
   dateFilterChipTextActive: {
     color: "#fff",
   },
-  dateStrip: {
+  dateChip: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    height: 44,
-    marginHorizontal: 12,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
     backgroundColor: "#F3F4F6",
-  },
-  dateStripText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#183B56",
-  },
-  dateStripChevron: {
-    fontSize: 14,
-    color: "#183B56",
-    marginLeft: 8,
-  },
-  dateCardsSection: {
-    paddingHorizontal: 16,
-    marginTop: 12,
-  },
-  dateCardsHeader: {
-    marginBottom: 6,
-  },
-  dateCardsTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#1A1A1A",
-  },
-  dateCardsMonth: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#183B56",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  dateCardsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  dateArrowBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#E8F0F4",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dateCardsScroll: {
-    flex: 1,
-  },
-  dateCard: {
-    backgroundColor: "#FFF7ED",
-    borderRadius: 12,
-    paddingVertical: 10,
+    borderRadius: 16,
     paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  dateChipActive: {
+    backgroundColor: "#183B56",
+  },
+  dateChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  dateChipTextActive: {
+    color: "#fff",
+  },
+  dateChipBadge: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    minWidth: 18,
+    height: 18,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 70,
-    minWidth: 96,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    position: "relative",
+    paddingHorizontal: 4,
+    marginLeft: 4,
   },
-  dateCardSelected: {
-    borderWidth: 2,
-    borderColor: "#183B56",
-    backgroundColor: "#EFF6FF",
+  dateChipBadgeActive: {
+    backgroundColor: "rgba(255,255,255,0.3)",
   },
-  dateCardDay: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1A1A1A",
-  },
-  dateCardDaySelected: {
-    color: "#183B56",
-  },
-  dateCardWeekday: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 1,
-  },
-  dateCardWeekdaySelected: {
-    color: "#183B56",
-    fontWeight: "600",
-  },
-  dateCardAllDay: {
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  dateCardAllWeekday: {
-    fontSize: 10,
-    lineHeight: 12,
-    marginTop: 0,
-  },
-  dateCardAllCount: {
+  dateChipBadgeText: {
     fontSize: 10,
     fontWeight: "700",
     color: "#183B56",
-    marginTop: 2,
+  },
+  dateChipBadgeTextActive: {
+    color: "#fff",
   },
   swipeDeleteBtn: {
     width: 72,
@@ -1874,23 +1715,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
     marginTop: 4,
-  },
-  dateCardBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "#E8F0FA",
-    borderRadius: 99,
-    minWidth: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 5,
-  },
-  dateCardBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#183B56",
   },
   searchBar: {
     flexDirection: "row",
