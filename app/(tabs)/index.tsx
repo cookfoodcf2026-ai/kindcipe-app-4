@@ -68,6 +68,53 @@ const isImportedRecipe = (r: any): boolean =>
 const isAIRecipe = (r: any): boolean =>
   !!r?.isAiGenerated || (Array.isArray(r?.tags) && r.tags.includes("AI 生成"));
 
+// 排序 tiebreaker：id 由大到細，保證同分／缺欄位時次序固定，唔會隨機跳。
+const compareRecipeIdDesc = (a: any, b: any): number => {
+  const idA = String(a?.id ?? "");
+  const idB = String(b?.id ?? "");
+  return idA === idB ? 0 : idA > idB ? -1 : 1;
+};
+
+const parseRecipeTime = (value: unknown): number | null => {
+  if (!value) return null;
+  const ms = new Date(String(value)).getTime();
+  return Number.isFinite(ms) ? ms : null;
+};
+
+const compareRecipeNewest = (a: any, b: any): number => {
+  const ta = parseRecipeTime(a?.createdAt);
+  const tb = parseRecipeTime(b?.createdAt);
+  if (ta !== null && tb !== null) {
+    return ta !== tb ? tb - ta : compareRecipeIdDesc(a, b);
+  }
+  // 有 createdAt 嘅一定排喺冇嘅前面。
+  if (ta === null && tb === null) return compareRecipeIdDesc(a, b);
+  return ta !== null ? -1 : 1;
+};
+
+const compareRecipeUpdated = (a: any, b: any): number => {
+  const ta = parseRecipeTime(a?.updatedAt);
+  const tb = parseRecipeTime(b?.updatedAt);
+  if (ta !== null && tb !== null) {
+    return ta !== tb ? tb - ta : compareRecipeIdDesc(a, b);
+  }
+  if (ta === null && tb === null) return compareRecipeIdDesc(a, b);
+  return ta !== null ? -1 : 1;
+};
+
+const compareRecipeCookTime = (a: any, b: any): number => {
+  const ta = a?.cookTime || 999;
+  const tb = b?.cookTime || 999;
+  return ta !== tb ? ta - tb : compareRecipeIdDesc(a, b);
+};
+
+const DIFFICULTY_ORDER: Record<string, number> = { "簡單": 1, "中等": 2, "困難": 3 };
+const compareRecipeDifficulty = (a: any, b: any): number => {
+  const da = DIFFICULTY_ORDER[a?.difficulty || ""] || 999;
+  const db = DIFFICULTY_ORDER[b?.difficulty || ""] || 999;
+  return da !== db ? da - db : compareRecipeIdDesc(a, b);
+};
+
 const POPULAR_CHIPS = [
   { key: "quick15", label: "⚡ 快手 15 分鐘" },
   { key: "quick30", label: "⏱ 快手 30 分鐘" },
@@ -564,24 +611,10 @@ export default function RecipesTab() {
   // 食譜庫預設「最新優先」；「熱門」檢視仍然預設 popular。
   // 用戶手動揀過排序之後，就唔再自動蓋過佢嘅選擇。
   const sortByUserSet = useRef(false);
-  const sortStorageKey = `kindcipe_recipe_sort:${user?.id ?? "guest"}`;
   useEffect(() => {
     if (sortByUserSet.current) return;
     setSortBy(viewMode === "hot" ? "popular" : "newest");
   }, [viewMode]);
-  useEffect(() => {
-    let active = true;
-    sortByUserSet.current = false;
-    setSortBy("newest");
-    AsyncStorage.getItem(sortStorageKey).then((stored) => {
-      if (!active || sortByUserSet.current) return;
-      if (stored === "newest" || stored === "popular" || stored === "updated" || stored === "cookTime" || stored === "difficulty") {
-        sortByUserSet.current = true;
-        setSortBy(stored);
-      }
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [sortStorageKey]);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [activeIngredientCategory, setActiveIngredientCategory] = useState<string | undefined>(undefined);
@@ -964,24 +997,15 @@ export default function RecipesTab() {
     if (sortBy === "popular") {
       // Backend already sorts by popularity (relevance → popularity → created_at)
     } else if (sortBy === "newest") {
-      // 最新新增（本地排；未收到後端 createdAt 時保持原序）
-      pool.sort((a: any, b: any) => {
-        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return tb - ta;
-      });
+      // 最新新增：createdAt 由新到舊；缺 createdAt 排最後，再用 id 做穩定 tiebreaker。
+      pool.sort(compareRecipeNewest);
     } else if (sortBy === "updated") {
       // 最近編輯
-      pool.sort((a: any, b: any) => {
-        const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return tb - ta;
-      });
+      pool.sort(compareRecipeUpdated);
     } else if (sortBy === "cookTime") {
-      pool.sort((a, b) => (a.cookTime || 999) - (b.cookTime || 999));
+      pool.sort(compareRecipeCookTime);
     } else if (sortBy === "difficulty") {
-      const difficultyOrder: Record<string, number> = { "簡單": 1, "中等": 2, "困難": 3 };
-      pool.sort((a: any, b: any) => (difficultyOrder[a.difficulty || ""] || 999) - (difficultyOrder[b.difficulty || ""] || 999));
+      pool.sort(compareRecipeDifficulty);
     }
 
     return pool;
@@ -1667,7 +1691,6 @@ export default function RecipesTab() {
                 onPress={() => {
                   setSortBy(opt.key);
                   sortByUserSet.current = true;
-                  AsyncStorage.setItem(sortStorageKey, opt.key).catch(() => {});
                   setShowSortSheet(false);
                 }}
               >
