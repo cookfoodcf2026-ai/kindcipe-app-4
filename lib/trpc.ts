@@ -16,7 +16,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { FAMILY_ID_KEY, getAuthToken } from "./auth";
 
 function toHeaderRecord(headers: HeadersInit | undefined): Record<string, string> {
@@ -53,6 +53,45 @@ export function resolveImageUrl(url: string | null | undefined): string {
 
 // ─── 請求逾時設定（毫秒）─────────────────────────────────
 const REQUEST_TIMEOUT_MS = 90_000;
+
+const BODY_READ_METHODS = new Set(["arrayBuffer", "blob", "formData", "json", "text"]);
+const inFlightControllers = new Set<AbortController>();
+
+function abortInFlightRequests() {
+  inFlightControllers.forEach((controller) => controller.abort());
+  inFlightControllers.clear();
+}
+
+// 將 timer 嘅清除綁喺真正讀完 body 嘅 promise，而唔係 fetch resolve 一刻。
+function releaseWhenBodyRead(response: Response, release: () => void): Response {
+  return new Proxy(response, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target);
+      if (typeof value !== "function") return value;
+      if (BODY_READ_METHODS.has(String(prop))) {
+        return (...args: unknown[]) => {
+          const result = value.apply(target, args);
+          if (result && typeof result.then === "function") return result.finally(release);
+          release();
+          return result;
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
+if (Platform.OS === "web") {
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") abortInFlightRequests();
+    });
+  }
+} else {
+  AppState.addEventListener("change", (state) => {
+    if (state === "active") abortInFlightRequests();
+  });
+}
 
 // ─── Lightweight offline detection (no native module) ─────────
 // Deduplicated: reports offline once, clears on first success.
@@ -117,7 +156,15 @@ const makeClient = () => ({
 
         // 使用 AbortController 實現逾時控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          inFlightControllers.delete(controller);
+        }, REQUEST_TIMEOUT_MS);
+        inFlightControllers.add(controller);
+        const release = () => {
+          clearTimeout(timeoutId);
+          inFlightControllers.delete(controller);
+        };
 
         try {
           const response = await fetch(url, {
@@ -127,12 +174,12 @@ const makeClient = () => ({
             signal: controller.signal,
           });
           reportNetworkSuccess();
-          return response;
+          // Timer 保持 armed，直到 body 真正讀完先清。
+          return releaseWhenBodyRead(response, release);
         } catch (e) {
           reportNetworkFailure();
+          release();
           throw e;
-        } finally {
-          clearTimeout(timeoutId);
         }
       },
     }),
