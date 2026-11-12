@@ -81,15 +81,44 @@ const parseRecipeTime = (value: unknown): number | null => {
   return Number.isFinite(ms) ? ms : null;
 };
 
+// 同 server 一樣：先按本地日曆日（YYYY-MM-DD）新到舊，同日再按 id hash 細到大，
+// 令同一日嘅批次匯入唔會排返 id 次序。
+const recipeDayKey = (value: unknown): string | null => {
+  const ms = parseRecipeTime(value);
+  if (ms === null) return null;
+  const d = new Date(ms);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
+
+// FNV-1a 32-bit，穩定、純函數、冇 random，輸出固定 8 位 hex。
+const recipeIdHash = (id: unknown): string => {
+  const s = String(id ?? "");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return (`00000000${h.toString(16)}`).slice(-8);
+};
+
 const compareRecipeNewest = (a: any, b: any): number => {
-  const ta = parseRecipeTime(a?.createdAt);
-  const tb = parseRecipeTime(b?.createdAt);
-  if (ta !== null && tb !== null) {
-    return ta !== tb ? tb - ta : compareRecipeIdDesc(a, b);
+  const da = recipeDayKey(a?.createdAt);
+  const db = recipeDayKey(b?.createdAt);
+  if (da !== null && db !== null) {
+    if (da !== db) return da > db ? -1 : 1;
+    const ha = recipeIdHash(a?.id);
+    const hb = recipeIdHash(b?.id);
+    return ha === hb ? 0 : ha < hb ? -1 : 1;
   }
   // 有 createdAt 嘅一定排喺冇嘅前面。
-  if (ta === null && tb === null) return compareRecipeIdDesc(a, b);
-  return ta !== null ? -1 : 1;
+  if (da === null && db === null) {
+    const ha = recipeIdHash(a?.id);
+    const hb = recipeIdHash(b?.id);
+    return ha === hb ? 0 : ha < hb ? -1 : 1;
+  }
+  return da !== null ? -1 : 1;
 };
 
 const compareRecipeUpdated = (a: any, b: any): number => {
