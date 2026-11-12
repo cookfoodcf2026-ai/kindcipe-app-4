@@ -3,7 +3,6 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  QUANTITY_ZH_TO_KEY,
   UNKNOWN_UNIT_FALLBACK_KEY,
   UNIT_ZH_TO_KEY,
   isQuantityLabel,
@@ -45,6 +44,18 @@ test("all mapped unit and quantity keys exist in four locales", () => {
     const data = locale(lang);
     for (const key of unitKeys) assert.ok(data.enums?.unit?.[key!], `${lang} missing enums.unit.${key}`);
     for (const key of quantityKeys) assert.ok(data.enums?.quantity?.[key!], `${lang} missing enums.quantity.${key}`);
+  }
+});
+
+test("every count-driven unit plural in en exists in all four locales", () => {
+  const en = locale("en");
+  const pluralKeys = Object.keys(en.enums?.unitPlural ?? {});
+  assert.ok(pluralKeys.length > 0, "en has no enums.unitPlural keys");
+  for (const lang of LOCALES) {
+    const data = locale(lang);
+    for (const key of pluralKeys) {
+      assert.ok(data.enums?.unitPlural?.[key], `${lang} missing enums.unitPlural.${key}`);
+    }
   }
 });
 
