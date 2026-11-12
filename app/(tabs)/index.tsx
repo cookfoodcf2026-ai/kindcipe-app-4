@@ -33,7 +33,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { getRecipeCardImageRatio } from "@/lib/recipe-card-layout";
 import { DateUtil } from "@/src/lib/DateUtil";
 import { friendlyError } from "@/lib/errors";
-import { parsePlanError } from "@/lib/limitErrors";
+import { limitPaywallFeature, parsePlanError } from "@/lib/limitErrors";
 import { summarizeShoppingBatch, resolveShoppingPlannedDate } from "@/lib/shoppingBatch";
 import { resolvePlannerBuyDate } from "@/lib/shoppingDate";
 import { withItemPlannedDate } from "@/lib/shoppingPayload";
@@ -67,6 +67,108 @@ const isImportedRecipe = (r: any): boolean =>
 // 「AI 生成」= 新欄位優先，舊資料靠 tag 兼容
 const isAIRecipe = (r: any): boolean =>
   !!r?.isAiGenerated || (Array.isArray(r?.tags) && r.tags.includes("AI 生成"));
+
+// ── AI 補材料（詳情頁 + 首頁草稿卡共用同一個 handler） ──────────────
+export const AI_FILL_INGREDIENTS_TAG = "AI 補寫材料";
+
+/** 平台 placeholder 菜名唔可以送去 server，要先用戶輸入菜名。 */
+export function isPlaceholderRecipeName(name: unknown): boolean {
+  const value = String(name ?? "").trim();
+  if (!value) return true;
+  const lower = value.toLowerCase();
+  return (
+    lower.startsWith("facebookimport_") ||
+    lower === "fb 食譜" ||
+    lower === "facebook recipe"
+  );
+}
+
+export type AiFillIngredient = { name: string; quantity?: string; unit?: string };
+
+/**
+ * 呼叫 aiRecipe.fillIngredients，再用 recipes.updateUser（同 fillSteps 用嚟
+ * 寫 tag 嘅同一個 mutation）寫入材料同 tag。唔會 touch steps／isAiGenerated／
+ * source 欄位；endpoint 失敗或寫入失敗都唔會留低半份材料。
+ */
+export async function fillRecipeIngredients(args: {
+  mutate: (input: {
+    name: string;
+    description?: string;
+    sourceUrl?: string;
+    sourceText?: string;
+  }) => Promise<any>;
+  utils: any;
+  id: string | number;
+  name: string;
+  description?: string;
+  sourceUrl?: string;
+  sourceText?: string;
+  existingTags?: string[];
+  existingRecipe?: any;
+}): Promise<AiFillIngredient[]> {
+  const res: any = await args.mutate({
+    name: args.name,
+    description: args.description || undefined,
+    sourceUrl: args.sourceUrl || undefined,
+    sourceText: args.sourceText || undefined,
+  });
+  const ingredients: AiFillIngredient[] = Array.isArray(res?.ingredients)
+    ? res.ingredients
+        .map((ing: any) => ({
+          name: String(ing?.name ?? "").trim(),
+          quantity:
+            ing?.quantity == null || String(ing.quantity).trim() === ""
+              ? undefined
+              : String(ing.quantity),
+          unit:
+            ing?.unit == null || String(ing.unit).trim() === ""
+              ? undefined
+              : String(ing.unit),
+        }))
+        .filter((ing: AiFillIngredient) => ing.name)
+    : [];
+  if (ingredients.length === 0) throw new Error("EMPTY_INGREDIENTS");
+
+  const tags: string[] = [];
+  for (const raw of [...(args.existingTags ?? []), AI_FILL_INGREDIENTS_TAG]) {
+    const tag = String(raw ?? "").trim();
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  }
+
+  // 同 updateTagsM / fillSteps 睇齊：保留現有 steps 同基本欄位，只換 materials + tags。
+  // 唔會憑空寫新 steps（AI 只負責材料），亦唔會掂 source 欄位。
+  const base: any = args.existingRecipe ?? {};
+  const existingSteps = Array.isArray(base.steps)
+    ? base.steps
+        .map((step: any) => ({
+          instruction: typeof step === "string" ? step : (step?.instruction ?? ""),
+          duration: typeof step === "string" ? 0 : (step?.duration ?? 0),
+        }))
+        .filter((step: any) => String(step.instruction ?? "").trim())
+    : [];
+
+  await args.utils.client.recipes.updateUser.mutate({
+    id: args.id,
+    name: args.name,
+    description: base.description ?? "",
+    cookTime: base.cookTime ?? 30,
+    servings: base.servings ?? 4,
+    difficulty: base.difficulty ?? "中等",
+    recipeCategory: base.recipeCategory ?? "mixed",
+    ingredients,
+    steps: existingSteps,
+    tags,
+  } as any);
+
+  await Promise.all([
+    args.utils.recipes.getById.invalidate(),
+    args.utils.recipes.listUser.invalidate(),
+    args.utils.recipes.search.invalidate(),
+    args.utils.family.usage.invalidate(),
+  ]);
+
+  return ingredients;
+}
 
 // 排序 tiebreaker：id 由大到細，保證同分／缺欄位時次序固定，唔會隨機跳。
 const compareRecipeIdDesc = (a: any, b: any): number => {
@@ -820,6 +922,62 @@ export default function RecipesTab() {
       setFillingDraftId(null);
     }
   };
+
+  // AI 補材料（同 app/recipe/[id].tsx 共用 fillRecipeIngredients）
+  const fillIngredientsM = trpc.aiRecipe.fillIngredients.useMutation();
+  const [fillingIngredientsId, setFillingIngredientsId] = useState<string | null>(null);
+  const [fillPromptDraft, setFillPromptDraft] = useState<any | null>(null);
+  const [fillPromptName, setFillPromptName] = useState("");
+
+  const runFillDraftIngredients = async (draft: any, hintName?: string) => {
+    if (fillingIngredientsId) return;
+    const id = String(draft?.id ?? "").replace(/^user_/, "");
+    if (!/^\d+$/.test(id)) {
+      showToast(t("呢張草稿冇有效 ID，請用「我自己填」" as any));
+      return;
+    }
+    const name = String(hintName ?? draft?.name ?? "").trim();
+    if (isPlaceholderRecipeName(name)) {
+      setFillPromptDraft(draft);
+      setFillPromptName("");
+      return;
+    }
+    setFillingIngredientsId(id);
+    try {
+      await fillRecipeIngredients({
+        mutate: fillIngredientsM.mutateAsync as any,
+        utils,
+        id,
+        name,
+        description: draft?.description ?? undefined,
+        sourceUrl: draft?.sourceUrl ?? undefined,
+        sourceText: draft?.sourceText ?? undefined,
+        existingTags: Array.isArray(draft?.tags) ? draft.tags : [],
+        existingRecipe: draft,
+      });
+      showToast(t("recipe.aiFillIngredientsDone" as any));
+    } catch (e: any) {
+      const parsed = parsePlanError(e);
+      if (parsed.kind === "limit_reached") {
+        setPaywallFeature(limitPaywallFeature(parsed));
+        setShowPaywall(true);
+        return;
+      }
+      Alert.alert(t("recipe.aiFillIngredients" as any), friendlyError(e));
+    } finally {
+      setFillingIngredientsId(null);
+    }
+  };
+
+  const submitFillPrompt = () => {
+    const draft = fillPromptDraft;
+    const name = fillPromptName.trim();
+    if (!draft || !name || isPlaceholderRecipeName(name)) return;
+    setFillPromptDraft(null);
+    setFillPromptName("");
+    void runFillDraftIngredients(draft, name);
+  };
+
   const [shoppingConfirmCount, setShoppingConfirmCount] = useState<number | null>(null);
   const isKolSourceUnsupported = useMemo(() => {
     if (viewMode !== "kol" || !isSearchError) return false;
@@ -1084,15 +1242,25 @@ export default function RecipesTab() {
           stepCount: steps.length,
           stepsIncomplete: (item as any).steps_incomplete === true,
         });
-        // OC：缺材料就唔可以叫 AI 寫煮法（只會憑空生成），一律先開編輯器補材料。
+        // OC：缺材料就唔可以叫 AI 寫煮法（只會憑空生成），一律先補材料。
         if (ingredients.length === 0) {
+          const aiBusy = fillingIngredientsId === draftId;
           return (
-            <Pressable
-              onPress={() => router.push({ pathname: "/recipe-editor", params: { id: draftId } } as any)}
-              style={{ marginTop: 6, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "800", color: "#8A4B08" }}>{t("home.fillIngredients" as any)}</Text>
-            </Pressable>
+            <View style={{ marginTop: 6, flexDirection: "row", gap: 6 }}>
+              <Pressable
+                onPress={() => router.push({ pathname: "/recipe-editor", params: { id: draftId } } as any)}
+                style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: "#FFF4E5", borderWidth: 1, borderColor: "#F5C18F" }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#8A4B08" }}>{t("home.fillIngredients" as any)}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void runFillDraftIngredients(item)}
+                disabled={aiBusy}
+                style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: "center", backgroundColor: aiBusy ? "#C9B79F" : "#183B56" }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "800", color: "#fff" }}>{aiBusy ? t("recipe.aiFillingIngredients" as any) : t("recipe.aiFillIngredients" as any)}</Text>
+              </Pressable>
+            </View>
           );
         }
         if (needsAiSteps) {
@@ -1804,6 +1972,54 @@ export default function RecipesTab() {
           showToast(t("已跳過食材" as any), "info");
         }}
       />
+
+      {/* AI 補材料：placeholder 菜名先用戶輸入 */}
+      <Modal visible={!!fillPromptDraft} transparent animationType="slide" onRequestClose={() => setFillPromptDraft(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <View style={s.planOverlay}>
+            <View style={s.planSheet}>
+              <View style={s.planHandle} />
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#183B56", marginBottom: 8 }}>{t("recipe.aiFillIngredients" as any)}</Text>
+              <Text style={{ fontSize: 13, color: "#6B7280", lineHeight: 20, marginBottom: 14 }}>{t("recipe.aiFillIngredientsHint" as any)}</Text>
+              <TextInput
+                value={fillPromptName}
+                onChangeText={setFillPromptName}
+                placeholder={t("editor.namePlaceholder" as any)}
+                placeholderTextColor="#B8B8B8"
+                style={{ backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, fontSize: 15, color: "#1C1C1E", borderWidth: 1.5, borderColor: "#DDD6FE", marginBottom: 16 }}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={submitFillPrompt}
+              />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#F3F4F6" }}
+                  onPress={() => { setFillPromptDraft(null); setFillPromptName(""); }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#374151" }}>{t("取消" as any)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#183B56", opacity: fillPromptName.trim() && !isPlaceholderRecipeName(fillPromptName) ? 1 : 0.5 }}
+                  disabled={!fillPromptName.trim() || isPlaceholderRecipeName(fillPromptName)}
+                  onPress={submitFillPrompt}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#fff" }}>{t("確定" as any)}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* AI 補材料中：blocking spinner（15–30 秒） */}
+      <Modal visible={!!fillingIngredientsId} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={[s.planOverlay, { alignItems: "center", justifyContent: "center" }]}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 28, paddingVertical: 24, alignItems: "center", gap: 12 }}>
+            <ActivityIndicator size="large" color="#7C3AED" />
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#183B56" }}>{t("recipe.aiFillingIngredients" as any)}</Text>
+          </View>
+        </View>
+      </Modal>
 
       <PaywallModal
         visible={showPaywall}

@@ -55,11 +55,12 @@ import { isSeasoning, isWaterIngredient, calcAdjustedQty, NON_SCALABLE_CATS } fr
 import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import { getLocalizedTip } from "@/lib/tipLocalization";
 import { friendlyError } from "@/lib/errors";
-import { parsePlanError } from "@/lib/limitErrors";
+import { limitPaywallFeature, parsePlanError } from "@/lib/limitErrors";
 import PaywallModal from "@/components/PaywallModal";
 import { sanitizeIngredients } from "@/lib/ingredientSanitize";
 import { buildRecipeShareUrlFor } from "@/lib/platform";
 import { shouldOfferAiFillSteps } from "@/lib/aiFillSteps";
+import { fillRecipeIngredients, isPlaceholderRecipeName } from "@/app/(tabs)/index";
 
 export const isValidHttpUrl = (value: unknown): value is string =>
   typeof value === "string" &&
@@ -183,6 +184,10 @@ export default function RecipeDetailScreen() {
   const [aiEditPrompt, setAIEditPrompt] = useState("");
   const [aiEditResult, setAIEditResult] = useState<string | null>(null);
   const [aiEditPreview, setAIEditPreview] = useState<any>(null);
+  // AI 補材料
+  const [showFillIngredientsPrompt, setShowFillIngredientsPrompt] = useState(false);
+  const [fillIngredientsName, setFillIngredientsName] = useState("");
+  const [isFillingIngredients, setIsFillingIngredients] = useState(false);
   // Added to cart feedback
   const [lastAddedShoppingDate, setLastAddedShoppingDate] = useState<string | null>(null);
   // Ingredient picker for add-to-cart
@@ -680,6 +685,52 @@ export default function RecipeDetailScreen() {
     },
     onError: (e: any) => Alert.alert(t("補齊失敗" as any), friendlyError(e)),
   });
+
+  // AI 補材料（同首頁草稿卡共用 fillRecipeIngredients）
+  const fillIngredientsM = trpc.aiRecipe.fillIngredients.useMutation();
+
+  const runFillIngredients = async (hintName?: string) => {
+    if (isFillingIngredients) return;
+    const name = String(hintName ?? recipe?.name ?? "").trim();
+    if (isPlaceholderRecipeName(name)) {
+      setFillIngredientsName("");
+      setShowFillIngredientsPrompt(true);
+      return;
+    }
+    setIsFillingIngredients(true);
+    try {
+      await fillRecipeIngredients({
+        mutate: fillIngredientsM.mutateAsync as any,
+        utils,
+        id: recipeNumericId,
+        name,
+        description: (recipe as any)?.description ?? undefined,
+        sourceUrl: sourceUrl ?? undefined,
+        sourceText: (recipe as any)?.sourceText ?? undefined,
+        existingTags: localTags ?? (recipe as any)?.tags ?? [],
+        existingRecipe: recipe,
+      });
+      showToast(t("recipe.aiFillIngredientsDone" as any), "success");
+    } catch (e: any) {
+      const parsed = parsePlanError(e);
+      if (parsed.kind === "limit_reached") {
+        setPaywallFeature(limitPaywallFeature(parsed));
+        setShowPaywall(true);
+        return;
+      }
+      Alert.alert(t("recipe.aiFillIngredients" as any), friendlyError(e));
+    } finally {
+      setIsFillingIngredients(false);
+    }
+  };
+
+  const submitFillIngredientsPrompt = () => {
+    const name = fillIngredientsName.trim();
+    if (!name || isPlaceholderRecipeName(name)) return;
+    setShowFillIngredientsPrompt(false);
+    setFillIngredientsName("");
+    void runFillIngredients(name);
+  };
 
   const addPlanM = trpc.mealPlan.add.useMutation({
     onSuccess: (result) => {
@@ -1281,6 +1332,12 @@ export default function RecipeDetailScreen() {
                 <Ionicons name="sparkles" size={14} color="#7C3AED" />
                 <Text style={s.btnAITxt}>AI Edit</Text>
               </TouchableOpacity>
+              {isUserRecipe && adjustedIngredients.length === 0 && (
+                <TouchableOpacity style={s.btnAI} disabled={isFillingIngredients} onPress={() => void runFillIngredients()}>
+                  <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                  <Text style={s.btnAITxt}>{isFillingIngredients ? t("recipe.aiFillingIngredients" as any) : t("recipe.aiFillIngredients" as any)}</Text>
+                </TouchableOpacity>
+              )}
               {canAiFillSteps && (
                 <TouchableOpacity style={s.btnAI} disabled={fillStepsM.isPending} onPress={() => {
                   fillStepsM.mutate({
@@ -2490,6 +2547,59 @@ export default function RecipeDetailScreen() {
           onGoShopping={() => { setShoppingConfirmCount(null); router.push("/(tabs)/shopping" as any); }}
           onClose={() => setShoppingConfirmCount(null)}
         />
+
+        {/* AI 補材料：placeholder 菜名先用戶輸入 */}
+        <Modal visible={showFillIngredientsPrompt} transparent animationType="slide" onRequestClose={() => setShowFillIngredientsPrompt(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+            <View style={s.overlay}>
+              <View style={s.sheet}>
+                <View style={s.sheetHandle} />
+                <View style={s.sheetHeader}>
+                  <Text style={s.sheetTitle}>{t("recipe.aiFillIngredients" as any)}</Text>
+                  <TouchableOpacity onPress={() => setShowFillIngredientsPrompt(false)}>
+                    <Ionicons name="close" size={22} color={TEXT} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 13, color: SUB, lineHeight: 20, marginBottom: 14 }}>{t("recipe.aiFillIngredientsHint" as any)}</Text>
+                <TextInput
+                  value={fillIngredientsName}
+                  onChangeText={setFillIngredientsName}
+                  placeholder={t("editor.namePlaceholder" as any)}
+                  placeholderTextColor={HINT}
+                  style={{ backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, fontSize: 15, color: TEXT, borderWidth: 1.5, borderColor: "#DDD6FE", marginBottom: 16 }}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={submitFillIngredientsPrompt}
+                />
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#F3F4F6" }}
+                    onPress={() => setShowFillIngredientsPrompt(false)}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: "#374151" }}>{t("取消" as any)}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#183B56", opacity: fillIngredientsName.trim() && !isPlaceholderRecipeName(fillIngredientsName) ? 1 : 0.5 }}
+                    disabled={!fillIngredientsName.trim() || isPlaceholderRecipeName(fillIngredientsName)}
+                    onPress={submitFillIngredientsPrompt}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "800", color: "#fff" }}>{t("確定" as any)}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* AI 補材料中：blocking spinner（15–30 秒） */}
+        <Modal visible={isFillingIngredients} transparent animationType="fade" onRequestClose={() => {}}>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 18, paddingHorizontal: 28, paddingVertical: 24, alignItems: "center", gap: 12 }}>
+              <ActivityIndicator size="large" color="#7C3AED" />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: BRAND }}>{t("recipe.aiFillingIngredients" as any)}</Text>
+            </View>
+          </View>
+        </Modal>
 
         <PaywallModal
           visible={showPaywall}
