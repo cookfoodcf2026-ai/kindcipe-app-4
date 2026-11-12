@@ -111,7 +111,7 @@ const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly
 const EMPTY_RECIPE_LIST: AIRecipe[] = [];
 const splitAvoidList = (value: string) => value.split("、").map((item) => item.trim()).filter(Boolean);
 // 食譜庫換卡 watchdog：實測 ~0.5 秒，20 秒係保守上限，卡住就解鎖。
-const LIBRARY_SWAP_TIMEOUT_MS = 20_000;
+const LIBRARY_SWAP_TIMEOUT_MS = 15_000;
 // AI 換卡 watchdog：實測 15–25 秒，太短會喺生成途中解鎖。
 const AI_SWAP_TIMEOUT_MS = 60_000;
 
