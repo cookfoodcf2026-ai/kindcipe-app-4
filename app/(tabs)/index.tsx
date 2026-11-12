@@ -81,14 +81,14 @@ const parseRecipeTime = (value: unknown): number | null => {
   return Number.isFinite(ms) ? ms : null;
 };
 
-// 先按本地日曆日（YYYY-MM-DD）新到舊；同日回 0，交由 stable sort 保留 server 批次次序。
+// 先按 UTC 日曆日（YYYY-MM-DD）新到舊；同日回 0，交由 stable sort 保留 server 批次次序。
 const recipeDayKey = (value: unknown): string | null => {
   const ms = parseRecipeTime(value);
   if (ms === null) return null;
   const d = new Date(ms);
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${month}-${day}`;
 };
 
 const compareRecipeNewest = (a: any, b: any): number => {
