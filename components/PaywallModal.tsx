@@ -16,6 +16,7 @@ import {
   Linking,
   ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import Constants from "expo-constants";
@@ -480,6 +481,17 @@ export default function PaywallModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity style={[styles.sheet, isDesktop && styles.sheetDesktop]} activeOpacity={1} onPress={() => {}}>
+          <View style={styles.closeRow}>
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.close")}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={22} color="#5F6F80" />
+            </TouchableOpacity>
+          </View>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <View style={styles.handle} />
 
@@ -589,6 +601,8 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end", alignItems: "center" },
   sheet: { width: "100%", maxHeight: "94%", backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   sheetDesktop: { maxWidth: 960, borderRadius: 24, marginBottom: 40, maxHeight: "90%" },
+  closeRow: { alignItems: "flex-end", paddingHorizontal: 12, paddingTop: 8 },
+  closeBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   scroll: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40 },
   handle: { width: 40, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
   heroRow: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
