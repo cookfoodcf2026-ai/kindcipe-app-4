@@ -110,6 +110,10 @@ type MealPlanPreferences = {
 const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, timeModes: [], dislikes: "", allergens: "" };
 const EMPTY_RECIPE_LIST: AIRecipe[] = [];
 const splitAvoidList = (value: string) => value.split("、").map((item) => item.trim()).filter(Boolean);
+// 食譜庫換卡 watchdog：實測 ~0.5 秒，20 秒係保守上限，卡住就解鎖。
+const LIBRARY_SWAP_TIMEOUT_MS = 20_000;
+// AI 換卡 watchdog：實測 15–25 秒，太短會喺生成途中解鎖。
+const AI_SWAP_TIMEOUT_MS = 60_000;
 
 // ─── Recipe Validation ───────────────────────────────────
 // A valid recipe MUST have: name (2-50 chars), ≥1 ingredient, ≥1 step
@@ -1143,8 +1147,34 @@ export default function AIChefScreen() {
   // 收藏中狀態（顯示嗰張卡個 spinner）
   const [favoritingName, setFavoritingName] = useState<string>("");
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+  // 同步鎖：state 未 flush 前，double tap 都唔會再入 swap。
+  const swapInFlightRef = useRef(false);
+  const swapWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearSwapWatchdog = useCallback(() => {
+    if (swapWatchdogRef.current) {
+      clearTimeout(swapWatchdogRef.current);
+      swapWatchdogRef.current = null;
+    }
+  }, []);
+  const clearSwapLock = useCallback(() => {
+    clearSwapWatchdog();
+    swapInFlightRef.current = false;
+    setSwappingIndex(null);
+  }, [clearSwapWatchdog]);
+  // watchdog 一到就強制解鎖，避免 stalled request 令換卡永久鎖死。
+  const armSwapWatchdog = useCallback((ms: number) => {
+    clearSwapWatchdog();
+    swapWatchdogRef.current = setTimeout(() => {
+      swapWatchdogRef.current = null;
+      swapInFlightRef.current = false;
+      setSwappingIndex(null);
+    }, ms);
+  }, [clearSwapWatchdog]);
+  useEffect(() => () => clearSwapWatchdog(), [clearSwapWatchdog]);
+  // 新一批卡安裝 → 清走上一批嘅換卡鎖／watchdog。
+  useEffect(() => { clearSwapLock(); }, [recommendedRecipes, clearSwapLock]);
   // 換卡時食譜庫（放寬後）仍然 0 張 → 喺張卡位置長期顯示兩個選擇，唔再用 8 秒 toast。
-  const [swapNoCards, setSwapNoCards] = useState<{ index: number; recipeName: string } | null>(null);
+  const [swapNoCards, setSwapNoCards] = useState<{ index: number; recipeName: string; cardId?: string } | null>(null);
   // 記錄已換過嘅食譜名稱，避免重複
   const [swappedRecipeNames, setSwappedRecipeNames] = useState<Set<string>>(new Set());
   // 記錄本次 chat 已見過嘅食譜名稱，避免同一個 session 反覆輪迴
@@ -2031,6 +2061,7 @@ export default function AIChefScreen() {
     setSessionSeenRecipeNames([]);
     setSwappedRecipeNames(new Set());
     setSwapNoCards(null);
+    clearSwapLock();
     isSoupModeRef.current = false;
     setMealResult(null);
     setMealStep("idle");
@@ -2059,6 +2090,7 @@ export default function AIChefScreen() {
     setSessionSeenRecipeNames([]);
     setSwappedRecipeNames(new Set());
     setSwapNoCards(null);
+    clearSwapLock();
     isSoupModeRef.current = false;
     setMealResult(null);
     setMealStep("idle");
@@ -3618,6 +3650,7 @@ export default function AIChefScreen() {
   };
 
   const replaceRecipeAtIndex = (index: number, newRecipe: AIRecipe) => {
+    setSwapNoCards(null);
     preserveSelectionOnNextMealResultRef.current = true;
     setRecommendedRecipes(prev => prev.map((r, i) => i === index ? newRecipe : r));
     setMealResult(prev => {
@@ -3634,8 +3667,10 @@ export default function AIChefScreen() {
     opts?: { aiFallback?: boolean; relaxRole?: boolean },
   ) => {
     // 全域鎖：任何一張換卡進行中，唔准再撳其他卡（避免並發交錯覆寫）
-    if (swappingIndex !== null) return;
+    if (swappingIndex !== null || swapInFlightRef.current) return;
+    swapInFlightRef.current = true;
     setSwapNoCards(null);
+    armSwapWatchdog(recipe.source === "ai" || opts?.aiFallback ? AI_SWAP_TIMEOUT_MS : LIBRARY_SWAP_TIMEOUT_MS);
     trackCardAction("swap", recipe, index);
     const category = recipe.recipeCategory || "其他";
     const otherNames = recommendedRecipes
@@ -3799,6 +3834,7 @@ export default function AIChefScreen() {
 
         if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && passesSwapGuard(candidate)) {
           replaceRecipeAtIndex(index, candidate);
+          setSwapNoCards(null);
           showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" }));
           recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
           setSwappedRecipeNames(prev => {
@@ -3811,6 +3847,7 @@ export default function AIChefScreen() {
           if (fallback && getDishType(fallback) === cardDishType && passesSwapGuard(fallback)) {
             showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             replaceRecipeAtIndex(index, fallback);
+            setSwapNoCards(null);
             showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             recordSeenRecipes([fallback]);
             setSwappedRecipeNames(prev => {
@@ -3831,6 +3868,8 @@ export default function AIChefScreen() {
           [{ text: t("確定" as any) }]
         );
       } finally {
+        clearSwapWatchdog();
+        swapInFlightRef.current = false;
         setSwappingIndex(null);
       }
     };
@@ -3863,10 +3902,13 @@ export default function AIChefScreen() {
       }
       if (!libraryPicked) libraryPicked = pickLibraryFallback();
     } finally {
+      clearSwapWatchdog();
+      swapInFlightRef.current = false;
       setSwappingIndex(null);
     }
     if (libraryPicked && passesSwapGuard(libraryPicked)) {
       replaceRecipeAtIndex(index, libraryPicked);
+      setSwapNoCards(null);
       recordSeenRecipes([libraryPicked]);
       recordSwappedName(libraryPicked.name);
       showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: getDisplayName(libraryPicked.name, libraryPicked.nameEn, libraryPicked.nameFil, libraryPicked.nameId).primary || "…" }));
@@ -3875,7 +3917,7 @@ export default function AIChefScreen() {
 
     if (lastResponse?.status === "no_cards" || opts?.relaxRole) {
       setContractAiBlocked(isQuotaBlocked(lastResponse?.quota));
-      setSwapNoCards({ index, recipeName: recipe.name });
+      setSwapNoCards({ index, recipeName: recipe.name, cardId: recipe.cardId });
       if (opts?.relaxRole) addBotMessage(t("aiChef.swapNoLibrary" as any));
       return;
     }
@@ -5743,7 +5785,10 @@ export default function AIChefScreen() {
                               )}
                             </TouchableOpacity>
                           </View>
-                          {swapNoCards?.index === i && (
+                          {swapNoCards?.index === i &&
+                            recommendedRecipes[i]?.name === swapNoCards.recipeName &&
+                            (!swapNoCards.cardId || recommendedRecipes[i]?.cardId === swapNoCards.cardId) &&
+                            recommendedRecipes[i]?.source !== "ai" && (
                             <View style={s.swapNoCardsBox} testID={`ai-chef-recipe-${i}-swap-no-cards`}>
                               <Text style={s.swapNoCardsTxt}>{t("aiChef.swapNoLibrary" as any)}</Text>
                               <TouchableOpacity
