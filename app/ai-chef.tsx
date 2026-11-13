@@ -61,6 +61,13 @@ import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnab
 import { canva } from "@/app/styles/colors";
 import { mergeAppendedCards } from "@/lib/appendCards";
 import { ingredientsSignature } from "@/lib/recipeSignature";
+import {
+  MAX_CARD_HISTORY,
+  cardSetKey,
+  matchCardsFromSessions,
+  pushCardHistory,
+  sanitizeCardHistory,
+} from "@/lib/cardHistory";
 import { chatSessionSignature } from "@/lib/chatSessionSignature";
 import { detectMealIntent, detectFlavorConstraint } from "@/lib/mealIntent";
 
@@ -945,7 +952,7 @@ export default function AIChefScreen() {
   useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   const chatSessionIdRef = useRef<string>("");
   const chatGenerationRef = useRef(0);
-  const chatRequestMetaRef = useRef(new Map<string, { sessionId: string; generation: number }>());
+  const chatRequestMetaRef = useRef(new Map<string, { sessionId: string; generation: number; historyMax?: number }>());
   const visionContextRef = useRef<(VisionAnalysis & { imageKey?: string }) | null>(null);
   const updateMessagesFor = useCallback((sessionId: string, fn: (prev: Message[]) => Message[]) => {
     setSessions(prev => {
@@ -1075,6 +1082,50 @@ export default function AIChefScreen() {
   const [cardHistory, setCardHistory] = useState<CardHistoryEntry[]>([]);
   const [showCardHistory, setShowCardHistory] = useState(false);
   const CARD_HISTORY_KEY = (uid: string | number) => `@kindcipe:ai-card-history:${uid}`;
+  const cardHistoryRef = useRef<CardHistoryEntry[]>([]);
+  const historyReadyRef = useRef(false);
+  const userIdRef = useRef(user?.id);
+  useEffect(() => {
+    userIdRef.current = user?.id;
+    // Never carry one account's card history into another account.
+    cardHistoryRef.current = [];
+    setCardHistory([]);
+    setShowCardHistory(false);
+    historyReadyRef.current = false;
+  }, [user?.id]);
+
+  const persistCardHistory = (next: CardHistoryEntry[]) => {
+    cardHistoryRef.current = next;
+    setCardHistory(next);
+    const uid = userIdRef.current;
+    if (uid) AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+  };
+
+  // Explicit single-writer: callers decide which operations are a new "group".
+  // swap / hydrate / restore / clear only change UI, never this history.
+  const commitCardHistory = (cards: AIRecipe[], opts?: { operation?: "append"; max?: number }) => {
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const prev = cardHistoryRef.current;
+    // `max` is the card cap that matches the rendered UI (e.g. meal flow slices
+    // to 4); history itself always keeps at most MAX_CARD_HISTORY groups.
+    const visibleCards = opts?.max != null ? cards.slice(0, opts.max) : cards;
+    const next = pushCardHistory(prev, visibleCards, {
+      isValid: isValidRecipe,
+      max: MAX_CARD_HISTORY,
+      operation: opts?.operation,
+      idFactory: generateId,
+    });
+    if (next === prev) return;
+    cardHistoryRef.current = next;
+    setCardHistory(next);
+    if (userIdRef.current !== uid) return;
+    // Before the stored history has loaded, keep the next value in memory only;
+    // the load effect will merge it with the stored list instead of losing it.
+    if (!historyReadyRef.current) return;
+    AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+  };
+
   const pendingPostShoppingDateRef = useRef<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = (text: string, action?: { label: string; onPress: () => void }, duration = 2000, tone: "success" | "info" | "error" = "success") => {
@@ -1115,32 +1166,6 @@ export default function AIChefScreen() {
     }
     return false;
   };
-
-  useEffect(() => {
-    if (!user?.id) return;
-    AsyncStorage.getItem(CARD_HISTORY_KEY(user.id))
-      .then((raw) => {
-        try {
-          const parsed = raw ? JSON.parse(raw) : [];
-          if (Array.isArray(parsed)) setCardHistory(parsed.slice(0, 3));
-        } catch { /* ignore invalid cache */ }
-      })
-      .catch(() => {});
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const cards = recommendedRecipes.filter(isValidRecipe);
-    const names = Array.from(new Set(cards.map((r) => String(r.name || "").trim()).filter(Boolean)));
-    if (names.length === 0) return;
-    const key = names.join("|");
-    setCardHistory((prev) => {
-      if (prev[0]?.key === key) return prev;
-      const next: CardHistoryEntry[] = [{ id: `${Date.now()}`, key, names, at: Date.now(), cards, version: 2 }, ...prev].slice(0, 3);
-      AsyncStorage.setItem(CARD_HISTORY_KEY(user.id), JSON.stringify(next)).catch(() => {});
-      return next;
-    });
-  }, [recommendedRecipes, user?.id]);
 
   // ─── Shopping lists after AI plan ─────────────────────
   const [shopPlannedDate, setShopPlannedDate] = useState<string>(todayISO());
@@ -1523,6 +1548,7 @@ export default function AIChefScreen() {
       const requestMeta = variables?.clientMessageId
         ? chatRequestMetaRef.current.get(variables.clientMessageId)
         : undefined;
+      const historyMax = requestMeta?.historyMax;
       if (variables?.clientMessageId) chatRequestMetaRef.current.delete(variables.clientMessageId);
       delete pendingChatRequestRef.current[chatRequestFingerprint(variables ?? {})];
       if (requestMeta && requestMeta.generation !== chatGenerationRef.current) return;
@@ -1620,6 +1646,10 @@ export default function AIChefScreen() {
         : recipes;
       setSwapNoCards(null);
       setRecommendedRecipes(mergedRecipes);
+      commitCardHistory(mergedRecipes, {
+        operation: isAppend ? "append" : undefined,
+        max: historyMax,
+      });
 
       // 0 卡時一定要有出路（實測「有冇蔥油餅食譜」後端 status=text, alternatives=3,
       // quickReplies 係空，用戶見到一段文字但冇掣）。
@@ -1707,7 +1737,7 @@ export default function AIChefScreen() {
   });
 
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
-  const mutateChat = (payload: any, options?: any, retryToken?: string) => {
+  const mutateChat = (payload: any, options?: any, retryToken?: string, historyMax?: number) => {
     chatSessionIdRef.current = activeChatIdRef.current;
     setIncompleteContract(null);
     const requestBody = {
@@ -1723,6 +1753,7 @@ export default function AIChefScreen() {
     chatRequestMetaRef.current.set(clientMessageId, {
       sessionId: chatSessionIdRef.current,
       generation: chatGenerationRef.current,
+      ...(historyMax != null ? { historyMax } : {}),
     });
     pendingChatRequestRef.current[fingerprint] = clientMessageId;
     const pendingKeys = Object.keys(pendingChatRequestRef.current);
@@ -1804,6 +1835,43 @@ export default function AIChefScreen() {
         // have been created/updated from the web app). Otherwise keep local and
         // upload local-only sessions once.
         await migrateLocalIfNeeded(all);
+
+        // Load card history together with sessions so legacy (names-only) entries
+        // can be upgraded from local session cards before any commit overwrites it.
+        try {
+          const rawHistory = await AsyncStorage.getItem(CARD_HISTORY_KEY(user.id));
+          const stored = sanitizeCardHistory<AIRecipe>(rawHistory ? JSON.parse(rawHistory) : []);
+          if (userIdRef.current !== user.id) {
+            // Account changed while this read was in flight; don't leak history.
+            historyReadyRef.current = true;
+          } else {
+            let backfilled = false;
+            const upgraded = stored.map((entry) => {
+              if (entry.cards && entry.cards.length > 0) return entry;
+              const matched = matchCardsFromSessions(entry.names, all, isValidRecipe, entry.at);
+              if (!matched) return entry;
+              backfilled = true;
+              return { ...entry, cards: matched, version: 2, key: cardSetKey(matched) };
+            });
+            const pending = cardHistoryRef.current;
+            const mergedByKey = new Map<string, CardHistoryEntry>();
+            for (const entry of [...upgraded, ...pending].sort((a, b) => a.at - b.at)) {
+              mergedByKey.set(entry.key, entry);
+            }
+            const merged = [...mergedByKey.values()]
+              .sort((a, b) => b.at - a.at)
+              .slice(0, MAX_CARD_HISTORY);
+            historyReadyRef.current = true;
+            if (backfilled || pending.length > 0) {
+              persistCardHistory(merged);
+            } else {
+              cardHistoryRef.current = merged;
+              setCardHistory(merged);
+            }
+          }
+        } catch {
+          historyReadyRef.current = true;
+        }
 
         const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
@@ -2175,11 +2243,26 @@ export default function AIChefScreen() {
             if (cloudSyncTimer.current) clearTimeout(cloudSyncTimer.current);
             cloudSyncTimer.current = null;
             pendingCloudSyncRef.current = null;
+            // Invalidate any in-flight chat response so it cannot restore cards/history.
+            chatGenerationRef.current += 1;
+            const uid = user?.id;
+            if (uid) {
+              await AsyncStorage.removeItem(CARD_HISTORY_KEY(uid));
+              await AsyncStorage.removeItem(OLD_CHAT_KEY(uid));
+              await AsyncStorage.removeItem(SESSIONS_KEY(uid));
+              await AsyncStorage.removeItem(ACTIVE_KEY(uid));
+            }
             const newId = generateId();
             const fresh: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
+            cardHistoryRef.current = [];
+            historyReadyRef.current = true;
+            setCardHistory([]);
+            setShowCardHistory(false);
+            setRestoringCards(false);
             setSessions([fresh]);
             setActiveChatId(newId);
             activeChatIdRef.current = newId;
+            setCardsReadyChatId(null);
             setSessionSearch("");
             setRecommendedRecipes([]);
             setChatStarted(false);
@@ -2503,6 +2586,7 @@ export default function AIChefScreen() {
       if (outcome.kind === "cards") {
         setSwapNoCards(null);
         setRecommendedRecipes(outcome.cards);
+        commitCardHistory(outcome.cards);
         setMealResult(null);
         setChatStarted(true);
         recordSeenRecipes(outcome.cards);
@@ -3062,7 +3146,7 @@ export default function AIChefScreen() {
         }
       },
       onError: () => setMealStep("idle"),
-    });
+    }, undefined, 4);
     scrollToEnd();
   };
 
@@ -3108,6 +3192,7 @@ export default function AIChefScreen() {
           addUserMessage(t(config.aiPrompt as any));
           setSwapNoCards(null);
           setRecommendedRecipes(picked);
+          commitCardHistory(picked);
           setChatStarted(true);
           recordSeenRecipes(picked);
           addBotMessage(t("aiChef.libMatched") + recipeNameList(picked));
@@ -3230,6 +3315,7 @@ export default function AIChefScreen() {
         const recipesToShow = libraryRecipes.slice(0, 4);
         setMealResult(recipesToShow);
         setRecommendedRecipes(recipesToShow);
+        commitCardHistory(recipesToShow);
         recordSeenRecipes(recipesToShow);
         addUserMessage(`${t("aiChef.userMsg3", { n: prefs.people })}`);
         addBotMessage((res?.content || t("aiChef.foundMealDishesSoup", { dishes: 3, soups: 1 })) + recipeNameList(recipesToShow));
@@ -3285,7 +3371,7 @@ export default function AIChefScreen() {
         }
       },
       onError: () => setMealStep("idle"),
-    });
+    }, undefined, 4);
     scrollToLatestMessage();
   };
 
@@ -3377,6 +3463,7 @@ export default function AIChefScreen() {
         if (libraryRecipes.length > 0) {
           addUserMessage(searchPrompt);
           setRecommendedRecipes(libraryRecipes);
+          commitCardHistory(libraryRecipes);
           recordSeenRecipes(libraryRecipes);
           addBotMessage(t("aiChef.pantryMatchN", { n: libraryRecipes.length }));
           setLibraryLoading(false);
@@ -4303,6 +4390,9 @@ export default function AIChefScreen() {
       .find((list) => list.length > 0) ?? [];
   }, [messages]);
 
+  const hasRestorable = cardHistory.length > 0 || lastRecipeListNames.length > 0;
+  const restoreBarNames = cardHistory[0]?.names ?? lastRecipeListNames;
+
   const applyRestoredCards = (resolved: AIRecipe[]) => {
     lastChefRequestIdRef.current = null;
     setRecommendedRecipes(resolved);
@@ -4319,12 +4409,36 @@ export default function AIChefScreen() {
     return resolved.length === entry.names.length ? resolved : [];
   };
 
+  // Upgrade a names-only entry in place: same id/at/position, no new history entry.
+  const upgradeHistoryEntry = (entry: CardHistoryEntry, cards: AIRecipe[]) => {
+    const next = cardHistoryRef.current.map((item) =>
+      item.id === entry.id
+        ? { ...item, cards, version: 2, key: cardSetKey(cards) }
+        : item,
+    );
+    persistCardHistory(next);
+  };
+
   const restoreCardHistory = async (entry: CardHistoryEntry) => {
     if (restoringCards) return;
     setRestoringCards(true);
     try {
       const snapshot = Array.isArray(entry.cards) ? entry.cards.filter(isValidRecipe) : [];
-      const resolved = snapshot.length > 0 ? snapshot : await resolveLegacyHistory(entry);
+      let resolved = snapshot;
+      if (resolved.length === 0) {
+        const matched = matchCardsFromSessions(entry.names, sessions, isValidRecipe, entry.at);
+        if (matched && matched.length > 0) {
+          resolved = matched.filter(isValidRecipe);
+          if (resolved.length > 0) upgradeHistoryEntry(entry, resolved);
+        }
+      }
+      if (resolved.length === 0) {
+        const legacy = await resolveLegacyHistory(entry);
+        if (legacy.length > 0) {
+          resolved = legacy;
+          upgradeHistoryEntry(entry, legacy);
+        }
+      }
       if (resolved.length === 0) {
         Alert.alert(t("未能還原食譜卡" as any), t("此舊記錄未能還原，請重新生成食譜。" as any));
         return;
@@ -4339,19 +4453,34 @@ export default function AIChefScreen() {
   const restoreLastCards = async () => {
     if (restoringCards) return;
     const latest = cardHistory[0];
-    if (latest?.cards?.length) {
+    const latestCards = Array.isArray(latest?.cards) ? latest.cards.filter(isValidRecipe) : [];
+    if (latestCards.length > 0) {
       setRestoringCards(true);
       try {
-        applyRestoredCards(latest.cards.filter(isValidRecipe));
+        applyRestoredCards(latestCards);
       } finally {
         setRestoringCards(false);
       }
       return;
     }
-    if (lastRecipeListNames.length === 0) return;
+    const names = latest?.names?.length ? latest.names : lastRecipeListNames;
+    if (names.length === 0) {
+      Alert.alert(t("未能還原食譜卡" as any), t("此舊記錄未能還原，請重新生成食譜。" as any));
+      return;
+    }
     setRestoringCards(true);
     try {
-      const resolved = await resolveLegacyHistory({ names: lastRecipeListNames });
+      let resolved: AIRecipe[] = [];
+      if (latest) {
+        const matched = matchCardsFromSessions(names, sessions, isValidRecipe, latest.at);
+        if (matched && matched.length > 0) {
+          resolved = matched.filter(isValidRecipe);
+          if (resolved.length > 0) upgradeHistoryEntry(latest, resolved);
+        }
+      }
+      if (resolved.length === 0) {
+        resolved = await resolveLegacyHistory({ names });
+      }
       if (resolved.length === 0) {
         Alert.alert(t("未能還原食譜卡" as any), t("此舊記錄未能還原，請重新生成食譜。" as any));
         return;
@@ -4549,6 +4678,7 @@ export default function AIChefScreen() {
           if (recipes.length > 0) {
             setSwapNoCards(null);
             setRecommendedRecipes(recipes);
+            commitCardHistory(recipes);
             setMealResult(null);
             setChatStarted(true);
             recordSeenRecipes(recipes);
@@ -4574,6 +4704,7 @@ export default function AIChefScreen() {
           const recipe = res?.recipe ? normalizeRecipe(res.recipe) : null;
           if (!recipe || !isValidRecipe(recipe)) throw new Error("generate_failed");
           setRecommendedRecipes([recipe]);
+          commitCardHistory([recipe]);
           setMealResult(null);
           setChatStarted(true);
           recordSeenRecipes([recipe]);
@@ -4617,6 +4748,7 @@ export default function AIChefScreen() {
       const picked = libraryAlternatives;
       setSwapNoCards(null);
       setRecommendedRecipes(picked);
+      commitCardHistory(picked);
       setMealResult(picked.length >= 2 ? picked : null);
       setChatStarted(true);
       recordSeenRecipes(picked);
@@ -4637,6 +4769,7 @@ export default function AIChefScreen() {
     const parsed = tryParseRecipes(text).map(normalizeRecipe).filter(isValidRecipe);
     if (parsed.length > 0) {
       setRecommendedRecipes(parsed);
+      commitCardHistory(parsed);
       setMealResult(parsed.length >= 2 ? parsed : null);
       setChatStarted(true);
       recordSeenRecipes(parsed);
@@ -5337,7 +5470,7 @@ export default function AIChefScreen() {
         ),
         headerRight: () => (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            {cardHistory.length > 0 && (
+            {hasRestorable && (
               <TouchableOpacity
                 onPress={() => setShowCardHistory(true)}
                 style={s.headerBtn}
@@ -5494,11 +5627,15 @@ export default function AIChefScreen() {
                    </View>
                  </View>
               ) : null}
-              {!chatMutation.isPending && messages.length > 0 && recommendedRecipes.length === 0 && cardHistory.length > 0 && (
+              {!chatMutation.isPending && messages.length > 0 && recommendedRecipes.length === 0 && hasRestorable && (
                 <View style={s.restoreBar}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.restoreTitle}>{t("最近 {{n}} 組食譜卡" as any, { n: cardHistory.length })}</Text>
-                    <Text style={s.restoreSub} numberOfLines={2}>{cardHistory[0]?.names.join("、")}</Text>
+                    <Text style={s.restoreTitle}>
+                      {cardHistory.length > 0
+                        ? t("最近 {{n}} 組食譜卡" as any, { n: cardHistory.length })
+                        : t("最近食譜卡" as any)}
+                    </Text>
+                    <Text style={s.restoreSub} numberOfLines={2}>{restoreBarNames.join("、")}</Text>
                   </View>
                   <TouchableOpacity
                     style={[s.restoreBtn, { backgroundColor: "#183B56" }]}
