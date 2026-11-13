@@ -32,6 +32,7 @@ npx eslint --max-warnings=0 \
   'src/components/HomePlanHero.tsx' \
   'src/screens/AiPlanScreen.tsx' \
   'app/ai-plan.tsx' \
+  'app/ai-chef.tsx' \
   'app/meal-preferences.tsx' \
   'lib/mealPreferences.ts' \
   'src/components/RecipeCard.tsx' \

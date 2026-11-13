@@ -124,18 +124,23 @@ export function sanitizeCardHistory<T extends HistoryCard>(raw: unknown): CardHi
     const item = raw[index];
     if (!item || typeof item !== "object") continue;
     const entry = item as Partial<CardHistoryEntry<T>>;
-    const names = Array.isArray(entry.names)
-      ? Array.from(
-          new Set(entry.names.map((name) => String(name ?? "").trim()).filter(Boolean)),
-        )
-      : [];
     const at = Number(entry.at);
-    if (names.length === 0 || !Number.isFinite(at)) continue;
 
     const cards = Array.isArray(entry.cards)
       ? entry.cards.filter((card): card is T => isCardLike(card))
       : [];
     const hasCards = cards.length > 0;
+    const names = Array.from(
+      new Set(
+        (hasCards
+          ? cards.map((card) => String(card.name ?? "").trim())
+          : Array.isArray(entry.names)
+            ? entry.names.map((name) => String(name ?? "").trim())
+            : []
+        ).filter(Boolean),
+      ),
+    );
+    if (names.length === 0 || !Number.isFinite(at)) continue;
 
     out.push({
       id: typeof entry.id === "string" && entry.id ? entry.id : `legacy_${at}_${index}`,
@@ -150,6 +155,38 @@ export function sanitizeCardHistory<T extends HistoryCard>(raw: unknown): CardHi
   }
 
   return out;
+}
+
+export function updateHistoryEntryCards<T extends HistoryCard>(
+  prev: CardHistoryEntry<T>[] | null | undefined,
+  key: string,
+  cards: T[],
+  opts: { isValid?: (card: T) => boolean } = {},
+): CardHistoryEntry<T>[] {
+  const list = Array.isArray(prev) ? prev : [];
+  if (!key) return list;
+  const index = list.findIndex((entry) => entry.key === key);
+  if (index < 0) return list;
+
+  const valid = (Array.isArray(cards) ? cards : []).filter((card) =>
+    opts.isValid ? opts.isValid(card) : isCardLike(card),
+  );
+  if (valid.length === 0) return list.filter((_, itemIndex) => itemIndex !== index);
+
+  const names = Array.from(
+    new Set(valid.map((card) => String(card.name ?? "").trim()).filter(Boolean)),
+  );
+  if (names.length === 0) return list;
+
+  const next = list.slice();
+  next[index] = {
+    ...next[index],
+    key: cardSetKey(valid),
+    names,
+    cards: valid,
+    version: 2,
+  };
+  return next;
 }
 
 function normalizedNamesEqual(a: string[], b: string[]): boolean {
@@ -167,21 +204,29 @@ export function matchCardsFromSessions<T extends HistoryCard>(
 ): T[] | null {
   if (!Array.isArray(entryNames) || entryNames.length === 0) return null;
 
-  const candidates: { cards: T[]; createdAt: number }[] = [];
+  const candidates: { cards: T[]; createdAt: number; key: string }[] = [];
   for (const session of sessions ?? []) {
     const cards = Array.isArray(session?.cards) ? session.cards : [];
     if (cards.length !== entryNames.length) continue;
     if (!cards.every((card) => (isValid ? isValid(card) : isCardLike(card)))) continue;
     const sessionNames = cards.map((card) => String(card?.name ?? ""));
     if (!normalizedNamesEqual(entryNames, sessionNames)) continue;
-    candidates.push({ cards, createdAt: Number(session.createdAt) || 0 });
+    candidates.push({
+      cards,
+      createdAt: Number(session.createdAt) || 0,
+      key: cardSetKey(cards),
+    });
   }
 
   if (candidates.length === 0) return null;
-  candidates.sort((a, b) => {
+  const distinctKeys = new Set(candidates.map((candidate) => candidate.key));
+  if (distinctKeys.size !== 1) return null;
+
+  const sameCardSet = candidates.filter((candidate) => candidate.key === candidates[0].key);
+  sameCardSet.sort((a, b) => {
     const distance = Math.abs(a.createdAt - entryAt) - Math.abs(b.createdAt - entryAt);
     if (distance !== 0) return distance;
     return b.createdAt - a.createdAt;
   });
-  return candidates[0].cards;
+  return sameCardSet[0].cards;
 }

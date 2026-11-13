@@ -67,6 +67,7 @@ import {
   matchCardsFromSessions,
   pushCardHistory,
   sanitizeCardHistory,
+  updateHistoryEntryCards,
 } from "@/lib/cardHistory";
 import { chatSessionSignature } from "@/lib/chatSessionSignature";
 import { detectMealIntent, detectFlavorConstraint } from "@/lib/mealIntent";
@@ -1102,7 +1103,8 @@ export default function AIChefScreen() {
   };
 
   // Explicit single-writer: callers decide which operations are a new "group".
-  // swap / hydrate / restore / clear only change UI, never this history.
+  // swap / delete update the existing group that matches the pre-change key;
+  // hydrate / restore / clear only change UI, never this history.
   const commitCardHistory = (cards: AIRecipe[], opts?: { operation?: "append"; max?: number }) => {
     const uid = userIdRef.current;
     if (!uid) return;
@@ -1123,6 +1125,18 @@ export default function AIChefScreen() {
     // Before the stored history has loaded, keep the next value in memory only;
     // the load effect will merge it with the stored list instead of losing it.
     if (!historyReadyRef.current) return;
+    AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+  };
+
+  const syncCardHistoryEntry = (preKey: string, cards: AIRecipe[]) => {
+    const prev = cardHistoryRef.current;
+    const next = updateHistoryEntryCards(prev, preKey, cards, { isValid: isValidRecipe });
+    if (next === prev) return;
+    cardHistoryRef.current = next;
+    setCardHistory(next);
+    if (!historyReadyRef.current) return;
+    const uid = userIdRef.current;
+    if (!uid) return;
     AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
   };
 
@@ -1845,12 +1859,10 @@ export default function AIChefScreen() {
             // Account changed while this read was in flight; don't leak history.
             historyReadyRef.current = true;
           } else {
-            let backfilled = false;
             const upgraded = stored.map((entry) => {
               if (entry.cards && entry.cards.length > 0) return entry;
               const matched = matchCardsFromSessions(entry.names, all, isValidRecipe, entry.at);
               if (!matched) return entry;
-              backfilled = true;
               return { ...entry, cards: matched, version: 2, key: cardSetKey(matched) };
             });
             const pending = cardHistoryRef.current;
@@ -1862,12 +1874,7 @@ export default function AIChefScreen() {
               .sort((a, b) => b.at - a.at)
               .slice(0, MAX_CARD_HISTORY);
             historyReadyRef.current = true;
-            if (backfilled || pending.length > 0) {
-              persistCardHistory(merged);
-            } else {
-              cardHistoryRef.current = merged;
-              setCardHistory(merged);
-            }
+            persistCardHistory(merged);
           }
         } catch {
           historyReadyRef.current = true;
@@ -3739,12 +3746,16 @@ export default function AIChefScreen() {
   const replaceRecipeAtIndex = (index: number, newRecipe: AIRecipe) => {
     setSwapNoCards(null);
     preserveSelectionOnNextMealResultRef.current = true;
-    setRecommendedRecipes(prev => prev.map((r, i) => i === index ? newRecipe : r));
+    const preSwapCards = recommendedRecipes;
+    const preSwapKey = cardSetKey(preSwapCards.filter(isValidRecipe));
+    const nextCards = preSwapCards.map((r, i) => i === index ? newRecipe : r);
+    setRecommendedRecipes(nextCards);
     setMealResult(prev => {
       if (!prev) return prev;
       const next = prev.map((r, i) => i === index ? newRecipe : r);
       return next.length >= 2 ? next : null;
     });
+    syncCardHistoryEntry(preSwapKey, nextCards);
   };
 
   // 「換」掣：只替換單張卡。AI mode 就直接出 1 個替代食譜；library mode 先搵庫內替代
@@ -4382,16 +4393,18 @@ export default function AIChefScreen() {
     return true;
   };
 
-  const lastRecipeListNames = useMemo(() => {
-    return [...messages]
-      .reverse()
-      .filter((m) => m.role === "assistant")
-      .map((m) => extractRecipeNamesFromText(contentToText(m.content)))
-      .find((list) => list.length > 0) ?? [];
-  }, [messages]);
+  // A history entry is restorable only when it has a real card snapshot or the
+  // session store can resolve exactly one unambiguous card set for its names.
+  const restorableHistory = useMemo(() => {
+    return cardHistory.filter((entry) => {
+      const snapshot = Array.isArray(entry.cards) ? entry.cards.filter(isValidRecipe) : [];
+      if (snapshot.length > 0) return true;
+      return matchCardsFromSessions(entry.names, sessions, isValidRecipe, entry.at) !== null;
+    });
+  }, [cardHistory, sessions]);
 
-  const hasRestorable = cardHistory.length > 0 || lastRecipeListNames.length > 0;
-  const restoreBarNames = cardHistory[0]?.names ?? lastRecipeListNames;
+  const hasRestorable = restorableHistory.length > 0;
+  const restoreBarNames = restorableHistory[0]?.names ?? [];
 
   const applyRestoredCards = (resolved: AIRecipe[]) => {
     lastChefRequestIdRef.current = null;
@@ -4450,47 +4463,6 @@ export default function AIChefScreen() {
     }
   };
 
-  const restoreLastCards = async () => {
-    if (restoringCards) return;
-    const latest = cardHistory[0];
-    const latestCards = Array.isArray(latest?.cards) ? latest.cards.filter(isValidRecipe) : [];
-    if (latestCards.length > 0) {
-      setRestoringCards(true);
-      try {
-        applyRestoredCards(latestCards);
-      } finally {
-        setRestoringCards(false);
-      }
-      return;
-    }
-    const names = latest?.names?.length ? latest.names : lastRecipeListNames;
-    if (names.length === 0) {
-      Alert.alert(t("未能還原食譜卡" as any), t("此舊記錄未能還原，請重新生成食譜。" as any));
-      return;
-    }
-    setRestoringCards(true);
-    try {
-      let resolved: AIRecipe[] = [];
-      if (latest) {
-        const matched = matchCardsFromSessions(names, sessions, isValidRecipe, latest.at);
-        if (matched && matched.length > 0) {
-          resolved = matched.filter(isValidRecipe);
-          if (resolved.length > 0) upgradeHistoryEntry(latest, resolved);
-        }
-      }
-      if (resolved.length === 0) {
-        resolved = await resolveLegacyHistory({ names });
-      }
-      if (resolved.length === 0) {
-        Alert.alert(t("未能還原食譜卡" as any), t("此舊記錄未能還原，請重新生成食譜。" as any));
-        return;
-      }
-      applyRestoredCards(resolved);
-    } finally {
-      setRestoringCards(false);
-    }
-  };
-
   const handleModifyIntent = (text: string): boolean => {
     if (!isModifyText(text)) return false;
     const validCards = recommendedRecipes.filter(isValidRecipe);
@@ -4499,6 +4471,7 @@ export default function AIChefScreen() {
     const removeMatch = text.match(/(?:唔要|不要|走|刪走|唔食)\s*([^\s，,。！!？?]+)/);
     if (removeMatch) {
       const term = removeMatch[1].trim();
+      const preDeleteKey = cardSetKey(validCards);
       const kept = validCards.filter((r) => {
         const hay = `${r.name} ${r.description ?? ""} ${(r.ingredients ?? []).map((i) => i.name).join(" ")}`;
         return !hay.includes(term);
@@ -4506,6 +4479,7 @@ export default function AIChefScreen() {
       if (kept.length !== validCards.length) {
         setRecommendedRecipes(kept);
         setMealResult(kept.length >= 2 ? kept : null);
+        syncCardHistoryEntry(preDeleteKey, kept);
         addBotMessage(t("已移除含有「{{name}}」嘅菜式。" as any, { name: term }));
         return true;
       }
@@ -5631,9 +5605,7 @@ export default function AIChefScreen() {
                 <View style={s.restoreBar}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.restoreTitle}>
-                      {cardHistory.length > 0
-                        ? t("最近 {{n}} 組食譜卡" as any, { n: cardHistory.length })
-                        : t("最近食譜卡" as any)}
+                      {t("最近 {{n}} 組食譜卡" as any, { n: restorableHistory.length })}
                     </Text>
                     <Text style={s.restoreSub} numberOfLines={2}>{restoreBarNames.join("、")}</Text>
                   </View>
@@ -6308,21 +6280,7 @@ export default function AIChefScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ gap: 10, paddingBottom: 24 }}>
-              {cardHistory.length === 0 && lastRecipeListNames.length > 0 && (
-                <TouchableOpacity
-                  style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 14, padding: 12, backgroundColor: "#fff" }}
-                  onPress={() => { setShowCardHistory(false); void restoreLastCards(); }}
-                  disabled={restoringCards}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: TEXT }} numberOfLines={2}>
-                    {lastRecipeListNames.join("、")}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: SUB, marginTop: 4 }}>
-                    {t("還原食譜卡" as any)}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {cardHistory.map((entry) => (
+              {restorableHistory.map((entry) => (
                 <TouchableOpacity
                   key={entry.id}
                   style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 14, padding: 12, backgroundColor: "#fff" }}

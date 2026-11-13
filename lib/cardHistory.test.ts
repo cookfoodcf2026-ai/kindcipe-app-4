@@ -5,6 +5,7 @@ import {
   matchCardsFromSessions,
   pushCardHistory,
   sanitizeCardHistory,
+  updateHistoryEntryCards,
 } from "./cardHistory";
 
 type Recipe = {
@@ -183,6 +184,66 @@ describe("sanitizeCardHistory", () => {
     expect(out).toHaveLength(3);
     expect(out[0].key).toBe(cardSetKey([recipe("Dish0", ["x0"])]));
   });
+
+  it("re-derives names from cards when the stored names are stale or missing", () => {
+    const a = recipe("A", ["x"]);
+    const b = recipe("B", ["y"]);
+    const out = sanitizeCardHistory<Recipe>([
+      { id: "1", key: "stale", names: ["Old"], at: 1, cards: [a, b] },
+      { id: "2", key: "stale", names: [], at: 2, cards: [recipe("C", ["z"])] },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0].names).toEqual(["A", "B"]);
+    expect(out[0].key).toBe(cardSetKey([a, b]));
+    expect(out[1].names).toEqual(["C"]);
+    expect(out[1].version).toBe(2);
+  });
+
+  it("is idempotent so a sanitized value can be written back as-is", () => {
+    const raw = [
+      { id: "1", key: "stale", names: ["Old"], at: 1, cards: [recipe("A", ["x"])] },
+      { id: "2", key: "old", names: [" B ", "b"], at: 2 },
+    ];
+    const once = sanitizeCardHistory<Recipe>(raw);
+    const twice = sanitizeCardHistory<Recipe>(JSON.parse(JSON.stringify(once)));
+    expect(twice).toEqual(once);
+  });
+});
+
+describe("updateHistoryEntryCards", () => {
+  const a = recipe("A", ["x"]);
+  const b = recipe("B", ["y"]);
+  const c = recipe("C", ["z"]);
+
+  it("updates the entry whose key matches the pre-swap card set", () => {
+    const entry = { id: "top", key: cardSetKey([a, b]), names: ["A", "B"], at: 10, cards: [a, b] };
+    const older = { id: "older", key: cardSetKey([c]), names: ["C"], at: 5, cards: [c] };
+    const history = [entry, older];
+    const next = updateHistoryEntryCards(history, cardSetKey([a, b]), [a, c], { isValid });
+    expect(next).not.toBe(history);
+    expect(next[0]).toMatchObject({
+      id: "top",
+      at: 10,
+      names: ["A", "C"],
+      key: cardSetKey([a, c]),
+      cards: [a, c],
+      version: 2,
+    });
+    expect(next[1]).toBe(older);
+  });
+
+  it("is a no-op when no entry matches the pre-swap key", () => {
+    const entry = { id: "top", key: cardSetKey([a, b]), names: ["A", "B"], at: 10, cards: [a, b] };
+    const history = [entry];
+    expect(updateHistoryEntryCards(history, cardSetKey([c]), [a, c], { isValid })).toBe(history);
+  });
+
+  it("removes the matching entry when the delete branch leaves no cards", () => {
+    const entry = { id: "top", key: cardSetKey([a]), names: ["A"], at: 10, cards: [a] };
+    const older = { id: "older", key: cardSetKey([b]), names: ["B"], at: 5, cards: [b] };
+    const next = updateHistoryEntryCards([entry, older], cardSetKey([a]), [], { isValid });
+    expect(next).toEqual([older]);
+  });
 });
 
 describe("matchCardsFromSessions", () => {
@@ -215,6 +276,15 @@ describe("matchCardsFromSessions", () => {
     expect(matchCardsFromSessions(["番茄炒蛋", "白飯"], [far, closeOlder, closeNewer], isValid, 100)).toBe(
       closeNewer.cards,
     );
+  });
+
+  it("returns null when matching sessions resolve to more than one distinct card set", () => {
+    const sameNamesDifferentIngredients = recipe("番茄炒蛋", ["番茄", "豆腐"]);
+    const ambiguous = [
+      { createdAt: 100, cards: [a, b] },
+      { createdAt: 101, cards: [sameNamesDifferentIngredients, b] },
+    ];
+    expect(matchCardsFromSessions(["番茄炒蛋", "白飯"], ambiguous, isValid, 100)).toBeNull();
   });
 
   it("returns null when no session has cards", () => {

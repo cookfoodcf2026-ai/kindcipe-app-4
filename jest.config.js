@@ -12,6 +12,7 @@ module.exports = {
     "<rootDir>/lib/hardLogout.test.ts",
     "<rootDir>/lib/pluralPrice.test.ts",
     "<rootDir>/lib/chatSessionSignature.test.ts",
+    "<rootDir>/lib/cardHistory.test.ts",
     "<rootDir>/lib/authStatus.test.ts",
     "<rootDir>/lib/ingredients.test.ts",
     "<rootDir>/lib/limitErrors.test.ts",
