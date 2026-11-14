@@ -1,9 +1,17 @@
-import { render, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import * as purchase from "../../lib/purchase";
 import PaywallModal from "../PaywallModal";
 
+const mockPlatform = { isIOS: true, isWeb: false };
+const mockPurchaseFlags = { isStripeSupported: false, canPurchaseHere: true };
+const mockTranslations: Record<string, string> = {
+  "paywall.faq3q": "Is payment secure?",
+  "paywall.faq3a": "Yes — payments are processed securely by Stripe.",
+  "paywall.faq3aNative": "Yes — payments are processed securely by the App Store or Google Play.",
+};
+
 jest.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => mockTranslations[key] ?? key }),
 }));
 
 jest.mock("expo-constants", () => ({
@@ -28,8 +36,12 @@ jest.mock("@/lib/legal", () => ({
 
 jest.mock("@/lib/platform", () => ({
   getWebappUrl: () => "https://app.kindcipe.com",
-  isIOS: true,
-  isWeb: false,
+  get isIOS() {
+    return mockPlatform.isIOS;
+  },
+  get isWeb() {
+    return mockPlatform.isWeb;
+  },
 }));
 
 jest.mock("../../lib/trpc", () => ({
@@ -74,14 +86,56 @@ jest.mock("../../lib/purchase", () => ({
   purchaseSubscription: jest.fn(),
   restorePurchases: jest.fn(),
   manageSubscription: jest.fn(),
-  isStripeSupported: false,
-  canPurchaseHere: true,
+  get isStripeSupported() {
+    return mockPurchaseFlags.isStripeSupported;
+  },
+  get canPurchaseHere() {
+    return mockPurchaseFlags.canPurchaseHere;
+  },
 }));
 
 const mockGetProducts = purchase.getProducts as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPlatform.isIOS = true;
+  mockPlatform.isWeb = false;
+  mockPurchaseFlags.isStripeSupported = false;
+  mockPurchaseFlags.canPurchaseHere = true;
+});
+
+describe("PaywallModal FAQ platform wording", () => {
+  it("does not show Stripe wording in the native FAQ", async () => {
+    mockGetProducts.mockResolvedValue([]);
+
+    const { getByText, queryByText } = await render(
+      <PaywallModal visible onClose={jest.fn()} />
+    );
+
+    fireEvent.press(getByText("Is payment secure?"));
+
+    await waitFor(() =>
+      expect(queryByText(mockTranslations["paywall.faq3aNative"])).not.toBeNull()
+    );
+    expect(queryByText(/Stripe/)).toBeNull();
+  });
+
+  it("keeps the Stripe FAQ on web", async () => {
+    mockPlatform.isIOS = false;
+    mockPlatform.isWeb = true;
+    mockPurchaseFlags.isStripeSupported = true;
+    mockGetProducts.mockResolvedValue([]);
+
+    const { getAllByText, getByText, queryByText } = await render(
+      <PaywallModal visible onClose={jest.fn()} />
+    );
+
+    fireEvent.press(getByText("Is payment secure?"));
+
+    await waitFor(() => expect(queryByText(mockTranslations["paywall.faq3a"])).not.toBeNull());
+    expect(getAllByText(/Stripe/).length).toBeGreaterThan(0);
+    expect(queryByText(mockTranslations["paywall.faq3aNative"])).toBeNull();
+  });
 });
 
 describe("PaywallModal StoreKit gating", () => {

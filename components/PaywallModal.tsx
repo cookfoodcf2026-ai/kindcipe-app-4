@@ -167,6 +167,8 @@ export default function PaywallModal({
   const nativeStoreUnavailable = !isWeb && !purchaseCtaAvailable;
   const periodLabel =
     plan === "yearly" ? t("paywall.periodYearly" as any) : t("paywall.periodMonthly" as any);
+  // Web is billed by Stripe; native stores must not see Stripe wording.
+  const faq3aKey = isWeb ? "faq3a" : "faq3aNative";
   // 已享有 Pro：用戶所屬另一個廚房已 active → 唔應該再賣
   const coveredBy = (sub as any)?.coveredBy as { familyId: number; name: string } | null | undefined;
 
@@ -573,7 +575,7 @@ export default function PaywallModal({
 
             <View style={styles.faqBox}>
               <Text style={styles.sectionTitle}>{t("paywall.faqTitle" as any)}</Text>
-              {[["faq1q", "faq1a"], ["faq2q", "faq2a"], ["faq3q", "faq3a"]].map(([q, a], i) => (
+              {[["faq1q", "faq1a"], ["faq2q", "faq2a"], ["faq3q", faq3aKey]].map(([q, a], i) => (
                 <View key={q} style={styles.faqItem}>
                   <TouchableOpacity onPress={() => setFaqOpen(faqOpen === i ? null : i)} style={styles.faqQ} activeOpacity={0.7}>
                     <Text style={styles.faqQTxt}>{t(`paywall.${q}` as any)}</Text>

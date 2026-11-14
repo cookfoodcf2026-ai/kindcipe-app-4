@@ -1,6 +1,5 @@
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { PRICE } from "../../lib/pricing";
 
 /**
  * 免費帳號升級提示（Life360 式：插圖／一句價值／一個主掣／X）。
@@ -9,7 +8,8 @@ import { PRICE } from "../../lib/pricing";
 export default function FreeUpsellModal({
   visible,
   remaining,
-  priceLabel = PRICE.monthly,
+  priceLabel,
+  canPurchaseHere = true,
   onClose,
   onUpgrade,
   onHaveCode,
@@ -17,10 +17,12 @@ export default function FreeUpsellModal({
   visible: boolean;
   remaining?: number;
   priceLabel?: string;
+  canPurchaseHere?: boolean;
   onClose: () => void;
   onUpgrade: () => void;
   onHaveCode?: () => void;
 }) {
+  const showPrice = canPurchaseHere && !!priceLabel;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlay}>
@@ -44,7 +46,9 @@ export default function FreeUpsellModal({
           </Text>
 
           <TouchableOpacity style={s.primary} onPress={onUpgrade} accessibilityRole="button">
-            <Text style={s.primaryText}>升級 Pro — {priceLabel}/月</Text>
+            <Text style={s.primaryText}>
+              {showPrice ? `升級 Pro — ${priceLabel}/月` : "了解 Pro"}
+            </Text>
           </TouchableOpacity>
 
           {onHaveCode ? (

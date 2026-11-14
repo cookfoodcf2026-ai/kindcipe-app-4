@@ -46,6 +46,7 @@ import MealLimitPrompt from "@/src/components/MealLimitPrompt";
 import AdSlot from "@/src/components/AdSlot";
 import PaywallModal from "@/components/PaywallModal";
 import FreeUpsellModal from "@/src/components/FreeUpsellModal";
+import { canPurchaseHere, getProducts, PRODUCT_IDS } from "@/lib/purchase";
 import { categorizeIngredient, calcAdjustedQty, isSeasoning, isWaterIngredient } from "@/constants/ingredients";
 import { todayISO, toISODate, formatDateLabel, getDayBefore, getDayAfter } from "@/src/lib/date";
 import { friendlyError } from "@/lib/errors";
@@ -1531,6 +1532,28 @@ export default function AIChefScreen() {
   const creditsExhausted = aiLimit > 0 && aiUsed >= aiLimit;
   // 免費升級 modal（Life360 式）：額度剩 ≤20% 時彈一次，7 日內唔重複
   const [upsellVisible, setUpsellVisible] = useState(false);
+  const [upsellPriceLabel, setUpsellPriceLabel] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!upsellVisible) return;
+    let alive = true;
+    if (!canPurchaseHere) {
+      setUpsellPriceLabel(undefined);
+      return;
+    }
+    void getProducts()
+      .then((products) => {
+        if (!alive) return;
+        setUpsellPriceLabel(
+          products.find((product) => product.productId === PRODUCT_IDS.MONTHLY)?.price
+        );
+      })
+      .catch(() => {
+        if (alive) setUpsellPriceLabel(undefined);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [upsellVisible]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -6303,6 +6326,8 @@ export default function AIChefScreen() {
       <FreeUpsellModal
         visible={upsellVisible}
         remaining={Math.max(0, aiLimit - aiUsed)}
+        priceLabel={upsellPriceLabel}
+        canPurchaseHere={canPurchaseHere}
         onClose={() => setUpsellVisible(false)}
         onUpgrade={() => { setUpsellVisible(false); setShowPaywall(true); }}
         onHaveCode={() => { setUpsellVisible(false); setShowPaywall(true); }}

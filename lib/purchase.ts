@@ -422,6 +422,14 @@ export async function manageSubscription(
     // App Store 3.1.1: iOS must never open the Stripe billing portal. Only
     // Apple-billed subscribers get the App Store management page; everyone
     // else gets a neutral message with no external link.
+    if (Platform.OS === "android") {
+      // Google Play policy: never open Stripe; keep all Android paths neutral.
+      Alert.alert(
+        i18n.t("paywall.manageNotAvailableTitle" as any),
+        i18n.t("paywall.manageNotAvailableBodyAndroid" as any)
+      );
+      return;
+    }
     if (Platform.OS === "ios") {
       if (provider === "apple") {
         await Linking.openURL("https://apps.apple.com/account/subscriptions");
@@ -449,7 +457,7 @@ export async function manageSubscription(
     }
     if (provider === "apple") {
       await Linking.openURL("https://apps.apple.com/account/subscriptions");
-    } else if (provider === "google" || Platform.OS === "android") {
+    } else if (provider === "google") {
       await Linking.openURL("https://play.google.com/store/account/subscriptions");
     } else {
       await Linking.openURL(`${getWebappUrl()}/settings`);
