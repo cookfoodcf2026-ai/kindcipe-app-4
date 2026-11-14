@@ -9,6 +9,29 @@ export type VisionAnalysis = {
 
 export type VisionQuickReply = { actionId: string; labelKey: string };
 
+// Backend quickReplies are rendered verbatim. Keep a whitelist so retired actions
+// (similar_ai / similar_library) can't leak back into the UI before their handlers
+// are removed in the next release.
+const VISIBLE_QUICK_REPLY_ACTION_IDS = new Set([
+  "ai_generate",
+  "closest_library",
+  "import_recipe",
+  "text_ingredients",
+  "restart",
+  "photo_retry",
+  "photo_regenerate",
+]);
+
+export function filterQuickReplies(input: unknown): VisionQuickReply[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((q): q is VisionQuickReply =>
+    !!q &&
+    typeof q.actionId === "string" &&
+    typeof q.labelKey === "string" &&
+    VISIBLE_QUICK_REPLY_ACTION_IDS.has(q.actionId),
+  );
+}
+
 export type VisionOutcome =
   | {
       kind: "cards";
@@ -104,9 +127,7 @@ export function buildVisionOutcome(
     kind: "ai",
     messageKey: vision.scene === "dish" ? "aiChef.visionDishLibraryMiss" : "aiChef.pantrySeenNoLibrary",
     vars: { items: items.join("、") },
-    quickReplies: vision.scene === "dish"
-      ? [{ actionId: "similar_ai", labelKey: "aiChef.similarAi" }]
-      : [{ actionId: "ai_generate", labelKey: "aiChef.aiGenerate" }],
+    quickReplies: [{ actionId: "ai_generate", labelKey: "aiChef.aiGenerateCredit" }],
     analysis: vision,
     imageKey,
     imageUrl,

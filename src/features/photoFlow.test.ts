@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   analyzePhoto,
   buildVisionOutcome,
+  filterQuickReplies,
   isPhotoLimitError,
   parseVisionAnalysis,
   processPhoto,
@@ -34,7 +35,35 @@ test("cards produce library hit; no cards produce AI quick reply", () => {
   assert.equal(hit.messageKey, "aiChef.visionFridgeLibraryHit");
   const miss = buildVisionOutcome({ scene: "dish", dishName: "炒蛋", ingredients: ["蛋"] }, [], "key", "url");
   assert.equal(miss.kind, "ai");
-  assert.equal(miss.quickReplies[0].actionId, "similar_ai");
+  assert.equal(miss.quickReplies[0].actionId, "ai_generate");
+});
+
+test("dish and fridge misses both show exactly one ai_generate chip with the credit label", () => {
+  for (const scene of ["dish", "fridge"] as const) {
+    const miss = buildVisionOutcome({ scene, dishName: scene === "dish" ? "炒蛋" : "", ingredients: ["蛋"] }, [], "key", "url");
+    assert.equal(miss.kind, "ai");
+    if (miss.kind !== "ai") continue;
+    assert.equal(miss.quickReplies.length, 1);
+    assert.equal(miss.quickReplies[0].actionId, "ai_generate");
+    assert.equal(miss.quickReplies[0].labelKey, "aiChef.aiGenerateCredit");
+  }
+});
+
+test("quick reply whitelist hides retired similar_ai / similar_library actions", () => {
+  const filtered = filterQuickReplies([
+    { actionId: "similar_ai", labelKey: "aiChef.similarAi" },
+    { actionId: "similar_library", labelKey: "aiChef.similarRecipes" },
+    { actionId: "ai_generate", labelKey: "aiChef.aiGenerateCredit" },
+    { actionId: "import_recipe", labelKey: "aiChef.importRecipe" },
+    { actionId: "unknown_action", labelKey: "x" },
+    { actionId: "ai_generate" },
+    null,
+  ]);
+  assert.deepEqual(filtered, [
+    { actionId: "ai_generate", labelKey: "aiChef.aiGenerateCredit" },
+    { actionId: "import_recipe", labelKey: "aiChef.importRecipe" },
+  ]);
+  assert.deepEqual(filterQuickReplies(null), []);
 });
 
 test("analyzePhoto rejects invalid model payload", async () => {

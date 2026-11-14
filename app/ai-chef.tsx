@@ -32,7 +32,8 @@ import {
   buildShoppingBatchPayload,
   withItemPlannedDate,
 } from "@/lib/shoppingPayload";
-import { compressImageForWeb, isPhotoLimitError, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
+import { compressImageForWeb, filterQuickReplies, isPhotoLimitError, pickWebImageFile, processPhoto, type VisionAnalysis } from "@/src/features/photoFlow";
+import { decidePhotoRecipe, isAcceptedRecipeShape } from "@/src/features/recipeQuality";
 import { openSupport, reportAiChefFailure } from "@/lib/support";
 import i18n from "@/lib/i18n";
 import { enumT } from "@/lib/i18nEnums";
@@ -97,6 +98,7 @@ type AIRecipe = {
   customId?: number;
   _savedId?: number;
   _libraryRecipeId?: string;
+  _serverQualified?: boolean;
 };
 
 type MealPlanStep = "idle" | "people" | "audience" | "time" | "dislike" | "generating" | "result";
@@ -125,29 +127,10 @@ const LIBRARY_SWAP_TIMEOUT_MS = 15_000;
 const AI_SWAP_TIMEOUT_MS = 60_000;
 
 // ─── Recipe Validation ───────────────────────────────────
-// A valid recipe MUST have: name (2-50 chars), ≥1 ingredient, ≥1 step
-// Relaxed validation to accept backend-validated recipes. AI desserts may be
-// 4 steps; AI mains still require 5.
-const isDessertRecipe = (r: AIRecipe): boolean => {
-  const tags = (r.tags ?? []).join(" ");
-  const name = `${r.name ?? ""} ${r.dishType ?? ""} ${r.recipeCategory ?? ""}`;
-  return /甜品|甜點|甜点|糖水|西米露|布甸|布丁|啫喱|慕斯|雪糕|蛋糕|蛋撻|曲奇|奶凍|糕點|dessert|sweet|pudding|cake/i.test(`${name} ${tags}`);
-};
-const isSoupRecipe = (r: AIRecipe): boolean => {
-  const tags = (r.tags ?? []).join(" ");
-  const name = `${r.name ?? ""} ${r.dishType ?? ""} ${r.recipeCategory ?? ""}`;
-  return /湯|羹|soup|broth|bisque|chowder|consomm[eé]/i.test(`${name} ${tags}`);
-};
-const isValidRecipe = (r: AIRecipe): boolean => {
-  if (!r.name || r.name === "未命名食譜" || r.name.length < 2 || r.name.length > 50) return false;
-  if (!Array.isArray(r.ingredients) || r.ingredients.length === 0) return false;
-  if (!Array.isArray(r.steps) || r.steps.length === 0) return false;
-  if (r.source === "ai") {
-    const minSteps = (isDessertRecipe(r) || isSoupRecipe(r)) ? 4 : 5;
-    if (r.steps.length < minSteps || r.ingredients.length < 2) return false;
-  }
-  return true;
-};
+// Chat AI cards keep the legacy strict floor (main 5 / soup+dessert 4).
+// Only cards stamped `_serverQualified` by the photo generateFromImage path
+// bypass it, while still keeping name/ingredient/step render safety.
+const isValidRecipe = (r: AIRecipe): boolean => isAcceptedRecipeShape(r);
 
 // ─── Normalizers（防呆：step / ingredient 形狀可能來自不同來源）────
 // DB / search API 嘅 steps 可能係 {instruction, duration} object；
@@ -374,6 +357,8 @@ const normalizeRecipe = (r: any): AIRecipe => {
       : [],
     tags: Array.isArray(r?.tags) ? r.tags.map((t: any) => String(t ?? "").trim()).filter(Boolean) : [],
     source: source as AIRecipe["source"],
+    // Only the photo path may stamp this after accepting the server quality gate.
+    _serverQualified: undefined,
   };
   if (normalized.source === "library" && !normalized._libraryRecipeId && typeof r?.id === "string") {
     const libId = normalizeLibraryRecipeId(r.id);
@@ -987,6 +972,8 @@ export default function AIChefScreen() {
   const uploadingRef = useRef(false);
   const [photoFlowStatus, setPhotoFlowStatus] = useState<PhotoFlowStatus>(null);
   const photoRunRef = useRef(0);
+  const photoAiBusyRef = useRef(false);
+  const lastPhotoAssetRef = useRef<{ uri: string; mimeType?: string } | null>(null);
   const photoSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const photoTimeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -1612,10 +1599,7 @@ export default function AIChefScreen() {
         resolved: requested === 0 ? true : served >= requested,
       });
       const contractStatus = (data as any)?.status;
-      const rawQuickReplies = (data as any)?.quickReplies;
-      const contractReplies = Array.isArray(rawQuickReplies)
-        ? rawQuickReplies.filter((q: any) => q && typeof q.actionId === "string" && typeof q.labelKey === "string")
-        : [];
+      const contractReplies = filterQuickReplies((data as any)?.quickReplies);
       setContractQuickReplies(contractReplies);
 
       if (contractStatus === "no_cards" || contractStatus === "clarify") {
@@ -2539,6 +2523,7 @@ export default function AIChefScreen() {
   };
 
   const runPhotoFlow = async (asset: { uri: string; mimeType?: string }) => {
+    lastPhotoAssetRef.current = { uri: asset.uri, mimeType: asset.mimeType };
     const imageCount = messages.filter(
       (m) => Array.isArray(m.content) && m.content.some((b) => b.type === "image_url")
     ).length;
@@ -4656,14 +4641,96 @@ export default function AIChefScreen() {
     handlePrompt(text);
   };
 
+  const showPhotoAiFailure = (
+    reason: "quality_rejected" | "malformed_recipe" | "legacy_rejected" | "network",
+    steps = 0,
+    minSteps = 0,
+  ) => {
+    const message = reason === "quality_rejected"
+      ? t("aiChef.photoAiQualityFailed" as any, { steps, minSteps })
+      : reason === "network"
+        ? t("aiChef.photoAiNetworkFailed" as any)
+        : t("aiChef.photoAiMalformed" as any);
+    addBotMessage(message);
+    const replies: { actionId: string; labelKey: string }[] = [];
+    if (lastPhotoAssetRef.current) replies.push({ actionId: "photo_retry", labelKey: "aiChef.photoAiRetry" });
+    if (aiCanGenerate && !aiReplyBlocked) replies.push({ actionId: "photo_regenerate", labelKey: "aiChef.photoAiRegenerate" });
+    setContractQuickReplies(replies);
+    track(Events.AiChefFailure, {
+      kind: reason === "quality_rejected" ? "photo_ai_quality" : reason === "network" ? "photo_ai_network" : "photo_ai_malformed",
+      reason,
+      steps,
+      minSteps,
+      lang: i18n.language,
+    });
+  };
+
+  // One photo -> one generateFromImage request. The ref guard covers both the
+  // dish ai_generate path and the legacy similar_ai path, including fast double taps.
+  const generatePhotoRecipe = async (sourceAction: "similar_ai" | "ai_generate" | "photo_regenerate") => {
+    const ctx = visionContextRef.current;
+    if (!ctx?.imageKey) {
+      showToast(t("搵唔到相片資料，請再影一次" as any));
+      return;
+    }
+    if (photoAiBusyRef.current) return;
+    photoAiBusyRef.current = true;
+    try {
+      const res = await apiClient.aiRecipe.generateFromImage.mutate({ storageKeys: [ctx.imageKey] });
+      const rawRecipe = res?.recipe;
+      if (!rawRecipe) {
+        showPhotoAiFailure("malformed_recipe");
+        return;
+      }
+      const recipe = normalizeRecipe(rawRecipe);
+      const decision = decidePhotoRecipe(recipe, res?.quality);
+      if (!decision.accepted) {
+        showPhotoAiFailure(decision.reason, decision.steps, decision.minSteps);
+        return;
+      }
+      const accepted = decision.recipe as AIRecipe;
+      setRecommendedRecipes([accepted]);
+      commitCardHistory([accepted]);
+      setMealResult(null);
+      setChatStarted(true);
+      recordSeenRecipes([accepted]);
+      addBotMessage(t("aiChef.similarAiDone" as any));
+      setContractQuickReplies([]);
+      visionContextRef.current = null;
+      track(Events.AiRecipeGenerated, { count: 1, source: "photo", action: sourceAction });
+    } catch (e) {
+      console.error("[photoFlow] generateFromImage failed:", friendlyError(e) || e);
+      showPhotoAiFailure("network");
+    } finally {
+      photoAiBusyRef.current = false;
+      void usageUtils.family.usage.invalidate();
+      void (usageUtils.aiRecipe as any).status.invalidate();
+    }
+  };
+
   const handleContractQuickReply = (actionId: string) => {
     if (chatMutation.isPending) {
       showToast(t("AI 回覆中，請稍等" as any));
       return;
     }
-    if ((actionId === "ai_generate" || actionId === "similar_ai") && aiReplyBlocked) return;
+    if ((actionId === "ai_generate" || actionId === "similar_ai" || actionId === "photo_regenerate") && aiReplyBlocked) return;
+    if (photoAiBusyRef.current && (actionId === "ai_generate" || actionId === "similar_ai" || actionId === "photo_regenerate")) return;
     setContractQuickReplies([]);
+    if (actionId === "photo_retry") {
+      const asset = lastPhotoAssetRef.current;
+      if (!asset) {
+        showToast(t("搵唔到相片資料，請再影一次" as any));
+        return;
+      }
+      void runPhotoFlow(asset);
+      return;
+    }
+    if (actionId === "photo_regenerate") {
+      void generatePhotoRecipe("photo_regenerate");
+      return;
+    }
     if (actionId === "similar_library") {
+      track(Events.AiActionFallback, { actionId, source: "quick_reply" });
       const ctx = visionContextRef.current;
       if (!ctx) return;
       const query = (ctx.dishName || ctx.ingredients.join(" ")).trim();
@@ -4690,27 +4757,10 @@ export default function AIChefScreen() {
       return;
     }
     if (actionId === "similar_ai") {
-      const ctx = visionContextRef.current;
-      if (!ctx?.imageKey) {
-        showToast(t("搵唔到相片資料，請再影一次" as any));
-        return;
-      }
-      void (async () => {
-        try {
-          const res = await apiClient.aiRecipe.generateFromImage.mutate({ storageKeys: [ctx.imageKey!] });
-          const recipe = res?.recipe ? normalizeRecipe(res.recipe) : null;
-          if (!recipe || !isValidRecipe(recipe)) throw new Error("generate_failed");
-          setRecommendedRecipes([recipe]);
-          commitCardHistory([recipe]);
-          setMealResult(null);
-          setChatStarted(true);
-          recordSeenRecipes([recipe]);
-          addBotMessage(t("aiChef.similarAiDone" as any));
-          visionContextRef.current = null;
-        } catch (e) {
-          Alert.alert(t("生成失敗" as any), friendlyError(e));
-        }
-      })();
+      // UI is hidden by the quick-reply whitelist; keep the handler for one release
+      // so stale backend replies fail gracefully and stay observable.
+      track(Events.AiActionFallback, { actionId, source: "quick_reply" });
+      void generatePhotoRecipe("similar_ai");
       return;
     }
     if (actionId === "text_ingredients") {
@@ -4732,6 +4782,11 @@ export default function AIChefScreen() {
       sendChat(buildBackendMessages(msgs), "ai");
       visionContextRef.current = null;
       scrollToEnd();
+      return;
+    }
+    if (actionId === "ai_generate" && visionContextRef.current?.scene === "dish") {
+      // A dish photo must generate from the photo content, not the generic prompt.
+      void generatePhotoRecipe("ai_generate");
       return;
     }
     if (actionId === "ai_generate") {
@@ -6002,7 +6057,7 @@ export default function AIChefScreen() {
             <Text style={s.followUpLabel}>{t("aiChef.nextStep")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.followUpScroll}>
               {contractQuickReplies.map((q, i) => {
-                const blocked = q.actionId === "ai_generate" && aiReplyBlocked;
+                const blocked = (q.actionId === "ai_generate" || q.actionId === "photo_regenerate") && aiReplyBlocked;
                 return (
                   <TouchableOpacity
                     key={`${q.actionId}-${i}`}

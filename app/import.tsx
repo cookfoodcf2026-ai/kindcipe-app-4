@@ -871,7 +871,20 @@ export default function ImportScreen() {
   });
   // 由食物相（vision）生成
   const generateImageAiM = trpc.aiRecipe.generateFromImage.useMutation({
-    onSuccess: (data: any) => saveAiRecipe(data?.recipe),
+    onSuccess: (data: any) => {
+      const quality = data?.quality;
+      if (quality && typeof quality === "object" && quality.ok !== true) {
+        Alert.alert(
+          t("生成失敗" as any),
+          t("aiChef.photoAiQualityFailed" as any, {
+            steps: Number(quality.steps ?? 0),
+            minSteps: Number(quality.minSteps ?? 5),
+          }),
+        );
+        return;
+      }
+      saveAiRecipe(data?.recipe);
+    },
     onError: (e) => Alert.alert(t("生成失敗" as any), friendlyError(e)),
   });
 
