@@ -1,5 +1,6 @@
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { PRICE } from "../../lib/pricing";
 
 /**
  * 免費帳號升級提示（Life360 式：插圖／一句價值／一個主掣／X）。
@@ -8,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 export default function FreeUpsellModal({
   visible,
   remaining,
-  priceLabel,
+  priceLabel = PRICE.monthly,
   canPurchaseHere = true,
   onClose,
   onUpgrade,
