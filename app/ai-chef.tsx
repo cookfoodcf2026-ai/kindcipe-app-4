@@ -41,6 +41,7 @@ import { formatIngredientDisplay } from "@/src/lib/ingredientDisplay";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
+import AiRecipeDetailSheet from "@/src/components/AiRecipeDetailSheet";
 import NextDayPrompt from "@/src/components/NextDayPrompt";
 import MealConflictPrompt from "@/src/components/MealConflictPrompt";
 import MealLimitPrompt from "@/src/components/MealLimitPrompt";
@@ -121,8 +122,9 @@ type MealPlanPreferences = {
 const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, timeModes: [], dislikes: "", allergens: "" };
 const EMPTY_RECIPE_LIST: AIRecipe[] = [];
 const splitAvoidList = (value: string) => value.split("、").map((item) => item.trim()).filter(Boolean);
-// 食譜庫換卡 watchdog：實測 ~0.5 秒，20 秒係保守上限，卡住就解鎖。
-const LIBRARY_SWAP_TIMEOUT_MS = 15_000;
+// 食譜庫換卡係兩段 sequential aiRecipe.chat，實測可以 >15 秒。
+// 15 秒就解鎖會靜靜放行第二次撳，造成並發覆寫；延長到 2 分鐘覆蓋兩段請求。
+const LIBRARY_SWAP_TIMEOUT_MS = 120_000;
 // AI 換卡 watchdog：實測 15–25 秒，太短會喺生成途中解鎖。
 const AI_SWAP_TIMEOUT_MS = 60_000;
 
@@ -973,6 +975,11 @@ export default function AIChefScreen() {
   const [photoFlowStatus, setPhotoFlowStatus] = useState<PhotoFlowStatus>(null);
   const photoRunRef = useRef(0);
   const photoAiBusyRef = useRef(false);
+  // UI 用（ref 只做同步 in-flight 鎖；state 先可以令 spinner 顯示出嚟）。
+  const [photoAiBusy, setPhotoAiBusy] = useState(false);
+  const [photoAiElapsed, setPhotoAiElapsed] = useState(0);
+  const photoAiTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const photoAiStartedAtRef = useRef(0);
   const lastPhotoAssetRef = useRef<{ uri: string; mimeType?: string } | null>(null);
   const photoSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const photoTimeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -980,13 +987,20 @@ export default function AIChefScreen() {
     photoRunRef.current += 1;
     if (photoSlowTimerRef.current) clearTimeout(photoSlowTimerRef.current);
     if (photoTimeoutTimerRef.current) clearTimeout(photoTimeoutTimerRef.current);
+    if (photoAiTimerRef.current) clearInterval(photoAiTimerRef.current);
   }, []);
   // Hot key / library-first search loading state（顯示「正在搵食譜庫...」）
   const [, setLibraryLoading] = useState(false);
   // 卡片「睇食材」展開（記錄展開邊張卡）
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  // 卡詳情 sheet（唔開新 route：AI 卡未收藏前冇 server id）
+  const [detailRecipe, setDetailRecipe] = useState<AIRecipe | null>(null);
   // 出咗新一批卡 → 收起之前展開嘅食材（index-based，唔 reset 會自動展開錯卡）
-  useEffect(() => { setExpandedCard(null); }, [recommendedRecipes]);
+  useEffect(() => { setExpandedCard(null); setDetailRecipe(null); }, [recommendedRecipes]);
+  const openRecipeDetail = (recipe: AIRecipe) => {
+    // 同卡上數目一致：先用同一套 placeholder 過濾，再交俾 sheet render 全部。
+    setDetailRecipe({ ...recipe, ingredients: getValidIngredients(recipe.ingredients) });
+  };
 
   // ─── Daily 3-dish-1-soup flow ──────────────────────────
   const [mealStep, setMealStep] = useState<MealPlanStep>("idle");
@@ -1174,9 +1188,19 @@ export default function AIChefScreen() {
   // 收藏中狀態（顯示嗰張卡個 spinner）
   const [favoritingName, setFavoritingName] = useState<string>("");
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+  // 換卡超過 15 秒仍未返 → 喺卡上面講明「仍在搵替代」，唔好靜靜解鎖再畀人撳。
+  const [swapSlow, setSwapSlow] = useState(false);
   // 同步鎖：state 未 flush 前，double tap 都唔會再入 swap。
   const swapInFlightRef = useRef(false);
   const swapWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swapSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearSwapSlow = useCallback(() => {
+    if (swapSlowTimerRef.current) {
+      clearTimeout(swapSlowTimerRef.current);
+      swapSlowTimerRef.current = null;
+    }
+    setSwapSlow(false);
+  }, []);
   const clearSwapWatchdog = useCallback(() => {
     if (swapWatchdogRef.current) {
       clearTimeout(swapWatchdogRef.current);
@@ -1185,19 +1209,28 @@ export default function AIChefScreen() {
   }, []);
   const clearSwapLock = useCallback(() => {
     clearSwapWatchdog();
+    clearSwapSlow();
     swapInFlightRef.current = false;
     setSwappingIndex(null);
-  }, [clearSwapWatchdog]);
+  }, [clearSwapWatchdog, clearSwapSlow]);
+  const armSwapSlow = useCallback(() => {
+    clearSwapSlow();
+    swapSlowTimerRef.current = setTimeout(() => {
+      swapSlowTimerRef.current = null;
+      setSwapSlow(true);
+    }, 15_000);
+  }, [clearSwapSlow]);
   // watchdog 一到就強制解鎖，避免 stalled request 令換卡永久鎖死。
   const armSwapWatchdog = useCallback((ms: number) => {
     clearSwapWatchdog();
     swapWatchdogRef.current = setTimeout(() => {
       swapWatchdogRef.current = null;
+      clearSwapSlow();
       swapInFlightRef.current = false;
       setSwappingIndex(null);
     }, ms);
-  }, [clearSwapWatchdog]);
-  useEffect(() => () => clearSwapWatchdog(), [clearSwapWatchdog]);
+  }, [clearSwapWatchdog, clearSwapSlow]);
+  useEffect(() => () => { clearSwapWatchdog(); clearSwapSlow(); }, [clearSwapWatchdog, clearSwapSlow]);
   // 新一批卡安裝 → 清走上一批嘅換卡鎖／watchdog。
   useEffect(() => { clearSwapLock(); }, [recommendedRecipes, clearSwapLock]);
   // 換卡時食譜庫（放寬後）仍然 0 張 → 喺張卡位置長期顯示兩個選擇，唔再用 8 秒 toast。
@@ -3777,6 +3810,7 @@ export default function AIChefScreen() {
     swapInFlightRef.current = true;
     setSwapNoCards(null);
     armSwapWatchdog(recipe.source === "ai" || opts?.aiFallback ? AI_SWAP_TIMEOUT_MS : LIBRARY_SWAP_TIMEOUT_MS);
+    armSwapSlow();
     trackCardAction("swap", recipe, index);
     const category = recipe.recipeCategory || "其他";
     const otherNames = recommendedRecipes
@@ -3975,6 +4009,7 @@ export default function AIChefScreen() {
         );
       } finally {
         clearSwapWatchdog();
+        clearSwapSlow();
         swapInFlightRef.current = false;
         setSwappingIndex(null);
       }
@@ -4009,6 +4044,7 @@ export default function AIChefScreen() {
       if (!libraryPicked) libraryPicked = pickLibraryFallback();
     } finally {
       clearSwapWatchdog();
+      clearSwapSlow();
       swapInFlightRef.current = false;
       setSwappingIndex(null);
     }
@@ -4507,7 +4543,7 @@ export default function AIChefScreen() {
 
   const handleSend = () => {
     const trimmed = input.trim();
-    if (!trimmed || chatMutation.isPending) return;
+    if (!trimmed || chatMutation.isPending || photoAiBusyRef.current) return;
     setInput("");
     resetAiNextSteps();
     // ─── Layer 0: Greeting (already exists) ──────────────────
@@ -4665,6 +4701,25 @@ export default function AIChefScreen() {
     });
   };
 
+  const startPhotoAiUi = () => {
+    photoAiStartedAtRef.current = Date.now();
+    setPhotoAiElapsed(0);
+    setPhotoAiBusy(true);
+    if (photoAiTimerRef.current) clearInterval(photoAiTimerRef.current);
+    photoAiTimerRef.current = setInterval(() => {
+      setPhotoAiElapsed(Math.floor((Date.now() - photoAiStartedAtRef.current) / 1000));
+    }, 1000);
+  };
+  // 必須喺 finally 行（成功／失敗／timeout／abort 都經 finally），否則 spinner 會永久卡住。
+  const stopPhotoAiUi = () => {
+    if (photoAiTimerRef.current) {
+      clearInterval(photoAiTimerRef.current);
+      photoAiTimerRef.current = null;
+    }
+    setPhotoAiBusy(false);
+    setPhotoAiElapsed(0);
+  };
+
   // One photo -> one generateFromImage request. The ref guard covers both the
   // dish ai_generate path and the legacy similar_ai path, including fast double taps.
   const generatePhotoRecipe = async (sourceAction: "similar_ai" | "ai_generate" | "photo_regenerate") => {
@@ -4675,6 +4730,7 @@ export default function AIChefScreen() {
     }
     if (photoAiBusyRef.current) return;
     photoAiBusyRef.current = true;
+    startPhotoAiUi();
     try {
       const res = await apiClient.aiRecipe.generateFromImage.mutate({ storageKeys: [ctx.imageKey] });
       const rawRecipe = res?.recipe;
@@ -4703,6 +4759,7 @@ export default function AIChefScreen() {
       showPhotoAiFailure("network");
     } finally {
       photoAiBusyRef.current = false;
+      stopPhotoAiUi();
       void usageUtils.family.usage.invalidate();
       void (usageUtils.aiRecipe as any).status.invalidate();
     }
@@ -5611,6 +5668,34 @@ export default function AIChefScreen() {
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <>
+              {photoAiBusy && (
+                <View style={s.msgRow} testID="photo-ai-loading">
+                  <View style={s.avatar}>
+                    <Ionicons name="sparkles" size={16} color={BRAND} />
+                  </View>
+                  <View style={[s.bubbleBot, s.typing]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ActivityIndicator size="small" color={BRAND} />
+                      <Text style={[s.bubbleTxt, { color: BRAND, fontWeight: "600" }]}>
+                        {t("aiChef.photoGenerating" as any)}
+                      </Text>
+                    </View>
+                    <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB, marginTop: 6 }]} testID="photo-ai-elapsed">
+                      {t("aiChef.photoGenerateElapsed" as any, { n: photoAiElapsed })}
+                    </Text>
+                    {photoAiElapsed >= 20 && (
+                      <Text style={[s.bubbleTxt, { fontSize: 12, color: SUB, marginTop: 4 }]} testID="photo-ai-still">
+                        {t("aiChef.photoGenerateStill" as any)}
+                      </Text>
+                    )}
+                    {photoAiElapsed >= 60 && (
+                      <Text style={[s.bubbleTxt, { fontSize: 12, color: "#B45309", marginTop: 4, fontWeight: "700" }]} testID="photo-ai-slow">
+                        {t("aiChef.photoGenerateSlow" as any)}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
               {photoFlowStatus && (
                 <View style={s.msgRow}>
                   <View style={s.avatar}>
@@ -5908,19 +5993,37 @@ export default function AIChefScreen() {
                                   </View>
                               ))}
                               {getValidIngredients(r.ingredients).length > 5 && (
-                                <Text style={s.recCardIngMore}>{t("aiChef.moreItems", { n: getValidIngredients(r.ingredients).length - 5 })}</Text>
+                                <TouchableOpacity
+                                  onPress={() => openRecipeDetail(r)}
+                                  testID={`recipe-card-ingredients-more-${i}`}
+                                >
+                                  <Text style={s.recCardIngMore}>{t("aiChef.moreItems", { n: getValidIngredients(r.ingredients).length - 5 })}</Text>
+                                </TouchableOpacity>
                               )}
                             </View>
                           )}
-                          {/* 步驟內容驗證 */}
+                          {/* 步驟預覽同時係詳情入口 */}
                           {r.steps && r.steps.length > 0 && (
-                            <View style={{ paddingVertical: 8 }} testID={`recipe-card-steps-content-${i}`}>
+                            <TouchableOpacity
+                              style={{ paddingVertical: 8 }}
+                              onPress={() => openRecipeDetail(r)}
+                              testID={`recipe-card-steps-content-${i}`}
+                              accessibilityRole="button"
+                            >
                               <Text style={{ fontSize: 12, color: SUB }}>{r.steps.length} {t("aiChef.unitSteps")}</Text>
                               <Text style={{ fontSize: 11, color: TEXT }} numberOfLines={2} testID={`recipe-card-first-step-${i}`}>
                                 {getLocalizedSteps(r.steps, r.stepsEn, r.stepsFil, r.stepsId)[0]}
                               </Text>
-                            </View>
+                            </TouchableOpacity>
                           )}
+                          <TouchableOpacity
+                            style={s.recCardDetailBtn}
+                            onPress={() => openRecipeDetail(r)}
+                            testID={`recipe-card-detail-${i}`}
+                            accessibilityRole="button"
+                          >
+                            <Text style={s.recCardDetailTxt}>{t("aiChef.cardDetailCta" as any)}</Text>
+                          </TouchableOpacity>
                           <View style={s.recCardBtns} testID={`recipe-card-btns-${i}`}>
                             {(!mealResult || !aiChefQuickPlanEnabled) && (
                               <TouchableOpacity
@@ -5972,6 +6075,11 @@ export default function AIChefScreen() {
                               )}
                             </TouchableOpacity>
                           </View>
+                          {swappingIndex === i && swapSlow && (
+                            <Text style={s.swapSlowTxt} testID={`ai-chef-recipe-${i}-swap-slow`}>
+                              {t("aiChef.swapStillSearching" as any)}
+                            </Text>
+                          )}
                           {swapNoCards?.index === i &&
                             recommendedRecipes[i]?.name === swapNoCards.recipeName &&
                             (!swapNoCards.cardId || recommendedRecipes[i]?.cardId === swapNoCards.cardId) &&
@@ -6022,7 +6130,7 @@ export default function AIChefScreen() {
         }
         />
 
-        {!chatMutation.isPending && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (() => {
+        {!chatMutation.isPending && !photoAiBusy && mealStep === "idle" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && recommendedRecipes.length === 0 && (() => {
           const lastBot = messages[messages.length - 1];
           const lastText = lastBot ? contentToText(lastBot.content) : "";
           const hasRecipe = hasRecipeContent(lastText);
@@ -6061,9 +6169,9 @@ export default function AIChefScreen() {
                 return (
                   <TouchableOpacity
                     key={`${q.actionId}-${i}`}
-                    style={[s.followUpChip, blocked && { opacity: 0.45 }]}
+                    style={[s.followUpChip, (blocked || photoAiBusy) && { opacity: 0.45 }]}
                     onPress={() => handleContractQuickReply(q.actionId)}
-                    disabled={chatMutation.isPending || blocked}
+                    disabled={chatMutation.isPending || blocked || photoAiBusy}
                   >
                     <Text style={s.followUpTxt}>{blocked ? t("aiChef.quotaExhausted") : t(q.labelKey as any)}</Text>
                   </TouchableOpacity>
@@ -6087,13 +6195,13 @@ export default function AIChefScreen() {
           </View>
         )}
 
-        {!chatMutation.isPending && recommendedRecipes.length === 0 && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+        {!chatMutation.isPending && !photoAiBusy && recommendedRecipes.length === 0 && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: "#183B56", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#183B56", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center" }} onPress={() => handleInstantRecipeAction("library")} disabled={chatMutation.isPending || photoAiBusy}>
                 <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.library")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center", opacity: aiCanGenerate ? 1 : 0.45 }} onPress={() => handleInstantRecipeAction("ai", "ai_tab")} disabled={chatMutation.isPending || !aiCanGenerate}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: "#F59E0B", borderRadius: 20, paddingHorizontal: 18, paddingVertical: 10, alignItems: "center", opacity: aiCanGenerate ? 1 : 0.45 }} onPress={() => handleInstantRecipeAction("ai", "ai_tab")} disabled={chatMutation.isPending || !aiCanGenerate || photoAiBusy}>
                 <Text style={{ fontSize: 14, color: "#fff", fontWeight: "800" }}>{t("aiChef.aiGenerate")}</Text>
               </TouchableOpacity>
             </View>
@@ -6108,7 +6216,7 @@ export default function AIChefScreen() {
         <View style={[s.bottomDock, { paddingBottom: keyboardH > 0 ? 8 : Math.max(insets.bottom, 8) }]}>
         {!hideUpgradePromo && <AdSlot onPressUpgrade={() => setShowPaywall(true)} />}
           <View style={s.inputBar}>
-            <TouchableOpacity style={s.camBtn} onPress={handleCamera}>
+            <TouchableOpacity style={[s.camBtn, photoAiBusy && { opacity: 0.45 }]} onPress={handleCamera} disabled={photoAiBusy}>
               <Ionicons name="camera-outline" size={22} color={BRAND} />
             </TouchableOpacity>
             <TextInput
@@ -6117,7 +6225,7 @@ export default function AIChefScreen() {
               placeholder={t("aiChef.inputPlaceholder")} placeholderTextColor={HINT}
               multiline maxLength={500} returnKeyType="send" onSubmitEditing={handleSend} blurOnSubmit
             />
-            <TouchableOpacity testID="ai-chef-send" style={[s.sendBtn, (!input.trim() || chatMutation.isPending) && s.sendOff]} onPress={handleSend} disabled={!input.trim() || chatMutation.isPending}>
+            <TouchableOpacity testID="ai-chef-send" style={[s.sendBtn, (!input.trim() || chatMutation.isPending || photoAiBusy) && s.sendOff]} onPress={handleSend} disabled={!input.trim() || chatMutation.isPending || photoAiBusy}>
               {chatMutation.isPending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
             </TouchableOpacity>
           </View>
@@ -6378,6 +6486,31 @@ export default function AIChefScreen() {
         </View>
       </Modal>
 
+      <AiRecipeDetailSheet
+        visible={!!detailRecipe}
+        recipe={detailRecipe}
+        onClose={() => setDetailRecipe(null)}
+        onAddToPlan={detailRecipe ? () => {
+          if (!isValidRecipe(detailRecipe)) {
+            Alert.alert(t("無法加入" as any), t("此食譜資料不完整。" as any));
+            return;
+          }
+          trackCardAction("plan_open", detailRecipe);
+          setPlanRecipe(detailRecipe);
+          setPlanDate(todayISO());
+          setShowPlan(true);
+          setDetailRecipe(null);
+        } : undefined}
+        onAddToShopping={detailRecipe ? () => {
+          const picked = detailRecipe;
+          setDetailRecipe(null);
+          void autoAddShoppingForPlan([picked], undefined, undefined, undefined, false);
+        } : undefined}
+        onFavorite={detailRecipe ? () => { void handleFavoriteRecipe(detailRecipe); } : undefined}
+        favoriteDisabled={!detailRecipe || !isValidRecipe(detailRecipe) || detailRecipe.source === "official" || detailRecipe.source === "custom"}
+        favoritePending={!!detailRecipe && favoritingName === (detailRecipe.name || "").trim()}
+      />
+
       <FreeUpsellModal
         visible={upsellVisible}
         remaining={Math.max(0, aiLimit - aiUsed)}
@@ -6515,6 +6648,9 @@ const s = StyleSheet.create({
   recCardIngDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: SUB, marginTop: 6 },
   recCardIngTxt: { flex: 1, fontSize: 11, color: TEXT, flexShrink: 1 },
   recCardIngMore: { fontSize: 10, color: SUB, marginTop: 2, fontWeight: "600" },
+  recCardDetailBtn: { paddingVertical: 6, marginBottom: 6, borderTopWidth: 1, borderTopColor: BORDER },
+  recCardDetailTxt: { fontSize: 11, fontWeight: "800", color: BRAND },
+  swapSlowTxt: { fontSize: 10, color: SUB, fontWeight: "700", marginTop: 6 },
   btnMeal: { flex: 1, backgroundColor: BRAND, paddingVertical: 7, borderRadius: 8, alignItems: "center" },
   btnMealTxt: { fontSize: 11, fontWeight: "700", color: "#fff" },
   btnFavorite: { flex: 1, backgroundColor: CARD, borderWidth: 1.5, borderColor: BRAND, paddingVertical: 6, borderRadius: 8, alignItems: "center", justifyContent: "center" },
