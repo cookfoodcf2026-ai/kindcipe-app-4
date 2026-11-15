@@ -101,25 +101,85 @@ test("recognizes a TOO_MANY_REQUESTS limit error", () => {
   assert.equal(isPhotoLimitError({ data: { code: "INTERNAL_SERVER_ERROR" } }), false);
 });
 
-test("dish search uses ingredient combinations and retries top 3 when thin", async () => {
+function makeApi(handler: (query: string) => any[] | Promise<any[]>) {
   const queries: string[] = [];
-  const api = {
-    recipes: {
-      search: {
-        query: async ({ query }: { query: string }) => {
-          queries.push(query);
-          return { recipes: query === "魚 青瓜 甘筍 南瓜" ? [{ name: "魚" }, { name: "青瓜" }] : [{ name: "甘筍" }, { name: "南瓜" }, { name: "湯" }] };
+  return {
+    queries,
+    api: {
+      recipes: {
+        search: {
+          query: async ({ query }: { query: string }) => {
+            queries.push(query);
+            return { recipes: await handler(query) };
+          },
         },
       },
     },
   };
+}
+
+test("searches combined plus each ingredient (union)", async () => {
+  const { api, queries } = makeApi((query) => [{ id: query }]);
   const result = await searchVisionLibrary(api, {
     scene: "dish",
     dishName: "完全唔同菜名",
     ingredients: ["魚", "青瓜", "甘筍", "南瓜"],
   });
-  assert.deepEqual(queries, ["魚 青瓜 甘筍 南瓜", "魚 青瓜 甘筍"]);
-  assert.equal(result.query1Count, 2);
-  assert.equal(result.query2Count, 3);
+  assert.deepEqual(queries, ["魚 青瓜 甘筍 南瓜", "魚", "青瓜", "甘筍", "南瓜"]);
+  assert.deepEqual(result.queryCounts, [1, 1, 1, 1, 1]);
+  assert.equal(result.query1Count, 1);
+  assert.equal(result.query2Count, 1);
   assert.equal(result.cards.length, 5);
+  // combined query（index 0）命中嘅卡排先。
+  assert.equal(result.cards[0].id, "魚 青瓜 甘筍 南瓜");
+});
+
+test("overlap ranks cards hit by more queries first", async () => {
+  const { api } = makeApi((query) => {
+    if (query === "魚 蛋") return [{ id: "shared" }];
+    if (query === "魚") return [{ id: "shared" }, { id: "fish" }];
+    return [{ id: "shared" }];
+  });
+  const result = await searchVisionLibrary(api, { scene: "fridge", dishName: "", ingredients: ["魚", "蛋"] });
+  assert.equal(result.cards[0].id, "shared");
+  assert.equal(result.cards[1].id, "fish");
+});
+
+test("one failing query does not zero out the other results", async () => {
+  const { api } = makeApi((query) => {
+    if (query === "魚 蛋") throw new Error("boom");
+    return query === "魚" ? [{ id: "fish" }] : [{ id: "egg" }];
+  });
+  const result = await searchVisionLibrary(api, { scene: "fridge", dishName: "", ingredients: ["魚", "蛋"] });
+  assert.deepEqual(result.cards.map((c) => c.id), ["fish", "egg"]);
+  assert.deepEqual(result.queryCounts, [0, 1, 1]);
+});
+
+test("dedupes the same card returned by multiple queries and within one query", async () => {
+  const { api } = makeApi((query) => query === "魚 蛋" ? [{ id: "same" }, { id: "same" }] : [{ id: "same" }]);
+  const result = await searchVisionLibrary(api, { scene: "fridge", dishName: "", ingredients: ["魚", "蛋"] });
+  assert.equal(result.cards.length, 1);
+  assert.equal(result.cards[0].id, "same");
+});
+
+test("caps total requests at 8 queries", async () => {
+  const { api, queries } = makeApi((query) => [{ id: query }]);
+  const result = await searchVisionLibrary(api, {
+    scene: "fridge",
+    dishName: "",
+    ingredients: ["醬油", "a", "b", "c", "d", "e", "f"],
+  });
+  assert.equal(queries.length, 8);
+  assert.deepEqual(queries, ["醬油 a b c d e f", "醬油", "a", "b", "c", "d", "豉油", "生抽"]);
+  assert.equal(result.queryCounts.length, 8);
+});
+
+test("alias only matches an exact ingredient name", async () => {
+  const soy = makeApi((query) => [{ id: query }]);
+  await searchVisionLibrary(soy.api, { scene: "fridge", dishName: "", ingredients: ["醬油"] });
+  assert.deepEqual(soy.queries, ["醬油", "豉油", "生抽"]);
+
+  const soyChicken = makeApi((query) => [{ id: query }]);
+  await searchVisionLibrary(soyChicken.api, { scene: "fridge", dishName: "", ingredients: ["醬油雞"] });
+  assert.deepEqual(soyChicken.queries, ["醬油雞"]);
 });

@@ -150,41 +150,110 @@ export type VisionSearchResult = {
   cards: any[];
   query1Count: number;
   query2Count: number;
+  queryCounts: number[];
 };
 
-function dedupeCards(cards: any[]): any[] {
-  const seen = new Set<string>();
-  const out: any[] = [];
-  for (const card of cards) {
-    const key = String(card?.id ?? card?.recipeId ?? card?.name ?? "").trim();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(card);
-  }
-  return out;
+// 只做 exact match，避免「醬油雞」等菜名被子字串誤中。
+const QUERY_ALIASES: Record<string, string[]> = {
+  "醬油": ["豉油", "生抽"],
+};
+
+const MAX_SEARCH_QUERIES = 8;
+const MAX_INGREDIENT_QUERIES = 5;
+const MAX_ALIAS_QUERIES = 2;
+const QUERY_TIMEOUT_MS = 4_000;
+const MAX_SCORED_CARDS = 12;
+const MAX_CARDS = 6;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("query_timeout")), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
 }
 
 export async function searchVisionLibrary(api: any, vision: VisionAnalysis): Promise<VisionSearchResult> {
   const items = visionItems(vision);
-  if (items.length === 0) return { cards: [], query1Count: 0, query2Count: 0 };
+  if (items.length === 0) return { cards: [], query1Count: 0, query2Count: 0, queryCounts: [] };
+
+  // 1 條 combined（精確命中優先）＋ 最多 5 條逐樣食材 ＋ 最多 2 條 alias = 上限 8 條。
+  const queries: string[] = [];
+  const pushQuery = (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed || queries.includes(trimmed) || queries.length >= MAX_SEARCH_QUERIES) return;
+    queries.push(trimmed);
+  };
+
+  pushQuery(items.join(" "));
+  for (const item of items.slice(0, MAX_INGREDIENT_QUERIES)) pushQuery(item);
+
+  let aliasCount = 0;
+  for (const item of items) {
+    const aliases = QUERY_ALIASES[item];
+    if (!aliases) continue;
+    for (const alias of aliases) {
+      if (aliasCount >= MAX_ALIAS_QUERIES) break;
+      if (queries.includes(alias)) continue;
+      pushQuery(alias);
+      aliasCount += 1;
+    }
+    if (aliasCount >= MAX_ALIAS_QUERIES) break;
+  }
+
   const runSearch = async (query: string): Promise<any[]> => {
     try {
-      const result = await api.recipes.search.query({ query, limit: 6 });
+      const result = await withTimeout(
+        Promise.resolve(api.recipes.search.query({ query, limit: 6 })),
+        QUERY_TIMEOUT_MS,
+      );
       return Array.isArray(result?.recipes) ? result.recipes : [];
     } catch {
+      // 單條失敗／timeout 唔可以清零其他 query 嘅結果。
       return [];
     }
   };
-  const query1 = items.join(" ");
-  const first = await runSearch(query1);
-  let second: any[] = [];
-  if (first.length < 3 && items.length > 3) {
-    second = await runSearch(items.slice(0, 3).join(" "));
-  }
+
+  // 同步建立所有 promise（httpBatchLink 會合併同一 tick 嘅 query），再一次等齊。
+  const settled = await Promise.allSettled(queries.map(runSearch));
+  const queryCounts = settled.map((r) => (r.status === "fulfilled" ? r.value.length : 0));
+
+  // Overlap 排序：同一張卡被越多條唔同 query 命中，分數越高；
+  // 同分先用 combined（query index 0），再按 query index，最後保留原 response 次序。
+  type Scored = { card: any; hits: number; minQueryIndex: number; firstSeq: number };
+  const scored = new Map<string, Scored>();
+  let seq = 0;
+  settled.forEach((result, queryIndex) => {
+    if (result.status !== "fulfilled") return;
+    const seenInQuery = new Set<string>();
+    for (const card of result.value) {
+      const key = String(card?.id ?? card?.recipeId ?? card?.name ?? "").trim();
+      if (!key || seenInQuery.has(key)) continue;
+      seenInQuery.add(key);
+      const existing = scored.get(key);
+      if (existing) {
+        existing.hits += 1;
+        if (queryIndex < existing.minQueryIndex) existing.minQueryIndex = queryIndex;
+        continue;
+      }
+      scored.set(key, { card, hits: 1, minQueryIndex: queryIndex, firstSeq: seq });
+      seq += 1;
+    }
+  });
+
+  const cards = [...scored.values()]
+    .sort((a, b) => b.hits - a.hits || a.minQueryIndex - b.minQueryIndex || a.firstSeq - b.firstSeq)
+    .slice(0, MAX_SCORED_CARDS)
+    .map((entry) => entry.card)
+    .slice(0, MAX_CARDS);
+
   return {
-    cards: dedupeCards([...first, ...second]).slice(0, 6),
-    query1Count: first.length,
-    query2Count: second.length,
+    cards,
+    query1Count: queryCounts[0] ?? 0,
+    query2Count: queryCounts[1] ?? 0,
+    queryCounts,
   };
 }
 
@@ -216,7 +285,7 @@ export async function processPhoto(
   const cards = input.normalizeCards ? input.normalizeCards(searchResult.cards) : searchResult.cards;
   const outcome = buildVisionOutcome(analysis, cards, imageKey, imageUrl);
   const branch = outcome.kind === "cards" ? "library_hit" : outcome.kind === "ai" ? "library_miss" : "recognize_failed";
-  console.log(`[photoFlow] request=${analysis.requestId ?? "none"} scene=${analysis.scene} items=${visionItems(analysis).length} query1=${searchResult.query1Count} query2=${searchResult.query2Count} library=${cards.length} branch=${branch}`);
+  console.log(`[photoFlow] request=${analysis.requestId ?? "none"} scene=${analysis.scene} items=${visionItems(analysis).length} query1=${searchResult.query1Count} query2=${searchResult.query2Count} queryCounts=${searchResult.queryCounts.join(",")} library=${cards.length} branch=${branch}`);
   return { analysis, outcome, imageKey, imageUrl };
 }
 
