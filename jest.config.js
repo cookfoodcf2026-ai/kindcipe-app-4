@@ -20,6 +20,7 @@ module.exports = {
     "<rootDir>/components/__tests__/settings.deleteAccount.test.tsx",
   ],
   setupFiles: ["<rootDir>/jest.setup.js"],
+  modulePathIgnorePatterns: ["<rootDir>/.opencode/", "<rootDir>/.kilo/"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },

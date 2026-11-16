@@ -12,3 +12,8 @@ export const aiChefMultiRoleEnabled =
 
 export const aiChefSourceLabelsEnabled =
   process.env.EXPO_PUBLIC_AI_CHEF_SOURCE_LABELS !== "0";
+
+// 換卡流程 V2：每次 tap 最多 1 個 backend 請求、library 先行、AI 只由用戶明確觸發。
+// 預設 OFF，OFF 時完全行舊路徑（行為不變）。
+export const aiChefSwapV2Enabled =
+  process.env.EXPO_PUBLIC_AI_CHEF_SWAP_V2 === "1";

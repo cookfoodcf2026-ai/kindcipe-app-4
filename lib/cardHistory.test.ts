@@ -232,10 +232,35 @@ describe("updateHistoryEntryCards", () => {
     expect(next[1]).toBe(older);
   });
 
-  it("is a no-op when no entry matches the pre-swap key", () => {
+  it("falls back to the entry that differs by exactly one card when the key is stale", () => {
+    const d = recipe("D", ["w"]);
     const entry = { id: "top", key: cardSetKey([a, b]), names: ["A", "B"], at: 10, cards: [a, b] };
     const history = [entry];
-    expect(updateHistoryEntryCards(history, cardSetKey([c]), [a, c], { isValid })).toBe(history);
+    // screen had an extra card D, so the pre-swap key includes it but history kept only A/B.
+    const next = updateHistoryEntryCards(history, cardSetKey([a, b, d]), [a, c], { isValid });
+    expect(next).not.toBe(history);
+    expect(next[0]).toMatchObject({ id: "top", names: ["A", "C"], cards: [a, c] });
+  });
+
+  it("falls back when history kept fewer cards than the screen (slice mismatch)", () => {
+    const d = recipe("D", ["w"]);
+    const e = recipe("E", ["v"]);
+    const f = recipe("F", ["u"]);
+    // history stored 4 of the 5 screen cards; B is the swapped-away card.
+    const entry = { id: "top", key: cardSetKey([a, b, c, d]), names: ["A", "B", "C", "D"], at: 10, cards: [a, b, c, d] };
+    const next = updateHistoryEntryCards([entry], cardSetKey([a, b, c, d, f]), [a, e, c, d, f], { isValid });
+    expect(next).toHaveLength(1);
+    expect(next[0].id).toBe("top");
+    expect(next[0].names).toEqual(["A", "E", "C", "D", "F"]);
+  });
+
+  it("pushes a new group instead of silently dropping when no entry can match", () => {
+    const entry = { id: "top", key: cardSetKey([a]), names: ["A"], at: 10, cards: [a] };
+    const history = [entry];
+    const next = updateHistoryEntryCards(history, "stale-key", [b, c], { isValid });
+    expect(next).toHaveLength(2);
+    expect(next[0].names).toEqual(["B", "C"]);
+    expect(next[1]).toBe(entry);
   });
 
   it("removes the matching entry when the delete branch leaves no cards", () => {

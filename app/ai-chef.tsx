@@ -60,7 +60,8 @@ import {
 } from "@/lib/limitErrors";
 import { normalizeDishType, inferDishTypeKeyFromName, dishTypeLabel, type DishTypeKey } from "@/lib/dishType";
 import { normalizeMealPreferences, type MealPreferenceTime } from "@/lib/mealPreferences";
-import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled } from "@/lib/featureFlags";
+import { aiChefQuickPlanEnabled, aiChefNoodleRoleEnabled, aiChefSourceLabelsEnabled, aiChefSwapV2Enabled } from "@/lib/featureFlags";
+import { decideSwap, roleBlockedByAvoid } from "@/lib/swapDecision";
 import { canva } from "@/app/styles/colors";
 import { mergeAppendedCards } from "@/lib/appendCards";
 import { ingredientsSignature } from "@/lib/recipeSignature";
@@ -1231,7 +1232,11 @@ export default function AIChefScreen() {
   }, [clearSwapWatchdog, clearSwapSlow]);
   useEffect(() => () => { clearSwapWatchdog(); clearSwapSlow(); }, [clearSwapWatchdog, clearSwapSlow]);
   // 新一批卡安裝 → 清走上一批嘅換卡鎖／watchdog。
-  useEffect(() => { clearSwapLock(); }, [recommendedRecipes, clearSwapLock]);
+  // V2 只准喺 swap 自己完成／失敗後解鎖，唔可以俾 chat/hydrate 中途解鎖。
+  useEffect(() => {
+    if (aiChefSwapV2Enabled) return;
+    clearSwapLock();
+  }, [recommendedRecipes, clearSwapLock]);
   // 換卡時食譜庫（放寬後）仍然 0 張 → 喺張卡位置長期顯示兩個選擇，唔再用 8 秒 toast。
   const [swapNoCards, setSwapNoCards] = useState<{ index: number; recipeName: string; cardId?: string } | null>(null);
   // 記錄已換過嘅食譜名稱，避免重複
@@ -3813,12 +3818,152 @@ export default function AIChefScreen() {
     syncCardHistoryEntry(preSwapKey, nextCards);
   };
 
+  // AI_CHEF_SWAP_V2：每個 tap 最多 1 個 backend 請求。
+  // library 先行；0 候選 → 原位面板（再搵／AI／取消）；AI 只由用戶喺面板明確觸發。
+  // 唔再有自動 2+1 重試、唔再有 watchdog 中途解鎖、唔再自動 AI。
+  const handleSwapRecipeV2 = async (
+    recipe: AIRecipe,
+    index: number,
+    opts?: { ai?: boolean; relaxRole?: boolean },
+  ) => {
+    if (swappingIndex !== null || swapInFlightRef.current) return;
+    const useAi = opts?.ai === true;
+    if (useAi && (!aiCanGenerate || aiReplyBlocked)) {
+      setShowPaywall(true);
+      return;
+    }
+    swapInFlightRef.current = true;
+    setSwapNoCards(null);
+    setSwappingIndex(index);
+    armSwapSlow();
+    trackCardAction("swap", recipe, index);
+
+    const otherNames = recommendedRecipes
+      .filter((_, i) => i !== index)
+      .map((r) => (r.name || "").trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    // 已見（session 已出過 / 今輪已換過 / 30 日排餐）只喺 client-side 過濾，
+    // 唔加入 library request 嘅 excludeNames，避免 pool 被收得太窄。
+    const seenNames = [...usedRecipeNames, ...sessionSeenRecipeNames, ...swappedRecipeNames];
+    const cardDishType = getDishType(recipe);
+    const avoid = sessionAvoid();
+    const roleAllowed = !roleBlockedByAvoid(cardDishType, avoid);
+    const relaxRole = opts?.relaxRole === true;
+    const excludeNames = [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])];
+    const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
+    const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
+    const catKw = dishTypeKeyword(cardDishType);
+    // avoid 命中原卡類別 → 唔再送該類別 keyword / role marker，改送通用 query。
+    const kw = relaxRole || !roleAllowed ? "家常" : catKw || cardNameKw || "家常菜";
+
+    // Library 同 AI 共用同一個 builder：avoid = allergens ∪ dislikes ∪ session typed exclusions。
+    const buildSwapPayload = () => {
+      if (useAi) {
+        const roleLine = roleAllowed
+          ? `呢道一定要係「${cardDishType}」類別（soup=湯、meat=肉、seafood=海鮮、vegetable=菜、other=主食），唔可以變成其他類別。`
+          : "類別唔好再屬於原卡被排除嘅類別。";
+        const categoryLine = roleAllowed
+          ? `分類要同原本相近：${recipe.recipeCategory || "其他"}。`
+          : "唔好再用原卡被排除嘅類別。";
+        const prompt = [
+          `請只生成 1 個可直接煮嘅食譜，作為「${recipe.name}」嘅替代。`,
+          categoryLine,
+          roleLine,
+          `食譜名稱唔可以同以下已顯示食譜重複：${otherNames.length > 0 ? otherNames.join("、") : "無"}。`,
+          `食材欄每行只寫一種食材，唔好加入功效、備註、口味描述；每個食材都一定要有名字。`,
+          `保持家庭日常可煮、步驟完整、繁體中文。`,
+        ].join("\n");
+        return {
+          messages: [{ role: "user" as const, content: prompt }],
+          mode: "ai" as const,
+          aiEntry: "swap_ai" as AiEntry,
+          avoidIngredients: avoid,
+          lang: i18n.language,
+          excludeNames: [...new Set([...excludeNames, ...sessionSeenRecipeNames, ...usedRecipeNames])],
+        };
+      }
+      const message =
+        roleAllowed && !relaxRole
+          ? `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}`
+          : `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}。`;
+      return {
+        messages: [{ role: "user" as const, content: message }],
+        mode: "library" as const,
+        search: !relaxRole && roleAllowed && hotkeyCtx ? { ...hotkeyCtx, count: 5 } : undefined,
+        avoidIngredients: avoid,
+        lang: i18n.language,
+        excludeNames,
+      };
+    };
+
+    try {
+      const res: any = await apiClient.aiRecipe.chat.mutate(buildSwapPayload());
+      const structured = Array.isArray(res?.recipes) ? res.recipes : [];
+      const fallbackText = typeof res?.content === "string" ? tryParseRecipes(res.content) : [];
+      const candidates = [...structured, ...fallbackText]
+        .map(normalizeRecipe)
+        .filter((r): r is AIRecipe => !!r && isValidRecipe(r));
+
+      const decision = decideSwap<AIRecipe>({
+        currentCard: recipe,
+        response: { cards: candidates, status: typeof res?.status === "string" ? res.status : null },
+        otherCardNames: otherNames,
+        seenNames,
+        relaxRole,
+        roleAllowed,
+        isValidCandidate: isValidRecipe,
+        isCandidateAllowed: (card) => !roleBlockedByAvoid(getDishType(card), avoid),
+        getDishType,
+      });
+
+      if (decision.action === "swap") {
+        const candidate = decision.candidate;
+        replaceRecipeAtIndex(index, candidate);
+        setSwapNoCards(null);
+        recordSeenRecipes([candidate]);
+        setSwappedRecipeNames((prev) => {
+          const next = new Set(prev);
+          next.add(candidate.name);
+          return next;
+        });
+        showToast(
+          useAi
+            ? t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" })
+            : t("📚 已用食譜庫換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" }),
+        );
+        return;
+      }
+
+      if (decision.action === "panel") {
+        setContractAiBlocked(isQuotaBlocked(res?.quota));
+        setSwapNoCards({ index, recipeName: recipe.name, cardId: recipe.cardId });
+        return;
+      }
+    } catch (e: any) {
+      console.error("[handleSwapRecipeV2] swap failed:", friendlyError(e) || e);
+      // 唔自動 retry、唔自動轉 AI：交返原位面板畀用戶決定。
+      setSwapNoCards({ index, recipeName: recipe.name, cardId: recipe.cardId });
+    } finally {
+      clearSwapSlow();
+      swapInFlightRef.current = false;
+      setSwappingIndex(null);
+    }
+  };
+
   // 「換」掣：只替換單張卡。AI mode 就直接出 1 個替代食譜；library mode 先搵庫內替代
   const handleSwapRecipe = async (
     recipe: AIRecipe,
     index: number,
     opts?: { aiFallback?: boolean; relaxRole?: boolean },
   ) => {
+    if (aiChefSwapV2Enabled) {
+      await handleSwapRecipeV2(recipe, index, {
+        ai: opts?.aiFallback === true,
+        relaxRole: opts?.relaxRole === true,
+      });
+      return;
+    }
     // 全域鎖：任何一張換卡進行中，唔准再撳其他卡（避免並發交錯覆寫）
     if (swappingIndex !== null || swapInFlightRef.current) return;
     swapInFlightRef.current = true;
@@ -4085,12 +4230,25 @@ export default function AIChefScreen() {
     }, 8000, "info");
   };
 
-  // no_cards 面板嘅兩個出路：AI 生成（1 credit）／放寬到其他類別。
-  const handleSwapNoCardsAction = (actionId: "ai_generate" | "relax_role") => {
+  // no_cards 面板嘅出路：AI 生成（1 credit）／放寬到其他類別／取消。
+  const handleSwapNoCardsAction = (actionId: "ai_generate" | "relax_role" | "cancel") => {
     const ctx = swapNoCards;
     if (!ctx) return;
+    if (actionId === "cancel") { setSwapNoCards(null); return; }
     const recipe = recommendedRecipes[ctx.index];
     if (!recipe) { setSwapNoCards(null); return; }
+    if (aiChefSwapV2Enabled) {
+      if (actionId === "ai_generate") {
+        if (!aiCanGenerate || aiReplyBlocked) {
+          showToast(t("aiChef.quotaExhausted" as any));
+          return;
+        }
+        void handleSwapRecipeV2(recipe, ctx.index, { ai: true });
+        return;
+      }
+      void handleSwapRecipeV2(recipe, ctx.index, { relaxRole: true });
+      return;
+    }
     if (actionId === "ai_generate") {
       // 額度用完：只顯示 quota 訊息，唔彈 paywall（避免用戶以為一定要付款）。
       if (!aiCanGenerate || aiReplyBlocked) {
@@ -6106,9 +6264,19 @@ export default function AIChefScreen() {
                           {swapNoCards?.index === i &&
                             recommendedRecipes[i]?.name === swapNoCards.recipeName &&
                             (!swapNoCards.cardId || recommendedRecipes[i]?.cardId === swapNoCards.cardId) &&
-                            recommendedRecipes[i]?.source !== "ai" && (
+                            (aiChefSwapV2Enabled || recommendedRecipes[i]?.source !== "ai") && (
                             <View style={s.swapNoCardsBox} testID={`ai-chef-recipe-${i}-swap-no-cards`}>
                               <Text style={s.swapNoCardsTxt}>{t("aiChef.swapNoLibrary" as any)}</Text>
+                              {aiChefSwapV2Enabled && (
+                                <TouchableOpacity
+                                  testID={`ai-chef-recipe-${i}-swap-relax`}
+                                  style={[s.swapNoCardsPrimary, { backgroundColor: BRAND }]}
+                                  onPress={() => handleSwapNoCardsAction("relax_role")}
+                                  disabled={chatMutation.isPending || swappingIndex !== null}
+                                >
+                                  <Text style={s.swapNoCardsPrimaryTxt}>{t("aiChef.relaxRole" as any)}</Text>
+                                </TouchableOpacity>
+                              )}
                               <TouchableOpacity
                                 testID={`ai-chef-recipe-${i}-swap-ai`}
                                 style={[s.swapNoCardsPrimary, (!aiCanGenerate || aiReplyBlocked) && { opacity: 0.5 }]}
@@ -6119,14 +6287,26 @@ export default function AIChefScreen() {
                                   {(!aiCanGenerate || aiReplyBlocked) ? t("aiChef.quotaExhausted" as any) : t("aiChef.aiGenerateCredit" as any)}
                                 </Text>
                               </TouchableOpacity>
-                              <TouchableOpacity
-                                testID={`ai-chef-recipe-${i}-swap-relax`}
-                                style={s.swapNoCardsSecondary}
-                                onPress={() => handleSwapNoCardsAction("relax_role")}
-                                disabled={chatMutation.isPending || swappingIndex !== null}
-                              >
-                                <Text style={s.swapNoCardsSecondaryTxt}>{t("aiChef.relaxRole" as any)}</Text>
-                              </TouchableOpacity>
+                              {!aiChefSwapV2Enabled && (
+                                <TouchableOpacity
+                                  testID={`ai-chef-recipe-${i}-swap-relax`}
+                                  style={s.swapNoCardsSecondary}
+                                  onPress={() => handleSwapNoCardsAction("relax_role")}
+                                  disabled={chatMutation.isPending || swappingIndex !== null}
+                                >
+                                  <Text style={s.swapNoCardsSecondaryTxt}>{t("aiChef.relaxRole" as any)}</Text>
+                                </TouchableOpacity>
+                              )}
+                              {aiChefSwapV2Enabled && (
+                                <TouchableOpacity
+                                  testID={`ai-chef-recipe-${i}-swap-cancel`}
+                                  style={s.swapNoCardsSecondary}
+                                  onPress={() => handleSwapNoCardsAction("cancel")}
+                                  disabled={chatMutation.isPending || swappingIndex !== null}
+                                >
+                                  <Text style={s.swapNoCardsSecondaryTxt}>{t("取消" as any)}</Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
                           )}
                         </View>
