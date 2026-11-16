@@ -73,7 +73,7 @@ import {
   updateHistoryEntryCards,
 } from "@/lib/cardHistory";
 import { chatSessionSignature } from "@/lib/chatSessionSignature";
-import { detectMealIntent, detectFlavorConstraint } from "@/lib/mealIntent";
+import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists } from "@/lib/mealIntent";
 
 type MsgContent = string | (
   | { type: "text"; text: string }
@@ -121,7 +121,6 @@ type MealPlanPreferences = {
 
 const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, timeModes: [], dislikes: "", allergens: "" };
 const EMPTY_RECIPE_LIST: AIRecipe[] = [];
-const splitAvoidList = (value: string) => value.split("、").map((item) => item.trim()).filter(Boolean);
 // 食譜庫換卡係兩段 sequential aiRecipe.chat，實測可以 >15 秒。
 // 15 秒就解鎖會靜靜放行第二次撳，造成並發覆寫；延長到 2 分鐘覆蓋兩段請求。
 const LIBRARY_SWAP_TIMEOUT_MS = 120_000;
@@ -2806,6 +2805,8 @@ export default function AIChefScreen() {
     const flavor = detectFlavorConstraint(lastUserContent);
     const isStructuredMealPrompt = !!mealIntent || /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
     const promptPrefs = mealStep === "idle" ? buildMealPrefs() : mealPrefs;
+    // 打字／問卷／hotkey 嘅避免約束要合併（union，永不減）：過敏安全優先。
+    const avoidIngredients = mergeAvoidLists(promptPrefs.allergens, promptPrefs.dislikes, flavor?.exclusions);
     // 有結構化一餐意圖 → 直接用結構化 prompt（帶 count + 口味），確保出夠卡數同尊重 constraint
     // 3 餸 1 湯（或用戶指定嘅 X 餸 Y 湯）一定出齊 N 張：
     // 送「短意圖」而唔係長模板 —— 長模板會被後端當成指定菜單，只回 1 張。
@@ -2816,6 +2817,7 @@ export default function AIChefScreen() {
           `${mealCounts.dishes} 餸 ${mealCounts.soups} 湯`,
           promptPrefs.allergens?.trim() ? `；避免：${promptPrefs.allergens}` : "",
           promptPrefs.dislikes?.trim() ? `；唔要：${promptPrefs.dislikes.trim()}` : "",
+          flavor?.exclusions?.length ? `；唔要：${mergeAvoidLists(flavor.exclusions).join("、")}` : "",
           promptPrefs.hasKids ? "；有小朋友" : "",
           promptPrefs.hasElderly ? "；有長者" : "",
           promptPrefs.time ? `；${promptPrefs.time}` : "",
@@ -2875,6 +2877,7 @@ export default function AIChefScreen() {
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames, ...visibleCardNames])],
       lang: i18n.language,
       search: searchParam,
+      ...(avoidIngredients.length ? { avoidIngredients } : {}),
     });
     scrollToEnd();
   };
@@ -3173,7 +3176,7 @@ export default function AIChefScreen() {
     updateMessages(prev => [...prev, { role: "user", content: display }]);
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
-    mutateChat({ messages: [{ role: "user", content: prompt }], mode: "ai", aiEntry: "ai_tab" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], lang: i18n.language }, {
+    mutateChat({ messages: [{ role: "user", content: prompt }], mode: "ai", aiEntry: "ai_tab" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients: mergeAvoidLists(defaultPrefs.allergens, defaultPrefs.dislikes), lang: i18n.language }, {
       onSuccess: (data, variables) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -3337,6 +3340,8 @@ export default function AIChefScreen() {
     // ── Library-first：行結構化 meal path（pickSoupMeal，同食譜庫 button 一致，唔再隨機抽）──
     setLibraryLoading(true);
     setRecommendedRecipes([]);
+    // prefs-only 句子都要帶齊當前約束（過敏 ∪ 唔食）；空缺時維持原本無 avoid 參數行為。
+    const avoidIngredients = mergeAvoidLists(prefs.allergens, prefs.dislikes);
     try {
       // 食譜庫路徑要送「短意圖」（3 餸 1 湯＋人數＋限制）。送長模板 prompt
       // （含「分類如下：1. 肉類主菜…」）會令後端只回 1 張卡。
@@ -3344,15 +3349,14 @@ export default function AIChefScreen() {
       const libraryPrompt = [
         prefs.people ? `${prefs.people} 人食。` : "",
         "3 餸 1 湯",
-        prefs.allergens?.trim() ? `；避免：${prefs.allergens}` : "",
-        prefs.dislikes?.trim() ? `；唔要：${prefs.dislikes.trim()}` : "",
+        avoidIngredients.length ? `；避免：${avoidIngredients.join("、")}` : "",
       ].join("");
       const res = await apiClient.aiRecipe.chat.mutate({
         messages: [{ role: "user", content: libraryPrompt }],
         mode: "library",
         lang: i18n.language,
         excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
-        avoidIngredients: splitAvoidList(prefs.allergens),
+        avoidIngredients,
       });
       const rawRecipes = Array.isArray(res?.recipes) ? res.recipes : [];
       const libraryRecipes = rawRecipes
@@ -3385,7 +3389,7 @@ export default function AIChefScreen() {
     resetAiNextSteps();
     lastChatModeRef.current = "ai";
     noveltyRetryRef.current = false;
-    mutateChat({ messages: buildBackendMessages(fullMsgs), mode: "ai", aiEntry: "ai_fallback" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients: splitAvoidList(prefs.allergens), lang: i18n.language }, {
+    mutateChat({ messages: buildBackendMessages(fullMsgs), mode: "ai", aiEntry: "ai_fallback" as AiEntry, excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])], avoidIngredients, lang: i18n.language }, {
       onSuccess: (data, variables) => {
         setMealStep("result");
         setAiNextSteps([]);
@@ -3446,7 +3450,7 @@ export default function AIChefScreen() {
       messages: buildBackendMessages(msgs),
       mode: "chat",
       excludeNames: [...new Set([...usedRecipeNames, ...sessionSeenRecipeNames])],
-      avoidIngredients: splitAvoidList(defaultPrefs.allergens),
+      avoidIngredients: mergeAvoidLists(defaultPrefs.allergens, defaultPrefs.dislikes, flavor?.exclusions),
       lang: i18n.language,
     }, {
       onSuccess: (data, variables) => {
@@ -4511,7 +4515,6 @@ export default function AIChefScreen() {
     if (!isModifyText(text)) return false;
     const validCards = recommendedRecipes.filter(isValidRecipe);
     if (validCards.length === 0) return false;
-    addUserMessage(text);
     const removeMatch = text.match(/(?:唔要|不要|走|刪走|唔食)\s*([^\s，,。！!？?]+)/);
     if (removeMatch) {
       const term = removeMatch[1].trim();
@@ -4521,6 +4524,7 @@ export default function AIChefScreen() {
         return !hay.includes(term);
       });
       if (kept.length !== validCards.length) {
+        addUserMessage(text);
         setRecommendedRecipes(kept);
         setMealResult(kept.length >= 2 ? kept : null);
         syncCardHistoryEntry(preDeleteKey, kept);
@@ -4529,6 +4533,7 @@ export default function AIChefScreen() {
       }
     }
     if (/換/.test(text)) {
+      addUserMessage(text);
       const soupIndex = validCards.findIndex((r) => getDishType(r) === "soup");
       if (/湯/.test(text) && soupIndex >= 0) {
         void handleSwapRecipe(validCards[soupIndex], soupIndex);
@@ -4537,6 +4542,14 @@ export default function AIChefScreen() {
       addBotMessage(t("你想換邊一張？可以用卡片上嘅「換」掣，或者講「換走個湯」。" as any));
       return true;
     }
+    // 冇刪卡、冇「換」：如果句子本身係新一餐意圖或避免詞，唔好吞，
+    // 交返正常流程（detectMealIntent / sendChat）處理。注意未 addUserMessage，
+    // 避免正常流程再加一次造成重複 user bubble。
+    const hasMealIntent = Boolean(detectMealIntent(text));
+    const hasAvoidConstraint =
+      detectFlavorConstraint(text).exclusions.length > 0 || /(唔要|唔食|不要|忌口)/.test(text);
+    if (hasMealIntent || hasAvoidConstraint) return false;
+    addUserMessage(text);
     addBotMessage(t("呢個修改可以用卡片上嘅「換」或「刪」掣，或者講清楚要改邊張、改成點。" as any));
     return true;
   };

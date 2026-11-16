@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedAt": "2026-11-07T03:41:31.863Z",
-  "totalHits": 144,
+  "totalHits": 145,
   "totalLines": 105,
   "counts": {
     "app/(tabs)/index.tsx|string|搜尋失敗": 1,
@@ -132,6 +132,7 @@
     "src/components/FreeUpsellModal.tsx|jsx-text|升級 Pro：一個廚房共用 150 AI credits + 100 次匯入，最多 4 位家人共用同一份餐單同買餸清單。": 1,
     "src/components/FreeUpsellModal.tsx|jsx-text|有 Instagram 優惠碼？": 1,
     "src/components/FreeUpsellModal.tsx|jsx-text|稍後": 1,
+    "src/components/FreeUpsellModal.tsx|string|了解 Pro": 1,
     "src/components/FreeUpsellModal.tsx|string|免費額度用完啦": 1,
     "src/components/IngredientPickerModal.tsx|string|調味料": 1,
     "src/components/PriceCompareModal.tsx|jsx-text|最低 HK$": 1,

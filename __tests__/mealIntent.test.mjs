@@ -3,7 +3,7 @@
  * Run:  node __tests__/mealIntent.test.mjs
  */
 import { strict as assert } from "node:assert";
-import { detectMealIntent, detectFlavorConstraint } from "../lib/mealIntent.js";
+import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists } from "../lib/mealIntent.js";
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -28,6 +28,21 @@ t("小辣 → 唔算 spicy", () => assert.equal(detectFlavorConstraint("小辣")
 t("清淡 → light", () => { const f = detectFlavorConstraint("清淡為主"); assert.equal(f.light, true); assert.equal(f.spicy, false); });
 t("唔食豬肉 → exclusion 有豬肉", () => assert.ok(detectFlavorConstraint("唔食豬肉").exclusions.some(x => x.includes("豬肉"))));
 t("忌口：花生 → exclusion", () => assert.ok(detectFlavorConstraint("忌口：花生").exclusions.some(x => x.includes("花生"))));
+t("唔要海鮮 唔要豬肉 → 2 個 exclusion", () => assert.deepEqual(detectFlavorConstraint("唔要海鮮 唔要豬肉").exclusions, ["海鮮", "豬肉"]));
+t("唔要豬肉 → 豬肉 而唔係 豬", () => assert.deepEqual(detectFlavorConstraint("唔要豬肉").exclusions, ["豬肉"]));
+t("唔食豬肉 → 豬肉 而唔係 豬", () => assert.deepEqual(detectFlavorConstraint("唔食豬肉").exclusions, ["豬肉"]));
+t("不要蝦、忌口：花生 → 兩個 exclusion", () => assert.deepEqual(detectFlavorConstraint("不要蝦、忌口：花生").exclusions, ["蝦", "花生"]));
+
+console.log("mergeAvoidLists：");
+t("正規化前綴 + split + 去重", () => assert.deepEqual(
+  mergeAvoidLists("唔要海鮮，唔食豬肉、不要蝦", ["忌口：花生", "豬肉"]),
+  ["海鮮", "豬肉", "蝦", "花生"],
+));
+t("問卷前綴唔會雙重否定", () => assert.deepEqual(
+  mergeAvoidLists(["唔要海鮮"], "唔食豬肉", null, undefined, []),
+  ["海鮮", "豬肉"],
+));
+t("空缺 → 空陣列", () => assert.deepEqual(mergeAvoidLists("", [], null), []));
 
 console.log(`\n結果：${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
