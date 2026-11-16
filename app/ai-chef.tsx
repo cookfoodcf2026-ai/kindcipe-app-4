@@ -3824,10 +3824,11 @@ export default function AIChefScreen() {
   const handleSwapRecipeV2 = async (
     recipe: AIRecipe,
     index: number,
-    opts?: { ai?: boolean; relaxRole?: boolean },
+    opts?: { ai?: boolean; relaxRole?: boolean; repeatSeen?: boolean },
   ) => {
     if (swappingIndex !== null || swapInFlightRef.current) return;
     const useAi = opts?.ai === true;
+    const repeatSeen = opts?.repeatSeen === true;
     if (useAi && (!aiCanGenerate || aiReplyBlocked)) {
       setShowPaywall(true);
       return;
@@ -3850,7 +3851,15 @@ export default function AIChefScreen() {
     const avoid = sessionAvoid();
     const roleAllowed = !roleBlockedByAvoid(cardDishType, avoid);
     const relaxRole = opts?.relaxRole === true;
-    const excludeNames = [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])];
+    // repeatSeen：用戶明確要求重用已見卡，所以唔可以再將 seenNames 送去 backend 做 exclude。
+    const excludeNames = [
+      ...new Set([
+        ...otherNames,
+        recipe.name || "",
+        ...(repeatSeen ? [] : seenNames),
+      ]),
+    ].filter(Boolean).slice(0, 60);
+    const repeatMarker = repeatSeen ? "；可以重複" : "";
     const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
     const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
     const catKw = dishTypeKeyword(cardDishType);
@@ -3873,6 +3882,7 @@ export default function AIChefScreen() {
           `食譜名稱唔可以同以下已顯示食譜重複：${otherNames.length > 0 ? otherNames.join("、") : "無"}。`,
           `食材欄每行只寫一種食材，唔好加入功效、備註、口味描述；每個食材都一定要有名字。`,
           `保持家庭日常可煮、步驟完整、繁體中文。`,
+          ...(repeatMarker ? [repeatMarker] : []),
         ].join("\n");
         return {
           messages: [{ role: "user" as const, content: prompt }],
@@ -3880,13 +3890,13 @@ export default function AIChefScreen() {
           aiEntry: "swap_ai" as AiEntry,
           avoidIngredients: avoid,
           lang: i18n.language,
-          excludeNames: [...new Set([...excludeNames, ...sessionSeenRecipeNames, ...usedRecipeNames])],
+          excludeNames,
         };
       }
       const message =
         roleAllowed && !relaxRole
-          ? `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}`
-          : `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}。`;
+          ? `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}；同類別：${cardDishType || ""}${repeatMarker}`
+          : `請從食譜庫提供最多 3 個替換「${recipe.name}」嘅食譜。庫內搜尋：${kw}${repeatMarker}`;
       return {
         messages: [{ role: "user" as const, content: message }],
         mode: "library" as const,
@@ -3910,6 +3920,7 @@ export default function AIChefScreen() {
         response: { cards: candidates, status: typeof res?.status === "string" ? res.status : null },
         otherCardNames: otherNames,
         seenNames,
+        allowSeen: repeatSeen,
         relaxRole,
         roleAllowed,
         isValidCandidate: isValidRecipe,
@@ -4230,8 +4241,8 @@ export default function AIChefScreen() {
     }, 8000, "info");
   };
 
-  // no_cards 面板嘅出路：AI 生成（1 credit）／放寬到其他類別／取消。
-  const handleSwapNoCardsAction = (actionId: "ai_generate" | "relax_role" | "cancel") => {
+  // no_cards 面板嘅出路：再出已見卡／AI 生成（1 credit）／取消。
+  const handleSwapNoCardsAction = (actionId: "allow_repeat" | "ai_generate" | "relax_role" | "cancel") => {
     const ctx = swapNoCards;
     if (!ctx) return;
     if (actionId === "cancel") { setSwapNoCards(null); return; }
@@ -4244,6 +4255,10 @@ export default function AIChefScreen() {
           return;
         }
         void handleSwapRecipeV2(recipe, ctx.index, { ai: true });
+        return;
+      }
+      if (actionId === "allow_repeat") {
+        void handleSwapRecipeV2(recipe, ctx.index, { repeatSeen: true });
         return;
       }
       void handleSwapRecipeV2(recipe, ctx.index, { relaxRole: true });
@@ -6269,12 +6284,12 @@ export default function AIChefScreen() {
                               <Text style={s.swapNoCardsTxt}>{t("aiChef.swapNoLibrary" as any)}</Text>
                               {aiChefSwapV2Enabled && (
                                 <TouchableOpacity
-                                  testID={`ai-chef-recipe-${i}-swap-relax`}
+                                  testID={`ai-chef-recipe-${i}-swap-repeat`}
                                   style={[s.swapNoCardsPrimary, { backgroundColor: BRAND }]}
-                                  onPress={() => handleSwapNoCardsAction("relax_role")}
+                                  onPress={() => handleSwapNoCardsAction("allow_repeat")}
                                   disabled={chatMutation.isPending || swappingIndex !== null}
                                 >
-                                  <Text style={s.swapNoCardsPrimaryTxt}>{t("aiChef.relaxRole" as any)}</Text>
+                                  <Text style={s.swapNoCardsPrimaryTxt}>{t("aiChef.swapRepeatSeen" as any)}</Text>
                                 </TouchableOpacity>
                               )}
                               <TouchableOpacity

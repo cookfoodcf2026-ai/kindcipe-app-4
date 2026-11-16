@@ -136,6 +136,72 @@ test("specific ingredient dislikes do not block the whole role", () => {
   assert.equal(roleBlockedByAvoid("seafood", ["三文魚"]), false);
 });
 
+test("allowSeen defaults to false so seen cards stay excluded", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    seenNames: ["粟米肉粒"],
+    response: { recipes: [card("粟米肉粒", "meat")] },
+  });
+  assert.equal(decision.action, "panel");
+});
+
+test("allowSeen true reuses seen cards but still excludes current and on-screen cards", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    allowSeen: true,
+    seenNames: ["粟米肉粒", "薯仔炆雞"],
+    otherCardNames: ["蒜蓉炒菜"],
+    response: {
+      recipes: [
+        current,
+        card("蒜蓉炒菜", "vegetable"),
+        card("粟米肉粒", "meat"),
+        card("薯仔炆雞", "meat"),
+      ],
+    },
+  });
+  assert.equal(decision.action, "swap");
+  if (decision.action !== "swap") return;
+  assert.equal(decision.candidate.name, "粟米肉粒");
+});
+
+test("allowSeen true still returns the panel when every candidate is current or on screen", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    allowSeen: true,
+    seenNames: ["粟米肉粒"],
+    otherCardNames: ["蒜蓉炒菜"],
+    response: { recipes: [current, card("蒜蓉炒菜", "vegetable")] },
+  });
+  assert.equal(decision.action, "panel");
+  if (decision.action !== "panel") return;
+  assert.ok(decision.reasons.includes("all_excluded"));
+});
+
+test("3 backend candidates still yield exactly one swap candidate", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    response: {
+      recipes: [card("梅菜扣肉", "meat"), card("青椒炒肉", "meat"), card("回鍋肉", "meat")],
+    },
+  });
+  assert.equal(decision.action, "swap");
+  if (decision.action !== "swap") return;
+  assert.equal(typeof decision.candidate.name, "string");
+  assert.equal(Object.keys(decision).filter((key) => key === "candidate").length, 1);
+});
+
+test("0 candidates with allowSeen true still returns the panel", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    allowSeen: true,
+    response: { status: "no_cards", recipes: [] },
+  });
+  assert.equal(decision.action, "panel");
+  if (decision.action !== "panel") return;
+  assert.ok(decision.reasons.includes("no_cards"));
+});
+
 test("decision never escalates to AI on its own", () => {
   const decisions = [
     decideSwap({ currentCard: current, response: { status: "no_cards", recipes: [] } }),

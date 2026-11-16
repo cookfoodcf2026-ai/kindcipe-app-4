@@ -297,6 +297,7 @@
     "clearAllChatsBody": "所有對話記錄會永久刪除，無法復原。",
     "aiGenerateCredit": "用 AI 生成（1 credit）",
     "relaxRole": "放寬至其他類別",
+    "swapRepeatSeen": "再出之前見過嘅卡",
     "noChats": "未有對話記錄",
     "noMatchingChats": "沒有符合的對話",
     "searchingLibrary": "🔍 正在食譜庫中搜尋...",
