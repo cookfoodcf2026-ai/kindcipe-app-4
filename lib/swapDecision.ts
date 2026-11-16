@@ -44,8 +44,6 @@ export type DecideSwapInput<T extends SwapCardLike> = {
   currentCard: T;
   /** session 已見 / 今輪已換過嘅名字（client-side 過濾，唔會送往 backend 收窄 pool）。 */
   seenNames?: Iterable<string> | null;
-  /** true = 用戶明確要求重用已見卡（「再出之前見過嘅卡」）；現卡／同畫面卡仍然排除。 */
-  allowSeen?: boolean;
   /** 同畫面其他卡嘅名字。 */
   otherCardNames?: Iterable<string> | null;
   /** true = 用戶要求放寬類別（再搵）；唔再偏好原 dishType。 */
@@ -139,7 +137,6 @@ export function decideSwap<T extends SwapCardLike>(
     currentCard,
     relaxRole = false,
     roleAllowed = true,
-    allowSeen = false,
     isValidCandidate = defaultIsValid,
     isCandidateAllowed,
     getDishType = defaultDishType,
@@ -152,11 +149,9 @@ export function decideSwap<T extends SwapCardLike>(
     const n = normalizeName(String(name ?? ""));
     if (n) blocked.add(n);
   }
-  if (!allowSeen) {
-    for (const name of input.seenNames ?? []) {
-      const n = normalizeName(String(name ?? ""));
-      if (n) blocked.add(n);
-    }
+  for (const name of input.seenNames ?? []) {
+    const n = normalizeName(String(name ?? ""));
+    if (n) blocked.add(n);
   }
 
   const rawCandidates = collectCandidates(response);
