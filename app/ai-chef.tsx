@@ -73,7 +73,7 @@ import {
   updateHistoryEntryCards,
 } from "@/lib/cardHistory";
 import { chatSessionSignature } from "@/lib/chatSessionSignature";
-import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists } from "@/lib/mealIntent";
+import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists, sessionAvoid as sessionAvoidForMessages } from "@/lib/mealIntent";
 
 type MsgContent = string | (
   | { type: "text"; text: string }
@@ -1789,12 +1789,22 @@ export default function AIChefScreen() {
     },
   });
 
+  // 由當前 session 嘅 user 訊息重抽「唔要／唔食／忌口」，併入家庭預設（過敏 ∪ 唔食）。
+  // 唔加 session 欄位、唔用 ref：每次由現有 messages 計算，零 migration。
+  const sessionAvoid = useCallback(
+    () => sessionAvoidForMessages(
+      messages.map((m) => ({ role: m.role, content: contentToText(m.content) })),
+      mealDefaults,
+    ),
+    [messages, mealDefaults],
+  );
+
   // 所有 chatMutation 經呢度出，記低「發送時」嘅 session，令共用 onSuccess/onError 寫返正確 session
   const mutateChat = (payload: any, options?: any, retryToken?: string, historyMax?: number) => {
     chatSessionIdRef.current = activeChatIdRef.current;
     setIncompleteContract(null);
     const requestBody = {
-      avoidIngredients: mealDefaults.allergens,
+      avoidIngredients: sessionAvoid(),
       ...payload,
       ...(retryToken ? { retryToken } : {}),
     };
@@ -3219,7 +3229,7 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: t(config.aiPrompt as any) }],
           mode: "library",
-          avoidIngredients: mealDefaults.allergens,
+          avoidIngredients: sessionAvoid(),
           lang: i18n.language,
           search: {
             query: config.search.query,
@@ -3503,7 +3513,7 @@ export default function AIChefScreen() {
         const res = await apiClient.aiRecipe.chat.mutate({
           messages: [{ role: "user", content: searchPrompt }],
           mode: "library",
-          avoidIngredients: mealDefaults.allergens,
+          avoidIngredients: sessionAvoid(),
           lang: i18n.language,
           search: { query: ingredientNames, count: 6 },
           excludeNames: sessionSeenRecipeNames,
@@ -3879,7 +3889,7 @@ export default function AIChefScreen() {
           // 否則只靠 keyword + dishType，換兩次之後候選變 0 → 誤彈「AI 建議」。
           // relax_role 要跨類別，唔可以再帶原 role 嘅 scenario 約束。
           search: !relaxRole && hotkeyCtx ? { ...hotkeyCtx, count: 1 } : undefined,
-          avoidIngredients: mealDefaults.allergens,
+          avoidIngredients: sessionAvoid(),
           lang: i18n.language,
           // 瘦身：7 日去重由後端 cache 負責；前端只排除「其他卡 + 現卡 + 已換過」（sessionAvoidNames 太肥會爆池錯誤 fallback AI）
           excludeNames: [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])],
@@ -3941,7 +3951,7 @@ export default function AIChefScreen() {
               messages: [{ role: "user", content: `${prompt}${extra}` }],
               mode: "ai",
               aiEntry: "swap_ai" as AiEntry,
-              avoidIngredients: mealDefaults.allergens,
+              avoidIngredients: sessionAvoid(),
               lang: i18n.language,
               excludeNames: [...sessionAvoidNames, ...swappedRecipeNames],
             });

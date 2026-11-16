@@ -3,7 +3,7 @@
  * Run:  node __tests__/mealIntent.test.mjs
  */
 import { strict as assert } from "node:assert";
-import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists } from "../lib/mealIntent.js";
+import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists, sessionAvoid } from "../lib/mealIntent.js";
 
 let pass = 0, fail = 0;
 const t = (name, fn) => {
@@ -43,6 +43,16 @@ t("問卷前綴唔會雙重否定", () => assert.deepEqual(
   ["海鮮", "豬肉"],
 ));
 t("空缺 → 空陣列", () => assert.deepEqual(mergeAvoidLists("", [], null), []));
+
+console.log("sessionAvoid：");
+t("session 有「唔要豬肉」→ 含豬肉", () => {
+  const avoid = sessionAvoid([{ role: "user", content: "唔要豬肉" }], { allergens: [], dislikes: [] });
+  assert.ok(avoid.includes("豬肉"));
+});
+t("session 冇避免詞 → 唔含豬肉", () => {
+  const avoid = sessionAvoid([{ role: "user", content: "今晚食咩" }], { allergens: [], dislikes: [] });
+  assert.ok(!avoid.includes("豬肉"));
+});
 
 console.log(`\n結果：${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
