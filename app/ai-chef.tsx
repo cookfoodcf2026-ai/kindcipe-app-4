@@ -74,7 +74,7 @@ import {
   updateHistoryEntryCards,
 } from "@/lib/cardHistory";
 import { chatSessionSignature } from "@/lib/chatSessionSignature";
-import { detectMealIntent, detectFlavorConstraint, mergeAvoidLists, sessionAvoid as sessionAvoidForMessages } from "@/lib/mealIntent";
+import { detectMealIntent, detectFlavorConstraint, extractDiet, mealCategoryPool, dietPromptLine, structuredMealDietHint, mergeAvoidLists, sessionAvoid as sessionAvoidForMessages } from "@/lib/mealIntent";
 
 type MsgContent = string | (
   | { type: "text"; text: string }
@@ -118,9 +118,10 @@ type MealPlanPreferences = {
   timeModes: MealPreferenceTime[];
   dislikes: string;
   allergens: string;
+  diet?: boolean;
 };
 
-const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, timeModes: [], dislikes: "", allergens: "" };
+const EMPTY_PREFS: MealPlanPreferences = { people: 0, hasKids: false, hasElderly: false, time: null, timeModes: [], dislikes: "", allergens: "", diet: false };
 const EMPTY_RECIPE_LIST: AIRecipe[] = [];
 // 食譜庫換卡係兩段 sequential aiRecipe.chat，實測可以 >15 秒。
 // 15 秒就解鎖會靜靜放行第二次撳，造成並發覆寫；延長到 2 分鐘覆蓋兩段請求。
@@ -2820,6 +2821,8 @@ export default function AIChefScreen() {
     const flavor = detectFlavorConstraint(lastUserContent);
     const isStructuredMealPrompt = !!mealIntent || /3\s*餸\s*1\s*湯|提供 4 個唔同嘅食譜/.test(lastUserContent);
     const promptPrefs = mealStep === "idle" ? buildMealPrefs() : mealPrefs;
+    // diet 只可以靠用戶原文（問卷冇呢條問題）；抽到就要喺結構化 prompt 保留。
+    const dietRequested = extractDiet(lastUserContent) || promptPrefs.diet === true;
     // 打字／問卷／hotkey 嘅避免約束要合併（union，永不減）：過敏安全優先。
     const avoidIngredients = mergeAvoidLists(promptPrefs.allergens, promptPrefs.dislikes, flavor?.exclusions);
     // 有結構化一餐意圖 → 直接用結構化 prompt（帶 count + 口味），確保出夠卡數同尊重 constraint
@@ -2830,6 +2833,7 @@ export default function AIChefScreen() {
       ? [
           promptPrefs.people ? `${promptPrefs.people} 人食。` : "",
           `${mealCounts.dishes} 餸 ${mealCounts.soups} 湯`,
+          structuredMealDietHint(dietRequested),
           promptPrefs.allergens?.trim() ? `；避免：${promptPrefs.allergens}` : "",
           promptPrefs.dislikes?.trim() ? `；唔要：${promptPrefs.dislikes.trim()}` : "",
           flavor?.exclusions?.length ? `；唔要：${mergeAvoidLists(flavor.exclusions).join("、")}` : "",
@@ -3151,7 +3155,11 @@ export default function AIChefScreen() {
       addBotMessage(t("aiChef.q_people_invalid" as any));
       return;
     }
-    const nextPrefs = { ...mealPrefs, ...update };
+    const nextPrefs = {
+      ...mealPrefs,
+      ...update,
+      ...(extractDiet(text) ? { diet: true } : {}),
+    };
     setMealPrefs(nextPrefs);
     const msgs = addUserMessage(display);
     if (mealStep === "people" && quickMealModeRef.current) {
@@ -3321,12 +3329,7 @@ export default function AIChefScreen() {
     const titleParts = [`${dishes} 餸`];
     if (soups > 0) titleParts.push(`${soups} 湯`);
     if (carb) titleParts.push("主食");
-    const catPool = [
-      "肉類主菜（如豬/牛/雞）",
-      "海鮮/其他蛋白主菜（如魚/蝦/豆腐蛋）",
-      "蔬菜/小炒",
-      "其他家常菜（如蛋/豆製品/麵飯）",
-    ];
+    const catPool = mealCategoryPool(prefs.diet === true);
     const cats: string[] = [];
     for (let i = 0; i < dishes; i++) cats.push(catPool[i % catPool.length]);
     if (carb) cats.push("主食（飯/麵/粉/粥）");
@@ -3337,6 +3340,7 @@ export default function AIChefScreen() {
       (flavor?.light ? `口味要求：清淡、少油少鹽、唔辣。` : "") +
       (flavor?.exclusions?.length ? `避免食材：${flavor.exclusions.join("、")}（完全唔可以用）。` : "");
     return `請為我設計今晚「${titleParts.join(" ")}」晚餐，總共 ${total} 道菜，適合${prefs.people}人食用。` +
+      dietPromptLine(prefs.diet === true) +
       (prefs.hasKids ? "有小朋友，口味要溫和、少辣、容易入口。" : "") +
       (prefs.hasElderly ? "有老人家，食材要易咀嚼、清淡少油鹽。" : "") +
       flavorLine +
@@ -3364,6 +3368,7 @@ export default function AIChefScreen() {
       const libraryPrompt = [
         prefs.people ? `${prefs.people} 人食。` : "",
         "3 餸 1 湯",
+        prefs.diet ? "素食（唔要肉類、海鮮、魚蝦蟹）。" : "",
         avoidIngredients.length ? `；避免：${avoidIngredients.join("、")}` : "",
       ].join("");
       const res = await apiClient.aiRecipe.chat.mutate({
@@ -3446,8 +3451,9 @@ export default function AIChefScreen() {
   const generateMealFromIntent = async (
     intent: { dishes: number; soups: number; carb?: boolean },
     flavor?: { spicy: boolean; light: boolean; exclusions: string[] },
+    diet = false,
   ) => {
-    const defaultPrefs = buildMealPrefs();
+    const defaultPrefs: MealPlanPreferences = { ...buildMealPrefs(), ...(diet ? { diet: true } : {}) };
     isSoupModeRef.current = true;
     setMealPrefs(defaultPrefs);
     setMealStep("generating");
@@ -4777,7 +4783,7 @@ export default function AIChefScreen() {
       if (mealStep !== "idle") { setMealStep("idle"); setMealResult(null); }
       updateMessages(prev => [...prev, { role: "user", content: trimmed }]);
       scrollToEnd();
-      void generateMealFromIntent(intent, flavor);
+      void generateMealFromIntent(intent, flavor, extractDiet(trimmed));
     } else {
       // Analytics: a free-text follow-up while recipes already exist is treated
       // as an "edit/refine" of the previous suggestion.
