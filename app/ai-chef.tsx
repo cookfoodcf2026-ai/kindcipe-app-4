@@ -3930,7 +3930,11 @@ export default function AIChefScreen() {
 
       if (decision.action === "swap") {
         const candidate = decision.candidate;
-        replaceRecipeAtIndex(index, candidate);
+        // 「已睇過」badge 只影響顯示：換卡前已在 session 見過嘅卡標 recycled，唔影響決策。
+        const seenBefore = new Set(sessionSeenRecipeNames.map((n) => String(n ?? "").trim())).has(
+          String(candidate.name ?? "").trim(),
+        );
+        replaceRecipeAtIndex(index, seenBefore ? { ...candidate, recycled: true } : candidate);
         setSwapNoCards(null);
         recordSeenRecipes([candidate]);
         setSwappedRecipeNames((prev) => {

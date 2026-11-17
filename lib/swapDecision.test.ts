@@ -17,7 +17,7 @@ const card = (name: string, dishType: string, recipeCategory = ""): Card => ({
 
 const current = card("番茄炒蛋", "meat", "家常");
 
-test("already-seen cards are never picked", () => {
+test("unseen cards are picked before already-seen cards", () => {
   const decision = decideSwap({
     currentCard: current,
     seenNames: ["粟米肉粒", "薯仔炆雞"],
@@ -72,10 +72,10 @@ test("0 candidates returns the in-place panel, never an AI call", () => {
   assert.ok(decision.reasons.includes("needs_relax"));
 });
 
-test("all candidates excluded still returns the panel with a reason", () => {
+test("all candidates excluded by the table still returns the panel with a reason", () => {
   const decision = decideSwap({
     currentCard: current,
-    seenNames: ["粟米肉粒"],
+    otherCardNames: ["粟米肉粒"],
     response: { recipes: [card("粟米肉粒", "meat")] },
   });
   assert.equal(decision.action, "panel");
@@ -90,7 +90,7 @@ test("request failure returns the panel so the user can retry", () => {
   assert.ok(decision.reasons.includes("request_failed"));
 });
 
-test("relaxRole stops preferring the original dishType but still excludes seen cards", () => {
+test("relaxRole stops preferring the original dishType but still deprioritises seen cards", () => {
   const decision = decideSwap({
     currentCard: card("老火例湯", "soup"),
     relaxRole: true,
@@ -149,4 +149,44 @@ test("decision never escalates to AI on its own", () => {
   assert.equal(isAiSwapRequested({ userRequestedAi: false, aiCanGenerate: true }), false);
   assert.equal(isAiSwapRequested({ userRequestedAi: true, aiCanGenerate: false }), false);
   assert.equal(isAiSwapRequested({ userRequestedAi: true, aiCanGenerate: true }), true);
+});
+
+test("all candidates are session-seen still swaps instead of opening the panel", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    seenNames: ["粟米肉粒", "薯仔炆雞"],
+    response: { recipes: [card("粟米肉粒", "meat"), card("薯仔炆雞", "meat")] },
+  });
+  assert.equal(decision.action, "swap");
+  if (decision.action !== "swap") return;
+  assert.ok(["粟米肉粒", "薯仔炆雞"].includes(decision.candidate.name ?? ""));
+});
+
+test("only the current card and other table dishes left still returns the panel", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    otherCardNames: ["蒜蓉炒菜", "白飯"],
+    response: { recipes: [current, card("蒜蓉炒菜", "vegetable"), card("白飯", "carb")] },
+  });
+  assert.equal(decision.action, "panel");
+  if (decision.action !== "panel") return;
+  assert.ok(decision.reasons.includes("all_excluded"));
+});
+
+test("seen cards rank after unseen but are still selectable when unseen runs out", () => {
+  const ranked = decideSwap({
+    currentCard: current,
+    seenNames: ["梅菜扣肉"],
+    response: { recipes: [card("梅菜扣肉", "meat"), card("炒時蔬", "vegetable")] },
+  });
+  assert.equal(ranked.action, "swap");
+  if (ranked.action === "swap") assert.equal(ranked.candidate.name, "炒時蔬");
+
+  const fallback = decideSwap({
+    currentCard: current,
+    seenNames: ["梅菜扣肉"],
+    response: { recipes: [card("梅菜扣肉", "meat")] },
+  });
+  assert.equal(fallback.action, "swap");
+  if (fallback.action === "swap") assert.equal(fallback.candidate.name, "梅菜扣肉");
 });

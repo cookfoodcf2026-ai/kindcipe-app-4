@@ -5,7 +5,7 @@
  * 同畫面其他卡、relaxRole。輸出只有 swap / panel / noop。
  *
  * 規則（AI_CHEF_SWAP_V2）：
- * - 已見卡、同畫面其他卡、當前卡自己一律排除。
+ * - 硬排除只限：當前卡自己、同畫面其他卡。session 已見卡只降排序權重（unseen 優先），仍然可以出。
  * - 先揀同 dishType，再揀同 recipeCategory（相近），最後才接受其他類別。
  * - 唔要求 backend 一定回同 role；角色只係偏好。
  * - 0 候選一律回 panel，永遠唔會自動回 AI —— AI 只可以由用戶喺面板明確觸發。
@@ -42,7 +42,7 @@ export type SwapDecision<T extends SwapCardLike> =
 export type DecideSwapInput<T extends SwapCardLike> = {
   response?: SwapResponse<T> | null;
   currentCard: T;
-  /** session 已見 / 今輪已換過嘅名字（client-side 過濾，唔會送往 backend 收窄 pool）。 */
+  /** session 已見 / 今輪已換過嘅名字（只用作排序：unseen 優先，seen 排後，但仍可被選中）。 */
   seenNames?: Iterable<string> | null;
   /** 同畫面其他卡嘅名字。 */
   otherCardNames?: Iterable<string> | null;
@@ -149,9 +149,12 @@ export function decideSwap<T extends SwapCardLike>(
     const n = normalizeName(String(name ?? ""));
     if (n) blocked.add(n);
   }
+
+  // session 已見只做排序權重，唔再硬排除（硬排除只限現卡＋枱上其他餸）。
+  const seen = new Set<string>();
   for (const name of input.seenNames ?? []) {
     const n = normalizeName(String(name ?? ""));
-    if (n) blocked.add(n);
+    if (n) seen.add(n);
   }
 
   const rawCandidates = collectCandidates(response);
@@ -176,17 +179,31 @@ export function decideSwap<T extends SwapCardLike>(
     relaxRole || !roleAllowed ? null : getDishType(currentCard);
   const preferredCategory = String(currentCard?.recipeCategory ?? "").trim();
 
-  const sameType = preferredDishType
-    ? usable.find((card) => getDishType(card) === preferredDishType)
-    : undefined;
-  if (sameType) return { action: "swap", candidate: sameType, match: "same_dish_type" };
+  const pickPreferred = (pool: T[]): T | undefined => {
+    if (preferredDishType) {
+      const sameType = pool.find((card) => getDishType(card) === preferredDishType);
+      if (sameType) return sameType;
+    }
+    if (preferredCategory) {
+      const sameCategory = pool.find(
+        (card) => String(card?.recipeCategory ?? "").trim() === preferredCategory,
+      );
+      if (sameCategory) return sameCategory;
+    }
+    return pool[0];
+  };
 
-  if (preferredCategory) {
-    const sameCategory = usable.find(
-      (card) => String(card?.recipeCategory ?? "").trim() === preferredCategory,
-    );
-    if (sameCategory) return { action: "swap", candidate: sameCategory, match: "similar" };
-  }
+  const isSeen = (card: T): boolean => seen.has(normalizeName(String(card?.name ?? "")));
+  const unseen = usable.filter((card) => !isSeen(card));
+  const seenPool = usable.filter(isSeen);
 
-  return { action: "swap", candidate: usable[0], match: "similar" };
+  // unseen 先用完，seen 只排後；兩邊內部照舊按 dishType / category 偏好。
+  const pickup = pickPreferred(unseen) ?? pickPreferred(seenPool);
+  if (!pickup) return { action: "panel", reasons: ["no_candidates"] };
+
+  const match: SwapMatch =
+    preferredDishType && getDishType(pickup) === preferredDishType
+      ? "same_dish_type"
+      : "similar";
+  return { action: "swap", candidate: pickup, match };
 }
