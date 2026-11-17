@@ -6272,15 +6272,6 @@ export default function AIChefScreen() {
                               )}
                             </TouchableOpacity>
                           </View>
-                          <TouchableOpacity
-                            testID={`ai-chef-recipe-${i}-use-ai`}
-                            style={[s.btnUseAi, (!aiCanGenerate || aiReplyBlocked || chatMutation.isPending || swappingIndex !== null) && { opacity: 0.5 }]}
-                            onPress={() => handleSwapRecipe(r, i, { aiFallback: true })}
-                            disabled={chatMutation.isPending || swappingIndex !== null || !aiCanGenerate || aiReplyBlocked}
-                          >
-                            <Ionicons name="sparkles-outline" size={14} color={BRAND} />
-                            <Text style={s.btnUseAiTxt}>{t("swap.useAiAlways" as any)}</Text>
-                          </TouchableOpacity>
                           {swappingIndex === i && swapSlow && (
                             <Text style={s.swapSlowTxt} testID={`ai-chef-recipe-${i}-swap-slow`}>
                               {t("aiChef.swapStillSearching" as any)}
