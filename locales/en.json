@@ -447,6 +447,10 @@
     "photoAiRegenerate": "Generate again (1 credit)",
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
+  "swap": {
+    "recycledBadge": "Seen before",
+    "useAiAlways": "Generate a new dish with AI"
+  },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
     "upgradeSubtitle": "Follow on Instagram to redeem a free 7-day trial"

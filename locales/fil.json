@@ -447,6 +447,10 @@
     "photoAiRegenerate": "Gumawa muli (1 credit)",
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
+  "swap": {
+    "recycledBadge": "Nakita na",
+    "useAiAlways": "Gumawa ng bagong ulam gamit ang AI"
+  },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
     "upgradeSubtitle": "I-follow sa Instagram para mag-redeem ng libreng 7-araw na trial"

@@ -447,6 +447,10 @@
     "photoAiRegenerate": "再生成一次（1 credit）",
     "mealIncomplete": "今次只搵到 {{got}} 道菜（要 {{want}} 道）。可以再試一次，或者用「AI 生成食譜」補齊。"
   },
+  "swap": {
+    "recycledBadge": "已睇過",
+    "useAiAlways": "用 AI 生成新菜"
+  },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
     "upgradeSubtitle": "Instagram 追蹤免費兌換 7 日試用"

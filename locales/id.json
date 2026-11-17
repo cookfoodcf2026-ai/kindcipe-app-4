@@ -447,6 +447,10 @@
     "photoAiRegenerate": "Buat lagi (1 credit)",
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
+  "swap": {
+    "recycledBadge": "Sudah dilihat",
+    "useAiAlways": "Buat hidangan baru dengan AI"
+  },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
     "upgradeSubtitle": "Ikuti Instagram untuk tukar uji coba gratis 7 hari"

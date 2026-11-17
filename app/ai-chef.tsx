@@ -96,6 +96,7 @@ type AIRecipe = {
   tags: string[];
   image?: string; thumbnailUrl?: string;
   source?: "official" | "custom" | "ai" | "library";
+  recycled?: boolean;
   officialId?: number;
   customId?: number;
   _savedId?: number;
@@ -3856,7 +3857,9 @@ export default function AIChefScreen() {
     const avoid = sessionAvoid();
     const roleAllowed = !roleBlockedByAvoid(cardDishType, avoid);
     const relaxRole = opts?.relaxRole === true;
-    const excludeNames = [...new Set([...otherNames, recipe.name || "", ...swappedRecipeNames])];
+    // 硬排除只留枱上其他餸＋現卡；已見／已換過改送 swapSeenNames（後端軟排序）。
+    const excludeNames = [...new Set([...otherNames, recipe.name || ""])];
+    const swapSeenNames = [...new Set(seenNames)].slice(0, 50);
     const hotkeyCtx = activeHotKeyRef.current ? HOT_KEY_CONFIG[activeHotKeyRef.current]?.search : null;
     const cardNameKw = (recipe.name || "").replace(/[（(].*?[)）]/g, "").trim().slice(0, 12);
     const catKw = dishTypeKeyword(cardDishType);
@@ -3886,7 +3889,8 @@ export default function AIChefScreen() {
           aiEntry: "swap_ai" as AiEntry,
           avoidIngredients: avoid,
           lang: i18n.language,
-          excludeNames: [...new Set([...excludeNames, ...sessionSeenRecipeNames, ...usedRecipeNames])],
+          excludeNames,
+          swapSeenNames,
         };
       }
       const message =
@@ -3900,6 +3904,7 @@ export default function AIChefScreen() {
         avoidIngredients: avoid,
         lang: i18n.language,
         excludeNames,
+        swapSeenNames,
       };
     };
 
@@ -6141,6 +6146,11 @@ export default function AIChefScreen() {
                           <Text style={s.recCardName} numberOfLines={2} testID={`recipe-card-name-${i}`}>
                             {(() => { const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.primary; })()}
                           </Text>
+                          {r.recycled === true && (
+                            <View style={s.recCardRecycledBadge} testID={`recipe-card-recycled-${i}`}>
+                              <Text style={s.recCardRecycledTxt}>{t("swap.recycledBadge" as any)}</Text>
+                            </View>
+                          )}
                           {(() => { if (i18n.language === "zh") return null; const bn = getBilingualName(r.name, r.nameEn, r.nameFil, r.nameId); return bn.secondary ? (
                             <Text style={s.recCardNameEn} numberOfLines={1}>{bn.secondary}</Text>
                           ) : null; })()}
@@ -6262,6 +6272,15 @@ export default function AIChefScreen() {
                               )}
                             </TouchableOpacity>
                           </View>
+                          <TouchableOpacity
+                            testID={`ai-chef-recipe-${i}-use-ai`}
+                            style={[s.btnUseAi, (!aiCanGenerate || aiReplyBlocked || chatMutation.isPending || swappingIndex !== null) && { opacity: 0.5 }]}
+                            onPress={() => handleSwapRecipe(r, i, { aiFallback: true })}
+                            disabled={chatMutation.isPending || swappingIndex !== null || !aiCanGenerate || aiReplyBlocked}
+                          >
+                            <Ionicons name="sparkles-outline" size={14} color={BRAND} />
+                            <Text style={s.btnUseAiTxt}>{t("swap.useAiAlways" as any)}</Text>
+                          </TouchableOpacity>
                           {swappingIndex === i && swapSlow && (
                             <Text style={s.swapSlowTxt} testID={`ai-chef-recipe-${i}-swap-slow`}>
                               {t("aiChef.swapStillSearching" as any)}
@@ -6843,6 +6862,10 @@ const s = StyleSheet.create({
   recCardSourceTxt: { fontSize: 9, fontWeight: "800", color: "#5F6F80" },
   recCardBody: { padding: 10, paddingTop: 4, justifyContent: "space-between" },
   recCardName: { fontSize: 13, fontWeight: "800", color: TEXT, lineHeight: 18, minHeight: 36, marginBottom: 6 },
+  recCardRecycledBadge: { alignSelf: "flex-start", backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#F59E0B", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
+  recCardRecycledTxt: { fontSize: 10, fontWeight: "800", color: "#92400E" },
+  btnUseAi: { marginTop: 8, backgroundColor: "#FFF7ED", borderWidth: 1.5, borderColor: BRAND, paddingVertical: 8, borderRadius: 9, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  btnUseAiTxt: { fontSize: 12, fontWeight: "800", color: BRAND },
   recCardNameEn: { fontSize: 11, color: SUB, lineHeight: 14, marginBottom: 4 },
   recCardMeta: { flexDirection: "row", gap: 8, marginBottom: 8 },
   recCardMetaTxt: { fontSize: 10, color: SUB },
