@@ -3942,11 +3942,6 @@ export default function AIChefScreen() {
           next.add(candidate.name);
           return next;
         });
-        showToast(
-          useAi
-            ? t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" })
-            : t("📚 已用食譜庫換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" }),
-        );
         return;
       }
 
@@ -4149,7 +4144,6 @@ export default function AIChefScreen() {
         if (candidate && isValidRecipe(candidate) && getDishType(candidate) === cardDishType && passesSwapGuard(candidate)) {
           replaceRecipeAtIndex(index, candidate);
           setSwapNoCards(null);
-          showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(candidate.name, candidate.nameEn, candidate.nameFil, candidate.nameId).primary || "…" }));
           recordSeenRecipes([candidate]); // 納入「睇過」去重 —— AI 換嘅都要記住，避免之後重複
           setSwappedRecipeNames(prev => {
             const newSet = new Set(prev);
@@ -4162,7 +4156,6 @@ export default function AIChefScreen() {
             showToast(t("📚 食譜庫搵到相近替代：{{name}}" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             replaceRecipeAtIndex(index, fallback);
             setSwapNoCards(null);
-            showToast(t("✅ 已換成「{{name}}」" as any, { name: getDisplayName(fallback.name, fallback.nameEn, fallback.nameFil, fallback.nameId).primary || "…" }));
             recordSeenRecipes([fallback]);
             setSwappedRecipeNames(prev => {
               const newSet = new Set(prev);
@@ -4227,7 +4220,6 @@ export default function AIChefScreen() {
       setSwapNoCards(null);
       recordSeenRecipes([libraryPicked]);
       recordSwappedName(libraryPicked.name);
-      showToast(t("📚 已用食譜庫換成「{{name}}」" as any, { name: getDisplayName(libraryPicked.name, libraryPicked.nameEn, libraryPicked.nameFil, libraryPicked.nameId).primary || "…" }));
       return;
     }
 
