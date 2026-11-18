@@ -23,6 +23,7 @@ export type SwapResponse<T extends SwapCardLike> = {
   cards?: T[] | null;
   recipes?: T[] | null;
   status?: string | null;
+  swapFailed?: boolean | null;
 };
 
 export type SwapPanelReason =
@@ -141,6 +142,10 @@ export function decideSwap<T extends SwapCardLike>(
     isCandidateAllowed,
     getDishType = defaultDishType,
   } = input;
+
+  if (response?.swapFailed === true) {
+    return { action: "noop", reason: "swap_failed" };
+  }
 
   const currentName = normalizeName(String(currentCard?.name ?? ""));
   const blocked = new Set<string>();

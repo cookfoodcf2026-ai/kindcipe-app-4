@@ -173,6 +173,26 @@ test("only the current card and other table dishes left still returns the panel"
   assert.ok(decision.reasons.includes("all_excluded"));
 });
 
+test("swapFailed keeps the current card (noop) even when candidates are present", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    response: { swapFailed: true, recipes: [card("梅菜扣肉", "meat")] },
+  });
+  assert.equal(decision.action, "noop");
+  if (decision.action !== "noop") return;
+  assert.equal(decision.reason, "swap_failed");
+});
+
+test("missing swapFailed keeps today's behaviour (regression lock)", () => {
+  const decision = decideSwap({
+    currentCard: current,
+    response: { recipes: [card("梅菜扣肉", "meat")] },
+  });
+  assert.equal(decision.action, "swap");
+  if (decision.action !== "swap") return;
+  assert.equal(decision.candidate.name, "梅菜扣肉");
+});
+
 test("seen cards rank after unseen but are still selectable when unseen runs out", () => {
   const ranked = decideSwap({
     currentCard: current,

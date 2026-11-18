@@ -3918,7 +3918,11 @@ export default function AIChefScreen() {
 
       const decision = decideSwap<AIRecipe>({
         currentCard: recipe,
-        response: { cards: candidates, status: typeof res?.status === "string" ? res.status : null },
+        response: {
+          cards: candidates,
+          status: typeof res?.status === "string" ? res.status : null,
+          swapFailed: res?.swapFailed === true,
+        },
         otherCardNames: otherNames,
         seenNames,
         relaxRole,
@@ -3948,6 +3952,11 @@ export default function AIChefScreen() {
       if (decision.action === "panel") {
         setContractAiBlocked(isQuotaBlocked(res?.quota));
         setSwapNoCards({ index, recipeName: recipe.name, cardId: recipe.cardId });
+        return;
+      }
+
+      if (decision.action === "noop") {
+        showToast(t("暫時搵唔到替代，可以再試" as any));
         return;
       }
     } catch (e: any) {
@@ -4203,18 +4212,23 @@ export default function AIChefScreen() {
       const first = await swapFromLibrary(opts?.relaxRole ? "家常" : undefined, !!opts?.relaxRole);
       libraryPicked = first.picked;
       lastResponse = first.response;
-      if (!libraryPicked && !opts?.relaxRole && lastResponse?.status !== "no_cards") {
+      if (!libraryPicked && !opts?.relaxRole && lastResponse?.status !== "no_cards" && lastResponse?.swapFailed !== true) {
         const second = await swapFromLibrary(dishTypeKeyword(recipeDishType) || "家常");
         libraryPicked = second.picked;
         lastResponse = second.response ?? lastResponse;
       }
-      if (!libraryPicked) libraryPicked = pickLibraryFallback();
+      if (!libraryPicked && lastResponse?.swapFailed !== true) libraryPicked = pickLibraryFallback();
     } finally {
       clearSwapWatchdog();
       clearSwapSlow();
       swapInFlightRef.current = false;
       setSwappingIndex(null);
     }
+    if (lastResponse?.swapFailed === true) {
+      showToast(t("暫時搵唔到替代，可以再試" as any));
+      return;
+    }
+
     if (libraryPicked && passesSwapGuard(libraryPicked)) {
       replaceRecipeAtIndex(index, libraryPicked);
       setSwapNoCards(null);
