@@ -17,6 +17,12 @@ import { trpc, apiClient, resolveImageUrl } from "@/lib/trpc";
 import { getLastPlanDate, rememberPlanDate } from "@/lib/recentPlanDate";
 import { getRecipeLocalImage } from "@/lib/recipe-local-images";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  AUTH_401_LINK_ENABLED,
+  CHEF_WATCHDOG_MS,
+  chefFailureUi,
+  decideChefFailureAction,
+} from "@/lib/sessionExpiry";
 import { useAiChatCloudSync } from "@/hooks/ai-chef/useAiChatCloudSync";
 import { useInvalidateMealPlanAndCart } from "@/hooks/useInvalidateMealPlanAndCart";
 import { useModalHandoff } from "@/hooks/useModalHandoff";
@@ -887,7 +893,8 @@ export default function AIChefScreen() {
   const activeFamilyId = activeFamily?.id;
   const userName = user?.name ?? "";
   const { data: familySettings, isLoading: familySettingsLoading } = trpc.family.settings.useQuery(undefined, {
-    enabled: !!activeFamilyId,
+    // flag ON 先用 user gate；flag OFF 保留原本 activeFamilyId gate（零行為改變）。
+    enabled: AUTH_401_LINK_ENABLED ? !!user : !!activeFamilyId,
     staleTime: 60_000,
   });
   const mealDefaults = useMemo(
@@ -1009,6 +1016,19 @@ export default function AIChefScreen() {
   const [mealPrefs, setMealPrefs] = useState<MealPlanPreferences>(EMPTY_PREFS);
   const [mealResult, setMealResult] = useState<AIRecipe[] | null>(null);
   const [isPreparingMeal, setIsPreparingMeal] = useState(false);
+  // 401 統一引導登入（flag ON 才生效）：唔清輸入，只停 spinner + 顯示登入掣。
+  const [chefAuthError, setChefAuthError] = useState(false);
+  // 20 秒 watchdog：spinner 唔可以無限轉（JWT 過期時後端會即時 401，但網絡層
+  // 可能卡住；超時一律當 session 問題，交由用戶重新登入）。
+  useEffect(() => {
+    if (!AUTH_401_LINK_ENABLED || !isPreparingMeal) return;
+    const timer = setTimeout(() => {
+      const ui = chefFailureUi(decideChefFailureAction(null, { watchdogExpired: true }));
+      setIsPreparingMeal(!ui.stopSpinner);
+      setChefAuthError(ui.showLoginPrompt);
+    }, CHEF_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [isPreparingMeal]);
   const [selectedCardIndexes, setSelectedCardIndexes] = useState<Set<number>>(new Set());
   const preserveSelectionOnNextMealResultRef = useRef(false);
   const quickMealModeRef = useRef(false);
@@ -1549,6 +1569,9 @@ export default function AIChefScreen() {
     staleTime: 1000 * 60,
   });
   const { data: chefStatus } = (trpc.aiRecipe as any).status.useQuery(undefined, {
+    // flag ON 才 gate + 停 retry；flag OFF 維持原本無 enabled / 預設 retry。
+    enabled: AUTH_401_LINK_ENABLED ? !!user : undefined,
+    retry: AUTH_401_LINK_ENABLED ? false : undefined,
     staleTime: 15_000,
   }) as { data?: { canGenerate?: boolean; reason?: string; mode?: string; credits?: { used?: number; limit?: number; resetAt?: string } } };
   const statusCredits = chefStatus?.credits;
@@ -1744,6 +1767,16 @@ export default function AIChefScreen() {
       scrollToLatestMessage();
     },
     onError: (err: any, variables: any) => {
+      // 401 唔再彈通用錯誤 + 唔好無限轉：停 spinner，交畀用戶登入。
+      if (AUTH_401_LINK_ENABLED) {
+        const action = decideChefFailureAction(err);
+        if (action === "login") {
+          const ui = chefFailureUi(action);
+          setIsPreparingMeal(!ui.stopSpinner);
+          setChefAuthError(ui.showLoginPrompt);
+          return;
+        }
+      }
       const requestMeta = variables?.clientMessageId
         ? chatRequestMetaRef.current.get(variables.clientMessageId)
         : undefined;
@@ -5492,6 +5525,20 @@ export default function AIChefScreen() {
 
   const renderEmpty = () => {
     if (photoFlowStatus) return <View style={{ height: 12 }} />;
+    if (chefAuthError) {
+      return (
+        <View style={s.preparing}>
+          <Ionicons name="lock-closed-outline" size={32} color={BRAND} />
+          <Text style={s.preparingTxt}>{t("error.needLogin" as any)}</Text>
+          <TouchableOpacity
+            onPress={() => router.push(`/login?next=${encodeURIComponent("/ai-chef")}` as any)}
+            style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: BRAND }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>{t("登入" as any)}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     if (isPreparingMeal || homeMealEntry) {
       return (
         <View style={s.preparing}>
@@ -5849,6 +5896,18 @@ export default function AIChefScreen() {
                 <Text style={s.usageUpgradeTxt}>{t("aiChef.upgradeCta" as any)}</Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+        {chefAuthError && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: "#FFF4E5" }}>
+            <Ionicons name="lock-closed-outline" size={18} color={BRAND} />
+            <Text style={{ flex: 1, fontSize: 13, color: SUB }}>{t("error.needLogin" as any)}</Text>
+            <TouchableOpacity
+              onPress={() => router.push(`/login?next=${encodeURIComponent("/ai-chef")}` as any)}
+              style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: BRAND }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>{t("登入" as any)}</Text>
+            </TouchableOpacity>
           </View>
         )}
         <FlatList

@@ -15,8 +15,16 @@ type WakeLockApi = {
 
 function getWakeLockApi(): WakeLockApi | null {
   if (typeof navigator === "undefined") return null;
-  const wakeLock = (navigator as unknown as { wakeLock?: WakeLockApi }).wakeLock;
-  return wakeLock && typeof wakeLock.request === "function" ? wakeLock : null;
+  try {
+    const wakeLock = (navigator as unknown as { wakeLock?: WakeLockApi }).wakeLock;
+    return wakeLock && typeof wakeLock.request === "function" ? wakeLock : null;
+  } catch {
+    return null;
+  }
+}
+
+function isDocumentVisible() {
+  return typeof document !== "undefined" && document.visibilityState === "visible";
 }
 
 function releaseWakeLock(lock: WakeLockSentinelLike | null) {
@@ -28,7 +36,15 @@ function releaseWakeLock(lock: WakeLockSentinelLike | null) {
   }
 }
 
-function useNativeScreenAwake() {
+function deactivateSafely(tag: string) {
+  try {
+    void deactivateKeepAwake(tag).catch(() => undefined);
+  } catch {
+    return;
+  }
+}
+
+export function useNativeScreenAwake() {
   const tag = useId();
   const runId = useRef(0);
 
@@ -38,25 +54,28 @@ function useNativeScreenAwake() {
       let cancelled = false;
       let activated = false;
 
-      void activateKeepAwakeAsync(activeTag)
-        .then(() => {
-          activated = true;
-          if (cancelled) return deactivateKeepAwake(activeTag);
-          return undefined;
-        })
-        .catch(() => undefined);
+      try {
+        void activateKeepAwakeAsync(activeTag)
+          .then(() => {
+            activated = true;
+            if (cancelled) deactivateSafely(activeTag);
+          })
+          .catch(() => undefined);
+      } catch {
+        return undefined;
+      }
 
       return () => {
         cancelled = true;
         if (activated) {
-          void deactivateKeepAwake(activeTag).catch(() => undefined);
+          deactivateSafely(activeTag);
         }
       };
     }, [tag]),
   );
 }
 
-function useWebScreenAwake() {
+export function useWebScreenAwake() {
   useFocusEffect(
     useCallback(() => {
       if (typeof document === "undefined") return;
@@ -81,7 +100,7 @@ function useWebScreenAwake() {
       };
 
       const acquire = () => {
-        if (disposed || acquiring || sentinel || document.visibilityState !== "visible") {
+        if (disposed || acquiring || sentinel || !isDocumentVisible()) {
           return;
         }
 
@@ -97,7 +116,7 @@ function useWebScreenAwake() {
         void request
           .then((lock) => {
             acquiring = false;
-            if (disposed || document.visibilityState !== "visible") {
+            if (disposed || !isDocumentVisible()) {
               releaseWakeLock(lock);
               return;
             }
@@ -117,7 +136,7 @@ function useWebScreenAwake() {
       };
 
       const handleVisibilityChange = () => {
-        if (document.visibilityState === "visible") {
+        if (isDocumentVisible()) {
           acquire();
           return;
         }

@@ -8,18 +8,27 @@
  * activeFamilyId／role，切廚房會即時同步所有已 mount 嘅 screen（以前係每個 screen
  * 各自一份 state，切完其他 screen 停留舊廚房）。
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { getAuthTokenState, FAMILY_ID_KEY } from "@/lib/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { trpc } from "@/lib/trpc";
 import { resetAuthState } from "@/lib/hardLogout";
+import { queryClient } from "@/lib/queryClient";
 import {
   authMeRetryDelay,
   deriveAuthStatus,
   shouldRetryAuthMe,
   type AuthStatus,
 } from "@/lib/authStatus";
+import {
+  AUTH_401_LINK_ENABLED,
+  resetSessionExpired,
+  sessionLatchKey,
+  setSessionLatchKey,
+  subscribeSessionAlive,
+  subscribeSessionExpired,
+} from "@/lib/sessionExpiry";
 
 type AuthValue = {
   user: any;
@@ -80,12 +89,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const user = meQuery.data ?? null;
   const isLoading = meQuery.isLoading || !tokenChecked;
-  const authStatus: AuthStatus = deriveAuthStatus({
-    hasToken,
-    data: meQuery.data,
-    error: meQuery.error,
-    isLoading,
-  });
+
+  // 401 統一引導登入：link 只發事件，呢度只轉 authStatus。
+  // 唔清 query cache、唔清 token（避免閃白／遺失未送出輸入）。
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const sessionExpiredAtRef = useRef(0);
+
+  useEffect(() => {
+    if (!AUTH_401_LINK_ENABLED) return;
+    const unsubscribeExpired = subscribeSessionExpired(() => {
+      sessionExpiredAtRef.current = Date.now();
+      setSessionExpired(true);
+    });
+    // 任何非 401 成功 response、換家庭或 30 秒 TTL 到期 → 即時解除 UI latch。
+    const unsubscribeAlive = subscribeSessionAlive(() => {
+      setSessionExpired(false);
+      sessionExpiredAtRef.current = 0;
+    });
+    return () => {
+      unsubscribeExpired();
+      unsubscribeAlive();
+    };
+  }, []);
+
+  // 重新登入成功（auth.me data 比事件更新）→ 解除 latch，避免卡死喺 /login。
+  useEffect(() => {
+    if (!sessionExpired) return;
+    if (meQuery.data != null && (meQuery.dataUpdatedAt ?? 0) > sessionExpiredAtRef.current) {
+      resetSessionExpired();
+      setSessionExpired(false);
+    }
+  }, [sessionExpired, meQuery.data, meQuery.dataUpdatedAt]);
+
+  // Latch key 包含 user + family：換家庭唔算 token 變更，但一定要清 latch 同
+  // 跨家庭 query cache（否則 A 家資料會顯示喺 B 家）。flag OFF 時完全唔生效。
+  const latchKey = useMemo(
+    () => sessionLatchKey({ userId: user?.id, familyId: activeFamilyId }),
+    [user?.id, activeFamilyId],
+  );
+  const previousIdentityRef = useRef<{ userId: string; familyId: string } | null>(null);
+  useEffect(() => {
+    if (!AUTH_401_LINK_ENABLED) return;
+    const identity = {
+      userId: String(user?.id ?? ""),
+      familyId: String(activeFamilyId ?? ""),
+    };
+    const previous = previousIdentityRef.current;
+    previousIdentityRef.current = identity;
+    setSessionLatchKey(latchKey);
+    if (!previous) return;
+    if (previous.userId === identity.userId && previous.familyId === identity.familyId) return;
+    resetSessionExpired();
+    setSessionExpired(false);
+    sessionExpiredAtRef.current = 0;
+    if (previous.userId === identity.userId) queryClient.clear();
+  }, [latchKey, activeFamilyId, user?.id]);
+
+  const authStatus: AuthStatus = sessionExpired
+    ? "unauthenticated"
+    : deriveAuthStatus({
+        hasToken,
+        data: meQuery.data,
+        error: meQuery.error,
+        isLoading,
+      });
   // Backwards-compatible boolean for screens that only care about "definitely signed in".
   const isAuthenticated = authStatus === "authenticated";
 

@@ -19,7 +19,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import * as Haptics from "expo-haptics";
-import { useKeepAwake } from "expo-keep-awake";
+import { useScreenAwake } from "@/hooks/useScreenAwake";
 import { useTranslation } from "react-i18next";
 import { trpc, resolveImageUrl } from "@/lib/trpc";
 import { getBilingualName, getLocalizedSteps } from "@/lib/bilingual";
@@ -53,7 +53,7 @@ export default function CookModeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
-  useKeepAwake("cook-mode");
+  useScreenAwake();
 
   const recipeQ = trpc.recipes.getById.useQuery({ id: id! }, { enabled: !!id });
   const recipe = recipeQ.data;

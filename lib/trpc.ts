@@ -18,6 +18,7 @@ import superjson from "superjson";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, Platform } from "react-native";
 import { FAMILY_ID_KEY, getAuthToken } from "./auth";
+import { handleHttpResponse } from "./sessionExpiry";
 
 function toHeaderRecord(headers: HeadersInit | undefined): Record<string, string> {
   if (!headers) return {};
@@ -174,6 +175,25 @@ const makeClient = () => ({
             signal: controller.signal,
           });
           reportNetworkSuccess();
+          // 只報告，不 logout／不清 cache：AuthProvider 收到事件後交 AuthGuard 跳登入。
+          // flag OFF 仍然寫 [auth401] baseline log（零行為改變）。
+          const requestPath = (() => {
+            try {
+              return new URL(String(url)).pathname;
+            } catch {
+              return "batch";
+            }
+          })();
+          if (response.status === 401) {
+            handleHttpResponse(401, null, requestPath, "http");
+          } else if (response.status < 400) {
+            // httpBatchLink 會將 per-query 錯誤包喺 200 response 內；讀 clone 唔影響原本 body。
+            response
+              .clone()
+              .json()
+              .then((body) => handleHttpResponse(response.status, body, requestPath, "batch"))
+              .catch(() => {});
+          }
           // Timer 保持 armed，直到 body 真正讀完先清。
           return releaseWhenBodyRead(response, release);
         } catch (e) {
