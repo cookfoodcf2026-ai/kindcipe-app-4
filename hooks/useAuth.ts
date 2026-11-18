@@ -29,6 +29,9 @@ import {
   subscribeSessionAlive,
   subscribeSessionExpired,
 } from "@/lib/sessionExpiry";
+import { ACCOUNT_CACHE_ISOLATION_ENABLED } from "@/lib/flags";
+import { applyIdentityCacheIsolation } from "@/lib/cacheIsolation";
+import { setStorageScope } from "@/lib/scopedStorage";
 
 type AuthValue = {
   user: any;
@@ -51,25 +54,6 @@ type AuthValue = {
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
-
-/** Paths that describe the session itself, not one family's data. */
-const SESSION_QUERY_PATHS = new Set(["auth.me", "family.list"]);
-
-/** tRPC v11 query keys are `[pathArray, { input, type }]`. */
-function queryPath(key: readonly unknown[]): string {
-  const head = key[0];
-  if (!Array.isArray(head)) return "";
-  return head.map(String).join(".");
-}
-
-/**
- * Family-scoped = any cached query that is not the session baseline.
- * Kept conservative: an unknown key shape is treated as family-scoped so a
- * family switch never leaks family A data into family B.
- */
-function isFamilyScopedQuery(key: readonly unknown[]): boolean {
-  return !SESSION_QUERY_PATHS.has(queryPath(key));
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -148,31 +132,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const previousIdentityRef = useRef<{ userId: string; familyId: string } | null>(null);
   useEffect(() => {
-    if (!AUTH_401_LINK_ENABLED) return;
     const identity = {
       userId: String(user?.id ?? ""),
       familyId: String(activeFamilyId ?? ""),
     };
     const previous = previousIdentityRef.current;
     previousIdentityRef.current = identity;
-    setSessionLatchKey(latchKey);
-    if (!previous) return;
-    if (previous.userId === identity.userId && previous.familyId === identity.familyId) return;
-    resetSessionExpired();
-    setSessionExpired(false);
-    sessionExpiredAtRef.current = 0;
-    const realAccountSwitch =
-      previous.userId !== "" &&
-      identity.userId !== "" &&
-      previous.userId !== identity.userId;
-    if (realAccountSwitch) {
-      // New account: drop everything, including auth.me / family.list.
-      queryClient.clear();
-    } else if (previous.familyId !== identity.familyId) {
-      // Family switch: never clear auth.me / family.list (clearing auth.me
-      // cancels the in-flight request on cold start). Drop only family data.
-      queryClient.removeQueries({ predicate: (query) => isFamilyScopedQuery(query.queryKey) });
+
+    // 401 latch: unchanged, still gated by AUTH_401_LINK.
+    if (AUTH_401_LINK_ENABLED) {
+      setSessionLatchKey(latchKey);
+      if (
+        previous &&
+        (previous.userId !== identity.userId ||
+          previous.familyId !== identity.familyId)
+      ) {
+        resetSessionExpired();
+        setSessionExpired(false);
+        sessionExpiredAtRef.current = 0;
+      }
     }
+
+    // Cache isolation + storage namespace: own flag, independent of 401 link.
+    if (!ACCOUNT_CACHE_ISOLATION_ENABLED) return;
+    setStorageScope(
+      identity.userId && identity.familyId
+        ? { userId: identity.userId, familyId: identity.familyId }
+        : null,
+    );
+    if (!previous) return;
+    // cancelQueries() is awaited inside so in-flight requests cannot keep
+    // writing into the cache after the switch (90s pollution window).
+    void applyIdentityCacheIsolation(queryClient, previous, identity, {
+      enabled: true,
+    });
   }, [latchKey, activeFamilyId, user?.id]);
 
   const authStatus: AuthStatus = sessionExpired

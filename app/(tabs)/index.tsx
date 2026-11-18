@@ -19,6 +19,7 @@ import { buildIngredientLookup } from "@/lib/ingredientLookup";
 import i18n from "@/lib/i18n";
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "@/lib/scopedStorage";
 import PlanDatePicker from "@/src/components/PlanDatePicker";
 import IngredientPickerModal from "@/src/components/IngredientPickerModal";
 import { useToast } from "@/src/components/Toast";
@@ -756,7 +757,7 @@ export default function RecipesTab() {
   useEffect(() => {
     loadCustomCategories().then(c => setCategories(c));
     // Load search history
-    AsyncStorage.getItem("kindcipe_search_history").then((h) => {
+    familyStorage.getItem("kindcipe_search_history").then((h) => {
       if (h) {
         try {
           const parsed = JSON.parse(h);
@@ -789,7 +790,7 @@ export default function RecipesTab() {
     if (trimmed.length > 0) {
       setSearchHistory(prev => {
         const updated = [trimmed, ...prev.filter(s => s !== trimmed)].slice(0, 20);
-        AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
+        familyStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
         return updated;
       });
     }
@@ -1456,7 +1457,7 @@ export default function RecipesTab() {
         <View style={s.searchHistoryWrap}>
           <View style={s.searchHistoryHeader}>
             <Text style={s.searchHistoryTitle}>{t("home.recentSearch")}</Text>
-            <TouchableOpacity onPress={() => { setSearchHistory([]); AsyncStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
+            <TouchableOpacity onPress={() => { setSearchHistory([]); familyStorage.setItem("kindcipe_search_history", JSON.stringify([])); }}>
               <Text style={s.searchHistoryClear}>{t("home.clearAll")}</Text>
             </TouchableOpacity>
           </View>
@@ -1465,7 +1466,7 @@ export default function RecipesTab() {
               const removeItem = () => {
                 const updated = searchHistory.filter(s => s !== query);
                 setSearchHistory(updated);
-                AsyncStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
+                familyStorage.setItem("kindcipe_search_history", JSON.stringify(updated));
               };
               return (
                 <View key={`${query}-${idx}`}>

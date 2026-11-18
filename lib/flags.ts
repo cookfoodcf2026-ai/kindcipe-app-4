@@ -31,3 +31,26 @@ export function auth401LinkConfigError(
 }
 
 export const AUTH_401_LINK_ENABLED = parseAuth401LinkFlag(RAW_AUTH_401_LINK);
+
+/**
+ * Identity-switch cache isolation (clear/remove cached queries on account or
+ * family change). Deliberately independent of EXPO_PUBLIC_AUTH_401_LINK: the
+ * 401 link only reports session expiry, while this flag controls whether
+ * identity changes wipe cached data.
+ *
+ * Default OFF. Only the literal string "1" turns it ON.
+ */
+const RAW_ACCOUNT_CACHE_ISOLATION: string | undefined =
+  process.env.EXPO_PUBLIC_ACCOUNT_CACHE_ISOLATION;
+
+export const ACCOUNT_CACHE_ISOLATION_RAW = RAW_ACCOUNT_CACHE_ISOLATION;
+
+export function parseAccountCacheIsolationFlag(
+  raw: string | undefined,
+): boolean {
+  return raw === "1";
+}
+
+export const ACCOUNT_CACHE_ISOLATION_ENABLED = parseAccountCacheIsolationFlag(
+  RAW_ACCOUNT_CACHE_ISOLATION,
+);

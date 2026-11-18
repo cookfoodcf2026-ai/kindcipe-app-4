@@ -448,7 +448,7 @@
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
   "swap": {
-    "recycledBadge": "Seen before",
+    "recycledBadge": "Seen before"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade to Pro — unlock more AI meal planning",
@@ -559,7 +559,8 @@
     "retry": "Retry",
     "login": "Log in",
     "privateShareHint": "This recipe is private — copied the recipe text (not a link)",
-    "original": "Original"
+    "original": "Original",
+    "swapUnavailable": "No replacement right now. Please try again."
   },
   "enums": {
     "category": {

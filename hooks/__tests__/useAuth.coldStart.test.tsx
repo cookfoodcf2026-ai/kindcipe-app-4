@@ -1,4 +1,5 @@
 process.env["EXPO_PUBLIC_AUTH_401_LINK"] = "1";
+process.env["EXPO_PUBLIC_ACCOUNT_CACHE_ISOLATION"] = "1";
 
 import React from "react";
 import { Text } from "react-native";
@@ -144,5 +145,58 @@ describe("useAuth — cold start with slow auth.me", () => {
     expect(queryClient.getQueryData([["recipes", "list"], { type: "query" }])).toBeUndefined();
     expect(queryClient.getQueryData([["family", "get"], { type: "query" }])).toBeUndefined();
     expect(mockMeCalls.aborted).toBe(0);
+  });
+
+  it("real account switch awaits cancelQueries before clear()", async () => {
+    const { AuthProvider } = require("@/hooks/useAuth");
+    const { queryClient } = require("@/lib/queryClient");
+    const view = await render(
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Probe />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(
+      () => expect(view.getByTestId("status").props.children).toBe("authenticated|false"),
+      { timeout: 3000 },
+    );
+
+    queryClient.setQueryData([["recipes", "list"], { type: "query" }], [{ id: "r1" }]);
+
+    const order: string[] = [];
+    const originalCancel = queryClient.cancelQueries.bind(queryClient);
+    const originalClear = queryClient.clear.bind(queryClient);
+    const cancelSpy = jest
+      .spyOn(queryClient, "cancelQueries")
+      .mockImplementation(async (filters?: any) => {
+        order.push("cancel");
+        return originalCancel(filters);
+      });
+    const clearSpy = jest.spyOn(queryClient, "clear").mockImplementation(() => {
+      order.push("clear");
+      originalClear();
+    });
+
+    try {
+      await act(async () => {
+        queryClient.setQueryData([["auth", "me"], { type: "query" }], {
+          id: "u2",
+          name: "Other",
+        });
+        await Promise.resolve();
+      });
+
+      await waitFor(() => expect(order).toContain("clear"), { timeout: 3000 });
+
+      expect(order[0]).toBe("cancel");
+      expect(order.indexOf("clear")).toBeGreaterThan(order.indexOf("cancel"));
+      expect(queryClient.getQueryData([["auth", "me"], { type: "query" }])).toBeUndefined();
+      expect(queryClient.getQueryData([["recipes", "list"], { type: "query" }])).toBeUndefined();
+    } finally {
+      cancelSpy.mockRestore();
+      clearSpy.mockRestore();
+    }
   });
 });

@@ -448,7 +448,7 @@
     "mealIncomplete": "今次只搵到 {{got}} 道菜（要 {{want}} 道）。可以再試一次，或者用「AI 生成食譜」補齊。"
   },
   "swap": {
-    "recycledBadge": "已睇過",
+    "recycledBadge": "已睇過"
   },
   "adSlot": {
     "upgradeTitle": "升級 Pro，解鎖更多 AI 排餐",
@@ -559,7 +559,8 @@
     "retry": "重試",
     "login": "登入",
     "privateShareHint": "此食譜為私密，已複製食譜文字（非連結）",
-    "original": "原文"
+    "original": "原文",
+    "swapUnavailable": "暫時搵唔到替代，可以再試"
   },
   "enums": {
     "category": {

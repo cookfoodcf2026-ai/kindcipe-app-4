@@ -4,7 +4,7 @@ import {
   View, Text, TouchableOpacity, Modal, FlatList, TextInput,
   StyleSheet,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "@/lib/scopedStorage";
 import { enumT } from "@/lib/i18nEnums";
 
 const COMMON_UNITS = [
@@ -78,7 +78,7 @@ export default function UnitPicker(
 
   const loadCustomUnits = async () => {
     try {
-      const stored = await AsyncStorage.getItem("@kindcipe:custom-units");
+      const stored = await familyStorage.getItem("@kindcipe:custom-units");
       if (stored) {
         const parsed = safeParseStringArray(stored);
         if (parsed) setCustomUnits(parsed);
@@ -93,7 +93,7 @@ export default function UnitPicker(
       const updated = [...customUnits, unit];
       setCustomUnits(updated);
       try {
-        await AsyncStorage.setItem("@kindcipe:custom-units", JSON.stringify(updated));
+        await familyStorage.setItem("@kindcipe:custom-units", JSON.stringify(updated));
       } catch (e) {
         console.error("Failed to save custom unit:", e);
       }

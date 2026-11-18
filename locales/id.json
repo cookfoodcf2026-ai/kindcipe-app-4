@@ -448,7 +448,7 @@
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
   "swap": {
-    "recycledBadge": "Sudah dilihat",
+    "recycledBadge": "Sudah dilihat"
   },
   "adSlot": {
     "upgradeTitle": "Upgrade ke Pro — buka lebih banyak AI meal planning",
@@ -559,7 +559,8 @@
     "retry": "Coba lagi",
     "login": "Masuk",
     "privateShareHint": "Resep ini privat — teks resep disalin (bukan tautan)",
-    "original": "Asli"
+    "original": "Asli",
+    "swapUnavailable": "Belum ada pengganti. Coba lagi."
   },
   "enums": {
     "category": {

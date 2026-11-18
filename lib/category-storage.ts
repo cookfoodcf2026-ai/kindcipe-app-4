@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "./scopedStorage";
 
 const STORAGE_KEY = "@kindcipe/custom-categories";
 
@@ -34,7 +34,7 @@ function safeParseCategories(raw: string): CategoryDef[] | null {
 
 export async function loadCustomCategories(): Promise<CategoryDef[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await familyStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = safeParseCategories(raw);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -44,7 +44,7 @@ export async function loadCustomCategories(): Promise<CategoryDef[]> {
 }
 
 export async function saveCustomCategories(categories: CategoryDef[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
+  await familyStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
 }
 
 export function validateCategory(label: string, emoji: string): string | null {

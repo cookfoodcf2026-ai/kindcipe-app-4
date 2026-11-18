@@ -11,6 +11,7 @@ import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "@/lib/scopedStorage";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
 import { trpc, apiClient, resolveImageUrl } from "@/lib/trpc";
@@ -1123,7 +1124,7 @@ export default function AIChefScreen() {
     cardHistoryRef.current = next;
     setCardHistory(next);
     const uid = userIdRef.current;
-    if (uid) AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+    if (uid) familyStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
   };
 
   // Explicit single-writer: callers decide which operations are a new "group".
@@ -1149,7 +1150,7 @@ export default function AIChefScreen() {
     // Before the stored history has loaded, keep the next value in memory only;
     // the load effect will merge it with the stored list instead of losing it.
     if (!historyReadyRef.current) return;
-    AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+    familyStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
   };
 
   const syncCardHistoryEntry = (preKey: string, cards: AIRecipe[]) => {
@@ -1161,7 +1162,7 @@ export default function AIChefScreen() {
     if (!historyReadyRef.current) return;
     const uid = userIdRef.current;
     if (!uid) return;
-    AsyncStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
+    familyStorage.setItem(CARD_HISTORY_KEY(uid), JSON.stringify(next)).catch(() => {});
   };
 
   const pendingPostShoppingDateRef = useRef<string | null>(null);
@@ -1903,7 +1904,7 @@ export default function AIChefScreen() {
     if (!user?.id) return;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(SESSIONS_KEY(user.id));
+        const raw = await familyStorage.getItem(SESSIONS_KEY(user.id));
         let all: ChatSession[] = raw ? JSON.parse(raw) : [];
 
         all = all.map(session => ({
@@ -1920,7 +1921,7 @@ export default function AIChefScreen() {
 
         // Migrate old single-chat data to new multi-session format
         if (all.length === 0) {
-          const oldChat = await AsyncStorage.getItem(OLD_CHAT_KEY(user.id));
+          const oldChat = await familyStorage.getItem(OLD_CHAT_KEY(user.id));
           if (oldChat) {
             try {
               const oldMessages: Message[] = JSON.parse(oldChat);
@@ -1928,7 +1929,7 @@ export default function AIChefScreen() {
                 const migratedId = generateId();
                 const title = makeSessionTitle(oldMessages);
                 all = [{ id: migratedId, title, createdAt: Date.now(), messages: oldMessages }];
-                await AsyncStorage.removeItem(OLD_CHAT_KEY(user.id));
+                await familyStorage.removeItem(OLD_CHAT_KEY(user.id));
               }
             } catch { /* ignore */ }
           }
@@ -1942,7 +1943,7 @@ export default function AIChefScreen() {
         // Load card history together with sessions so legacy (names-only) entries
         // can be upgraded from local session cards before any commit overwrites it.
         try {
-          const rawHistory = await AsyncStorage.getItem(CARD_HISTORY_KEY(user.id));
+          const rawHistory = await familyStorage.getItem(CARD_HISTORY_KEY(user.id));
           const stored = sanitizeCardHistory<AIRecipe>(rawHistory ? JSON.parse(rawHistory) : []);
           if (userIdRef.current !== user.id) {
             // Account changed while this read was in flight; don't leak history.
@@ -1969,7 +1970,7 @@ export default function AIChefScreen() {
           historyReadyRef.current = true;
         }
 
-        const activeId = await AsyncStorage.getItem(ACTIVE_KEY(user.id));
+        const activeId = await familyStorage.getItem(ACTIVE_KEY(user.id));
         setSessions(all);
         // 用 functional update：若 Hero 已搶先開咗新 session（prev 已有值），唔好被還原覆蓋。
         setActiveChatId(prev => prev || (activeId && all.find(s => s.id === activeId) ? activeId : (all[0]?.id ?? "")));
@@ -2010,8 +2011,8 @@ export default function AIChefScreen() {
         return { role: m.role, content: compactContent };
       }),
     }));
-    AsyncStorage.setItem(SESSIONS_KEY(user.id), JSON.stringify(compact)).catch(() => {});
-    AsyncStorage.setItem(ACTIVE_KEY(user.id), nextActive).catch(() => {});
+    familyStorage.setItem(SESSIONS_KEY(user.id), JSON.stringify(compact)).catch(() => {});
+    familyStorage.setItem(ACTIVE_KEY(user.id), nextActive).catch(() => {});
   }, [user?.id]);
 
   // ─── Update a session's messages ───────────────────────
@@ -2343,10 +2344,12 @@ export default function AIChefScreen() {
             chatGenerationRef.current += 1;
             const uid = user?.id;
             if (uid) {
-              await AsyncStorage.removeItem(CARD_HISTORY_KEY(uid));
-              await AsyncStorage.removeItem(OLD_CHAT_KEY(uid));
-              await AsyncStorage.removeItem(SESSIONS_KEY(uid));
-              await AsyncStorage.removeItem(ACTIVE_KEY(uid));
+              await familyStorage.removeItems([
+                CARD_HISTORY_KEY(uid),
+                OLD_CHAT_KEY(uid),
+                SESSIONS_KEY(uid),
+                ACTIVE_KEY(uid),
+              ]);
             }
             const newId = generateId();
             const fresh: ChatSession = { id: newId, title: t("新對話" as any), createdAt: Date.now(), messages: [] };
@@ -3989,7 +3992,7 @@ export default function AIChefScreen() {
       }
 
       if (decision.action === "noop") {
-        showToast(t("暫時搵唔到替代，可以再試" as any));
+        showToast(t("recipe.swapUnavailable" as any));
         return;
       }
     } catch (e: any) {
@@ -4258,7 +4261,7 @@ export default function AIChefScreen() {
       setSwappingIndex(null);
     }
     if (lastResponse?.swapFailed === true) {
-      showToast(t("暫時搵唔到替代，可以再試" as any));
+      showToast(t("recipe.swapUnavailable" as any));
       return;
     }
 

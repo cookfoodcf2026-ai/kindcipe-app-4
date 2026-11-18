@@ -9,7 +9,7 @@ import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "@/lib/scopedStorage";
 import { trpc } from "@/lib/trpc";
 import { useToast } from "@/src/components/Toast";
 import ShoppingAddConfirm from "@/src/components/ShoppingAddConfirm";
@@ -225,7 +225,7 @@ export default function ShoppingTemplatesScreen() {
   
   const loadSavedLists = async () => {
     try {
-      const stored = await AsyncStorage.getItem("@kindcipe:saved-shopping-lists");
+      const stored = await familyStorage.getItem("@kindcipe:saved-shopping-lists");
       if (stored) {
         const parsed = safeParseArray<any>(stored);
         if (parsed) setSavedLists(parsed);
@@ -338,7 +338,7 @@ export default function ShoppingTemplatesScreen() {
     setSavedLists(updatedLists);
     
     try {
-      await AsyncStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
+      await familyStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLastSavedFingerprint(currentFingerprint);
       setShowSaveListModal(false);
@@ -408,7 +408,7 @@ export default function ShoppingTemplatesScreen() {
             const updatedLists = savedLists.filter(l => l.id !== listId);
             setSavedLists(updatedLists);
             try {
-              await AsyncStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
+              await familyStorage.setItem("@kindcipe:saved-shopping-lists", JSON.stringify(updatedLists));
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (e) {
               console.error("Failed to delete list:", e);

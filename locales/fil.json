@@ -448,7 +448,7 @@
     "mealIncomplete": "Only {{got}} of {{want}} dishes were found. Try again, or use AI to fill the rest."
   },
   "swap": {
-    "recycledBadge": "Nakita na",
+    "recycledBadge": "Nakita na"
   },
   "adSlot": {
     "upgradeTitle": "Mag-upgrade sa Pro — mas maraming AI meal planning",
@@ -559,7 +559,8 @@
     "retry": "Subukan muli",
     "login": "Mag-log in",
     "privateShareHint": "Pribado ang recipe — nakopya ang teksto (hindi link)",
-    "original": "Orihinal"
+    "original": "Orihinal",
+    "swapUnavailable": "Wala pang kapalit ngayon. Subukan muli."
   },
   "enums": {
     "category": {

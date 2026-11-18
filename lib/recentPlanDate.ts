@@ -5,7 +5,7 @@
  * 之前個掣永遠預設今日，要再揀一次。呢個 module 只負責記住最後一次用嘅日期，
  * 呼叫方仍然可以覆蓋（例如用戶明確喺 sheet 改日期）。
  */
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { familyStorage } from "./scopedStorage";
 
 const KEY = "kindcipe_last_plan_date";
 
@@ -20,7 +20,7 @@ export function localISODate(d: Date = new Date()): string {
 export async function rememberPlanDate(date?: string | null): Promise<void> {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
   try {
-    await AsyncStorage.setItem(KEY, date);
+    await familyStorage.setItem(KEY, date);
   } catch {
     /* 記唔到就算，唔影響排餐 */
   }
@@ -32,7 +32,7 @@ export async function rememberPlanDate(date?: string | null): Promise<void> {
  */
 export async function getLastPlanDate(): Promise<string | null> {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
+    const raw = await familyStorage.getItem(KEY);
     if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
     // ISO 字串可以直接比大細；過去日期一律唔用
     return raw < localISODate() ? null : raw;
