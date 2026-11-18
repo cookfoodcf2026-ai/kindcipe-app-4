@@ -32,7 +32,7 @@ const batchWith401 = [
 ];
 
 test("flag defaults OFF (link reporting is a no-op unless explicitly enabled)", () => {
-  assert.equal(process.env.EXPO_PUBLIC_AUTH_401_LINK ?? "", "");
+  assert.equal(process.env["EXPO_PUBLIC_AUTH_401_LINK"] ?? "", "");
   assert.equal(AUTH_401_LINK_ENABLED, false);
 });
 

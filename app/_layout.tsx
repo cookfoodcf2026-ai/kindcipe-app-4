@@ -45,6 +45,8 @@ import { ToastProvider } from "@/src/components/Toast";
 import { AppleRelayLinkPrompt } from "@/src/components/AppleRelayLinkPrompt";
 import { AnalyticsConsentCard } from "@/src/components/AnalyticsConsentCard";
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
+const BUILD_STAMP = process.env.EXPO_PUBLIC_BUILD_STAMP ?? "dev";
+console.info("[build]", BUILD_STAMP);
 
 Sentry.init({
   dsn: SENTRY_DSN,

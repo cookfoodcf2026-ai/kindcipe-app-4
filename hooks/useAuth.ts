@@ -52,6 +52,25 @@ type AuthValue = {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
+/** Paths that describe the session itself, not one family's data. */
+const SESSION_QUERY_PATHS = new Set(["auth.me", "family.list"]);
+
+/** tRPC v11 query keys are `[pathArray, { input, type }]`. */
+function queryPath(key: readonly unknown[]): string {
+  const head = key[0];
+  if (!Array.isArray(head)) return "";
+  return head.map(String).join(".");
+}
+
+/**
+ * Family-scoped = any cached query that is not the session baseline.
+ * Kept conservative: an unknown key shape is treated as family-scoped so a
+ * family switch never leaks family A data into family B.
+ */
+function isFamilyScopedQuery(key: readonly unknown[]): boolean {
+  return !SESSION_QUERY_PATHS.has(queryPath(key));
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -142,7 +161,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetSessionExpired();
     setSessionExpired(false);
     sessionExpiredAtRef.current = 0;
-    if (previous.userId === identity.userId) queryClient.clear();
+    const realAccountSwitch =
+      previous.userId !== "" &&
+      identity.userId !== "" &&
+      previous.userId !== identity.userId;
+    if (realAccountSwitch) {
+      // New account: drop everything, including auth.me / family.list.
+      queryClient.clear();
+    } else if (previous.familyId !== identity.familyId) {
+      // Family switch: never clear auth.me / family.list (clearing auth.me
+      // cancels the in-flight request on cold start). Drop only family data.
+      queryClient.removeQueries({ predicate: (query) => isFamilyScopedQuery(query.queryKey) });
+    }
   }, [latchKey, activeFamilyId, user?.id]);
 
   const authStatus: AuthStatus = sessionExpired

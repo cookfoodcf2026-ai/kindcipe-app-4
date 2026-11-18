@@ -10,13 +10,12 @@
  * screens keep today's behaviour exactly.
  */
 import { isUnauthorizedError } from "./authStatus";
+import { AUTH_401_LINK_ENABLED } from "./flags";
 
 export type SessionExpiredInfo = { source: string; error?: unknown };
 
-/** Static access so Expo/Metro can inline the value at build time. */
-export const AUTH_401_LINK_ENABLED =
-  process.env.EXPO_PUBLIC_AUTH_401_LINK === "1" ||
-  process.env.EXPO_PUBLIC_AUTH_401_LINK === "true";
+/** Re-exported from the one resolver in `lib/flags.ts` (single env read). */
+export { AUTH_401_LINK_ENABLED };
 
 /** AI Chef spinner watchdog. Must stay <= SESSION_LATCH_TTL_MS. */
 export const CHEF_WATCHDOG_MS = 20_000;
